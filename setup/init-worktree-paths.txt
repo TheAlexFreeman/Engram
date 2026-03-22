@@ -1,0 +1,17 @@
+# Minimal seed content copied into a deployed memory worktree.
+# User-specific memory content is generated fresh by setup/init-worktree.sh rather
+# than copied from this repository.
+AGENTS.md
+CLAUDE.md
+.cursorrules
+.gitattributes
+README.md
+agent-bootstrap.toml
+pyproject.toml
+core/tools/__init__.py
+core/tools/agent_memory_mcp
+core/tools/memory_mcp.py
+core/governance
+core/INIT.md
+core/memory/HOME.md
+core/memory/skills

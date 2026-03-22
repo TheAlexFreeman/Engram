@@ -1,0 +1,17 @@
+{
+  "_comment": "Add this 'agent-memory' block to the 'mcpServers' section of your Claude Desktop config.",
+  "_config_file_locations": {
+    "macOS": "~/Library/Application Support/Claude/claude_desktop_config.json",
+    "Linux": "~/.config/claude/claude_desktop_config.json",
+    "Windows": "%APPDATA%\\Claude\\claude_desktop_config.json"
+  },
+  "mcpServers": {
+    "agent-memory": {
+      "command": "python",
+      "args": ["~/code/personal/agent-memory-seed/core/tools/memory_mcp.py"],
+      "env": {
+        "AGENT_MEMORY_ROOT": "~/code/personal/agent-memory-seed"
+      }
+    }
+  }
+}

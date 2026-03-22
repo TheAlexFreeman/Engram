@@ -1,0 +1,1151 @@
+version = 1
+kind = "agent-memory-capabilities"
+mcp_entrypoint = "core/tools/memory_mcp.py"
+manifest_role = "Repo-side prototype for governed memory writes and capability discovery."
+shared_result_type = "MemoryWriteResult"
+
+[contract_versions]
+frontmatter = 1
+access = 1
+mcp = 1
+capabilities = 1
+preview = 1
+resources = 1
+prompts = 1
+provenance = 1
+structured_read = 1
+
+[tool_sets]
+read_support = [
+  # Self-referential by design: this tool reads the manifest that declares it.
+  "memory_get_capabilities",
+  "memory_get_tool_profiles",
+  "memory_get_policy_state",
+  "memory_route_intent",
+  "memory_read_file",
+  "memory_list_folder",
+  "memory_search",
+  "memory_find_references",
+  "memory_validate_links",
+  "memory_reorganize_preview",
+  "memory_suggest_structure",
+  "memory_check_cross_references",
+  "memory_generate_summary",
+  "memory_access_analytics",
+  "memory_diff_branch",
+  # memory_git_log supports optional `since` (YYYY-MM-DD) and `path_filter`
+  # parameters; returned commit entries may include `truncated` when `n`
+  # clips matches before the date window is exhausted.
+  "memory_git_log",
+  "memory_session_health_check",
+  "memory_session_bootstrap",
+  "memory_prepare_unverified_review",
+  "memory_prepare_promotion_batch",
+  "memory_prepare_periodic_review",
+  "memory_check_aggregation_triggers",
+  "memory_aggregate_access",
+  "memory_run_periodic_review",
+  "memory_get_file_provenance",
+  "memory_extract_file",
+  "memory_inspect_commit",
+  "memory_diff",
+  # memory_audit_trust supports optional `warn_pct` and may return an
+  # `approaching` bucket before files enter the 30-day upcoming window.
+  "memory_audit_trust",
+  "memory_validate",
+  "memory_get_maturity_signals",
+  "memory_list_plans",
+  "memory_reset_session_state",
+]
+raw_fallback = [
+  "memory_write",
+  "memory_edit",
+  "memory_delete",
+  "memory_move",
+  "memory_update_frontmatter",
+  # memory_update_frontmatter_bulk caps batches at 100 files.
+  "memory_update_frontmatter_bulk",
+  "memory_commit",
+]
+semantic_extensions = [
+  "memory_plan_create",
+  "memory_plan_execute",
+  "memory_plan_review",
+  "memory_add_knowledge_file",
+  "memory_reorganize_path",
+  "memory_promote_knowledge_batch",
+  "memory_promote_knowledge",
+  "memory_demote_knowledge",
+  "memory_archive_knowledge",
+  "memory_append_scratchpad",
+  "memory_update_skill",
+  "memory_update_user_trait",
+  "memory_record_session",
+  "memory_run_aggregation",
+  "memory_record_chat_summary",
+  "memory_record_reflection",
+  "memory_record_periodic_review",
+  "memory_log_access",
+  "memory_log_access_batch",
+  "memory_flag_for_review",
+  "memory_resolve_review_item",
+  "memory_revert_commit",
+]
+declared_gaps = []
+
+[integration_boundary]
+model = "hybrid"
+prefer = "repo_local_semantic_mcp"
+native_semantic_scope = "generic_only"
+manifest_required_for_repo_specific_semantics = true
+degradation_order = [
+  "repo_local_semantic_mcp",
+  "codex_native_preview_and_policy",
+  "raw_fallback_or_defer",
+]
+desktop_owns = [
+  "approval_ux",
+  "change_class_enforcement",
+  "capability_discovery",
+  "preview_rendering",
+  "result_presentation",
+  "fallback_selection",
+]
+repo_local_mcp_owns = [
+  "semantic_execution",
+  "repo_specific_invariants",
+  "schema_validation",
+  "authoritative_mutation",
+  "structured_result_state",
+]
+native_fallback_owns = [
+  "generic_preview",
+  "raw_tool_orchestration",
+  "deferred_action_summary",
+]
+
+[capability_discovery]
+well_known_paths = ["HUMANS/tooling/agent-memory-capabilities.toml"]
+requires_kind = "agent-memory-capabilities"
+supported_versions = [1]
+requires_mcp_entrypoint = true
+minimum_read_tools = [
+  "memory_read_file",
+  "memory_list_folder",
+  "memory_search",
+  "memory_validate",
+]
+minimum_semantic_tools = [
+  "memory_plan_create",
+  "memory_plan_execute",
+  "memory_add_knowledge_file",
+]
+read_only_runtime_allowed = true
+semantic_detection = "manifest_and_minimum_semantic_tools"
+read_only_detection = "minimum_read_tools_without_write_tools"
+semantic_result = "repo_local_semantic_mcp"
+read_only_result = "codex_native_preview_and_policy"
+incompatible_result = "raw_fallback_or_defer"
+
+[tool_profile_contract]
+version = 1
+selection_mode = "host_side_narrowing_only"
+dynamic_runtime_switching = false
+list_changed_supported = false
+default_profile = "full"
+profile_argument = "profile"
+compatibility_note = "Tool profiles are advisory metadata only; the MCP runtime exports a static tool surface."
+
+[tool_profiles.full]
+label = "Full Surface"
+description = "Expose the complete governed surface, including raw fallback tools when the host opts in."
+tool_sets = ["read_support", "semantic_extensions", "raw_fallback"]
+default = true
+
+[tool_profiles.guided_write]
+label = "Guided Writes"
+description = "Prefer governed read and semantic tools while excluding raw fallback writes from host discovery."
+tool_sets = ["read_support", "semantic_extensions"]
+
+[tool_profiles.read_only]
+label = "Read Only"
+description = "Limit host discovery to read and reporting tools when writes are unavailable or undesired."
+tool_sets = ["read_support"]
+
+[mcp_native_surface]
+resources_enabled = true
+prompts_enabled = true
+resource_listing_api = "FastMCP list_resources/read_resource"
+prompt_listing_api = "FastMCP list_prompts/get_prompt"
+resource_fallback_tool = "memory_get_capabilities"
+prompt_fallback_tool = "memory_get_capabilities"
+boundary_note = "Resources expose stable read-mostly state; prompts package recurring workflows; tools remain authoritative for mutations and parameterized reads."
+
+[mcp_native_surface.resources.capability_summary]
+uri = "memory://capabilities/summary"
+backed_by = "memory_get_capabilities"
+when_to_use = "Load the compact capability and profile snapshot without invoking a tool call."
+
+[mcp_native_surface.resources.policy_summary]
+uri = "memory://policy/summary"
+backed_by = "memory_get_policy_state"
+when_to_use = "Inspect stable change-class, fallback, and profile policy boundaries before path-specific compilation."
+
+[mcp_native_surface.resources.session_health]
+uri = "memory://session/health"
+backed_by = "memory_session_health_check"
+when_to_use = "Check aggregation pressure, review cadence, and pending queue state at session start."
+
+[mcp_native_surface.resources.active_plans]
+uri = "memory://plans/active"
+backed_by = "memory_list_plans"
+when_to_use = "Load a compact summary of active plans and next actions for navigation."
+
+[mcp_native_surface.prompts.unverified_review]
+name = "memory_prepare_unverified_review_prompt"
+backed_by = "memory_prepare_unverified_review"
+when_to_use = "Guide a host through review of low-trust knowledge before promotion."
+
+[mcp_native_surface.prompts.promotion_preview]
+name = "memory_governed_promotion_preview_prompt"
+backed_by = "memory_prepare_promotion_batch"
+when_to_use = "Structure a governed promotion-preview conversation before applying knowledge promotions."
+
+[mcp_native_surface.prompts.periodic_review]
+name = "memory_prepare_periodic_review_prompt"
+backed_by = "memory_prepare_periodic_review"
+when_to_use = "Guide a protected periodic-review workflow using the compact review bundle."
+
+[mcp_native_surface.prompts.session_wrap_up]
+name = "memory_session_wrap_up_prompt"
+backed_by = "memory_record_session"
+when_to_use = "Guide end-of-session summarization, reflection, and deferred follow-up capture."
+
+[provenance_schema]
+optional_fields = [
+  "origin_commit",
+  "produced_by",
+  "verified_by",
+  "inputs",
+  "related_sources",
+]
+backward_compatible = true
+guidance = "These fields are additive lineage hints. Older files remain valid when they are absent."
+
+[structured_read]
+tool = "memory_extract_file"
+purpose = "Return frontmatter, heading outline, selected sections, and bounded previews without temp-file fallback for common large-file inspection."
+supports_markdown_outline = true
+supports_selected_headings = true
+supports_preview_windows = true
+
+[ui_feedback]
+panel_title = "Governed Memory Writes"
+manifest_action_label = "Open Capability Manifest"
+manifest_action_reason = "Repo-declared governed-write contract and semantic tool surface."
+
+[ui_feedback.status_labels]
+semantic = "Repo-local semantic MCP ready"
+read_only = "Read-only governed preview"
+fallback = "Fallback or defer"
+manifest_only = "Manifest loaded"
+
+[ui_feedback.preview_section_labels]
+summary = "Change Summary"
+reasoning = "Why This Change"
+target_files = "Changed Files"
+invariant_effects = "Invariant Effects"
+commit_suggestion = "Commit Suggestion"
+fallback_behavior = "Fallback Behavior"
+
+[ui_feedback.result_field_labels]
+plan_path = "Plan File"
+status = "Status"
+next_action = "Next Action"
+plan_status = "Plan Status"
+phase_id = "Phase Id"
+phase_progress = "Phase Progress"
+plan_progress = "Plan Progress"
+version_token = "Version Token"
+new_path = "Knowledge Path"
+trust = "Trust"
+archive_path = "Archive Path"
+target = "Scratchpad Target"
+target_folder = "Target Folder"
+section = "Section"
+key = "Identity Key"
+mode = "Update Mode"
+promoted_count = "Promoted Count"
+promoted_files = "Promoted Files"
+summary_updates = "Summary Updates"
+identity_updates_this_session = "Identity Updates This Session"
+session_id = "Chat Session"
+flagged_path = "Flagged Path"
+priority = "Review Priority"
+item_id = "Review Item"
+reflection_path = "Reflection Path"
+review_date = "Review Date"
+active_stage = "Active Stage"
+belief_diff_written = "Belief Diff Written"
+review_queue_written = "Review Queue Written"
+preview_token = "Preview Token"
+eligible = "Eligible for Revert"
+policy_reasons = "Policy Reasons"
+reverted_sha = "Reverted Commit"
+new_sha = "New Commit"
+access_jsonl = "Access Log File"
+access_jsonls = "Access Log Files"
+entry_count = "Access Entry Count"
+scan_entry_count = "Scan Entry Count"
+write_sessions = "Write Sessions"
+access_density_by_task_id = "Access Density by Task ID"
+entries_processed = "Entries Processed"
+session_groups_processed = "Session Groups Processed"
+legacy_fallback_entries = "Legacy Fallback Entries"
+summary_update_targets = "Summary Update Targets"
+summary_materialization_targets = "Summary Materialization Targets"
+hot_access_targets = "Hot ACCESS Targets"
+hot_access_reset_targets = "Hot ACCESS Reset Targets"
+archive_targets = "Archive Targets"
+source = "Source Path"
+dest = "Destination Path"
+moved_count = "Moved Files"
+refs_updated = "References Updated"
+files_to_move = "Files To Move"
+outbox_root = "Outbox Root"
+exported_artifacts = "Exported Artifacts"
+
+[shared_result]
+fields = [
+  "files_changed",
+  "commit_sha",
+  "commit_message",
+  "new_state",
+  "warnings",
+  "preview",
+]
+raw_commit_model = "stage_then_memory_commit"
+semantic_commit_model = "auto_commit_on_success"
+
+[access_logging]
+task_ids = ["plan-review", "research-write", "validation", "health-check"]
+
+[change_classes.automatic]
+approval = "none"
+user_awareness = "not_required"
+ui_affordance = "apply_and_report"
+read_only_behavior = "defer_and_emit_summary"
+notes = "Routine, bounded writes that the repo allows without a separate approval step."
+
+[change_classes.proposed]
+approval = "explicit_user_awareness"
+user_awareness = "required_before_write"
+ui_affordance = "preview_and_wait"
+read_only_behavior = "defer_and_queue_review_or_summary"
+notes = "Meaningful durable-memory changes that should be surfaced to the user before execution."
+
+[change_classes.protected]
+approval = "explicit_user_approval"
+user_awareness = "required_before_write"
+ui_affordance = "block_until_approved"
+read_only_behavior = "defer_and_report_blocked"
+notes = "Protected-target writes such as README.md, most governance/ files, and memory/skills/ changes."
+
+[raw_fallback_policy]
+policy = "inherit_operation_change_class"
+runtime_export = "opt_in"
+opt_in_env_var = "MEMORY_ENABLE_RAW_WRITE_TOOLS"
+requires_change_class = true
+preview_required_for = ["proposed", "protected"]
+read_only_mode = "emit_deferred_action_summary"
+
+[fallback_behavior.semantic_gap]
+trigger = "no_semantic_tool_exists_for_requested_write"
+raw_tools_allowed = true
+requires_change_class = true
+requires_contract_preservation = true
+result = "use_raw_tools_with_preview_or_defer"
+
+[fallback_behavior.uninterpretable_target]
+trigger = "semantic_tool_cannot_model_target_file_or_repo_shape"
+raw_tools_allowed = false
+requires_change_class = true
+requires_contract_preservation = true
+result = "defer_with_contract_warning"
+
+[fallback_behavior.preview_only]
+trigger = "user_requested_preview_or_app_requested_dry_run"
+raw_tools_allowed = false
+requires_change_class = true
+requires_contract_preservation = false
+result = "return_preview_without_writing"
+
+[fallback_behavior.read_only]
+trigger = "runtime_disallows_writes_for_this_repo_or_thread"
+raw_tools_allowed = false
+requires_change_class = true
+requires_contract_preservation = false
+result = "return_deferred_action_summary"
+
+[approval_ux.preview]
+required_for = ["proposed", "protected"]
+sections = [
+  "summary",
+  "reasoning",
+  "target_files",
+  "invariant_effects",
+  "commit_suggestion",
+  "fallback_behavior",
+]
+show_resulting_state = true
+show_warnings = true
+
+[approval_ux.proposed]
+trigger = "before_write"
+primary_action = "apply_after_confirmation"
+secondary_actions = ["open_files", "defer"]
+deferred_outcome = "queue_review_or_summary"
+copy_style = "brief_reasoned_summary"
+
+[approval_ux.protected]
+trigger = "before_write"
+primary_action = "approve_and_apply"
+secondary_actions = ["open_files", "defer", "cancel"]
+deferred_outcome = "report_blocked"
+copy_style = "explicit_protected_warning"
+
+[error_taxonomy.ConflictError]
+status = "implemented"
+meaning = "Version token mismatch while updating an existing file."
+recovery = "Re-read the file, obtain the current version token, and retry."
+
+[error_taxonomy.NotFoundError]
+status = "implemented"
+meaning = "Referenced file, plan, or section does not exist."
+recovery = "Refresh caller state and verify the target path or identifier."
+
+[error_taxonomy.ValidationError]
+status = "implemented"
+meaning = "Input, frontmatter, or invariant contract is invalid."
+recovery = "Fix the request shape or normalize content before retrying."
+
+[error_taxonomy.StagingError]
+status = "implemented"
+meaning = "git add, mv, rm, or commit failed while sealing the change."
+recovery = "Inspect git stderr, correct repo state, and retry."
+
+[error_taxonomy.MemoryPermissionError]
+status = "implemented"
+meaning = "Operation is blocked by protected-directory or delete-permission rules."
+recovery = "Choose a non-protected path or obtain explicit runtime permission."
+
+[error_taxonomy.AlreadyDoneError]
+status = "defined_not_currently_emitted"
+meaning = "Operation was already in the requested end state."
+recovery = "Treat as idempotent no-op and refresh caller state if needed."
+
+[desktop_operations.create_plan]
+status = "implemented"
+tool = "memory_plan_create"
+tier = "semantic"
+operation_group = "plan"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+
+[desktop_operations.execute_plan]
+status = "implemented"
+tool = "memory_plan_execute"
+tier = "semantic"
+operation_group = "plan"
+change_class = "proposed"
+notes = "May escalate to protected at runtime when a phase targets non-memory paths."
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+
+[desktop_operations.review_plan]
+status = "implemented"
+tool = "memory_plan_review"
+tier = "semantic"
+operation_group = "plan"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+
+[desktop_operations.add_knowledge_file]
+status = "implemented"
+tool = "memory_add_knowledge_file"
+tier = "semantic"
+operation_group = "knowledge"
+change_class = "automatic"
+
+[desktop_operations.promote_knowledge]
+status = "implemented"
+tool = "memory_promote_knowledge"
+tier = "semantic"
+operation_group = "knowledge"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+
+[desktop_operations.promote_knowledge_batch]
+status = "implemented"
+tool = "memory_promote_knowledge_batch"
+tier = "semantic"
+operation_group = "knowledge"
+change_class = "proposed"
+
+[desktop_operations.demote_knowledge]
+status = "implemented"
+tool = "memory_demote_knowledge"
+tier = "semantic"
+operation_group = "knowledge"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+
+[desktop_operations.archive_knowledge]
+status = "implemented"
+tool = "memory_archive_knowledge"
+tier = "semantic"
+operation_group = "knowledge"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+
+[desktop_operations.append_scratchpad]
+status = "implemented"
+tool = "memory_append_scratchpad"
+tier = "semantic"
+operation_group = "scratchpad"
+change_class = "automatic"
+
+[desktop_operations.update_skill]
+status = "implemented"
+tool = "memory_update_skill"
+tier = "semantic"
+operation_group = "skill"
+change_class = "protected"
+notes = "Protected governed path for updates to existing or newly created skill files."
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+
+[desktop_operations.update_user_trait]
+status = "implemented"
+tool = "memory_update_user_trait"
+tier = "semantic"
+operation_group = "identity"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+
+[desktop_operations.record_chat_summary]
+status = "implemented"
+tool = "memory_record_chat_summary"
+tier = "semantic"
+operation_group = "chat"
+change_class = "automatic"
+notes = "Superseded for full wrap-up by memory_record_session; kept for summary-only writes."
+
+[desktop_operations.record_session]
+status = "implemented"
+tool = "memory_record_session"
+tier = "semantic"
+operation_group = "chat"
+change_class = "automatic"
+
+[desktop_operations.run_aggregation]
+status = "implemented"
+tool = "memory_run_aggregation"
+tier = "semantic"
+operation_group = "governance"
+change_class = "proposed"
+notes = "Supports dry-run preview by default; apply mode compacts ACCESS logs, refreshes usage-pattern summaries, and archives immutable monthly segments."
+preview_support = true
+preview_mode = "dry_run"
+preview_argument = "dry_run"
+
+[desktop_operations.flag_for_review]
+status = "implemented"
+tool = "memory_flag_for_review"
+tier = "semantic"
+operation_group = "governance"
+change_class = "automatic"
+notes = "Narrow machine-generated governance append; not a general protected meta edit."
+
+[desktop_operations.resolve_review_item]
+status = "implemented"
+tool = "memory_resolve_review_item"
+tier = "semantic"
+operation_group = "governance"
+change_class = "proposed"
+notes = "Governed removal from the pending review queue after a human has confirmed resolution."
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+
+[desktop_operations.append_access_entry]
+status = "implemented"
+tool = "memory_log_access"
+tier = "semantic"
+operation_group = "chat"
+change_class = "automatic"
+
+[desktop_operations.record_session_reflection]
+status = "implemented"
+tool = "memory_record_reflection"
+tier = "semantic"
+operation_group = "chat"
+change_class = "automatic"
+notes = "Superseded for full wrap-up by memory_record_session; kept for reflection-only writes."
+
+[desktop_operations.record_periodic_review]
+status = "implemented"
+tool = "memory_record_periodic_review"
+tier = "semantic"
+operation_group = "governance"
+change_class = "protected"
+notes = "Protected meta-surface write for approved periodic-review outputs only."
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+
+[desktop_operations.revert_commit]
+status = "implemented"
+tool = "memory_revert_commit"
+tier = "semantic"
+operation_group = "governance"
+change_class = "protected"
+notes = "Preview-first revert flow that requires a fresh preview token before apply."
+preview_support = true
+preview_mode = "confirm_flow"
+preview_argument = "confirm"
+
+[operations.memory_plan_create]
+group = "plan"
+tier = "semantic"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "plan"
+writes = [
+  "memory/working/projects/{project_id}/plans/{plan_id}.yaml",
+  "memory/working/projects/{project_id}/SUMMARY.md",
+  "memory/working/projects/SUMMARY.md",
+  "memory/working/projects/{project_id}/operations.jsonl",
+]
+owns_frontmatter = [
+  "memory/working/projects/{project_id}/plans/{plan_id}.yaml",
+  "memory/working/projects/{project_id}/SUMMARY.md",
+]
+owns_summaries = ["memory/working/projects/SUMMARY.md"]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["status", "plan_path"]
+fallback_tools = ["memory_write", "memory_update_frontmatter", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
+
+[operations.memory_plan_execute]
+group = "plan"
+tier = "semantic"
+change_class = "proposed"
+commit_model = "auto_commit"
+commit_category_hint = "plan"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+writes = [
+  "memory/working/projects/{project_id}/plans/{plan_id}.yaml",
+  "memory/working/projects/{project_id}/SUMMARY.md",
+  "memory/working/projects/SUMMARY.md",
+  "memory/working/projects/{project_id}/operations.jsonl",
+]
+owns_frontmatter = [
+  "memory/working/projects/{project_id}/plans/{plan_id}.yaml",
+  "memory/working/projects/{project_id}/SUMMARY.md",
+]
+owns_summaries = ["memory/working/projects/SUMMARY.md"]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["plan_status", "phase_id", "next_action", "plan_progress"]
+fallback_tools = ["memory_write", "memory_commit"]
+error_kinds = [
+  "AlreadyDoneError",
+  "NotFoundError",
+  "ValidationError",
+  "StagingError",
+]
+
+[operations.memory_plan_review]
+group = "plan"
+tier = "semantic"
+change_class = "proposed"
+commit_model = "auto_commit"
+commit_category_hint = "plan"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+writes = [
+  "memory/working/projects/OUT/{project_id}/{plan_id}/**",
+  "memory/working/projects/OUT/SUMMARY.md",
+  "memory/working/projects/{project_id}/operations.jsonl",
+]
+owns_frontmatter = []
+owns_summaries = ["memory/working/projects/OUT/SUMMARY.md"]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["outbox_root", "exported_artifacts"]
+fallback_tools = ["memory_write", "memory_commit"]
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+
+[operations.memory_add_knowledge_file]
+group = "knowledge"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "knowledge"
+writes = [
+  "memory/knowledge/_unverified/**/{file}.md",
+  "memory/knowledge/_unverified/SUMMARY.md",
+]
+owns_frontmatter = ["memory/knowledge/_unverified/**/{file}.md"]
+owns_summaries = ["memory/knowledge/_unverified/SUMMARY.md"]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["version_token"]
+fallback_tools = ["memory_write", "memory_update_frontmatter", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
+
+[operations.memory_promote_knowledge]
+group = "knowledge"
+tier = "semantic"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "knowledge"
+writes = [
+  "memory/knowledge/_unverified/**/{file}.md",
+  "memory/knowledge/**/{file}.md",
+  "memory/knowledge/_unverified/SUMMARY.md",
+  "memory/knowledge/SUMMARY.md",
+]
+owns_frontmatter = ["memory/knowledge/**/{file}.md"]
+owns_summaries = [
+  "memory/knowledge/_unverified/SUMMARY.md",
+  "memory/knowledge/SUMMARY.md",
+]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["new_path", "trust"]
+fallback_tools = ["memory_move", "memory_update_frontmatter", "memory_commit"]
+error_kinds = [
+  "ConflictError",
+  "NotFoundError",
+  "ValidationError",
+  "StagingError",
+]
+
+[operations.memory_promote_knowledge_batch]
+group = "knowledge"
+tier = "semantic"
+change_class = "proposed"
+commit_model = "auto_commit"
+commit_category_hint = "curation"
+writes = [
+  "memory/knowledge/_unverified/**/{file}.md",
+  "memory/knowledge/**/{file}.md",
+  "memory/knowledge/_unverified/SUMMARY.md",
+  "memory/knowledge/SUMMARY.md",
+]
+owns_frontmatter = ["memory/knowledge/**/{file}.md"]
+owns_summaries = [
+  "memory/knowledge/_unverified/SUMMARY.md",
+  "memory/knowledge/SUMMARY.md",
+]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "promoted_count",
+  "target_folder",
+  "trust",
+  "promoted_files",
+  "summary_updates",
+]
+fallback_tools = ["memory_move", "memory_update_frontmatter", "memory_commit"]
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+
+[operations.memory_reorganize_path]
+group = "knowledge"
+tier = "semantic"
+change_class = "proposed"
+preview_support = true
+preview_mode = "dry_run"
+preview_argument = "dry_run"
+commit_model = "auto_commit"
+commit_category_hint = "curation"
+writes = [
+  "memory/knowledge/**/{path}",
+  "memory/working/projects/**/{file}.md",
+  "memory/users/**/{file}.md",
+  "memory/skills/**/{file}.md",
+  "governance/**/{file}.md",
+]
+owns_frontmatter = [
+  "memory/knowledge/**/{path}.md",
+  "memory/working/projects/**/{file}.md",
+]
+owns_summaries = [
+  "memory/knowledge/SUMMARY.md",
+  "memory/knowledge/**/SUMMARY.md",
+]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "source",
+  "dest",
+  "moved_count",
+  "refs_updated",
+  "summary_updates",
+  "files_to_move",
+]
+fallback_tools = ["memory_move", "memory_update_frontmatter", "memory_commit"]
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+
+[operations.memory_demote_knowledge]
+group = "knowledge"
+tier = "semantic"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "knowledge"
+writes = [
+  "memory/knowledge/**/{file}.md",
+  "memory/knowledge/_unverified/**/{file}.md",
+  "memory/knowledge/SUMMARY.md",
+  "memory/knowledge/_unverified/SUMMARY.md",
+]
+owns_frontmatter = ["memory/knowledge/_unverified/**/{file}.md"]
+owns_summaries = [
+  "memory/knowledge/SUMMARY.md",
+  "memory/knowledge/_unverified/SUMMARY.md",
+]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["new_path", "trust"]
+fallback_tools = ["memory_move", "memory_update_frontmatter", "memory_commit"]
+error_kinds = [
+  "ConflictError",
+  "NotFoundError",
+  "ValidationError",
+  "StagingError",
+]
+
+[operations.memory_archive_knowledge]
+group = "knowledge"
+tier = "semantic"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "knowledge"
+writes = [
+  "memory/knowledge/**/{file}.md",
+  "memory/knowledge/_archive/**/{file}.md",
+  "memory/knowledge/SUMMARY.md",
+]
+owns_frontmatter = ["memory/knowledge/_archive/**/{file}.md"]
+owns_summaries = ["memory/knowledge/SUMMARY.md"]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["archive_path"]
+fallback_tools = ["memory_move", "memory_update_frontmatter", "memory_commit"]
+error_kinds = [
+  "ConflictError",
+  "NotFoundError",
+  "ValidationError",
+  "StagingError",
+]
+
+[operations.memory_append_scratchpad]
+group = "scratchpad"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "scratchpad"
+writes = [
+  "memory/working/scratchpad/USER.md",
+  "memory/working/scratchpad/CURRENT.md",
+  "memory/working/scratchpad/{slug}.md",
+]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["target"]
+fallback_tools = ["memory_edit", "memory_write", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
+
+[operations.memory_update_skill]
+group = "skill"
+tier = "semantic"
+change_class = "protected"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "skill"
+writes = ["memory/skills/{file}.md"]
+owns_frontmatter = ["memory/skills/{file}.md"]
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["section", "mode"]
+fallback_tools = []
+error_kinds = [
+  "ConflictError",
+  "NotFoundError",
+  "ValidationError",
+  "StagingError",
+]
+
+[operations.memory_update_user_trait]
+group = "identity"
+tier = "semantic"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "identity"
+writes = ["memory/users/{file}.md"]
+owns_frontmatter = ["memory/users/{file}.md"]
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["key", "mode", "identity_updates_this_session"]
+fallback_tools = ["memory_edit", "memory_update_frontmatter", "memory_commit"]
+error_kinds = ["ConflictError", "ValidationError", "StagingError"]
+
+[operations.memory_record_chat_summary]
+group = "chat"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "chat"
+writes = [
+  "memory/activity/YYYY/MM/DD/chat-NNN/SUMMARY.md",
+  "memory/activity/SUMMARY.md",
+]
+owns_frontmatter = ["memory/activity/YYYY/MM/DD/chat-NNN/SUMMARY.md"]
+owns_summaries = ["memory/activity/SUMMARY.md"]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["session_id"]
+fallback_tools = ["memory_write", "memory_commit"]
+error_kinds = ["StagingError"]
+superseded_by = "memory_record_session"
+
+[operations.memory_record_session]
+group = "chat"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "chat"
+writes = [
+  "memory/activity/YYYY/MM/DD/chat-NNN/SUMMARY.md",
+  "memory/activity/YYYY/MM/DD/chat-NNN/reflection.md",
+  "memory/activity/SUMMARY.md",
+  "{folder}/ACCESS.jsonl",
+]
+owns_frontmatter = ["memory/activity/YYYY/MM/DD/chat-NNN/SUMMARY.md"]
+owns_summaries = ["memory/activity/SUMMARY.md"]
+owns_access_logs = ["{folder}/ACCESS.jsonl"]
+owns_review_queue = []
+result_fields = ["session_id"]
+fallback_tools = ["memory_write", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
+
+[operations.memory_run_aggregation]
+group = "governance"
+tier = "semantic"
+change_class = "proposed"
+commit_model = "auto_commit"
+commit_category_hint = "curation"
+writes = [
+  "{folder}/SUMMARY.md",
+  "{folder}/ACCESS.jsonl",
+  "{folder}/ACCESS.archive.YYYY-MM.jsonl",
+]
+owns_frontmatter = []
+owns_summaries = ["{folder}/SUMMARY.md"]
+owns_access_logs = [
+  "{folder}/ACCESS.jsonl",
+  "{folder}/ACCESS.archive.YYYY-MM.jsonl",
+]
+owns_review_queue = []
+result_fields = [
+  "entries_processed",
+  "session_groups_processed",
+  "legacy_fallback_entries",
+  "summary_update_targets",
+  "summary_materialization_targets",
+  "hot_access_targets",
+  "hot_access_reset_targets",
+  "archive_targets",
+]
+fallback_tools = ["memory_edit", "memory_write", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
+notes = "Dry-run is the default preview path. Apply mode groups by session_id, falls back to date for legacy entries without session_id, treats Usage patterns sections as materialized summary views, rotates immutable monthly archive segments, and clears only the processed hot ACCESS.jsonl logs in one commit."
+
+[operations.memory_flag_for_review]
+group = "governance"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "curation"
+writes = ["governance/review-queue.md"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = ["governance/review-queue.md"]
+result_fields = ["flagged_path", "priority", "item_id"]
+fallback_tools = ["memory_edit", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
+
+[operations.memory_resolve_review_item]
+group = "governance"
+tier = "semantic"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "curation"
+writes = ["governance/review-queue.md"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = ["governance/review-queue.md"]
+result_fields = ["item_id"]
+fallback_tools = ["memory_edit", "memory_commit"]
+error_kinds = [
+  "ConflictError",
+  "NotFoundError",
+  "ValidationError",
+  "StagingError",
+]
+
+[operations.memory_log_access]
+group = "chat"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "chat"
+writes = ["{folder}/ACCESS.jsonl"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = ["{folder}/ACCESS.jsonl"]
+owns_review_queue = []
+result_fields = ["access_jsonl", "entry_count", "scan_entry_count"]
+fallback_tools = ["memory_write", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
+notes = "Accepts optional session_id, optional mode (`read`, `write`, `update`, `create`), optional task_id from access_logging.task_ids, and optional min_helpfulness. When min_helpfulness is set, below-threshold entries are routed to {folder}/ACCESS_SCANS.jsonl instead of the hot ACCESS.jsonl. When session_id is omitted, the runtime first checks MEMORY_SESSION_ID and then memory/activity/CURRENT_SESSION; any resolved value must be a canonical session path."
+
+[operations.memory_log_access_batch]
+group = "chat"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "chat"
+writes = ["{folder}/ACCESS.jsonl"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = ["{folder}/ACCESS.jsonl"]
+owns_review_queue = []
+result_fields = ["access_jsonls", "entry_count", "scan_entry_count"]
+fallback_tools = ["memory_write", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
+notes = "Batches multiple ACCESS entries into one auto-commit. Each entry may carry an optional mode (`read`, `write`, `update`, `create`) and optional task_id from access_logging.task_ids; the call may also set an optional min_helpfulness threshold that routes below-threshold entries to {folder}/ACCESS_SCANS.jsonl. Uses the same optional session_id injection contract as memory_log_access via MEMORY_SESSION_ID, then memory/activity/CURRENT_SESSION."
+
+[operations.memory_record_reflection]
+group = "chat"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "chat"
+writes = ["memory/activity/YYYY/MM/DD/chat-NNN/reflection.md"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["reflection_path"]
+fallback_tools = ["memory_write", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
+superseded_by = "memory_record_session"
+
+[operations.memory_record_periodic_review]
+group = "governance"
+tier = "semantic"
+change_class = "protected"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "system"
+writes = [
+  "INIT.md",
+  "governance/belief-diff-log.md",
+  "governance/review-queue.md",
+]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = ["governance/review-queue.md"]
+result_fields = [
+  "review_date",
+  "active_stage",
+  "belief_diff_written",
+  "review_queue_written",
+]
+fallback_tools = ["memory_edit", "memory_commit"]
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+
+[operations.memory_revert_commit]
+group = "governance"
+tier = "semantic"
+change_class = "protected"
+preview_support = true
+preview_mode = "confirm_flow"
+preview_argument = "confirm"
+commit_model = "auto_commit"
+commit_category_hint = "curation"
+writes = ["<files from reverted commit>"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "preview_token",
+  "eligible",
+  "policy_reasons",
+  "mode",
+  "reverted_sha",
+  "new_sha",
+]
+fallback_tools = ["memory_commit"]
+error_kinds = ["ValidationError", "ConflictError", "StagingError"]

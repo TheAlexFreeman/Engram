@@ -1,0 +1,34 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+
+# Claude Code working files (worktrees, plans, session state)
+.claude/
+
+# Generated platform files (created by setup.sh for ChatGPT/generic users)
+chatgpt-instructions.txt
+system-prompt.txt
+
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Windows reserved name (accidental creation)
+nul
+# Setuptools build files
+*.egg-info/
+=*
+
+# Do not ignore ACCESS.jsonl files — they are part of the system
+# Do not ignore any .md files — they are the system
