@@ -42,6 +42,7 @@ HUMANS/tooling/tests/test_setup_flows.py
 HUMANS/tooling/tests/test_task_readiness.py
 HUMANS/tooling/tests/test_validate_memory_repo.py
 HUMANS/tooling/tests/test_validate_memory_repo_project_plans.py
+LICENSE.txt
 README.md
 agent-bootstrap.toml
 core/INIT.md
