@@ -258,8 +258,11 @@ core/memory/knowledge/philosophy/SUMMARY.md
 core/memory/knowledge/philosophy/blending-compression-coupling-construal.md
 core/memory/knowledge/philosophy/cognitive-linguistics-metaphor-blending.md
 core/memory/knowledge/philosophy/compression-intelligence-ait.md
-core/memory/knowledge/philosophy/cs-lewis-abolition-of-man.md
-core/memory/knowledge/philosophy/cs-lewis-space-trilogy.md
+core/memory/knowledge/literature/cs-lewis-abolition-of-man.md
+core/memory/knowledge/literature/cs-lewis-space-trilogy.md
+core/memory/knowledge/literature/mcluhan-and-media-theory.md
+core/memory/knowledge/literature/nick-land-accelerationism.md
+core/memory/knowledge/literature/sons-of-man-covenant.md
 core/memory/knowledge/philosophy/emergence-consciousness-iit.md
 core/memory/knowledge/philosophy/ethics/algorithmic-fairness.md
 core/memory/knowledge/philosophy/ethics/anti-realism-expressivism.md
@@ -308,11 +311,8 @@ core/memory/knowledge/philosophy/history/twentieth/continental-structuralism-pos
 core/memory/knowledge/philosophy/history/twentieth/later-wittgenstein-ordinary-language.md
 core/memory/knowledge/philosophy/history/twentieth/phenomenology-existentialism.md
 core/memory/knowledge/philosophy/history/twentieth/philosophy-of-mind-language.md
-core/memory/knowledge/philosophy/intelligence-dynamical-systems-conversation.md
 core/memory/knowledge/philosophy/llm-vs-human-mind-comparative-analysis.md
-core/memory/knowledge/philosophy/mcluhan-and-media-theory.md
 core/memory/knowledge/philosophy/narrative-cognition.md
-core/memory/knowledge/philosophy/nick-land-accelerationism.md
 core/memory/knowledge/philosophy/personal-identity/agent-identity-design-recommendations.md
 core/memory/knowledge/philosophy/personal-identity/agent-identity-failure-modes.md
 core/memory/knowledge/philosophy/personal-identity/agent-identity-synthesis.md
@@ -340,7 +340,7 @@ core/memory/knowledge/philosophy/phenomenology/synthesis-phenomenology-dynamical
 core/memory/knowledge/philosophy/phenomenology/varela-thompson-rosch-embodied-mind.md
 core/memory/knowledge/philosophy/philosophy-synthesis.md
 core/memory/knowledge/philosophy/self-organized-criticality.md
-core/memory/knowledge/philosophy/sons-of-man-covenant.md
+core/memory/knowledge/self/_archive/intelligence-dynamical-systems-conversation.md
 core/memory/knowledge/philosophy/synthesis-intelligence-as-dynamical-regime.md
 core/memory/knowledge/rationalist-community/ai-discourse/canonical-ideas/corrigibility-shutdown-problem-value-loading.md
 core/memory/knowledge/rationalist-community/ai-discourse/canonical-ideas/deceptive-alignment-mesa-optimization.md
