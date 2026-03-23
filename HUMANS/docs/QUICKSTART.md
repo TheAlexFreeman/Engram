@@ -15,7 +15,7 @@ Click **"Use this template"** on the GitHub repo page to create your own copy.
 **Option B — Manual clone:**
 
 ```bash
-git clone https://github.com/TheAlexFreeman/agent-memory-seed.git my-memory
+git clone https://github.com/TheAlexFreeman/Engram.git my-memory
 cd my-memory
 rm -rf .git && git init --initial-branch=core
 ```

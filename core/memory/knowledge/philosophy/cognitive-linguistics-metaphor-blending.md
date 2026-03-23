@@ -1,10 +1,10 @@
 ---
-source: external-research
+
+## source: external-research
 origin_session: core/memory/activity/2026/03/18/chat-001
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
----
 
 # Cognitive Linguistics: Metaphor, Blending, and Figurative Language
 
@@ -30,17 +30,19 @@ By 1999, Lakoff and Johnson had substantially developed their account of *why* c
 
 Selected primary metaphors and their experiential grounding:
 
-| Primary Metaphor | Source Domain | Target Domain | Experiential Basis |
-|---|---|---|---|
-| MORE IS UP | Vertical space | Quantity | Piles get taller as more is added |
-| AFFECTION IS WARMTH | Thermal sensation | Social attachment | Being held by caregivers while warm |
-| KNOWING IS SEEING | Vision | Epistemic states | Perceiving the world to understand it |
-| IMPORTANT IS BIG | Physical size | Significance | Large things command attention, have impact |
-| PURPOSES ARE DESTINATIONS | Physical location | Goals | Reaching a place = achieving a goal |
-| DIFFICULTIES ARE BURDENS | Physical weight | Effort | Carrying heavy loads while laboring |
-| INTIMACY IS CLOSENESS | Physical proximity | Social connection | Close physical presence with intimates |
-| TIME IS MOTION | Physical movement | Temporal flow | Body moves through space as time passes |
-| THEORIES ARE BUILDINGS | Constructed structures | Abstract systems | "Foundation," "framework," "collapse" |
+
+| Primary Metaphor          | Source Domain          | Target Domain     | Experiential Basis                          |
+| ------------------------- | ---------------------- | ----------------- | ------------------------------------------- |
+| MORE IS UP                | Vertical space         | Quantity          | Piles get taller as more is added           |
+| AFFECTION IS WARMTH       | Thermal sensation      | Social attachment | Being held by caregivers while warm         |
+| KNOWING IS SEEING         | Vision                 | Epistemic states  | Perceiving the world to understand it       |
+| IMPORTANT IS BIG          | Physical size          | Significance      | Large things command attention, have impact |
+| PURPOSES ARE DESTINATIONS | Physical location      | Goals             | Reaching a place = achieving a goal         |
+| DIFFICULTIES ARE BURDENS  | Physical weight        | Effort            | Carrying heavy loads while laboring         |
+| INTIMACY IS CLOSENESS     | Physical proximity     | Social connection | Close physical presence with intimates      |
+| TIME IS MOTION            | Physical movement      | Temporal flow     | Body moves through space as time passes     |
+| THEORIES ARE BUILDINGS    | Constructed structures | Abstract systems  | "Foundation," "framework," "collapse"       |
+
 
 **Complex metaphors** are built by composing primary metaphors. Example: A PURPOSEFUL LIFE IS A JOURNEY combines PURPOSES ARE DESTINATIONS + ACTIONS ARE SELF-PROPELLED MOTIONS + CAUSES ARE FORCES + DIFFICULTIES ARE IMPEDIMENTS TO MOTION — all primary.
 
@@ -53,6 +55,7 @@ Lakoff's 1987 book targets the classical theory of categorization (members share
 **Prototype effects** (following Eleanor Rosch): category membership is graded. Robins are more "bird-like" than penguins; chairs are more "furniture-like" than lamps. Some members are *better examples* of a category than others, and people's judgments cluster around prototypical cases.
 
 **Basic-level categories** are the cognitively privileged level of categorization — the level at which:
+
 - Gestalt perception of shape is most distinct (you see a chair, not a piece of furniture or a Windsor armchair)
 - Motor programs are most specific and unified (how you interact with a chair vs. a piece of furniture is more determinate)
 - Mental imagery is richest and most detailed
@@ -101,11 +104,13 @@ Mental spaces capture the dynamic, context-sensitive nature of meaning construct
 Blending theory extends mental spaces into a theory of **conceptual integration**: how humans combine conceptual structures in creative, flexible ways that generate emergent meaning neither input contains.
 
 **The basic architecture** of a blending network:
+
 - **Input Space 1** and **Input Space 2**: the contributing conceptual structures
 - **Generic Space**: abstract structure shared by both inputs (the cross-space mapping is grounded here)
 - **Blended Space**: inherits *selective* projections from both inputs; develops **emergent structure** that is new — not in either input
 
 The emergent structure in the blend arises from three processes:
+
 1. **Composition**: bringing elements from the inputs into new relations
 2. **Completion**: pattern-completing against background knowledge and frames
 3. **Elaboration** ("running the blend"): imaginatively simulating the blend, treating it as its own world with its own logic
@@ -190,16 +195,19 @@ The key finding: **the same lexical items and grammatical constructions systemat
 English modals (*can, may, must, will, shall, might, could, would, should*) have three reading types, systematically related:
 
 **Root/Deontic readings** (content domain):
+
 - "You *must* leave by 9" = social/physical compulsion, obligation
 - "You *can* take the car" = permission, physical ability
 - "You *may* enter" = granted permission
 
 **Epistemic readings** (epistemic domain):
+
 - "She *must* be home — the lights are on" = logical necessity given evidence
 - "He *can't* be serious" = not epistemically possible
 - "That *may* be true" = epistemic possibility
 
 **Speech-act readings**:
+
 - "I *must* say, that's impressive" = the speaker performs a speech act (asserting forcefully)
 - "You *will* do this" = speaker's performative commitment/command
 - "Can I help you?" (in service contexts) = performing an offer
@@ -209,6 +217,7 @@ English modals (*can, may, must, will, shall, might, could, would, should*) have
 Historical corroboration: the epistemic senses are universally *later* developments in the history of languages. Old English had only deontic modals; epistemic readings emerged later through metaphorical extension. Etymology confirms the cognitive architecture.
 
 **The same three-way split** holds for:
+
 - **Conjunctions:** "because" (content causation: "She came because I called"), "because" (epistemic: "She must be home, because the lights are on"), "because" (speech-act: "I'm asking you to leave, because that's not appropriate here")
 - **Conditionals:** "if" in content, epistemic, and speech-act contexts — "If it rains, we'll stay inside" / "If she's home, the lights will be on" / "If you need anything, there's a phone on the desk"
 - **Perception verbs:** "see" (physical vision), "see" (comprehension: "I see what you mean"), "see" (epistemic inference: "I can see that you're upset")
@@ -278,6 +287,7 @@ These are complementary but distinct theories, each handling phenomena the other
 **Sweetser's work** bridges the two: her **polysemy analysis** shows how CMT-style mappings (MIND-AS-BODY, CAUSATION IS FORCE) create systematic meaning extensions across lexical and grammatical items; her **mental spaces and viewpoint work** shows how speakers track multiple conceptual structures simultaneously in discourse. She provides the bridge between lexical semantics (stable meanings) and discourse dynamics (real-time meaning construction).
 
 All three are united by:
+
 - Rejection of formal semantics' truth-conditional, disembodied approach
 - Commitment to embodied grounding (directly for CMT; indirectly for blending via the origins of frames in bodily experience)
 - Recognition that most meaning is non-compositional in the classical sense — frames, metaphors, and blends introduce constraints that aren't derivable from parts plus logical combination rules
@@ -321,6 +331,7 @@ These cognitive linguistic frameworks connect to the broader research project in
 ## Key References
 
 **Lakoff & Johnson:**
+
 - Lakoff, G. & Johnson, M. (1980). *Metaphors We Live By*. Chicago UP.
 - Lakoff, G. (1987). *Women, Fire, and Dangerous Things: What Categories Reveal about the Mind*. Chicago UP.
 - Lakoff, G. & Johnson, M. (1999). *Philosophy in the Flesh: The Embodied Mind and Its Challenge to Western Thought*. Basic Books.
@@ -328,28 +339,32 @@ These cognitive linguistic frameworks connect to the broader research project in
 - Lakoff, G. (2012). "Explaining embodied cognition results." *Topics in Cognitive Science*, 4(4), 773–785.
 
 **Fauconnier & Turner:**
+
 - Fauconnier, G. (1985). *Mental Spaces*. MIT Press.
 - Fauconnier, G. (1997). *Mappings in Thought and Language*. Cambridge UP.
-- Fauconnier, G. & Turner, M. (1998). "Conceptual integration networks." *Cognitive Science*, 22(2), 133–187. (available: https://markturner.org/cinLEA.pdf)
+- Fauconnier, G. & Turner, M. (1998). "Conceptual integration networks." *Cognitive Science*, 22(2), 133–187. (available: [https://markturner.org/cinLEA.pdf](https://markturner.org/cinLEA.pdf))
 - Fauconnier, G. & Turner, M. (2002). *The Way We Think: Conceptual Blending and the Mind's Hidden Complexities*. Basic Books.
-- Fauconnier, G. & Turner, M. (2003). "Conceptual blending, form and meaning." *Recherches en communication*, 19. (available: https://tecfa.unige.ch/tecfa/maltt/cofor-1/textes/Fauconnier-Turner03.pdf)
-- Fauconnier, G. (2005). "Compression and emergent structure." (available: https://pages.ucsd.edu/~scoulson/spaces/fauconnier05.pdf)
+- Fauconnier, G. & Turner, M. (2003). "Conceptual blending, form and meaning." *Recherches en communication*, 19. (available: [https://tecfa.unige.ch/tecfa/maltt/cofor-1/textes/Fauconnier-Turner03.pdf](https://tecfa.unige.ch/tecfa/maltt/cofor-1/textes/Fauconnier-Turner03.pdf))
+- Fauconnier, G. (2005). "Compression and emergent structure." (available: [https://pages.ucsd.edu/~scoulson/spaces/fauconnier05.pdf](https://pages.ucsd.edu/~scoulson/spaces/fauconnier05.pdf))
 
 **Sweetser:**
+
 - Sweetser, E. (1990). *From Etymology to Pragmatics: Metaphorical and Cultural Aspects of Semantic Structure*. Cambridge UP. (Cambridge Studies in Linguistics, 54)
 - Fauconnier, G. & Sweetser, E. (eds.) (1996). *Spaces, Worlds, and Grammar*. Chicago UP.
 - Dancygier, B. & Sweetser, E. (2005). *Mental Spaces in Grammar: Conditional Constructions*. Cambridge UP.
 - Sweetser, E. (2012). "What does it mean to compare language and gesture?" — various published essays
 - Dancygier, B. & Sweetser, E. (2014). *Figurative Language*. Cambridge UP.
-- Sweetser's publication list: https://linguistics.berkeley.edu/~sweetser/publications.html
+- Sweetser's publication list: [https://linguistics.berkeley.edu/~sweetser/publications.html](https://linguistics.berkeley.edu/~sweetser/publications.html)
 
 **Neural and empirical work:**
-- Lakoff, G. (2014). "Mapping the brain's metaphor circuitry." *Frontiers in Human Neuroscience*. (available: https://pmc.ncbi.nlm.nih.gov/articles/PMC4267278/)
-- Desai, R. et al. (2023). "Are metaphors embodied? The neural evidence." *Frontiers in Psychology*. (available: https://pmc.ncbi.nlm.nih.gov/articles/PMC10171917/)
-- LLM grounding limitations: https://www.nature.com/articles/s41562-025-02203-8
+
+- Lakoff, G. (2014). "Mapping the brain's metaphor circuitry." *Frontiers in Human Neuroscience*. (available: [https://pmc.ncbi.nlm.nih.gov/articles/PMC4267278/](https://pmc.ncbi.nlm.nih.gov/articles/PMC4267278/))
+- Desai, R. et al. (2023). "Are metaphors embodied? The neural evidence." *Frontiers in Psychology*. (available: [https://pmc.ncbi.nlm.nih.gov/articles/PMC10171917/](https://pmc.ncbi.nlm.nih.gov/articles/PMC10171917/))
+- LLM grounding limitations: [https://www.nature.com/articles/s41562-025-02203-8](https://www.nature.com/articles/s41562-025-02203-8)
 
 **Frame Semantics:**
+
 - Fillmore, C. (1982). "Frame semantics." In *Linguistics in the Morning Calm*. Hanshin.
-- FrameNet project: https://framenet.icsi.berkeley.edu/
+- FrameNet project: [https://framenet.icsi.berkeley.edu/](https://framenet.icsi.berkeley.edu/)
 
 Last updated: 2026-03-18

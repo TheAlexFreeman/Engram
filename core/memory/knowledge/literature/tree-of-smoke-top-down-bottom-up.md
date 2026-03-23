@@ -1,5 +1,6 @@
 ---
-title: "Tree of Smoke — Top-Down vs. Bottom-Up Processing"
+
+## title: "Tree of Smoke — Top-Down vs. Bottom-Up Processing"
 author_of_work: Denis Johnson
 work: Tree of Smoke (2007)
 topic: Epistemology of war; top-down vs. bottom-up cognition
@@ -9,7 +10,6 @@ source: agent-generated
 status: in-progress
 tags: [literature, vietnam-war, epistemology, cognition, denis-johnson, american-fiction]
 trust: medium
----
 
 # Tree of Smoke: Top-Down vs. Bottom-Up Processing
 
@@ -117,3 +117,4 @@ This opacity is not a failure of characterization but a deliberate argument: the
 3. How does the novel's treatment of language — particularly the Colonel's ornate, prophetic speech vs. the Houston brothers' clipped vernacular — map onto the top-down/bottom-up distinction?
 4. The 1983 epilogue features characters who have lived through the collapse of both modes. What, if anything, does Johnson suggest is left? Is there a third mode he gestures toward?
 5. Compare with Johnson's *Jesus' Son* (1992): the bottom-up experience of the addict, without framework, as an earlier treatment of the same problem.
+

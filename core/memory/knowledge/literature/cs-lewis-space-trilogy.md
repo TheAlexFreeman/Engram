@@ -1,5 +1,6 @@
 ---
-source: external-research
+
+## source: external-research
 created: 2026-03-20
 last_verified: 2026-03-20
 trust: medium
@@ -8,7 +9,6 @@ type: knowledge
 domain: philosophy
 tags: [literature, cs-lewis, science-fiction, theology, cosmology, technocracy, inklings, ransom-trilogy]
 related: knowledge/_unverified/philosophy/mcluhan-and-media-theory.md
----
 
 # C.S. Lewis: The Space Trilogy (Ransom Trilogy)
 
@@ -72,9 +72,9 @@ of the *handramit* (lowland valleys). It is inhabited by three rational species
 who live in harmony under their Oyarsa:
 
 - **Hrossa**: otter-like, communal, poets and singers. Ransom lives among them
-  first and comes to love their culture.
+first and comes to love their culture.
 - **Séroni** (singular *sorn*): tall, thin, intellectual — the scholars and
-  scientists of Malacandra.
+scientists of Malacandra.
 - **Pfifltriggi**: frog-like, artisans and craftsmen.
 
 The three species have no concept of inter-species competition because they each
@@ -312,12 +312,13 @@ without *tao*.
 ## Sources
 
 - C.S. Lewis, *Out of the Silent Planet* (1938); *Perelandra* (1943);
-  *That Hideous Strength* (1945)
+*That Hideous Strength* (1945)
 - C.S. Lewis, *The Abolition of Man* (1943)
 - C.S. Lewis, *The Discarded Image* (1964)
 - C.S. Lewis, "Religion and Rocketry" (essay)
-- [*The Space Trilogy* — The Silent Planet Wiki / Fandom](https://the-silent-planet.fandom.com/wiki/Ransom_trilogy)
+- *[The Space Trilogy* — The Silent Planet Wiki / Fandom](https://the-silent-planet.fandom.com/wiki/Ransom_trilogy)
 - [Planetary Peregrination — The Simple Catholic](https://thesimplecatholic.blog/2021/05/08/planetary-peregrination-reviewing-c-s-lewis-out-of-the-silent-planet/)
 - [Mighty Ones, Who Do His Bidding — CSLewis.com](https://www.cslewis.com/mighty-ones-who-do-his-bidding/)
 - [The Space Trilogy — EBSCO Research Starters](https://www.ebsco.com/research-starters/history/space-trilogy-c-s-lewis)
 - [Science, Spirituality, and C.S. Lewis — Christian Research Institute](https://www.equip.org/articles/science-spirituality-and-c-s-lewis-an-analysis-of-the-space-trilogy/)
+
