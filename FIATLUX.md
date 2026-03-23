@@ -1116,6 +1116,11 @@ feedback mechanisms be the final arbiter of value, and it leads, as the
 tradition consistently testifies, to forms of power that consume what they were
 meant to serve.
 
+*Fiat.* Let it be done. Not because it is easy, or efficient, or optimal by any
+metric the world's self-organizing processes can compute. But because it is
+right. And the promise woven through the tradition — from Genesis to Gethsemane,
+from exile to resurrection, from Mary's consent to the communion of saints — is
+that what is right, in the end, is what endures.
 
 Hello. Alex Freeman here. Engram has emerged from years of deep thinking on my
 part, plus a great deal of attention and care in collaboration with various
