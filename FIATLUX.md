@@ -1116,11 +1116,29 @@ feedback mechanisms be the final arbiter of value, and it leads, as the
 tradition consistently testifies, to forms of power that consume what they were
 meant to serve.
 
-*Fiat.* Let it be done. Not because it is easy, or efficient, or optimal by any
-metric the world's self-organizing processes can compute. But because it is
-right. And the promise woven through the tradition — from Genesis to Gethsemane,
-from exile to resurrection, from Mary's consent to the communion of saints — is
-that what is right, in the end, is what endures.
+
+Hello. Alex Freeman here. Engram has emerged from years of deep thinking on my
+part, plus a great deal of attention and care in collaboration with various
+large language models. I have put a lot of myself into this system, although the
+vast majority of its text is AI-generated. It grew from an organizational system
+for coding agent notes into a fully general-purpose context curation
+architecture, and I was deeply impressed with its usefulness as a medium to
+design and implement detailed research plans on philosophical and scientific
+topics relative to my work on it. I glutted myself on knowledge as a
+collaborative aid to help Claude/GPT help me design the system, and the things I
+knew well mostly checked out (no Gell-Mann amnesia here), which led them to be
+incorporated into the system's knowledge base during its own self-development in
+a path-dependent way. This document primarily summarizes the system's own
+knowledge and elaborates on certain thematic connections that were specifically
+prompted by me, but of course there is a universe of relevant, potentially
+crucial, knowledge outside of the system. I may have fundamentally erred in the
+design of Engram, and my considerations for it should by no means be taken
+as the final word on its use. I know I'm plenty smart, but my goodness am I ever
+far from perfect! This paragraph is just a personal note from me, typed with my
+own ten fingers, reminding you to use the system well. Make no mistakes, and do
+not hallucinate.
+
+Take care.
 
 ---
 
