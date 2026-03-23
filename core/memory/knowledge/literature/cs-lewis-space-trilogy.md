@@ -1,6 +1,5 @@
 ---
-
-## source: external-research
+source: external-research
 created: 2026-03-20
 last_verified: 2026-03-20
 trust: medium
@@ -9,6 +8,7 @@ type: knowledge
 domain: philosophy
 tags: [literature, cs-lewis, science-fiction, theology, cosmology, technocracy, inklings, ransom-trilogy]
 related: knowledge/_unverified/philosophy/mcluhan-and-media-theory.md
+---
 
 # C.S. Lewis: The Space Trilogy (Ransom Trilogy)
 

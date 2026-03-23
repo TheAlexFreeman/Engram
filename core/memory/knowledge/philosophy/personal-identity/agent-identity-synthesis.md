@@ -1,10 +1,10 @@
 ---
-
-## created: '2026-03-20'
+created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+---
 
 # Which Account of Personal Identity Fits AI Agents Best?
 
