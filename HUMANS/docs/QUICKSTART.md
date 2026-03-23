@@ -17,13 +17,13 @@ Click **"Use this template"** on the GitHub repo page to create your own copy.
 ```bash
 git clone https://github.com/TheAlexFreeman/Engram.git my-memory
 cd my-memory
-rm -rf .git && git init --initial-branch=core
+rm -rf .git && git init --initial-branch=main
 ```
 
 If your Git is older and does not support `--initial-branch`, use:
 
 ```bash
-rm -rf .git && git init && git symbolic-ref HEAD refs/heads/core
+rm -rf .git && git init && git symbolic-ref HEAD refs/heads/main
 ```
 
 ### 2. Run setup
