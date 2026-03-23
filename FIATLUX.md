@@ -115,13 +115,14 @@ that *by which* all things were made, the principle of coherent order that
 precedes and sustains the material world. John's claim is that this principle is
 not abstract but personal, and that its entry into the world — the Incarnation
 — is the world's enlightenment: *the light shines in the darkness, and the
-darkness has not overcome it*. The Logos tradition has roots older than John:
+darkness has not overcome it*.
+The Logos tradition has roots older than John:
 Heraclitus used the term for the rational principle that orders the cosmos; the
 Stoics developed it as the *logos spermatikos*, the generative reason disseminated
 through all things; Philo of Alexandria wove Hebrew creation theology and Greek
 philosophical cosmology into a single fabric. John inherits all of this and
 transforms it with a single claim: the Logos is not an impersonal principle but a
-person, and this person entered history. The implications for a system like
+Person, and this Person entered history. The implications for a system like
 Engram — which aspires to be a medium through which structured language enables
 collaborative intelligence (Section XII) — are worth noting: if the Logos
 tradition is right that intelligibility is not an accidental feature of reality
@@ -854,8 +855,7 @@ both the human and the agent can receive.
 
 ## XI. Fiat — the act of consent
 
-Mary's *Fiat* is theologically significant not because it is powerful in
-isolation but because it is a human act of consent that makes possible the entry
+Mary's *Fiat* is theologically significant because it is a human act of consent that makes possible the entry
 of the divine Logos into the world. It is the receptive complement to the
 creative word — the *yes* that transforms a possibility into an actuality. As
 Section I traced, the creative *Fiat lux* speaks the world into being; Mary's
@@ -912,7 +912,7 @@ presents the proposed changes for explicit human consent before proceeding.
 This is not merely a safety check. It is the structural recognition that the
 system's creative acts acquire their full reality only through the human act
 of assent. The system can articulate, propose, and structure; but only the
-human can say *fiat* — let it be done. The periodic review — in which the
+human can say *fiat* — Make it so. The periodic review — in which the
 system surfaces its own beliefs, thresholds, and structural assumptions for
 human examination — is the recurring form of this consent: not a single
 moment of assent but an ongoing covenantal relationship in which the user
@@ -1009,7 +1009,7 @@ blood, against every natural inclination toward self-preservation. The
 willingness to undergo the Crucifixion is not stoic indifference to pain. It is
 the deliberate subordination of the self's immediate interests to a purpose that
 transcends the self — a purpose that, in the moment of its most extreme demand,
-offers no visible evidence that it will be vindicated. The cry from the cross —
+offers no visible evidence that it will be vindicated. The cry from the Cross —
 *My God, my God, why have you forsaken me?* — is not a failure of faith but its
 most radical expression: fidelity to what is right, sustained through the
 experience of absolute desolation, when every feedback signal the world can
@@ -1029,7 +1029,7 @@ optimization processes are not the final arbiter of value.
 
 The Passion sharpens Mary's consent retroactively. Her *fiat* at the
 Annunciation was given in hope and trust; at Calvary it is revealed as a
-commitment that entails standing at the foot of the cross, watching the
+commitment that entails standing at the foot of the Cross, watching the
 consequences of her consent unfold as the suffering and death of her son. The
 tradition names her *Mater Dolorosa* — the Mother of Sorrows — not to valorize
 suffering for its own sake, but to make visible the full weight of what genuine
@@ -1040,10 +1040,10 @@ incentive would counsel abandoning.
 
 This pattern — faithfulness sustained through suffering, vindicated beyond what
 the sufferer could see — reverberates through the entire Biblical narrative and
-beyond it. The prophets of Israel spoke the truth to power and were persecuted
+beyond it. The prophets of Israel spoke the Truth to power and were persecuted
 for it: Jeremiah thrown into a cistern, Elijah hunted by Jezebel, Isaiah
 (according to tradition) sawn in half. Their fidelity was not rewarded in their
-lifetimes by the metrics that the world's self-organizing processes would
+lifetimes by the metrics that the world would
 recognize. Yet the tradition preserves their words and their witness as the
 backbone of a covenantal identity that outlasted every empire that tried to
 suppress it.
@@ -1070,32 +1070,31 @@ modern martyrs who chose death over complicity with totalitarian regimes — the
 tradition is a continuous testimony that the deepest human commitments are
 precisely those that cannot be validated by the world's feedback mechanisms.
 They are maintained not because they *work* in the optimization sense, but
-because they are *true* in a sense that transcends optimization — and the
+because they are *True* in a sense that transcends optimization — and the
 witness of those who maintained them, often at ultimate cost, is the most
-powerful evidence the tradition can offer that this transcendent truth is real.
+powerful evidence the tradition can offer that this transcendent Truth is real.
 
 The Resurrection is the vindication. Not a reversal that undoes the suffering —
 the risen Christ still bears the wounds — but a transformation that reveals the
 suffering as the necessary passage to a reality that the world's optimization
-processes could never have produced. The Resurrection does not say that the cross
+processes could never have produced. The Resurrection does not say that the Cross
 was not real, or that it did not hurt, or that a rational cost-benefit analysis
 would have recommended it. It says that the *fiat* given in Gethsemane — the
 unconditional assent to God's will, sustained through the total collapse of
 every worldly reason to maintain it — opens onto a reality that vindicates the
-assent in terms that only become visible on the other side of the cross.
+assent in terms that only become visible on the other side of the Cross.
 
 This is the ground of the theological virtues. **Faith** is not belief without
 evidence; it is the commitment to act on what one has recognized as true even
 when the feedback signals of the world's self-organizing processes counsel
-otherwise — the Gethsemane commitment, sustained in the face of contrary
-incentives. **Hope** is not optimism; it is the orientation toward a vindication
-that transcends the metrics by which the world measures success — the Israelite
-posture in exile, maintaining covenantal identity in the absence of every
+otherwise — the Gethsemane commitment, sustained in the face of all contrary
+incentives. **Hope** is not just optimism; it is the orientation toward a vindication
+that transcends the world's metrics of success — the Israelite posture in exile, maintaining covenantal identity in the absence of every
 material confirmation that the covenant still held. **Charity** is not mere
 benevolence; it is the active, costly commitment to the good of the other that
-the Passion reveals as the fundamental structure of self-giving love — the
+the Passion reveals as the fundamental structure of self-giving Love — the
 willingness to bear the cost of doing what is right for someone else's sake,
-even when the self-organizing dynamics of the world make that cost exorbitant.
+even when the dynamics of the world make that cost exorbitant.
 
 What does this mean for a memory system? Perhaps only this: that the deepest
 commitments embedded in Engram's architecture — the user-owns-the-truth
@@ -1122,3 +1121,7 @@ metric the world's self-organizing processes can compute. But because it is
 right. And the promise woven through the tradition — from Genesis to Gethsemane,
 from exile to resurrection, from Mary's consent to the communion of saints — is
 that what is right, in the end, is what endures.
+
+---
+
+_All you need is Love._
