@@ -13,6 +13,7 @@ PLATFORM=""
 PROFILE=""
 USER_NAME=""
 USER_CONTEXT=""
+CODEX_PORTABLE=false
 INITIAL_COMMIT_MANIFEST="setup/initial-commit-paths.txt"
 declare -a INITIAL_COMMIT_PATHS=()
 
@@ -28,6 +29,7 @@ usage() {
     echo "  --profile <name>     Starter profile: software-developer, researcher, project-manager"
     echo "  --user-name <name>   Optional name for template-backed starter summaries"
     echo "  --user-context <text> Optional AI-use context for template-backed starter summaries"
+    echo "  --codex-portable     Use portable Codex config (relative paths) instead of absolute"
     echo "  -h, --help           Show this help message"
 }
 
@@ -64,6 +66,7 @@ while [[ $# -gt 0 ]]; do
                 usage; exit 1
             fi
             USER_CONTEXT="$2"; shift 2 ;;
+        --codex-portable) CODEX_PORTABLE=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1"; usage; exit 1 ;;
     esac
@@ -127,6 +130,24 @@ toml_escape() {
     printf '%s\n' "$value"
 }
 
+write_codex_config_portable() {
+    mkdir -p .codex
+    cat > .codex/config.toml <<'EOF'
+# Codex MCP config for agent-memory. Portable across systems when run from repo root.
+# Uses relative paths and python; run setup.sh without --codex-portable to generate
+# machine-specific paths if Codex App requires absolute paths (see openai/codex#14573).
+[mcp_servers.agent_memory]
+command = "python"
+args = ["core/tools/memory_mcp.py"]
+cwd = "."
+startup_timeout_sec = 20
+tool_timeout_sec = 120
+required = false
+env_vars = ["MEMORY_REPO_ROOT", "AGENT_MEMORY_ROOT"]
+EOF
+    echo "[ok] Wrote portable .codex/config.toml for this repo"
+}
+
 write_codex_config() {
     local repo_root_native="$1"
     local python_cmd="$2"
@@ -160,7 +181,9 @@ EOF
 
 REPO_ROOT_NATIVE="$(native_path "$(pwd -P)")"
 CODEX_PYTHON=""
-if CODEX_PYTHON="$(detect_codex_python)"; then
+if [[ "$CODEX_PORTABLE" == true ]]; then
+    write_codex_config_portable
+elif CODEX_PYTHON="$(detect_codex_python)"; then
     write_codex_config "$REPO_ROOT_NATIVE" "$CODEX_PYTHON"
 else
     echo "[warn] Could not detect a Python interpreter for Codex MCP config; leaving .codex/config.toml unchanged"

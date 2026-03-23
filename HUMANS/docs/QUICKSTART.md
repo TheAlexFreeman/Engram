@@ -85,7 +85,7 @@ From session two onward, the agent will use `core/memory/HOME.md` as the session
 
 ### Codex Desktop
 
-**Project-scoped MCP config is generated during setup.** `setup.sh` rewrites [`.codex/config.toml`](../../.codex/config.toml) for the current clone using the actual repo root and detected Python interpreter. The browser flow in `setup/setup.html` can generate the same file when you provide the absolute repo path and Python path.
+**Project-scoped MCP config is portable by default.** [`.codex/config.toml`](../../.codex/config.toml) uses relative paths and `python` from your PATH, so it works across systems without modification. Codex CLI uses it as-is. If Codex App does not detect the MCP server (a [known issue](https://github.com/openai/codex/issues/14573)), run `setup.sh` without `--codex-portable` to regenerate with absolute paths, or use `setup/setup.html` to generate a machine-specific config.
 
 To use it:
 

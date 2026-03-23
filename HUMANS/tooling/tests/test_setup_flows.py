@@ -253,6 +253,28 @@ class SetupFlowTests(unittest.TestCase):
             )
             self.assertNotIn(str(REPO_ROOT).replace("\\", "\\\\"), config_text)
 
+    def test_setup_codex_portable_writes_portable_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            build_setup_repo(root)
+
+            self.run_setup(
+                root,
+                "--non-interactive",
+                "--profile",
+                "software-developer",
+                "--platform",
+                "codex",
+                "--codex-portable",
+            )
+
+            config_text = (root / ".codex" / "config.toml").read_text(encoding="utf-8")
+            self.assertIn('command = "python"', config_text)
+            self.assertIn('args = ["core/tools/memory_mcp.py"]', config_text)
+            self.assertIn('cwd = "."', config_text)
+            self.assertIn("env_vars = [", config_text)
+            self.assertNotIn("MEMORY_REPO_ROOT = ", config_text)
+
     def test_init_worktree_creates_orphan_branch_with_committed_memory_worktree(
         self,
     ) -> None:
@@ -520,6 +542,7 @@ class SetupFlowTests(unittest.TestCase):
         self.assertIn('id="codex-python-path"', browser_text)
         self.assertIn('id="codex-path-error"', browser_text)
         self.assertIn("function makeCodexConfig", browser_text)
+        self.assertIn("makeCodexConfigPortable", browser_text)
         self.assertIn("function isAbsolutePath", browser_text)
         self.assertIn("function setCodexPathError", browser_text)
         self.assertIn("'.codex/config.toml'", browser_text)
