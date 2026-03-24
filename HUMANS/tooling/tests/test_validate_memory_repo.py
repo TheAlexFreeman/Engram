@@ -1377,7 +1377,7 @@ class ValidateMemoryRepoTests(unittest.TestCase):
             root = Path(tempdir)
             build_minimal_repo(root)
             write(
-                root / "setup" / "setup.sh",
+                root / "HUMANS" / "setup" / "setup.sh",
                 textwrap.dedent(
                     f"""\
                     #!/usr/bin/env bash
