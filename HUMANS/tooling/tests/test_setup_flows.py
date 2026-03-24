@@ -508,7 +508,11 @@ class SetupFlowTests(unittest.TestCase):
         self,
     ) -> None:
         shell_text = (REPO_ROOT / "HUMANS" / "setup" / "setup.sh").read_text(encoding="utf-8")
-        browser_text = (REPO_ROOT / "HUMANS" / "views" / "setup.html").read_text(encoding="utf-8")
+        # The browser setup is composed of setup.html + setup-utils.js (loaded via <script src>).
+        # Profile summary copy was extracted to setup-utils.js; check both files together.
+        html_text = (REPO_ROOT / "HUMANS" / "views" / "setup.html").read_text(encoding="utf-8")
+        utils_text = (REPO_ROOT / "HUMANS" / "views" / "setup-utils.js").read_text(encoding="utf-8")
+        browser_text = html_text + utils_text
 
         required_phrases = (
             "Template-based profile",
@@ -527,7 +531,11 @@ class SetupFlowTests(unittest.TestCase):
     def test_browser_setup_uses_local_date_components_for_created_frontmatter(
         self,
     ) -> None:
-        browser_text = (REPO_ROOT / "HUMANS" / "views" / "setup.html").read_text(encoding="utf-8")
+        # The browser setup is composed of setup.html + setup-utils.js (loaded via <script src>).
+        # JS logic including date helpers was extracted to setup-utils.js; check both.
+        html_text = (REPO_ROOT / "HUMANS" / "views" / "setup.html").read_text(encoding="utf-8")
+        utils_text = (REPO_ROOT / "HUMANS" / "views" / "setup-utils.js").read_text(encoding="utf-8")
+        browser_text = html_text + utils_text
 
         self.assertNotIn("toISOString().slice(0, 10)", browser_text)
         self.assertIn("getFullYear()", browser_text)
@@ -535,7 +543,11 @@ class SetupFlowTests(unittest.TestCase):
         self.assertIn("getDate()", browser_text)
 
     def test_browser_setup_collects_codex_paths_and_generates_config(self) -> None:
-        browser_text = (REPO_ROOT / "HUMANS" / "views" / "setup.html").read_text(encoding="utf-8")
+        # The browser setup is composed of setup.html + setup-utils.js (loaded via <script src>).
+        # JS logic for codex config was extracted to setup-utils.js; check both.
+        html_text = (REPO_ROOT / "HUMANS" / "views" / "setup.html").read_text(encoding="utf-8")
+        utils_text = (REPO_ROOT / "HUMANS" / "views" / "setup-utils.js").read_text(encoding="utf-8")
+        browser_text = html_text + utils_text
 
         self.assertIn('id="codex-repo-path"', browser_text)
         self.assertIn('id="codex-python-path"', browser_text)

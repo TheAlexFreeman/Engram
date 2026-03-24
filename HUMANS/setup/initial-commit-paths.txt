@@ -20,6 +20,7 @@ HUMANS/README.md
 HUMANS/docs/CORE.md
 HUMANS/docs/DESIGN.md
 HUMANS/docs/GLOSSARY.md
+HUMANS/docs/HELP.md
 HUMANS/docs/INTEGRATIONS.md
 HUMANS/docs/MCP.md
 HUMANS/docs/QUICKSTART.md
@@ -33,6 +34,10 @@ HUMANS/tooling/scripts/resolve_bootstrap_manifest.py
 HUMANS/tooling/scripts/resolve_memory_capabilities.py
 HUMANS/tooling/scripts/resolve_task_readiness.py
 HUMANS/tooling/scripts/validate_memory_repo.py
+HUMANS/tooling/tests-js/dashboard-utils.test.js
+HUMANS/tooling/tests-js/engram-utils.test.js
+HUMANS/tooling/tests-js/graph.test.js
+HUMANS/tooling/tests-js/setup-utils.test.js
 HUMANS/tooling/tests/__init__.py
 HUMANS/tooling/tests/test_access_logging_batch.py
 HUMANS/tooling/tests/test_bootstrap_resolver.py
@@ -590,7 +595,10 @@ HUMANS/setup/templates/profiles/software-developer.md
 HUMANS/setup/templates/profiles/student.md
 HUMANS/setup/templates/profiles/writer.md
 HUMANS/views/setup.html
+HUMANS/views/setup-utils.js
 HUMANS/views/dashboard.html
+HUMANS/views/dashboard-utils.js
+HUMANS/views/docs.html
 HUMANS/views/engram-shared.css
 HUMANS/views/engram-utils.js
 HUMANS/views/knowledge.html
