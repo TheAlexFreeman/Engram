@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agent Memory System — Dashboard</title>
+<title>Engram — Dashboard</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -167,7 +167,7 @@ button {
 <body>
 <div class="dashboard">
 
-<h1>Agent Memory System &#8212; Dashboard</h1>
+<h1>Engram &#8212; Dashboard</h1>
 <p class="subtitle">Read-only view of your local memory repository. Nothing is sent anywhere.</p>
 
 <div class="toolbar">
@@ -184,7 +184,7 @@ button {
 <!-- placeholder before folder is loaded -->
 <div class="placeholder" id="placeholder">
   <div class="icon">&#128193;</div>
-  <p>Click <strong>Open Memory Repo</strong> to load your <code>agent-memory-seed</code> folder.<br>
+  <p>Click <strong>Open Memory Repo</strong> to load your Engram folder.<br>
   The dashboard reads files locally using your browser — nothing leaves your machine.</p>
   <p style="margin-top:0.5rem; font-size:0.8rem; color:#999">Requires a Chromium-based browser (Chrome, Edge, Brave, Arc).</p>
 </div>
@@ -456,7 +456,7 @@ button {
     var hasCore = false;
     try { await rootHandle.getDirectoryHandle('core'); hasCore = true; } catch (_) {}
     if (!readme || !hasCore) {
-      showError('This folder does not appear to be an agent-memory-seed repo. Expected README.md and core/ directory.');
+      showError('This folder does not appear to be an Engram repo. Expected README.md and core/ directory.');
       rootHandle = null;
       return;
     }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Agent Memory System — Onboarding Export
+# Engram — Onboarding Export
 # Imports a structured onboarding export file into the memory repo.
 #
 # Usage:
@@ -45,7 +45,7 @@ done
 
 # Validate we're in the right directory
 if [[ ! -f "README.md" ]] || [[ ! -d "meta" ]]; then
-    echo "Error: onboard-export.sh must be run from the root of the agent-memory-seed repository."
+    echo "Error: onboard-export.sh must be run from the root of the Engram repository."
     exit 1
 fi
 

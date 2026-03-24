@@ -63,14 +63,14 @@ If none of those are set, the runtime falls back to file-relative detection from
 **Run it from the repo itself**
 
 ```bash
-cd agent-memory-seed
+cd Engram
 python core/tools/memory_mcp.py
 ```
 
 **Run it from somewhere else**
 
 ```bash
-MEMORY_REPO_ROOT=/path/to/agent-memory-seed python /path/to/agent-memory-seed/core/tools/memory_mcp.py
+MEMORY_REPO_ROOT=/path/to/Engram python /path/to/Engram/core/tools/memory_mcp.py
 ```
 
 **Embed it in Python**
@@ -78,7 +78,7 @@ MEMORY_REPO_ROOT=/path/to/agent-memory-seed python /path/to/agent-memory-seed/co
 ```python
 from engram_mcp.agent_memory_mcp.server import create_mcp
 
-mcp, tools, root, repo = create_mcp(repo_root="/path/to/agent-memory-seed")
+mcp, tools, root, repo = create_mcp(repo_root="/path/to/Engram")
 ```
 
 ### Concrete client example: Claude Desktop
@@ -90,9 +90,9 @@ The repo already includes an example client config in `HUMANS/tooling/mcp-config
 	"mcpServers": {
 		"agent-memory": {
 			"command": "python",
-				"args": ["C:/path/to/agent-memory-seed/core/tools/memory_mcp.py"],
+				"args": ["C:/path/to/Engram/core/tools/memory_mcp.py"],
 			"env": {
-				"AGENT_MEMORY_ROOT": "C:/path/to/agent-memory-seed"
+				"AGENT_MEMORY_ROOT": "C:/path/to/Engram"
 			}
 		}
 	}

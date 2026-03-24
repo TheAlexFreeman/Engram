@@ -1,4 +1,4 @@
-# Integrating `agent-memory-seed`
+# Integrating Engram
 
 This guide covers the supported integration modes for this repository, with extra focus on **worktree mode**: deploying the memory store as an orphan-branch worktree inside an existing host repository.
 

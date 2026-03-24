@@ -4,7 +4,7 @@ set -euo pipefail
 # Start with `README.md` for the architecture and startup contract, then use `core/INIT.md` for live routing and context-loading rules.
 # Use `core/memory/HOME.md` as the session entry point for normal sessions after `core/INIT.md` routes you there.
 
-# Agent Memory System — Post-clone setup script
+# Engram — Post-clone setup script
 # Personalizes the template repo for a new user.
 
 INTERACTIVE=true
@@ -20,7 +20,7 @@ declare -a INITIAL_COMMIT_PATHS=()
 usage() {
     echo "Usage: setup.sh [OPTIONS]"
     echo ""
-    echo "Personalizes the agent-memory-seed template after cloning."
+    echo "Personalizes the Engram template after cloning."
     echo ""
     echo "Options:"
     echo "  --non-interactive    Skip prompts, use defaults"
@@ -91,7 +91,7 @@ fi
 
 # Validate we're in the right directory
 if [[ ! -f "README.md" ]] || [[ ! -d "core/governance" ]]; then
-    echo "Error: setup.sh must be run from the root of the agent-memory-seed repository."
+    echo "Error: setup.sh must be run from the root of the Engram repository."
     exit 1
 fi
 
@@ -243,7 +243,7 @@ stage_initial_commit_paths() {
     rm -f "$resolved_manifest"
 }
 
-echo "=== Agent Memory System Setup ==="
+echo "=== Engram Setup ==="
 echo ""
 
 # 1. Set today's date in CHANGELOG.md
@@ -523,13 +523,13 @@ if ! git rev-parse HEAD >/dev/null 2>&1; then
         echo "       Run these commands to configure, then commit the staged allowlist:"
         echo "         git config user.name  \"Your Name\""
         echo "         git config user.email \"you@example.com\""
-        echo "         git commit -m '[system] Initialize agent memory system' -m 'Created from agent-memory-seed template on $TODAY.'"
+        echo "         git commit -m '[system] Initialize Engram' -m 'Created from Engram template on $TODAY.'"
         echo "       If you need to rebuild the same staged allowlist first, run:"
         echo "         git add --pathspec-from-file=setup/initial-commit-paths.txt --"
-        echo "         git commit -m '[system] Initialize agent memory system' -m 'Created from agent-memory-seed template on $TODAY.'"
+        echo "         git commit -m '[system] Initialize Engram' -m 'Created from Engram template on $TODAY.'"
     else
-        git commit -m "[system] Initialize agent memory system" \
-            -m "Created from agent-memory-seed template on $TODAY."
+        git commit -m "[system] Initialize Engram" \
+            -m "Created from Engram template on $TODAY."
         echo "[ok] Created initial commit"
     fi
 else

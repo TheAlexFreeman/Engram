@@ -659,9 +659,9 @@ write_host_adapter_files() {
     local quick_reference_path="$worktree_path_display/core/INIT.md"
 
     cat > "$host_root/AGENTS.md" <<EOF
-# Agent Memory System
+# Engram
 
-This project uses a dedicated agent-memory worktree.
+This project uses a dedicated Engram worktree.
 
 - Memory worktree: \
   \
@@ -677,7 +677,7 @@ memory reads, writes, and governance files.
 EOF
 
     cat > "$host_root/CLAUDE.md" <<EOF
-# Agent Memory System
+# Engram
 
 This host repository keeps its persistent memory in a separate worktree.
 
@@ -818,7 +818,7 @@ WORKTREE_NATIVE="$(native_path "$WORKTREE_ABS")"
 HOST_ROOT_NATIVE="$(native_path "$HOST_REPO_ROOT")"
 PROJECT_NAME="$(basename "$HOST_REPO_ROOT")"
 CURRENT_BRANCH="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --short HEAD)"
-TEMP_WORKTREE="$HOST_REPO_ROOT/.git/agent-memory-seed-tmp-$BRANCH_NAME"
+TEMP_WORKTREE="$HOST_REPO_ROOT/.git/engram-tmp-$BRANCH_NAME"
 WORKTREE_DISPLAY="$WORKTREE_PATH"
 
 if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
@@ -836,7 +836,7 @@ if [[ "$DRY_RUN" == true ]]; then
     print_cmd git -C "$TEMP_WORKTREE" checkout --orphan "$BRANCH_NAME"
     print_cmd git -C "$TEMP_WORKTREE" rm -rf --ignore-unmatch .
     print_cmd git -C "$TEMP_WORKTREE" add --all
-    print_cmd git -C "$TEMP_WORKTREE" commit -m "[system] Initialize agent memory worktree" -m "Seeded from agent-memory-seed on $TODAY."
+    print_cmd git -C "$TEMP_WORKTREE" commit -m "[system] Initialize Engram worktree" -m "Seeded from Engram on $TODAY."
     print_cmd git worktree remove "$TEMP_WORKTREE"
     print_cmd git worktree add "$WORKTREE_ABS" "$BRANCH_NAME"
     echo "[dry-run] Worktree initialization commands printed only; no files or git state changed."
@@ -850,7 +850,7 @@ cleanup_temp_worktree() {
 }
 trap cleanup_temp_worktree EXIT
 
-echo "=== Agent Memory Worktree Setup ==="
+echo "=== Engram Worktree Setup ==="
 echo ""
 
 run_cmd git worktree add --detach "$TEMP_WORKTREE" HEAD
@@ -872,7 +872,7 @@ write_worktree_hygiene_files "$TEMP_WORKTREE"
 write_codebase_starters "$TEMP_WORKTREE" "$HOST_ROOT_NATIVE" "$WORKTREE_NATIVE" "$BRANCH_NAME" "$PROJECT_NAME"
 
 run_cmd git -C "$TEMP_WORKTREE" add --all
-run_cmd git -C "$TEMP_WORKTREE" commit -m "[system] Initialize agent memory worktree" -m "Seeded from agent-memory-seed on $TODAY."
+run_cmd git -C "$TEMP_WORKTREE" commit -m "[system] Initialize Engram worktree" -m "Seeded from Engram on $TODAY."
 run_cmd git worktree remove "$TEMP_WORKTREE"
 run_cmd git worktree add "$WORKTREE_ABS" "$BRANCH_NAME"
 

@@ -74,6 +74,6 @@ This is the actual first changelog entry, recorded by Claude Opus 4.6 at system 
 
 **Changed:** Repository initialized with base template. Folders created for `identity/`, `knowledge/`, `skills/`, `chats/`, and `meta/`. Core protocols established in README.md including access-tracking via ACCESS.jsonl, progressive summary compression, bootstrap sequence, and update governance.
 
-**Reasoning:** Starting point for a persistent, version-controlled agent memory system. The template is intentionally minimal — it provides structure and protocols but almost no content, so that all personalization emerges from actual user interaction rather than assumptions.
+**Reasoning:** Starting point for a persistent, version-controlled Engram memory system. The template is intentionally minimal — it provides structure and protocols but almost no content, so that all personalization emerges from actual user interaction rather than assumptions.
 
 **Approved by:** Alex

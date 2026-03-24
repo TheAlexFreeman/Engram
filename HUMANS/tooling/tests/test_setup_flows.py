@@ -705,7 +705,7 @@ class SetupFlowTests(unittest.TestCase):
                 result.stdout,
             )
             self.assertIn(
-                "git commit -m '[system] Initialize agent memory system' -m 'Created from agent-memory-seed template on",
+                "git commit -m '[system] Initialize Engram' -m 'Created from Engram template on",
                 result.stdout,
             )
             self.assertIn("git status --short", result.stdout)

@@ -154,7 +154,7 @@ def build_minimal_repo(root: Path) -> None:
     write(
         root / "AGENTS.md",
         (
-            "# Agent Memory System\n\n"
+            "# Engram\n\n"
             f"This repository is a persistent AI memory system. At the start of every session, {ADAPTER_ROUTING_LINE}. "
             f"{ADAPTER_MCP_LINE}; fall back to direct file access only when the MCP surface is unavailable or lacks the needed operation. "
             "Do not duplicate the full rule list here — `README.md` and `core/governance/` are the single source of truth.\n"

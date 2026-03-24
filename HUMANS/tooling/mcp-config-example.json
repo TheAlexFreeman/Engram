@@ -8,9 +8,9 @@
   "mcpServers": {
     "agent-memory": {
       "command": "python",
-      "args": ["~/code/personal/agent-memory-seed/core/tools/memory_mcp.py"],
+      "args": ["~/code/personal/Engram/core/tools/memory_mcp.py"],
       "env": {
-        "AGENT_MEMORY_ROOT": "~/code/personal/agent-memory-seed"
+        "AGENT_MEMORY_ROOT": "~/code/personal/Engram"
       }
     }
   }
