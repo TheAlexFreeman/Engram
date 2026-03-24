@@ -9,6 +9,7 @@ related:
   - react-performance.md
   - react-error-boundaries-suspense.md
   - vitest-rtl-msw.md
+  - ../devops/sentry-fullstack-observability.md
 ---
 
 # Vite Configuration for React
@@ -88,7 +89,7 @@ import { defineConfig, loadEnv } from "vite";
 export default defineConfig(({ mode }) => {
   // loadEnv reads the .env* files for the current mode
   const env = loadEnv(mode, process.cwd(), "");  // "" prefix = all vars
-  
+
   return {
     plugins: [...],
     define: {
@@ -206,14 +207,14 @@ build: {
       manualChunks: {
         // Vendor chunk — stable, aggressively cached by browsers
         vendor: ["react", "react-dom"],
-        
+
         // TanStack — changes on updates but separate from vendor
         tanstack: [
           "@tanstack/react-query",
           "@tanstack/react-router",
           "@tanstack/react-virtual",
         ],
-        
+
         // Chakra — large; separate chunk helps with cache reuse
         chakra: ["@chakra-ui/react"],
       },
@@ -309,7 +310,7 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },
-  
+
   // Test config — ignored by `vite build`
   test: {
     environment: "jsdom",

@@ -9,6 +9,7 @@ related:
   - django-production-stack.md
   - django-gunicorn-uvicorn.md
   - celery-worker-beat-ops.md
+  - psycopg3-and-connection-management.md
 origin_session: unknown
 ---
 
@@ -49,7 +50,7 @@ DATABASES = {
 
 ### Gotcha: CONN_MAX_AGE vs. pgBouncer
 
-If you're using pgBouncer in **transaction pooling** mode (the default for high-concurrency deployments), **do not use `CONN_MAX_AGE > 0`**. 
+If you're using pgBouncer in **transaction pooling** mode (the default for high-concurrency deployments), **do not use `CONN_MAX_AGE > 0`**.
 
 pgBouncer transaction pooling assigns a Postgres connection for the duration of a transaction, then releases it back to the pool. If Django holds a persistent connection, pgBouncer can't reclaim it between requests — defeating the purpose of pooling.
 
@@ -264,14 +265,14 @@ class Migration(migrations.Migration):
                 created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
                 payload     JSONB
             ) PARTITION BY RANGE (created_at);
-            
+
             -- Create monthly partitions
             CREATE TABLE myapp_event_2026_01 PARTITION OF myapp_event
                 FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
             CREATE TABLE myapp_event_2026_02 PARTITION OF myapp_event
                 FOR VALUES FROM ('2026-02-01') TO ('2026-03-01');
             -- etc.
-            
+
             CREATE INDEX ON myapp_event (user_id, created_at);  -- local index per partition
             """,
             reverse_sql="DROP TABLE myapp_event CASCADE",

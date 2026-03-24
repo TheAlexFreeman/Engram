@@ -10,6 +10,7 @@ related:
   - tanstack-query.md
   - tanstack-router.md
   - react-performance.md
+  - ../devops/sentry-fullstack-observability.md
 ---
 
 # Error Boundaries and Suspense in React
@@ -92,7 +93,7 @@ import { useErrorBoundary } from "react-error-boundary";
 
 function UserProfile({ userId }: { userId: string }) {
   const { showBoundary } = useErrorBoundary();
-  
+
   const handleEdit = async () => {
     try {
       await updateProfile(userId, data);
@@ -101,7 +102,7 @@ function UserProfile({ userId }: { userId: string }) {
       showBoundary(error);
     }
   };
-  
+
   return <button onClick={handleEdit}>Edit</button>;
 }
 ```
@@ -136,7 +137,7 @@ const root = createRoot(document.getElementById("root")!, {
       extra: { componentStack: errorInfo.componentStack },
     });
   },
-  
+
   // Fires for errors caught by an ErrorBoundary (before the fallback renders)
   onCaughtError: (error, errorInfo) => {
     // Log caught errors too — useful for detecting boundary placement issues
@@ -181,12 +182,12 @@ function DashboardPage() {
   return (
     <div>
       <Header />  {/* static, no suspense needed */}
-      
+
       {/* Each data-heavy region gets its own boundary */}
       <Suspense fallback={<StatsCardsSkeleton />}>
         <StatsCards />
       </Suspense>
-      
+
       <Suspense fallback={<RecentActivitySkeleton />}>
         <RecentActivity />
       </Suspense>
@@ -227,7 +228,7 @@ TanStack Query's `useSuspenseQuery` opts a query into Suspense mode — it throw
 function UserProfile({ userId }: { userId: string }) {
   // Throws a promise while loading, throws error if failed
   const { data: user } = useSuspenseQuery(userQueryOptions(userId));
-  
+
   // data is guaranteed to be defined here — no null checks needed
   return <div>{user.email}</div>;
 }
@@ -250,7 +251,7 @@ function Dashboard() {
   const [{ data: user }, { data: stats }] = useSuspenseQueries({
     queries: [userQueryOptions(userId), statsQueryOptions(userId)],
   });
-  
+
   return <DashboardContent user={user} stats={stats} />;
 }
 ```
@@ -267,10 +268,10 @@ export const Route = createFileRoute("/project/$id")({
   loader: async ({ params }) => {
     // Critical data — must be available before render
     const project = await fetchProject(params.id);
-    
+
     // Non-critical data — defer it; page renders without waiting
     const activity = fetchActivity(params.id);  // NOT awaited
-    
+
     return {
       project,
       activity: defer(activity),  // TanStack Router defer()
@@ -280,11 +281,11 @@ export const Route = createFileRoute("/project/$id")({
 
 function ProjectPage() {
   const { project, activity } = Route.useLoaderData();
-  
+
   return (
     <div>
       <ProjectHeader project={project} />
-      
+
       {/* Await component renders when the deferred promise resolves */}
       <Await promise={activity} fallback={<ActivitySkeleton />}>
         {(activityData) => <ActivityFeed data={activityData} />}
@@ -315,7 +316,7 @@ For manual transitions:
 function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
   const [isPending, startTransition] = useTransition();
   const navigate = useNavigate();
-  
+
   return (
     <a
       href={to}
@@ -346,17 +347,17 @@ import * as Sentry from "@sentry/react";
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
-  
+
   integrations: [
     // Browser tracing for performance monitoring
     Sentry.browserTracingIntegration(),
-    
+
     // React Router integration — tracks navigation as transactions
     // For TanStack Router, use the generic BrowserTracing and instrument manually
   ],
-  
+
   tracesSampleRate: 0.1,  // 10% of transactions for performance monitoring
-  
+
   // Correlate with Django's Sentry tracing via sentry-trace / baggage headers
   tracePropagationTargets: [/^\/api\//, /^https:\/\/api\.myapp\.com/],
 });
@@ -433,13 +434,13 @@ function DataRegionError({
   resetErrorBoundary: () => void;
 }) {
   const queryClient = useQueryClient();
-  
+
   const handleRetry = () => {
     // Remove the failed query from cache so it re-fetches
     queryClient.removeQueries({ queryKey: ["relevant-key"] });
     resetErrorBoundary();
   };
-  
+
   return (
     <div role="alert">
       <Text>Failed to load data</Text>
@@ -455,7 +456,7 @@ function DataRegionError({
 function ErrorFallback({ error }: { error: Error }) {
   // Sentry assigns an event ID — user can quote this to support
   const eventId = Sentry.lastEventId();
-  
+
   return (
     <div role="alert">
       <Heading>Something went wrong</Heading>

@@ -4,6 +4,8 @@ last_verified: 2026-03-20
 origin_session: manual
 source: external-research
 trust: medium
+related:
+  - psycopg3-and-connection-management.md
 ---
 
 # Django async

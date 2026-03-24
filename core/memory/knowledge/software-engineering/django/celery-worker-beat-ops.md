@@ -4,6 +4,8 @@ origin_session: manual
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
+related:
+  - ../devops/redis-internals-and-operations.md
 ---
 
 # Celery worker and beat operations

@@ -4,6 +4,9 @@ origin_session: core/memory/activity/2026/03/18/chat-001
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
+related:
+  - logfire-observability.md
+  - ../devops/sentry-fullstack-observability.md
 ---
 
 # Django observability with structlog and Sentry

@@ -10,6 +10,7 @@ related:
   - zero-downtime-deploys.md
   - environment-secrets-management.md
   - dev-workflow-tooling.md
+  - sentry-fullstack-observability.md
 ---
 
 # GitHub Actions CI/CD for Django + React
@@ -67,7 +68,7 @@ on:
 jobs:
   django-test:
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:17-alpine
@@ -82,7 +83,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      
+
       redis:
         image: redis:7-alpine
         ports:
@@ -92,21 +93,21 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    
+
     env:
       DATABASE_URL: postgres://testuser:testpass@localhost:5432/testdb
       REDIS_URL: redis://localhost:6379/0
       DJANGO_SETTINGS_MODULE: config.settings.test
       SECRET_KEY: ci-not-a-real-secret-key
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      
+
       - name: Cache pip dependencies
         uses: actions/cache@v4
         with:
@@ -114,22 +115,22 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-      
+
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
-      
+
       - name: Run ruff (lint + format check)
         run: |
           ruff check .
           ruff format --check .
-      
+
       - name: Run mypy
         run: mypy .
         continue-on-error: true  # remove once fully typed
-      
+
       - name: Run pytest
         run: pytest --reuse-db --cov=. --cov-report=xml -q
-      
+
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -150,35 +151,35 @@ jobs:
 ```yaml
   react-test-build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
-      
+
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
-      
+
       - name: Run ESLint
         working-directory: frontend
         run: npx eslint src/
-      
+
       - name: Run Vitest
         working-directory: frontend
         run: npx vitest run --coverage
-      
+
       - name: Build for production
         working-directory: frontend
         env:
           VITE_API_URL: ""  # relative URL — nginx handles routing
         run: npx vite build
-      
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -196,24 +197,24 @@ jobs:
     runs-on: ubuntu-latest
     needs: [django-test, react-test-build]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
+
     permissions:
       contents: read
       packages: write  # required for GHCR push
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Build and push Django image
         uses: docker/build-push-action@v6
         with:
@@ -225,13 +226,13 @@ jobs:
             ghcr.io/${{ github.repository }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
+
       - name: Download React build artifact
         uses: actions/download-artifact@v4
         with:
           name: react-dist
           path: ./react-dist
-      
+
       - name: Build and push React/nginx image
         uses: docker/build-push-action@v6
         with:
@@ -261,11 +262,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [docker-build-push]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
+
     environment:
       name: production
       url: https://example.com
-    
+
     steps:
       - name: Deploy to production
         uses: appleboy/ssh-action@v1
@@ -275,22 +276,22 @@ jobs:
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
           script: |
             export APP_VERSION=${{ github.sha }}
-            
+
             cd /opt/myapp
-            
+
             # Pull new images
             docker compose -f docker-compose.prod.yml pull
-            
+
             # Run migrations before updating app
             docker compose -f docker-compose.prod.yml run --rm web python manage.py migrate --no-input
-            
+
             # Update services (zero-downtime pattern: web first, then workers)
             docker compose -f docker-compose.prod.yml up -d --no-build nginx web
             docker compose -f docker-compose.prod.yml up -d --no-build celery-worker-default celery-beat
-            
+
             # Remove old images
             docker image prune -f
-      
+
       - name: Smoke test
         run: |
           sleep 10  # wait for containers to start
@@ -404,7 +405,7 @@ For the React job:
     run: |
       npx eslint src/
       npx prettier --check "src/**/*.{ts,tsx}"
-  
+
   - name: Vitest
     run: npx vitest run
 ```

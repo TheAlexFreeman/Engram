@@ -28,3 +28,8 @@ Infrastructure for Django + React + Celery + Redis + Postgres. Promoted 2026-03-
 - `github-actions-cicd.md` — CI/CD pipelines
 - `environment-secrets-management.md` — Secrets injection, env handling
 - `dev-workflow-tooling.md` — Dev tooling, scripts, workflows
+
+## Data stores and observability
+
+- `redis-internals-and-operations.md` — Redis data structures, persistence, HA, monitoring, production tuning
+- `sentry-fullstack-observability.md` — Sentry across Django + React + Celery: distributed tracing, source maps, releases, alerts

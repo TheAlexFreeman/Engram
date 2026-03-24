@@ -21,6 +21,7 @@ Django 6.0, DRF, Celery, Postgres, Redis. Promoted 2026-03-20.
 - `django-orm-postgres.md` — Advanced ORM, Postgres features, `Lexeme`, indexing
 - `django-database-pooling.md` — pgBouncer, transaction pooling, `DISABLE_SERVER_SIDE_CURSORS`
 - `django-migrations-advanced.md` — Zero-downtime patterns, large migrations
+- `psycopg3-and-connection-management.md` — Psycopg 3 async, pooling, pipeline mode, COPY, migration from psycopg2
 
 ## API and React integration
 
@@ -40,6 +41,11 @@ Django 6.0, DRF, Celery, Postgres, Redis. Promoted 2026-03-20.
 - `django-production-stack.md` — **Start here.** Service boundaries, startup order, migrations, Redis topology
 - `django-caching-redis.md` — Cache backend, invalidation, Celery separation
 - `django-observability-structlog-sentry.md` — Structured logging, Sentry integration
+- `logfire-observability.md` — Pydantic Logfire: OpenTelemetry-native tracing for Django, Celery, psycopg, Redis
 - `django-gunicorn-uvicorn.md` — ASGI/WSGI servers
 - `django-security.md` — Security checklist
 - `django-storages.md` — S3, media handling
+
+## Validation and settings
+
+- `pydantic-django-integration.md` — Pydantic settings, Celery payload validation, django-ninja, comparison with DRF serializers

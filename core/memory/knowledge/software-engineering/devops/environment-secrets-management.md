@@ -10,6 +10,7 @@ related:
   - github-actions-cicd.md
   - docker-compose-local-dev.md
   - django-security.md
+  - ../django/pydantic-django-integration.md
 ---
 
 # Environment Variables and Secrets Management
@@ -227,7 +228,7 @@ This bridges the "baked at build time" limitation of Vite without resorting to c
   with:
     script: |
       cd /opt/myapp
-      
+
       # Write secrets to .env.production on the server
       # (server's .env.production is NOT in git; managed by ops)
       cat > .env.production << EOF
@@ -237,7 +238,7 @@ This bridges the "baked at build time" limitation of Vite without resorting to c
       AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
       EOF
-      
+
       # Deploy with these values
       APP_VERSION=${{ github.sha }} docker compose -f docker-compose.prod.yml up -d
 ```

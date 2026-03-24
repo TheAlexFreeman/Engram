@@ -16,3 +16,9 @@ Promoted 2026-03-20. Stack knowledge for Alex's primary development environment:
 - `django/django-react-drf.md` — API design for React frontends
 - `devops/docker-production-config.md` — Full-stack production Docker patterns
 - `devops/nginx-django-react.md` — Reverse proxy for Django + SPA
+
+## Observability triangle
+
+- `django/django-observability-structlog-sentry.md` — structlog for structured event streams
+- `django/logfire-observability.md` — Logfire for OpenTelemetry traces, spans, and performance profiling
+- `devops/sentry-fullstack-observability.md` — Sentry for error tracking, distributed tracing, and release health

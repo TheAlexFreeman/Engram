@@ -9,6 +9,8 @@ related:
   - docker-production-config.md
   - docker-compose-local-dev.md
   - zero-downtime-deploys.md
+  - ../django/psycopg3-and-connection-management.md
+  - redis-internals-and-operations.md
 ---
 
 # Docker Database Operations
