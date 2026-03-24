@@ -198,6 +198,82 @@
 .detail-content .content-placeholder {
   padding: 3rem 1rem; text-align: center; color: var(--color-text-faint);
 }
+
+/* ── Graph overlay ───────────────────────────────────── */
+.graph-toggle {
+  display: inline-block; margin-left: 0.75rem;
+  padding: 0.3rem 0.7rem; font-size: 0.78rem; font-weight: 500;
+  background: var(--color-btn-primary); color: #fff;
+  border: none; border-radius: var(--radius-button); cursor: pointer;
+  transition: background var(--duration, 0.15s) ease;
+}
+.graph-toggle:hover { background: var(--color-btn-primary-hover); }
+
+.graph-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--color-bg); display: none;
+  flex-direction: column;
+}
+.graph-overlay.visible { display: flex; }
+
+.graph-toolbar {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.65rem 1.25rem;
+  background: var(--dark-bg); border-bottom: 1px solid var(--dark-border);
+  color: var(--dark-text); font-size: var(--text-sm, 0.82rem);
+}
+.graph-toolbar h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+.graph-toolbar .spacer { flex: 1; }
+.graph-toolbar button {
+  padding: 0.3rem 0.65rem; font-size: 0.78rem;
+  background: var(--color-surface); color: var(--color-text);
+  border: 1px solid var(--color-border); border-radius: var(--radius-button);
+  cursor: pointer;
+}
+.graph-toolbar button:hover { background: var(--color-hover-bg); }
+
+.graph-stats {
+  font-size: 0.72rem; color: var(--dark-text-muted);
+}
+
+.graph-legend {
+  position: absolute; bottom: 1.25rem; left: 1.25rem;
+  background: var(--color-surface); border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card); padding: 0.65rem 0.85rem;
+  font-size: 0.7rem; color: var(--color-text-secondary);
+  box-shadow: var(--shadow-card); z-index: 1;
+}
+.graph-legend .legend-title {
+  font-weight: 600; margin-bottom: 0.35rem; color: var(--color-text);
+}
+.graph-legend .legend-item {
+  display: flex; align-items: center; gap: 0.4rem; margin: 0.2rem 0;
+}
+.graph-legend .legend-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+
+.graph-tooltip {
+  position: absolute; pointer-events: none;
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-small); padding: 0.4rem 0.65rem;
+  font-size: 0.72rem; color: var(--color-text);
+  box-shadow: var(--shadow-card); z-index: 2;
+  display: none; max-width: 280px;
+}
+.graph-tooltip .tt-path { color: var(--color-text-muted); font-size: 0.65rem; }
+.graph-tooltip .tt-refs { color: var(--color-primary); margin-top: 0.15rem; }
+
+.graph-progress {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  text-align: center; color: var(--color-text-secondary); z-index: 2;
+}
+.graph-progress .spinner {
+  width: 32px; height: 32px; margin: 0 auto 0.75rem;
+  border: 3px solid var(--color-border); border-top-color: var(--color-primary);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -205,7 +281,7 @@
 <div class="knowledge-header">
   <div style="max-width:1020px;margin:0 auto;">
     <h1>Knowledge Base</h1>
-    <p class="subtitle"><a href="dashboard.html" class="nav-link">&#8592; Dashboard</a> <a href="users.html" class="nav-link" style="margin-left:0.5rem">Users</a> <a href="projects.html" class="nav-link" style="margin-left:0.5rem">Projects</a> <a href="skills.html" class="nav-link" style="margin-left:0.5rem">Skills</a></p>
+    <p class="subtitle"><a href="dashboard.html" class="nav-link">&#8592; Dashboard</a> <a href="users.html" class="nav-link" style="margin-left:0.5rem">Users</a> <a href="projects.html" class="nav-link" style="margin-left:0.5rem">Projects</a> <a href="skills.html" class="nav-link" style="margin-left:0.5rem">Skills</a><button class="graph-toggle" id="graph-open-btn" title="View cross-reference graph">&#128476; Graph</button></p>
   </div>
 </div>
 
@@ -240,6 +316,26 @@
 </div>
 
 </div><!-- /knowledge-body -->
+
+<!-- Graph overlay -->
+<div class="graph-overlay" id="graph-overlay">
+  <div class="graph-toolbar">
+    <h2>&#128476; Knowledge Graph</h2>
+    <span class="graph-stats" id="graph-stats"></span>
+    <span class="spacer"></span>
+    <button id="graph-reset-btn" title="Reset zoom / re-layout">Reset</button>
+    <button id="graph-close-btn">&#10005; Close</button>
+  </div>
+  <div style="position:relative;flex:1;overflow:hidden;">
+    <canvas id="graph-canvas"></canvas>
+    <div class="graph-progress" id="graph-progress" style="display:none;">
+      <div class="spinner"></div>
+      <div id="graph-progress-text">Scanning knowledge files&#8230;</div>
+    </div>
+    <div class="graph-legend" id="graph-legend"></div>
+    <div class="graph-tooltip" id="graph-tooltip"></div>
+  </div>
+</div>
 
 <noscript><p style="text-align:center;margin-top:3rem;color:#f87171;">JavaScript is required for the knowledge viewer.</p></noscript>
 
@@ -791,6 +887,537 @@
       parent.appendChild(document.createTextNode(text.substring(last)));
     }
   }
+
+  /* ── cross-reference graph ───────────────────────────── */
+
+  var DOMAIN_COLORS = {
+    'ai':                    '#6ec6ff',
+    'cognitive-science':     '#b39ddb',
+    'literature':            '#ffab91',
+    'mathematics':           '#80cbc4',
+    'philosophy':            '#fff59d',
+    'rationalist-community': '#ef9a9a',
+    'self':                  '#a5d6a7',
+    'social-science':        '#ce93d8',
+    'software-engineering':  '#90caf9',
+    '_unverified':           '#757575'
+  };
+  var DOMAIN_DEFAULT_COLOR = '#888888';
+
+  /**
+   * Resolve a cross-reference to a canonical knowledge-relative path.
+   * sourceDir is the directory segments of the file containing the reference.
+   */
+  function resolveGraphRef(ref, sourceDir) {
+    var path = ref.replace(/^knowledge\//, '');
+    // Strip self/ prefix that references files by area rather than knowledge path
+    if (path.match(/^(self|_unverified)\//)) {
+      // these are already relative to knowledge root
+    } else if (path.match(/^\.\.\//) || path.match(/^\.\//)) {
+      var base = sourceDir.slice();
+      var parts = path.split('/');
+      for (var k = 0; k < parts.length; k++) {
+        if (parts[k] === '..') base.pop();
+        else if (parts[k] !== '.') base.push(parts[k]);
+      }
+      path = base.join('/');
+    }
+    // Ensure .md extension
+    if (!path.match(/\.md$/i)) path += '.md';
+    return path;
+  }
+
+  /** Extract cross-references from a file's content. Returns array of raw ref strings. */
+  function extractRefs(content) {
+    var refs = [];
+    var parsed = parseFrontmatter(content);
+
+    // 1) related: frontmatter field
+    if (parsed.frontmatter) {
+      var fm = parseFlatYaml(parsed.frontmatter);
+      if (fm.related) {
+        var items = fm.related.split(/,\s*/);
+        for (var i = 0; i < items.length; i++) {
+          var r = items[i].trim();
+          if (r && r.match(/\.md$/i)) refs.push(r);
+        }
+      }
+      // Handle YAML list format in frontmatter
+      var listMatch = parsed.frontmatter.match(/^related:\s*\n((?:\s+-\s+.+\n?)+)/m);
+      if (listMatch) {
+        var listItems = listMatch[1].match(/^\s+-\s+(.+)/gm);
+        if (listItems) {
+          for (var j = 0; j < listItems.length; j++) {
+            var val = listItems[j].replace(/^\s+-\s+/, '').trim();
+            if (val) refs.push(val.match(/\.md$/i) ? val : val + '.md');
+          }
+        }
+      }
+    }
+
+    // 2) Markdown links to .md files in body
+    var linkRx = /\[([^\]]*)\]\(([^)]+\.md)\)/gi;
+    var m;
+    while ((m = linkRx.exec(parsed.body)) !== null) {
+      if (!m[2].match(/^https?:\/\//i)) refs.push(m[2]);
+    }
+
+    // 3) Backtick-wrapped .md file references in body
+    var btRx = /`([^`]+\.md)`/gi;
+    while ((m = btRx.exec(parsed.body)) !== null) {
+      refs.push(m[1]);
+    }
+
+    return refs;
+  }
+
+  /** Recursively collect all .md files under a directory. Returns [{path, dirSegments}]. */
+  async function collectFiles(handle, prefix) {
+    var results = [];
+    var listing = await listDir(handle, prefix);
+
+    for (var f = 0; f < listing.files.length; f++) {
+      if (listing.files[f].endsWith('.md')) {
+        var segments = prefix.split('/').filter(Boolean);
+        // Remove the knowledgeBase prefix to get knowledge-relative segments
+        var kbParts = knowledgeBase.split('/');
+        var relSegments = segments.slice(kbParts.length);
+        results.push({
+          path: (relSegments.length ? relSegments.join('/') + '/' : '') + listing.files[f],
+          dirSegments: relSegments
+        });
+      }
+    }
+
+    for (var d = 0; d < listing.dirs.length; d++) {
+      var dirName = listing.dirs[d];
+      if (dirName === '__pycache__') continue;
+      var sub = await collectFiles(handle, prefix + '/' + dirName);
+      for (var s = 0; s < sub.length; s++) results.push(sub[s]);
+    }
+    return results;
+  }
+
+  /** Build the full graph: {nodes: [{id, domain, label}], edges: [{source, target}]}. */
+  async function buildGraph(progressCb) {
+    var files = await collectFiles(rootHandle, knowledgeBase);
+    if (progressCb) progressCb('Found ' + files.length + ' files, scanning\u2026');
+
+    var nodeMap = {};
+    var edges = [];
+
+    // Create nodes
+    for (var i = 0; i < files.length; i++) {
+      var fpath = files[i].path;
+      var domain = files[i].dirSegments[0] || '_root';
+      nodeMap[fpath] = {
+        id: fpath,
+        domain: domain,
+        label: fpath.split('/').pop().replace(/\.md$/, ''),
+        refs: 0, refBy: 0
+      };
+    }
+
+    // Scan for edges
+    var batchSize = 20;
+    for (var b = 0; b < files.length; b += batchSize) {
+      var batch = files.slice(b, Math.min(b + batchSize, files.length));
+      var reads = batch.map(function (f) {
+        return readFile(rootHandle, knowledgeBase + '/' + f.path);
+      });
+      var contents = await Promise.all(reads);
+      for (var j = 0; j < batch.length; j++) {
+        if (!contents[j]) continue;
+        var rawRefs = extractRefs(contents[j]);
+        var sourceId = batch[j].path;
+        var seen = {};
+        for (var r = 0; r < rawRefs.length; r++) {
+          var targetId = resolveGraphRef(rawRefs[r], batch[j].dirSegments);
+          if (targetId === sourceId || seen[targetId]) continue;
+          seen[targetId] = true;
+          if (nodeMap[targetId]) {
+            edges.push({ source: sourceId, target: targetId });
+            nodeMap[sourceId].refs++;
+            nodeMap[targetId].refBy++;
+          }
+        }
+      }
+      if (progressCb) progressCb('Scanned ' + Math.min(b + batchSize, files.length) + ' / ' + files.length);
+    }
+
+    var nodes = [];
+    for (var id in nodeMap) nodes.push(nodeMap[id]);
+    return { nodes: nodes, edges: edges };
+  }
+
+  /* ── Force-directed layout + canvas renderer ────────── */
+
+  var graphSim = null;
+
+  function startGraph(graph) {
+    var overlay = document.getElementById('graph-overlay');
+    var canvas = document.getElementById('graph-canvas');
+    var ctx = canvas.getContext('2d');
+    var tooltip = document.getElementById('graph-tooltip');
+    var legend = document.getElementById('graph-legend');
+    var stats = document.getElementById('graph-stats');
+
+    // Stats
+    stats.textContent = graph.nodes.length + ' files \u00B7 ' + graph.edges.length + ' links';
+
+    // Size canvas
+    function resize() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Build legend
+    legend.textContent = '';
+    var ltitle = el('div', 'Domains', 'legend-title');
+    legend.appendChild(ltitle);
+    var domainsSeen = {};
+    for (var i = 0; i < graph.nodes.length; i++) {
+      domainsSeen[graph.nodes[i].domain] = true;
+    }
+    for (var d in domainsSeen) {
+      var item = el('div', '', 'legend-item');
+      var dot = el('span', '', 'legend-dot');
+      dot.style.background = DOMAIN_COLORS[d] || DOMAIN_DEFAULT_COLOR;
+      item.appendChild(dot);
+      item.appendChild(el('span', d));
+      legend.appendChild(item);
+    }
+
+    // Initialize node positions
+    var W = canvas.width, H = canvas.height;
+    var nodes = graph.nodes;
+    var edges = graph.edges;
+
+    // Index for fast lookup
+    var idxMap = {};
+    for (var n = 0; n < nodes.length; n++) {
+      idxMap[nodes[n].id] = n;
+      nodes[n].x = W / 2 + (Math.random() - 0.5) * W * 0.6;
+      nodes[n].y = H / 2 + (Math.random() - 0.5) * H * 0.6;
+      nodes[n].vx = 0;
+      nodes[n].vy = 0;
+      nodes[n].degree = nodes[n].refs + nodes[n].refBy;
+    }
+
+    // Indexed edges
+    var edgeIdx = edges.map(function (e) {
+      return { s: idxMap[e.source], t: idxMap[e.target] };
+    });
+
+    // Adjacency list for hover highlight
+    var adj = {};
+    for (var e = 0; e < edges.length; e++) {
+      var si = idxMap[edges[e].source], ti = idxMap[edges[e].target];
+      if (!adj[si]) adj[si] = [];
+      if (!adj[ti]) adj[ti] = [];
+      adj[si].push(ti);
+      adj[ti].push(si);
+    }
+
+    // Camera — centered on the node cloud
+    var cam = { x: W / 2, y: H / 2, zoom: 1 };
+    var dragging = false, dragStart = null, camStart = null;
+    var hoveredNode = -1;
+    var dragNode = -1;
+
+    function screenToWorld(sx, sy) {
+      return {
+        x: (sx - canvas.width / 2) / cam.zoom + cam.x,
+        y: (sy - canvas.height / 2) / cam.zoom + cam.y
+      };
+    }
+
+    function nodeAt(wx, wy) {
+      for (var i = nodes.length - 1; i >= 0; i--) {
+        var r = nodeRadius(nodes[i]);
+        var dx = nodes[i].x - wx, dy = nodes[i].y - wy;
+        if (dx * dx + dy * dy < (r + 4) * (r + 4)) return i;
+      }
+      return -1;
+    }
+
+    function nodeRadius(node) {
+      return Math.min(3 + node.degree * 1.2, 18);
+    }
+
+    // Interaction
+    canvas.addEventListener('mousedown', function (ev) {
+      var rect = canvas.getBoundingClientRect();
+      var sx = ev.clientX - rect.left, sy = ev.clientY - rect.top;
+      var w = screenToWorld(sx, sy);
+      var hit = nodeAt(w.x, w.y);
+      if (hit >= 0) {
+        dragNode = hit;
+        nodes[hit].pinned = true;
+      } else {
+        dragging = true;
+        dragStart = { x: ev.clientX, y: ev.clientY };
+        camStart = { x: cam.x, y: cam.y };
+      }
+    });
+
+    canvas.addEventListener('mousemove', function (ev) {
+      var rect = canvas.getBoundingClientRect();
+      var sx = ev.clientX - rect.left, sy = ev.clientY - rect.top;
+      if (dragNode >= 0) {
+        var w = screenToWorld(sx, sy);
+        nodes[dragNode].x = w.x;
+        nodes[dragNode].y = w.y;
+        nodes[dragNode].vx = 0;
+        nodes[dragNode].vy = 0;
+        return;
+      }
+      if (dragging) {
+        cam.x = camStart.x - (ev.clientX - dragStart.x) / cam.zoom;
+        cam.y = camStart.y - (ev.clientY - dragStart.y) / cam.zoom;
+        return;
+      }
+      var w = screenToWorld(sx, sy);
+      var hit = nodeAt(w.x, w.y);
+      hoveredNode = hit;
+      canvas.style.cursor = hit >= 0 ? 'pointer' : 'grab';
+
+      if (hit >= 0) {
+        var node = nodes[hit];
+        tooltip.style.display = '';
+        tooltip.style.left = (ev.clientX - rect.left + 12) + 'px';
+        tooltip.style.top = (ev.clientY - rect.top - 8) + 'px';
+        tooltip.innerHTML = '';
+        tooltip.appendChild(el('div', node.label));
+        tooltip.appendChild(el('div', node.id, 'tt-path'));
+        tooltip.appendChild(el('div', node.refs + ' out \u00B7 ' + node.refBy + ' in', 'tt-refs'));
+      } else {
+        tooltip.style.display = 'none';
+      }
+    });
+
+    canvas.addEventListener('mouseup', function () {
+      if (dragNode >= 0) {
+        nodes[dragNode].pinned = false;
+        dragNode = -1;
+      }
+      dragging = false;
+    });
+
+    canvas.addEventListener('dblclick', function (ev) {
+      var rect = canvas.getBoundingClientRect();
+      var sx = ev.clientX - rect.left, sy = ev.clientY - rect.top;
+      var w = screenToWorld(sx, sy);
+      var hit = nodeAt(w.x, w.y);
+      if (hit >= 0) {
+        var node = nodes[hit];
+        var segs = node.id.split('/');
+        var file = segs.pop();
+        detailPath = segs;
+        document.getElementById('graph-overlay').classList.remove('visible');
+        showDetailView();
+        viewFile(file);
+      }
+    });
+
+    canvas.addEventListener('wheel', function (ev) {
+      ev.preventDefault();
+      var factor = ev.deltaY < 0 ? 1.12 : 1 / 1.12;
+      cam.zoom = Math.max(0.1, Math.min(8, cam.zoom * factor));
+    }, { passive: false });
+
+    // Physics step
+    function step() {
+      var alpha = 0.3;
+      var repulsion = 800;
+      var springLen = 80;
+      var springK = 0.015;
+      var centerK = 0.002;
+      var damping = 0.88;
+
+      // Center gravity
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].pinned) continue;
+        nodes[i].vx += (W / 2 - nodes[i].x) * centerK;
+        nodes[i].vy += (H / 2 - nodes[i].y) * centerK;
+      }
+
+      // Repulsion (Barnes-Hut would be better for 1000+ nodes, but brute force is fine for ~500)
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].pinned) continue;
+        for (var j = i + 1; j < nodes.length; j++) {
+          var dx = nodes[i].x - nodes[j].x;
+          var dy = nodes[i].y - nodes[j].y;
+          var dist2 = dx * dx + dy * dy;
+          if (dist2 < 1) dist2 = 1;
+          var force = repulsion / dist2;
+          var fx = dx * force;
+          var fy = dy * force;
+          nodes[i].vx += fx;
+          nodes[i].vy += fy;
+          if (!nodes[j].pinned) {
+            nodes[j].vx -= fx;
+            nodes[j].vy -= fy;
+          }
+        }
+      }
+
+      // Spring attraction along edges
+      for (var e = 0; e < edgeIdx.length; e++) {
+        var a = nodes[edgeIdx[e].s], b = nodes[edgeIdx[e].t];
+        var dx = b.x - a.x, dy = b.y - a.y;
+        var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        var disp = (dist - springLen) * springK;
+        var fx = dx / dist * disp;
+        var fy = dy / dist * disp;
+        if (!a.pinned) { a.vx += fx; a.vy += fy; }
+        if (!b.pinned) { b.vx -= fx; b.vy -= fy; }
+      }
+
+      // Velocity integration
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].pinned) continue;
+        nodes[i].vx *= damping;
+        nodes[i].vy *= damping;
+        nodes[i].x += nodes[i].vx * alpha;
+        nodes[i].y += nodes[i].vy * alpha;
+      }
+    }
+
+    // Render
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.scale(cam.zoom, cam.zoom);
+      ctx.translate(-cam.x, -cam.y);
+
+      // Highlighted neighbors
+      var highlightSet = {};
+      if (hoveredNode >= 0) {
+        highlightSet[hoveredNode] = true;
+        var neighbors = adj[hoveredNode] || [];
+        for (var h = 0; h < neighbors.length; h++) highlightSet[neighbors[h]] = true;
+      }
+      var hasHighlight = hoveredNode >= 0;
+
+      // Edges
+      for (var e = 0; e < edgeIdx.length; e++) {
+        var a = nodes[edgeIdx[e].s], b = nodes[edgeIdx[e].t];
+        var highlighted = hasHighlight && highlightSet[edgeIdx[e].s] && highlightSet[edgeIdx[e].t];
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = highlighted ? 'rgba(194,180,154,0.6)' : 'rgba(194,180,154,0.1)';
+        ctx.lineWidth = highlighted ? 1.5 / cam.zoom : 0.5 / cam.zoom;
+        ctx.stroke();
+      }
+
+      // Nodes
+      for (var i = 0; i < nodes.length; i++) {
+        var node = nodes[i];
+        var r = nodeRadius(node);
+        var color = DOMAIN_COLORS[node.domain] || DOMAIN_DEFAULT_COLOR;
+        var dimmed = hasHighlight && !highlightSet[i];
+
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, r / cam.zoom, 0, Math.PI * 2);
+        ctx.fillStyle = dimmed ? 'rgba(60,55,50,0.5)' : color;
+        ctx.fill();
+
+        if (i === hoveredNode) {
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2 / cam.zoom;
+          ctx.stroke();
+        }
+      }
+
+      // Labels for hovered + neighbors, or for high-degree nodes when zoomed in
+      var labelThreshold = cam.zoom > 1.5 ? 3 : cam.zoom > 0.8 ? 6 : 999;
+      ctx.font = Math.max(9, 11 / cam.zoom) + 'px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      for (var i = 0; i < nodes.length; i++) {
+        var show = (hasHighlight && highlightSet[i]) || (!hasHighlight && nodes[i].degree >= labelThreshold);
+        if (!show) continue;
+        var node = nodes[i];
+        var r = nodeRadius(node);
+        ctx.fillStyle = 'rgba(232,226,217,0.9)';
+        ctx.fillText(node.label, node.x, node.y + r / cam.zoom + 3 / cam.zoom);
+      }
+
+      ctx.restore();
+    }
+
+    var running = true;
+    function loop() {
+      if (!running) return;
+      step();
+      draw();
+      requestAnimationFrame(loop);
+    }
+    loop();
+
+    // Reset button
+    document.getElementById('graph-reset-btn').onclick = function () {
+      cam = { x: W / 2, y: H / 2, zoom: 1 };
+      for (var i = 0; i < nodes.length; i++) {
+        nodes[i].x = W / 2 + (Math.random() - 0.5) * W * 0.6;
+        nodes[i].y = H / 2 + (Math.random() - 0.5) * H * 0.6;
+        nodes[i].vx = 0;
+        nodes[i].vy = 0;
+      }
+    };
+
+    // Return stop handle
+    graphSim = {
+      stop: function () {
+        running = false;
+        window.removeEventListener('resize', resize);
+      }
+    };
+  }
+
+  var graphCache = null;
+
+  async function openGraph() {
+    var overlay = document.getElementById('graph-overlay');
+    overlay.classList.add('visible');
+
+    if (graphCache) {
+      startGraph(graphCache);
+      return;
+    }
+
+    var progress = document.getElementById('graph-progress');
+    progress.style.display = '';
+    var progressText = document.getElementById('graph-progress-text');
+
+    try {
+      var graph = await buildGraph(function (msg) { progressText.textContent = msg; });
+      graphCache = graph;
+      progress.style.display = 'none';
+      startGraph(graph);
+    } catch (err) {
+      progress.style.display = 'none';
+      showError('Graph build failed: ' + err.message);
+    }
+  }
+
+  // Wire up open/close
+  document.getElementById('graph-open-btn').addEventListener('click', function () {
+    if (!rootHandle) {
+      showError('No memory repo loaded. Please open the dashboard first.');
+      return;
+    }
+    openGraph();
+  });
+  document.getElementById('graph-close-btn').addEventListener('click', function () {
+    document.getElementById('graph-overlay').classList.remove('visible');
+    if (graphSim) { graphSim.stop(); graphSim = null; }
+  });
 
   /* ── initialization ────────────────────────────────── */
 
