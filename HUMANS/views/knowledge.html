@@ -98,6 +98,14 @@
 .detail-content .content-body ol {
   margin: 0.4em 0; padding-left: 1.6em;
 }
+
+/* Cross-reference links (knowledge file references) */
+.knowledge-xref {
+  color: #2563eb; cursor: pointer; text-decoration: none;
+  border-bottom: 1px dashed #93b4f5;
+}
+.knowledge-xref:hover { border-bottom-style: solid; }
+.content-meta .knowledge-xref { font-size: 0.75rem; }
 .detail-content .content-body li { margin: 0.2em 0; }
 .detail-content .content-body li > ul,
 .detail-content .content-body li > ol { margin: 0.15em 0; }
@@ -418,6 +426,34 @@
     body.appendChild(ph);
   }
 
+  /**
+   * Resolve a cross-reference path to {dir: [...segments], file: 'name.md'}
+   * relative to the knowledge base root.
+   */
+  function resolveKnowledgePath(ref) {
+    var path = ref.replace(/^knowledge\//, '');
+    if (path.match(/^\.\.\//) || path.match(/^\.\//) ) {
+      var base = detailPath.slice();
+      var parts = path.split('/');
+      for (var k = 0; k < parts.length; k++) {
+        if (parts[k] === '..') base.pop();
+        else if (parts[k] !== '.') base.push(parts[k]);
+      }
+      path = base.join('/');
+    }
+    var segments = path.split('/');
+    var file = segments.pop();
+    return { dir: segments, file: file };
+  }
+
+  function navigateToFile(ref) {
+    var resolved = resolveKnowledgePath(ref);
+    if (!resolved.file) return;
+    detailPath = resolved.dir;
+    showDetailView();
+    viewFile(resolved.file);
+  }
+
   async function viewFile(filename) {
     activeFile = filename;
     renderBreadcrumb();
@@ -447,7 +483,7 @@
       var fm = parseFlatYaml(parsed.frontmatter);
       meta.style.display = '';
 
-      var fields = ['trust', 'source', 'created', 'last_verified', 'origin_session', 'topic', 'type'];
+      var fields = ['trust', 'source', 'created', 'last_verified', 'origin_session', 'topic', 'type', 'related'];
       for (var i = 0; i < fields.length; i++) {
         var key = fields[i];
         if (!fm[key]) continue;
@@ -457,6 +493,23 @@
           var trustVal = fm[key].toLowerCase();
           var cls = 'badge badge-' + (trustVal === 'high' ? 'high' : trustVal === 'medium' ? 'medium' : 'low');
           item.appendChild(el('span', fm[key], cls));
+        } else if (key === 'related') {
+          var refs = fm[key].split(/,\s*/);
+          for (var r = 0; r < refs.length; r++) {
+            if (r > 0) item.appendChild(document.createTextNode(', '));
+            var refPath = refs[r].trim();
+            if (refPath.match(/\.md$/i)) {
+              var ra = document.createElement('a');
+              ra.className = 'knowledge-xref';
+              ra.textContent = refPath.replace(/\.md$/, '').split('/').pop();
+              ra.title = refPath;
+              (function(ref) { ra.addEventListener('click', function() { navigateToFile(ref); }); })(refPath);
+              item.appendChild(document.createTextNode(' '));
+              item.appendChild(ra);
+            } else {
+              item.appendChild(document.createTextNode(' ' + refPath));
+            }
+          }
         } else {
           item.appendChild(document.createTextNode(' ' + fm[key]));
         }
@@ -644,9 +697,19 @@
         parent.appendChild(document.createTextNode(text.substring(last, match.index)));
       }
       if (match[1]) {
-        var code = document.createElement('code');
-        code.textContent = match[1].slice(1, -1);
-        parent.appendChild(code);
+        var codeText = match[1].slice(1, -1);
+        if (codeText.match(/\.md$/i)) {
+          var xa = document.createElement('a');
+          xa.className = 'knowledge-xref';
+          xa.textContent = codeText.replace(/\.md$/, '').split('/').pop();
+          xa.title = codeText;
+          (function(ref) { xa.addEventListener('click', function() { navigateToFile(ref); }); })(codeText);
+          parent.appendChild(xa);
+        } else {
+          var code = document.createElement('code');
+          code.textContent = codeText;
+          parent.appendChild(code);
+        }
       } else if (match[2]) {
         var strong = document.createElement('strong');
         strong.textContent = match[2];
@@ -657,7 +720,14 @@
         parent.appendChild(em);
       } else if (match[4] && match[5]) {
         var href = match[5];
-        if (href.match(/^(https?:\/\/|[a-zA-Z0-9]|\.\/)/) && !href.match(/^javascript:/i)) {
+        if (href.match(/\.md$/i) && !href.match(/^https?:\/\//i)) {
+          var xlink = document.createElement('a');
+          xlink.className = 'knowledge-xref';
+          xlink.textContent = match[4];
+          xlink.title = href;
+          (function(ref) { xlink.addEventListener('click', function() { navigateToFile(ref); }); })(href);
+          parent.appendChild(xlink);
+        } else if (href.match(/^(https?:\/\/|[a-zA-Z0-9]|\.\/)/) && !href.match(/^javascript:/i)) {
           var a = document.createElement('a');
           a.textContent = match[4];
           a.href = href;
