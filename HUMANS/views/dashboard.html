@@ -170,6 +170,7 @@ button {
   <div class="panel" id="panel-projects">
     <div class="panel-header">
       <h2><span class="icon">&#128230;</span> Active Projects</h2>
+      <a href="projects.html" class="nav-link" style="margin-left:auto;font-size:0.75rem;">View all &#8594;</a>
     </div>
     <div class="panel-body" id="projects-body">
       <div class="placeholder"><span class="icon">&#128230;</span><p>No projects found.</p></div>
@@ -525,6 +526,7 @@ button {
     var tbody = document.createElement('tbody');
     for (var i = 0; i < rows.length; i++) {
       var tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
       var name = (rows[i]['Project'] || '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
       tr.appendChild(el('td', name));
 
@@ -547,6 +549,11 @@ button {
       focusTd.style.whiteSpace = 'nowrap';
       tr.appendChild(focusTd);
 
+      (function (slug) {
+        tr.addEventListener('click', function () {
+          window.location.href = 'projects.html?project=' + encodeURIComponent(slug);
+        });
+      })(name);
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);

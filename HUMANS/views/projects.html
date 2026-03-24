@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Engram &#8212; Projects</title>
+<link rel="stylesheet" href="engram-shared.css">
+<style>
+.projects-page { max-width: 960px; margin: 0 auto; }
+
+/* ── Project list cards ──────────────────────────────── */
+
+.project-cards {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;
+}
+@media (max-width: 700px) { .project-cards { grid-template-columns: 1fr; } }
+
+.project-card {
+  background: #fff; border: 1px solid #ddd; border-radius: 8px;
+  padding: 0.75rem 0.9rem; cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.project-card:hover { background: #f8faff; border-color: #c7d2fe; }
+.project-card .card-top {
+  display: flex; align-items: center; gap: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+.project-card .card-name {
+  font-weight: 600; font-size: 0.88rem; flex: 1;
+}
+.project-card .card-focus {
+  font-size: 0.78rem; color: #555; line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.project-card .card-footer {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-top: 0.35rem; font-size: 0.72rem; color: #888;
+}
+
+/* Mode chip */
+.mode-chip {
+  display: inline-block; padding: 0.08rem 0.35rem;
+  border-radius: 3px; font-size: 0.65rem; font-weight: 600;
+}
+.mode-exploration  { background: #eff6ff; color: #1d4ed8; }
+.mode-crystallization { background: #fef3c7; color: #92400e; }
+.mode-verification { background: #f0fdf4; color: #166534; }
+
+/* ── Project detail view ─────────────────────────────── */
+
+.detail-breadcrumb {
+  display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+  font-size: 0.85rem; margin-bottom: 1rem;
+}
+.detail-breadcrumb a {
+  color: #2563eb; text-decoration: none; cursor: pointer;
+}
+.detail-breadcrumb a:hover { text-decoration: underline; }
+.detail-breadcrumb .sep { color: #999; }
+.detail-breadcrumb .current { font-weight: 600; color: #1a1a1a; }
+
+.project-header {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.project-header h2 { font-size: 1.15rem; margin: 0; }
+
+.project-meta {
+  display: flex; gap: 0.75rem; flex-wrap: wrap;
+  font-size: 0.75rem; color: #555; margin-bottom: 1rem;
+  padding: 0.4rem 0.6rem; background: #fafbfc;
+  border: 1px solid #eee; border-radius: 6px;
+}
+.project-meta .meta-item {
+  display: flex; align-items: center; gap: 0.25rem;
+}
+.project-meta .meta-label { font-weight: 600; color: #777; }
+
+.project-focus {
+  font-size: 0.88rem; color: #333; font-style: italic;
+  padding: 0.5rem 0.7rem; background: #f0f4ff; border-left: 3px solid #6366f1;
+  border-radius: 0 6px 6px 0; margin-bottom: 1.25rem;
+}
+
+/* Sections */
+.project-section {
+  margin-bottom: 1.25rem;
+}
+.project-section .section-title {
+  font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem; border-bottom: 1px solid #eee;
+  display: flex; align-items: center; gap: 0.35rem;
+}
+
+/* Description body */
+.section-body {
+  font-size: 0.84rem; line-height: 1.7;
+}
+.section-body h1, .section-body h2, .section-body h3, .section-body h4 {
+  margin: 1.1em 0 0.4em; line-height: 1.3;
+}
+.section-body h1 { font-size: 1.1rem; }
+.section-body h2 { font-size: 1rem; border-bottom: 1px solid #f0f0f0; padding-bottom: 0.15rem; }
+.section-body h3 { font-size: 0.92rem; }
+.section-body p  { margin: 0.5em 0; }
+.section-body ul, .section-body ol { margin: 0.4em 0; padding-left: 1.6em; }
+.section-body li { margin: 0.2em 0; }
+.section-body hr { border: none; border-top: 1px solid #e0e0e0; margin: 1rem 0; }
+.section-body blockquote {
+  margin: 0.5em 0; padding: 0.4em 0.75em;
+  border-left: 3px solid #c7d2fe; background: #f8f9ff;
+  color: #444; font-style: italic;
+}
+.section-body pre {
+  background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 5px;
+  padding: 0.6rem 0.8rem; overflow-x: auto; font-size: 0.8rem;
+}
+.section-body code {
+  background: #f0f2f5; padding: 0.1rem 0.3rem; border-radius: 3px;
+  font-size: 0.82em;
+}
+.section-body pre code { background: none; padding: 0; }
+.section-body table {
+  width: 100%; border-collapse: collapse; margin: 0.5em 0;
+}
+.section-body th, .section-body td {
+  text-align: left; padding: 0.3rem 0.5rem; font-size: 0.8rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+.section-body th {
+  font-weight: 600; color: #555; font-size: 0.75rem;
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+
+/* Question cards */
+.question-card {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 6px;
+  margin-bottom: 0.5rem; overflow: hidden;
+}
+.question-card .q-header {
+  padding: 0.45rem 0.65rem; cursor: pointer;
+  display: flex; align-items: flex-start; gap: 0.4rem;
+  font-size: 0.82rem; font-weight: 500;
+  transition: background 0.1s;
+}
+.question-card .q-header:hover { background: #f9fafb; }
+.question-card .q-toggle {
+  flex-shrink: 0; color: #999; transition: transform 0.15s;
+  font-size: 0.7rem; margin-top: 0.15rem;
+}
+.question-card.open .q-toggle { transform: rotate(90deg); }
+.question-card .q-body {
+  display: none; padding: 0 0.65rem 0.5rem;
+  font-size: 0.78rem; line-height: 1.6; color: #444;
+}
+.question-card.open .q-body { display: block; }
+.question-card .q-meta {
+  font-size: 0.72rem; color: #888; margin-bottom: 0.3rem;
+}
+.question-card .q-resolves {
+  display: inline-block; padding: 0.05rem 0.3rem;
+  border-radius: 3px; font-size: 0.65rem; font-weight: 600;
+  background: #f3f4f6; color: #555;
+}
+
+/* Plan timeline */
+.plan-card {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 6px;
+  margin-bottom: 0.75rem; overflow: hidden;
+}
+.plan-card .plan-header {
+  padding: 0.5rem 0.65rem; background: #fafbfc;
+  border-bottom: 1px solid #eee;
+  font-size: 0.82rem; font-weight: 600;
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.plan-card .plan-purpose {
+  padding: 0.4rem 0.65rem; font-size: 0.78rem; color: #555;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.phase-item {
+  display: flex; gap: 0.5rem; padding: 0.45rem 0.65rem;
+  border-bottom: 1px solid #f5f5f5; font-size: 0.8rem;
+  align-items: flex-start;
+}
+.phase-item:last-child { border-bottom: none; }
+.phase-indicator {
+  flex-shrink: 0; width: 4px; min-height: 1.6rem;
+  border-radius: 2px; margin-top: 0.1rem;
+}
+.phase-completed .phase-indicator { background: #22c55e; }
+.phase-active .phase-indicator    { background: #3b82f6; }
+.phase-pending .phase-indicator   { background: #d1d5db; }
+.phase-blocked .phase-indicator   { background: #ef4444; }
+.phase-content { flex: 1; }
+.phase-title { font-weight: 500; }
+.phase-changes {
+  margin-top: 0.25rem; font-size: 0.72rem; color: #666;
+}
+.phase-changes .change-item {
+  display: flex; align-items: baseline; gap: 0.3rem;
+  padding: 0.1rem 0;
+}
+.action-badge {
+  display: inline-block; padding: 0.02rem 0.25rem;
+  border-radius: 3px; font-size: 0.62rem; font-weight: 600;
+  text-transform: uppercase;
+}
+.action-create  { background: #dcfce7; color: #166534; }
+.action-update  { background: #fef9c3; color: #854d0e; }
+.action-rewrite { background: #fee2e2; color: #991b1b; }
+.action-delete  { background: #fecaca; color: #7f1d1d; }
+
+/* Notes file list */
+.note-item {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.4rem 0.5rem; font-size: 0.8rem;
+  cursor: pointer; border-radius: 4px;
+  transition: background 0.1s;
+}
+.note-item:hover { background: #f1f5f9; }
+.note-item .icon { font-size: 0.85rem; flex-shrink: 0; }
+
+/* Note content viewer (shown inline) */
+.note-viewer {
+  background: #fff; border: 1px solid #ddd; border-radius: 8px;
+  margin-top: 0.5rem; overflow: hidden;
+}
+.note-viewer .note-header {
+  padding: 0.4rem 0.65rem; background: #fafbfc;
+  border-bottom: 1px solid #eee; font-size: 0.8rem; font-weight: 600;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.note-viewer .note-close {
+  cursor: pointer; color: #888; font-size: 0.9rem;
+}
+.note-viewer .note-close:hover { color: #333; }
+.note-viewer .note-body {
+  padding: 0.75rem 1rem; max-height: 400px; overflow-y: auto;
+}
+.section-empty {
+  font-size: 0.78rem; color: #999; font-style: italic;
+  padding: 0.25rem 0;
+}
+</style>
+</head>
+<body>
+<div class="projects-page">
+
+<h1>&#128230; Projects</h1>
+<p class="subtitle"><a href="dashboard.html" class="nav-link">&#8592; Dashboard</a></p>
+
+<div class="error-banner" id="error-banner"></div>
+
+<!-- Project list (default view) -->
+<div id="project-list">
+  <div class="placeholder" id="placeholder">
+    <div class="icon">&#128230;</div>
+    <p>Loading projects&#8230;</p>
+  </div>
+</div>
+
+<!-- Project detail (shown when a project is selected) -->
+<div id="project-detail" style="display:none">
+  <div class="detail-breadcrumb" id="detail-breadcrumb"></div>
+  <div class="project-header" id="project-header"></div>
+  <div class="project-meta" id="project-meta" style="display:none"></div>
+  <div class="project-focus" id="project-focus" style="display:none"></div>
+
+  <div class="project-section" id="desc-section">
+    <div class="section-title">&#128196; Description</div>
+    <div class="section-body" id="desc-body"></div>
+  </div>
+
+  <div class="project-section" id="questions-section">
+    <div class="section-title">&#10067; Questions</div>
+    <div id="questions-body"></div>
+  </div>
+
+  <div class="project-section" id="plans-section">
+    <div class="section-title">&#128203; Plans</div>
+    <div id="plans-body"></div>
+  </div>
+
+  <div class="project-section" id="notes-section">
+    <div class="section-title">&#128221; Notes</div>
+    <div id="notes-body"></div>
+  </div>
+</div>
+
+</div><!-- /projects-page -->
+
+<noscript><p style="text-align:center;margin-top:3rem;color:#b91c1c;">JavaScript is required for the projects viewer.</p></noscript>
+
+<script src="engram-utils.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var E = window.Engram;
+  var el = E.el;
+  var showError = E.showError;
+  var readFile = E.readFile;
+  var listDir = E.listDir;
+  var parseFrontmatter = E.parseFrontmatter;
+  var parseFlatYaml = E.parseFlatYaml;
+  var parseMarkdownTable = E.parseMarkdownTable;
+  var loadSavedHandle = E.loadSavedHandle;
+
+  var PROJECTS_ROOT = 'core/memory/working/projects';
+  var rootHandle = null;
+  var currentSlug = null;
+
+  /* ── helpers ───────────────────────────────────────── */
+
+  function statusBadgeClass(status) {
+    if (status === 'completed') return 'badge badge-high';
+    if (status === 'active' || status === 'ongoing') return 'badge badge-medium';
+    return 'badge badge-low';
+  }
+
+  function modeChipClass(mode) {
+    if (mode === 'exploration') return 'mode-chip mode-exploration';
+    if (mode === 'crystallization') return 'mode-chip mode-crystallization';
+    if (mode === 'verification') return 'mode-chip mode-verification';
+    return 'mode-chip';
+  }
+
+  /* ── project list ──────────────────────────────────── */
+
+  async function loadProjectList() {
+    var container = document.getElementById('project-list');
+    container.textContent = '';
+
+    var summary = await readFile(rootHandle, PROJECTS_ROOT + '/SUMMARY.md');
+    if (summary) {
+      var parsed = parseFrontmatter(summary);
+      var rows = parseMarkdownTable(parsed.body);
+
+      if (rows.length > 0) {
+        var grid = el('div', '', 'project-cards');
+        for (var i = 0; i < rows.length; i++) {
+          var name = (rows[i]['Project'] || '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+          var status = rows[i]['Status'] || '';
+          var mode = rows[i]['Mode'] || '';
+          var openQs = rows[i]['Open Qs'] || '0';
+          var focus = rows[i]['Focus'] || '';
+          var lastActivity = rows[i]['Last activity'] || '';
+
+          var card = el('div', '', 'project-card');
+
+          var top = el('div', '', 'card-top');
+          top.appendChild(el('span', name, 'card-name'));
+          top.appendChild(el('span', status, statusBadgeClass(status)));
+          if (mode) top.appendChild(el('span', mode, modeChipClass(mode)));
+          card.appendChild(top);
+
+          if (focus) card.appendChild(el('div', focus, 'card-focus'));
+
+          var footer = el('div', '', 'card-footer');
+          if (openQs !== '0') footer.appendChild(el('span', openQs + ' open question' + (openQs === '1' ? '' : 's')));
+          if (lastActivity) footer.appendChild(el('span', lastActivity));
+          card.appendChild(footer);
+
+          (function (slug) {
+            card.addEventListener('click', function () { openProject(slug); });
+          })(name);
+          grid.appendChild(card);
+        }
+        container.appendChild(grid);
+        return;
+      }
+    }
+
+    // Fallback: list subdirectories
+    var listing = await listDir(rootHandle, PROJECTS_ROOT);
+    var grid = el('div', '', 'project-cards');
+    for (var d = 0; d < listing.dirs.length; d++) {
+      if (listing.dirs[d] === 'OUT' || listing.dirs[d].startsWith('_')) continue;
+      var card = el('div', '', 'project-card');
+      var top = el('div', '', 'card-top');
+      top.appendChild(el('span', listing.dirs[d], 'card-name'));
+      card.appendChild(top);
+      (function (slug) {
+        card.addEventListener('click', function () { openProject(slug); });
+      })(listing.dirs[d]);
+      grid.appendChild(card);
+    }
+    container.appendChild(grid);
+  }
+
+  /* ── project detail ────────────────────────────────── */
+
+  function openProject(slug) {
+    currentSlug = slug;
+    document.getElementById('project-list').style.display = 'none';
+    document.getElementById('project-detail').style.display = '';
+    renderBreadcrumb();
+    loadProjectDetail(slug);
+  }
+
+  function hideDetail() {
+    document.getElementById('project-detail').style.display = 'none';
+    document.getElementById('project-list').style.display = '';
+    currentSlug = null;
+  }
+
+  function renderBreadcrumb() {
+    var bc = document.getElementById('detail-breadcrumb');
+    bc.textContent = '';
+
+    var dash = el('a', '\u2190 Dashboard');
+    dash.href = 'dashboard.html';
+    bc.appendChild(dash);
+    bc.appendChild(el('span', ' / ', 'sep'));
+
+    var projects = el('a', 'Projects');
+    projects.addEventListener('click', hideDetail);
+    bc.appendChild(projects);
+    bc.appendChild(el('span', ' / ', 'sep'));
+
+    bc.appendChild(el('span', currentSlug, 'current'));
+  }
+
+  async function loadProjectDetail(slug) {
+    var basePath = PROJECTS_ROOT + '/' + slug;
+
+    // Clear all sections
+    document.getElementById('project-header').textContent = '';
+    document.getElementById('project-meta').style.display = 'none';
+    document.getElementById('project-meta').textContent = '';
+    document.getElementById('project-focus').style.display = 'none';
+    document.getElementById('desc-body').textContent = '';
+    document.getElementById('questions-body').textContent = '';
+    document.getElementById('plans-body').textContent = '';
+    document.getElementById('notes-body').textContent = '';
+
+    var summaryText = await readFile(rootHandle, basePath + '/SUMMARY.md');
+    if (!summaryText) {
+      var header = document.getElementById('project-header');
+      header.appendChild(el('h2', slug));
+      header.appendChild(el('span', 'archived', 'badge badge-low'));
+      document.getElementById('desc-body').appendChild(
+        el('p', 'No project directory found. This project may be archived or completed.', 'section-empty')
+      );
+      document.getElementById('questions-section').style.display = 'none';
+      document.getElementById('plans-section').style.display = 'none';
+      document.getElementById('notes-section').style.display = 'none';
+      return;
+    }
+
+    // Show all sections in case previously hidden
+    document.getElementById('questions-section').style.display = '';
+    document.getElementById('plans-section').style.display = '';
+    document.getElementById('notes-section').style.display = '';
+
+    var parsed = parseFrontmatter(summaryText);
+    var fm = parsed.frontmatter ? parseFlatYaml(parsed.frontmatter) : {};
+
+    // Header
+    var header = document.getElementById('project-header');
+    header.appendChild(el('h2', slug.replace(/-/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); })));
+    if (fm.status) header.appendChild(el('span', fm.status, statusBadgeClass(fm.status)));
+    if (fm.cognitive_mode) header.appendChild(el('span', fm.cognitive_mode, modeChipClass(fm.cognitive_mode)));
+
+    // Metadata bar
+    var meta = document.getElementById('project-meta');
+    var metaFields = [
+      ['created', fm.created],
+      ['last activity', fm.last_activity],
+      ['trust', fm.trust],
+      ['open questions', fm.open_questions],
+      ['active plans', fm.active_plans]
+    ];
+    var hasMetaContent = false;
+    for (var i = 0; i < metaFields.length; i++) {
+      if (!metaFields[i][1] || metaFields[i][1] === '0') continue;
+      hasMetaContent = true;
+      var item = el('span', '', 'meta-item');
+      item.appendChild(el('span', metaFields[i][0] + ':', 'meta-label'));
+      if (metaFields[i][0] === 'trust') {
+        var trustVal = metaFields[i][1].toLowerCase();
+        var cls = 'badge badge-' + (trustVal === 'high' ? 'high' : trustVal === 'medium' ? 'medium' : 'low');
+        item.appendChild(el('span', metaFields[i][1], cls));
+      } else {
+        item.appendChild(document.createTextNode(' ' + metaFields[i][1]));
+      }
+      meta.appendChild(item);
+    }
+    if (hasMetaContent) meta.style.display = '';
+
+    // Focus callout
+    var focus = fm.current_focus;
+    if (focus) {
+      focus = focus.replace(/^["']|["']$/g, '');
+      var focusEl = document.getElementById('project-focus');
+      focusEl.textContent = focus;
+      focusEl.style.display = '';
+    }
+
+    // Description — render body markdown, skipping the top-level heading (# Project: ...)
+    var bodyText = parsed.body.trim();
+    var bodyLines = bodyText.split(/\r?\n/);
+    if (bodyLines.length > 0 && bodyLines[0].match(/^#\s/)) {
+      bodyLines.shift(); // remove "# Project: Name" heading
+    }
+    renderMarkdown(bodyLines.join('\n').trim(), document.getElementById('desc-body'));
+
+    // Load remaining sections in parallel
+    loadQuestions(slug);
+    loadPlans(slug);
+    loadNotes(slug);
+  }
+
+  /* ── questions ─────────────────────────────────────── */
+
+  async function loadQuestions(slug) {
+    var container = document.getElementById('questions-body');
+    var text = await readFile(rootHandle, PROJECTS_ROOT + '/' + slug + '/questions.md');
+    if (!text) {
+      container.appendChild(el('p', 'No questions file found.', 'section-empty'));
+      return;
+    }
+
+    var parsed = parseFrontmatter(text);
+    var body = parsed.body.trim();
+
+    // Split into open and resolved sections
+    var resolvedIdx = body.indexOf('# Resolved Questions');
+    var openSection = resolvedIdx >= 0 ? body.substring(0, resolvedIdx).trim() : body;
+    var resolvedSection = resolvedIdx >= 0 ? body.substring(resolvedIdx).trim() : '';
+
+    var openQs = parseQuestions(openSection);
+    var resolvedQs = parseQuestions(resolvedSection);
+
+    if (openQs.length === 0 && resolvedQs.length === 0) {
+      container.appendChild(el('p', 'No questions yet.', 'section-empty'));
+      return;
+    }
+
+    if (openQs.length > 0) {
+      container.appendChild(el('div', 'Open (' + openQs.length + ')', 'q-group-label'));
+      for (var i = 0; i < openQs.length; i++) {
+        container.appendChild(buildQuestionCard(openQs[i], true));
+      }
+    }
+
+    if (resolvedQs.length > 0) {
+      var label = el('div', 'Resolved (' + resolvedQs.length + ')', 'q-group-label');
+      label.style.marginTop = openQs.length > 0 ? '0.75rem' : '0';
+      label.style.fontSize = '0.78rem';
+      label.style.fontWeight = '600';
+      label.style.color = '#888';
+      label.style.marginBottom = '0.35rem';
+      container.appendChild(label);
+      for (var j = 0; j < resolvedQs.length; j++) {
+        container.appendChild(buildQuestionCard(resolvedQs[j], false));
+      }
+    }
+  }
+
+  function parseQuestions(text) {
+    if (!text) return [];
+    var questions = [];
+    // Split on ## headings that look like questions (q-###, Q#, etc.)
+    var parts = text.split(/(?=^## )/m);
+    for (var i = 0; i < parts.length; i++) {
+      var part = parts[i].trim();
+      var hm = part.match(/^## (?:q-\d+|Q\d+)[.:]\s*(.+)/);
+      if (!hm) continue;
+
+      var title = hm[1];
+      var bodyLines = part.split(/\r?\n/).slice(1).join('\n').trim();
+
+      // Extract metadata
+      var asked = (bodyLines.match(/\*\*Asked:\*\*\s*([^|*]+)/) || [])[1] || '';
+      var context = (bodyLines.match(/\*\*Context:\*\*\s*(.+)/) || [])[1] || '';
+      var resolves = (bodyLines.match(/\*\*Resolves by:\*\*\s*(.+)/) || [])[1] || '';
+      var contribution = (bodyLines.match(/\*\*Agent contribution:\*\*\s*(.+)/) || [])[1] || '';
+      var resolution = (bodyLines.match(/\*\*Resolution:\*\*\s*([\s\S]+?)(?=\n\n|\n##|$)/) || [])[1] || '';
+
+      questions.push({
+        title: title.trim(),
+        asked: asked.trim(),
+        context: context.trim(),
+        resolves: resolves.trim(),
+        contribution: contribution.trim(),
+        resolution: resolution.trim()
+      });
+    }
+    return questions;
+  }
+
+  function buildQuestionCard(q, startOpen) {
+    var card = el('div', '', 'question-card' + (startOpen ? ' open' : ''));
+
+    var header = el('div', '', 'q-header');
+    header.appendChild(el('span', '\u25B6', 'q-toggle'));
+    var titleSpan = el('span', q.title);
+    titleSpan.style.flex = '1';
+    header.appendChild(titleSpan);
+    if (q.resolves) header.appendChild(el('span', q.resolves, 'q-resolves'));
+    card.appendChild(header);
+
+    var body = el('div', '', 'q-body');
+    if (q.asked || q.context) {
+      var metaLine = [];
+      if (q.asked) metaLine.push('Asked: ' + q.asked);
+      if (q.context) metaLine.push(q.context);
+      body.appendChild(el('div', metaLine.join(' — '), 'q-meta'));
+    }
+    if (q.contribution) {
+      var contrib = el('p', '');
+      contrib.appendChild(el('strong', 'Agent: '));
+      contrib.appendChild(document.createTextNode(q.contribution));
+      body.appendChild(contrib);
+    }
+    if (q.resolution) {
+      var res = el('p', '');
+      res.appendChild(el('strong', 'Resolution: '));
+      res.appendChild(document.createTextNode(q.resolution));
+      body.appendChild(res);
+    }
+    card.appendChild(body);
+
+    header.addEventListener('click', function () {
+      card.classList.toggle('open');
+    });
+
+    return card;
+  }
+
+  /* ── plans ─────────────────────────────────────────── */
+
+  async function loadPlans(slug) {
+    var container = document.getElementById('plans-body');
+    var listing = await listDir(rootHandle, PROJECTS_ROOT + '/' + slug + '/plans');
+
+    if (listing.files.length === 0) {
+      container.appendChild(el('p', 'No plans yet.', 'section-empty'));
+      return;
+    }
+
+    for (var i = 0; i < listing.files.length; i++) {
+      var filename = listing.files[i];
+      var filePath = PROJECTS_ROOT + '/' + slug + '/plans/' + filename;
+      var content = await readFile(rootHandle, filePath);
+      if (!content) continue;
+
+      if (filename.match(/\.ya?ml$/i)) {
+        container.appendChild(buildPlanCard(content, filename));
+      } else if (filename.match(/\.md$/i)) {
+        var card = el('div', '', 'plan-card');
+        var header = el('div', '', 'plan-header');
+        header.appendChild(el('span', '\uD83D\uDCC4'));
+        header.appendChild(document.createTextNode(' ' + filename));
+        card.appendChild(header);
+        var body = el('div', '', 'section-body');
+        body.style.padding = '0.5rem 0.65rem';
+        var parsed = parseFrontmatter(content);
+        renderMarkdown(parsed.body.trim(), body);
+        card.appendChild(body);
+        container.appendChild(card);
+      }
+    }
+  }
+
+  function buildPlanCard(yamlText, filename) {
+    var plan = parsePlanYaml(yamlText);
+    var card = el('div', '', 'plan-card');
+
+    var header = el('div', '', 'plan-header');
+    header.appendChild(document.createTextNode(plan.id || filename));
+    if (plan.status) header.appendChild(el('span', plan.status, statusBadgeClass(plan.status)));
+    card.appendChild(header);
+
+    if (plan.summary) {
+      card.appendChild(el('div', plan.summary, 'plan-purpose'));
+    }
+
+    // Render phases
+    for (var i = 0; i < plan.phases.length; i++) {
+      var phase = plan.phases[i];
+      var statusClass = 'phase-' + (phase.status || 'pending');
+      var row = el('div', '', 'phase-item ' + statusClass);
+
+      row.appendChild(el('div', '', 'phase-indicator'));
+
+      var content = el('div', '', 'phase-content');
+      var titleRow = el('div', '', 'phase-title');
+      var statusIcon = phase.status === 'completed' ? '\u2713 ' : phase.status === 'blocked' ? '\u26A0 ' : '\u25A1 ';
+      titleRow.appendChild(document.createTextNode(statusIcon + (phase.title || phase.id)));
+      if (phase.status && phase.status !== 'pending') {
+        titleRow.appendChild(document.createTextNode(' '));
+        titleRow.appendChild(el('span', phase.status, statusBadgeClass(phase.status)));
+      }
+      content.appendChild(titleRow);
+
+      if (phase.changes.length > 0) {
+        var changes = el('div', '', 'phase-changes');
+        for (var c = 0; c < phase.changes.length; c++) {
+          var ch = phase.changes[c];
+          var item = el('div', '', 'change-item');
+          if (ch.action) {
+            var actionCls = 'action-badge action-' + ch.action;
+            item.appendChild(el('span', ch.action, actionCls));
+          }
+          item.appendChild(el('span', ch.path || ''));
+          if (ch.description) {
+            var desc = el('span', ' \u2014 ' + ch.description);
+            desc.style.color = '#888';
+            item.appendChild(desc);
+          }
+          changes.appendChild(item);
+        }
+        content.appendChild(changes);
+      }
+
+      row.appendChild(content);
+      card.appendChild(row);
+    }
+
+    return card;
+  }
+
+  /**
+   * Schema-specific YAML parser for plan files.
+   * Extracts: id, project, status, purpose.summary, work.phases[].
+   * Not a general YAML parser — only handles the known plan schema.
+   */
+  function parsePlanYaml(text) {
+    var result = { id: '', project: '', status: '', summary: '', phases: [] };
+    var lines = text.split(/\r?\n/);
+
+    // Extract top-level flat fields
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line.match(/^id:\s/)) result.id = line.replace(/^id:\s*/, '').trim();
+      else if (line.match(/^project:\s/)) result.project = line.replace(/^project:\s*/, '').trim();
+      else if (line.match(/^status:\s/)) result.status = line.replace(/^status:\s*/, '').trim();
+    }
+
+    // Extract purpose.summary
+    var summaryMatch = text.match(/purpose:\s*\n\s+summary:\s*(.+)/);
+    if (summaryMatch) result.summary = summaryMatch[1].trim();
+
+    // Extract phases
+    var phasesStart = text.indexOf('phases:');
+    if (phasesStart < 0) return result;
+
+    var phasesText = text.substring(phasesStart);
+    var phaseBlocks = phasesText.split(/\n\s{4}- id:\s*/);
+    phaseBlocks.shift(); // remove "phases:" leader
+
+    for (var p = 0; p < phaseBlocks.length; p++) {
+      var block = phaseBlocks[p];
+      var phase = { id: '', title: '', status: '', changes: [] };
+
+      var idLine = block.split(/\r?\n/)[0];
+      phase.id = idLine.trim();
+
+      var titleM = block.match(/title:\s*(.+)/);
+      if (titleM) phase.title = titleM[1].trim();
+
+      var statusM = block.match(/status:\s*(.+)/);
+      if (statusM) phase.status = statusM[1].trim();
+
+      // Extract changes
+      var changeBlocks = block.split(/\n\s{8}- path:\s*/);
+      changeBlocks.shift(); // remove pre-changes content
+      for (var c = 0; c < changeBlocks.length; c++) {
+        var cb = changeBlocks[c];
+        var change = { path: '', action: '', description: '' };
+        change.path = cb.split(/\r?\n/)[0].trim();
+        var actionM = cb.match(/action:\s*(.+)/);
+        if (actionM) change.action = actionM[1].trim();
+        var descM = cb.match(/description:\s*(.+)/);
+        if (descM) change.description = descM[1].trim();
+        phase.changes.push(change);
+      }
+
+      result.phases.push(phase);
+    }
+
+    return result;
+  }
+
+  /* ── notes ─────────────────────────────────────────── */
+
+  async function loadNotes(slug) {
+    var container = document.getElementById('notes-body');
+    var listing = await listDir(rootHandle, PROJECTS_ROOT + '/' + slug + '/notes');
+
+    var mdFiles = listing.files.filter(function (f) { return f.endsWith('.md'); });
+    if (mdFiles.length === 0) {
+      container.appendChild(el('p', 'No notes yet.', 'section-empty'));
+      return;
+    }
+
+    for (var i = 0; i < mdFiles.length; i++) {
+      var item = el('div', '', 'note-item');
+      item.appendChild(el('span', '\uD83D\uDCC4', 'icon'));
+      item.appendChild(el('span', mdFiles[i].replace(/\.md$/, '')));
+      (function (filename, slug) {
+        item.addEventListener('click', function () {
+          viewNote(slug, filename);
+        });
+      })(mdFiles[i], slug);
+      container.appendChild(item);
+    }
+  }
+
+  async function viewNote(slug, filename) {
+    var container = document.getElementById('notes-body');
+
+    // Remove existing viewer if any
+    var existing = container.querySelector('.note-viewer');
+    if (existing) existing.remove();
+
+    var filePath = PROJECTS_ROOT + '/' + slug + '/notes/' + filename;
+    var content = await readFile(rootHandle, filePath);
+
+    var viewer = el('div', '', 'note-viewer');
+
+    var header = el('div', '', 'note-header');
+    header.appendChild(el('span', filename));
+    var close = el('span', '\u2715', 'note-close');
+    close.addEventListener('click', function () { viewer.remove(); });
+    header.appendChild(close);
+    viewer.appendChild(header);
+
+    var body = el('div', '', 'note-body section-body');
+    if (content) {
+      var parsed = parseFrontmatter(content);
+      renderMarkdown(parsed.body.trim(), body);
+    } else {
+      body.appendChild(el('p', 'Could not read file.'));
+    }
+    viewer.appendChild(body);
+
+    container.appendChild(viewer);
+  }
+
+  /* ── markdown renderer ─────────────────────────────── */
+
+  function renderMarkdown(text, container) {
+    var lines = text.split(/\r?\n/);
+    var i = 0;
+
+    while (i < lines.length) {
+      var line = lines[i];
+      if (!line.trim()) { i++; continue; }
+
+      if (line.match(/^```/)) {
+        var codeLines = [];
+        i++;
+        while (i < lines.length && !lines[i].match(/^```/)) {
+          codeLines.push(lines[i]); i++;
+        }
+        i++;
+        var pre = document.createElement('pre');
+        var code = document.createElement('code');
+        code.textContent = codeLines.join('\n');
+        pre.appendChild(code);
+        container.appendChild(pre);
+        continue;
+      }
+
+      if (line.match(/^\s*(-{3,}|\*{3,}|_{3,})\s*$/)) {
+        container.appendChild(document.createElement('hr'));
+        i++; continue;
+      }
+
+      var hm = line.match(/^(#{1,4})\s+(.+)/);
+      if (hm) {
+        var h = document.createElement('h' + hm[1].length);
+        appendInline(h, hm[2]);
+        container.appendChild(h);
+        i++; continue;
+      }
+
+      if (line.indexOf('|') >= 0 && i + 1 < lines.length && lines[i + 1].match(/^[\s|:-]+$/)) {
+        i = renderMdTable(lines, i, container);
+        continue;
+      }
+
+      if (line.match(/^>\s?/)) {
+        var bq = document.createElement('blockquote');
+        var bqLines = [];
+        while (i < lines.length && lines[i].match(/^>\s?/)) {
+          bqLines.push(lines[i].replace(/^>\s?/, ''));
+          i++;
+        }
+        renderMarkdown(bqLines.join('\n'), bq);
+        container.appendChild(bq);
+        continue;
+      }
+
+      if (line.match(/^\s*[-*+]\s/)) {
+        i = renderMdList(lines, i, container, 'ul');
+        continue;
+      }
+
+      if (line.match(/^\s*\d+\.\s/)) {
+        i = renderMdList(lines, i, container, 'ol');
+        continue;
+      }
+
+      var paraLines = [];
+      while (i < lines.length && lines[i].trim() &&
+             !lines[i].match(/^(#{1,4}\s|```|>\s?|\s*[-*+]\s|\s*\d+\.\s|\s*(-{3,}|\*{3,}|_{3,})\s*$)/) &&
+             !(lines[i].indexOf('|') >= 0 && i + 1 < lines.length && lines[i + 1] && lines[i + 1].match(/^[\s|:-]+$/))) {
+        paraLines.push(lines[i]); i++;
+      }
+      var p = document.createElement('p');
+      appendInline(p, paraLines.join(' '));
+      container.appendChild(p);
+    }
+  }
+
+  function renderMdTable(lines, i, container) {
+    var headerLine = lines[i];
+    var headers = headerLine.split('|').map(function (c) { return c.trim(); }).filter(Boolean);
+    i += 2;
+    var table = document.createElement('table');
+    var thead = document.createElement('thead');
+    var headRow = document.createElement('tr');
+    for (var h = 0; h < headers.length; h++) {
+      var th = document.createElement('th');
+      appendInline(th, headers[h]);
+      headRow.appendChild(th);
+    }
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    while (i < lines.length && lines[i].indexOf('|') >= 0 && lines[i].trim()) {
+      var cells = lines[i].split('|').map(function (c) { return c.trim(); }).filter(Boolean);
+      var tr = document.createElement('tr');
+      for (var c = 0; c < headers.length; c++) {
+        var td = document.createElement('td');
+        appendInline(td, cells[c] || '');
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+      i++;
+    }
+    table.appendChild(tbody);
+    container.appendChild(table);
+    return i;
+  }
+
+  function renderMdList(lines, i, container, tag) {
+    var list = document.createElement(tag);
+    var pattern = tag === 'ul' ? /^(\s*)[-*+]\s(.*)/ : /^(\s*)\d+\.\s(.*)/;
+    var baseIndent = (lines[i].match(/^(\s*)/) || ['', ''])[1].length;
+
+    while (i < lines.length) {
+      var m = lines[i].match(pattern);
+      if (!m) break;
+      var indent = m[1].length;
+      if (indent < baseIndent) break;
+
+      if (indent > baseIndent) {
+        var lastLi = list.lastElementChild;
+        if (lastLi) { i = renderMdList(lines, i, lastLi, tag); }
+        else { i++; }
+        continue;
+      }
+
+      var li = document.createElement('li');
+      appendInline(li, m[2]);
+      list.appendChild(li);
+      i++;
+
+      while (i < lines.length && lines[i].trim() && !lines[i].match(pattern) &&
+             !lines[i].match(/^\s*(#{1,4}\s|```|>\s?|\s*(-{3,}|\*{3,}|_{3,})\s*$)/) &&
+             (lines[i].match(/^\s/) || false)) {
+        var contIndent = (lines[i].match(/^(\s*)/) || ['', ''])[1].length;
+        if (contIndent <= baseIndent) break;
+        li.appendChild(document.createTextNode(' ' + lines[i].trim()));
+        i++;
+      }
+    }
+    container.appendChild(list);
+    return i;
+  }
+
+  function appendInline(parent, text) {
+    if (!text) return;
+    var rx = /(`[^`]+`)|\*\*(.+?)\*\*|\*(.+?)\*|\[([^\]]+)\]\(([^)]+)\)/g;
+    var last = 0;
+    var match;
+    while ((match = rx.exec(text)) !== null) {
+      if (match.index > last) {
+        parent.appendChild(document.createTextNode(text.substring(last, match.index)));
+      }
+      if (match[1]) {
+        var code = document.createElement('code');
+        code.textContent = match[1].slice(1, -1);
+        parent.appendChild(code);
+      } else if (match[2]) {
+        var strong = document.createElement('strong');
+        strong.textContent = match[2];
+        parent.appendChild(strong);
+      } else if (match[3]) {
+        var em = document.createElement('em');
+        em.textContent = match[3];
+        parent.appendChild(em);
+      } else if (match[4] && match[5]) {
+        var href = match[5];
+        if (href.match(/^(https?:\/\/|[a-zA-Z0-9]|\.\/)/) && !href.match(/^javascript:/i)) {
+          var a = document.createElement('a');
+          a.textContent = match[4];
+          a.href = href;
+          a.rel = 'noopener noreferrer';
+          a.target = '_blank';
+          parent.appendChild(a);
+        } else {
+          parent.appendChild(document.createTextNode(match[0]));
+        }
+      }
+      last = match.index + match[0].length;
+    }
+    if (last < text.length) {
+      parent.appendChild(document.createTextNode(text.substring(last)));
+    }
+  }
+
+  /* ── initialization ────────────────────────────────── */
+
+  (async function init() {
+    if (!window.showDirectoryPicker) {
+      var ph = document.getElementById('placeholder');
+      ph.textContent = '';
+      ph.appendChild(el('div', '\u26A0', 'icon'));
+      var p1 = el('p');
+      p1.appendChild(el('strong', 'Browser not supported.'));
+      p1.appendChild(document.createTextNode(' The File System Access API is required.'));
+      var p2 = el('p', 'Please open this page in Chrome, Edge, Brave, or Arc.');
+      p2.style.marginTop = '0.5rem';
+      ph.appendChild(p1);
+      ph.appendChild(p2);
+      return;
+    }
+
+    var saved = await loadSavedHandle();
+    if (!saved) {
+      showError('No memory repo loaded. Please open the dashboard first and load your repo folder.');
+      return;
+    }
+
+    try {
+      var perm = await saved.requestPermission({ mode: 'read' });
+      if (perm !== 'granted') {
+        showError('Permission denied. Please open the dashboard and re-open your repo folder.');
+        return;
+      }
+    } catch (_) {
+      showError('Could not restore repo handle. Please open the dashboard and re-open your repo folder.');
+      return;
+    }
+
+    rootHandle = saved;
+
+    // Check for ?project= query parameter
+    var params = new URLSearchParams(window.location.search);
+    var project = params.get('project');
+
+    if (project) {
+      openProject(project);
+    } else {
+      await loadProjectList();
+    }
+  })();
+
+})();
+</script>
+</body>
+</html>
