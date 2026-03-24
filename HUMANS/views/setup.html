@@ -203,7 +203,7 @@ button:active { transform: scale(0.97); }
   <p class="privacy-note">&#128274; This information stays in your browser. Nothing is uploaded.</p>
   <div class="btn-row">
     <span></span>
-    <button class="btn-primary" onclick="goToStep(2)">Next &#8594;</button>
+    <button class="btn-primary" data-go-step="2">Next &#8594;</button>
   </div>
 </section>
 
@@ -211,56 +211,48 @@ button:active { transform: scale(0.97); }
   <h2>Step 2: Choose a starter profile</h2>
   <p class="desc">Pick a template to pre-fill common preferences, or start blank.</p>
   <div class="cards">
-    <div class="card" tabindex="0" data-profile="software-developer"
-         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+    <div class="card" tabindex="0" data-profile="software-developer">
       <div class="icon">&#128187;</div>
       <h3>Software Developer</h3>
       <p>Code-first, concise, technical. Optimized for programming workflows.</p>
     </div>
-    <div class="card" tabindex="0" data-profile="researcher"
-         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+    <div class="card" tabindex="0" data-profile="researcher">
       <div class="icon">&#128218;</div>
       <h3>Researcher</h3>
       <p>Thorough, rigorous, citation-aware. Optimized for analysis and synthesis.</p>
     </div>
-    <div class="card" tabindex="0" data-profile="project-manager"
-         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+    <div class="card" tabindex="0" data-profile="project-manager">
       <div class="icon">&#128203;</div>
       <h3>Project Manager</h3>
       <p>Concise, actionable, stakeholder-ready. Optimized for coordination.</p>
     </div>
-    <div class="card" tabindex="0" data-profile="writer"
-         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+    <div class="card" tabindex="0" data-profile="writer">
       <div class="icon">&#9997;&#65039;</div>
       <h3>Writer</h3>
       <p>Narrative-first, tone-conscious, revision-oriented. Optimized for drafting and editing.</p>
     </div>
-    <div class="card" tabindex="0" data-profile="student"
-         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+    <div class="card" tabindex="0" data-profile="student">
       <div class="icon">&#127891;</div>
       <h3>Student</h3>
       <p>Curious, explanation-seeking, building foundations. Optimized for learning.</p>
     </div>
-    <div class="card" tabindex="0" data-profile="educator"
-         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+    <div class="card" tabindex="0" data-profile="educator">
       <div class="icon">&#128218;</div>
       <h3>Educator</h3>
       <p>Clear, scaffolded, student-centered. Optimized for teaching and materials.</p>
     </div>
-    <div class="card" tabindex="0" data-profile="designer"
-         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+    <div class="card" tabindex="0" data-profile="designer">
       <div class="icon">&#127912;</div>
       <h3>Designer</h3>
       <p>Iterative, feedback-driven, concrete over abstract. Optimized for creative work.</p>
     </div>
   </div>
-  <span class="skip-link" tabindex="0"
-        onclick="selectProfile(null)" onkeydown="if(event.key==='Enter')selectProfile(null)">
+  <span class="skip-link" tabindex="0" id="skip-profile-link">
     Skip &#8212; I&#8217;ll build from scratch during onboarding
   </span>
   <div class="btn-row">
-    <button class="btn-secondary" onclick="goToStep(1)">&#8592; Back</button>
-    <button class="btn-primary" onclick="goToStep(3)">Next &#8594;</button>
+    <button class="btn-secondary" data-go-step="1">&#8592; Back</button>
+    <button class="btn-primary" data-go-step="3">Next &#8594;</button>
   </div>
 </section>
 
@@ -268,28 +260,23 @@ button:active { transform: scale(0.97); }
   <h2>Step 3: Choose your AI platform</h2>
   <p class="desc">This determines what instructions are generated for your first session. This wizard only creates local files; it does not edit git settings — git remote setup stays manual.</p>
   <div class="platform-options">
-    <div class="platform-option" tabindex="0" data-platform="claude-code"
-         onclick="selectPlatform(this)" onkeydown="cardKey(event,this)">
+    <div class="platform-option" tabindex="0" data-platform="claude-code">
       <span class="icon">&#9654;</span>
       <div><div class="name">Claude Code</div><div class="hint">CLI tool &#8212; already configured via CLAUDE.md</div></div>
     </div>
-    <div class="platform-option" tabindex="0" data-platform="codex"
-         onclick="selectPlatform(this)" onkeydown="cardKey(event,this)">
+    <div class="platform-option" tabindex="0" data-platform="codex">
       <span class="icon">&#129302;</span>
       <div><div class="name">Codex Desktop</div><div class="hint">Desktop app &#8212; generate a repo-local `.codex/config.toml` for this clone</div></div>
     </div>
-    <div class="platform-option" tabindex="0" data-platform="cursor"
-         onclick="selectPlatform(this)" onkeydown="cardKey(event,this)">
+    <div class="platform-option" tabindex="0" data-platform="cursor">
       <span class="icon">&#9998;</span>
       <div><div class="name">Cursor</div><div class="hint">IDE &#8212; already configured via .cursorrules</div></div>
     </div>
-    <div class="platform-option" tabindex="0" data-platform="chatgpt"
-         onclick="selectPlatform(this)" onkeydown="cardKey(event,this)">
+    <div class="platform-option" tabindex="0" data-platform="chatgpt">
       <span class="icon">&#128172;</span>
       <div><div class="name">ChatGPT</div><div class="hint">Needs custom instructions &#8212; we&#8217;ll generate them</div></div>
     </div>
-    <div class="platform-option" tabindex="0" data-platform="generic"
-         onclick="selectPlatform(this)" onkeydown="cardKey(event,this)">
+    <div class="platform-option" tabindex="0" data-platform="generic">
       <span class="icon">&#9881;</span>
       <div><div class="name">Other / not sure</div><div class="hint">We&#8217;ll generate a system prompt you can paste anywhere</div></div>
     </div>
@@ -301,7 +288,7 @@ button:active { transform: scale(0.97); }
   <div class="platform-detail" id="detail-codex">
     <strong>Generate a local Codex config.</strong>
     <label style="margin-top:0.75rem; display:flex; align-items:center; gap:0.5rem;">
-      <input type="checkbox" id="codex-portable" checked onchange="typeof toggleCodexAbsoluteFields==='function'&&toggleCodexAbsoluteFields()">
+      <input type="checkbox" id="codex-portable" checked>
       Use portable config (relative paths, works across systems; requires <code>python</code> in PATH)
     </label>
     <div id="codex-absolute-fields" style="display:none; margin-top:0.75rem;">
@@ -327,8 +314,8 @@ button:active { transform: scale(0.97); }
     AI platform&#8217;s system prompt or session initialization.
   </div>
   <div class="btn-row">
-    <button class="btn-secondary" onclick="goToStep(2)">&#8592; Back</button>
-    <button class="btn-primary" onclick="generateOutput()">Generate files &#8594;</button>
+    <button class="btn-secondary" data-go-step="2">&#8592; Back</button>
+    <button class="btn-primary" id="generate-output-btn">Generate files &#8594;</button>
   </div>
 </section>
 
@@ -345,7 +332,7 @@ button:active { transform: scale(0.97); }
     <p style="margin-top:0.25rem;">Once your files are in place and you&#8217;ve run a session or two, use the <a href="dashboard.html" style="color:var(--color-primary);">Memory Dashboard</a> to see your knowledge base, projects, and system health at a glance.</p>
   </div>
   <div class="btn-row">
-    <button class="btn-secondary" onclick="goToStep(3)">&#8592; Back</button>
+    <button class="btn-secondary" data-go-step="3">&#8592; Back</button>
     <span></span>
   </div>
 </section>
@@ -639,6 +626,59 @@ button:active { transform: scale(0.97); }
     return e;
   }
 
+  function bindWizardEvents() {
+    document.querySelectorAll('[data-go-step]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        goToStep(Number(button.getAttribute('data-go-step')));
+      });
+    });
+
+    document.querySelectorAll('.card[data-profile]').forEach(function (card) {
+      card.addEventListener('click', function () {
+        selectProfile(card);
+      });
+      card.addEventListener('keydown', function (event) {
+        cardKey(event, card);
+      });
+    });
+
+    var skipProfileLink = document.getElementById('skip-profile-link');
+    if (skipProfileLink) {
+      skipProfileLink.addEventListener('click', function () {
+        selectProfile(null);
+      });
+      skipProfileLink.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          selectProfile(null);
+        }
+      });
+    }
+
+    document.querySelectorAll('.platform-option[data-platform]').forEach(function (option) {
+      option.addEventListener('click', function () {
+        selectPlatform(option);
+      });
+      option.addEventListener('keydown', function (event) {
+        cardKey(event, option);
+      });
+    });
+
+    var codexPortableToggle = document.getElementById('codex-portable');
+    if (codexPortableToggle) {
+      codexPortableToggle.addEventListener('change', function () {
+        if (typeof toggleCodexAbsoluteFields === 'function') toggleCodexAbsoluteFields();
+      });
+    }
+
+    var generateOutputButton = document.getElementById('generate-output-btn');
+    if (generateOutputButton) {
+      generateOutputButton.addEventListener('click', function () {
+        generateOutput();
+      });
+    }
+  }
+
   function setCodexPathError(message) {
     var errorNode = document.getElementById('codex-path-error');
     if (!errorNode) { return; }
@@ -811,6 +851,9 @@ button:active { transform: scale(0.97); }
     btn.textContent = 'Downloaded \u2713';
     btn.classList.add('downloaded');
   }
+
+  bindWizardEvents();
+  if (typeof toggleCodexAbsoluteFields === 'function') toggleCodexAbsoluteFields();
 }());
 </script>
 

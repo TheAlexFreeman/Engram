@@ -501,14 +501,24 @@ button:active { transform: scale(0.97); }
 
     var container = document.getElementById('skill-cards');
     var archiveContainer = document.getElementById('archive-cards');
-    container.innerHTML = '';
-    archiveContainer.innerHTML = '';
+    clearNode(container);
+    clearNode(archiveContainer);
 
     var active = skillsData.filter(function (s) { return !s.archived; });
     var archived = skillsData.filter(function (s) { return s.archived; });
 
     if (active.length === 0 && archived.length === 0) {
-      container.innerHTML = '<div class="placeholder"><div class="icon">&#128295;</div><p>No skills found in <code>core/memory/skills/</code>.</p></div>';
+      var empty = document.createElement('div');
+      empty.className = 'placeholder';
+      empty.appendChild(el('div', '\uD83D\uDD27', 'icon'));
+
+      var message = document.createElement('p');
+      message.appendChild(document.createTextNode('No skills found in '));
+      message.appendChild(el('code', 'core/memory/skills/'));
+      message.appendChild(document.createTextNode('.'));
+      empty.appendChild(message);
+
+      container.appendChild(empty);
       return;
     }
 

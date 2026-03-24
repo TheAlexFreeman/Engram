@@ -463,10 +463,20 @@ button:active { transform: scale(0.97); }
     document.getElementById('detail-view').style.display = 'none';
 
     var container = document.getElementById('user-cards');
-    container.innerHTML = '';
+    clearNode(container);
 
     if (usersData.length === 0) {
-      container.innerHTML = '<div class="placeholder"><div class="icon">&#128100;</div><p>No user profiles found in <code>core/memory/users/</code>.</p></div>';
+      var empty = document.createElement('div');
+      empty.className = 'placeholder';
+      empty.appendChild(el('div', '\uD83D\uDC64', 'icon'));
+
+      var message = document.createElement('p');
+      message.appendChild(document.createTextNode('No user profiles found in '));
+      message.appendChild(el('code', 'core/memory/users/'));
+      message.appendChild(document.createTextNode('.'));
+      empty.appendChild(message);
+
+      container.appendChild(empty);
       return;
     }
 
