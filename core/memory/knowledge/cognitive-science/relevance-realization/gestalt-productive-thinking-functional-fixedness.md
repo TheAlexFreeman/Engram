@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - frame-problem-minsky-dreyfus.md
+  - insight-impasse-incubation-aha-phenomenology.md
+  - representational-change-theory-ohlsson.md
 ---
 
 # Gestalt Psychology: Productive Thinking and Functional Fixedness

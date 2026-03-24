@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: external-research
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - parfit-reductionism.md
+  - parfit-connectedness-continuity.md
+  - ../ethics/parfit-self-defeating-theories.md
 ---
 
 # Parfit: What Matters in Survival

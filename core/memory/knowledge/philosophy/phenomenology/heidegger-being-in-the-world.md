@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - heidegger-readiness-presence-at-hand.md
+  - heidegger-care-temporality.md
+  - husserl-intentionality-epoche.md
 ---
 
 # Heidegger: Being-in-the-World and Dasein

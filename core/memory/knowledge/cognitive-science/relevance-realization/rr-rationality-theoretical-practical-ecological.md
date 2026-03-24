@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - four-kinds-of-knowing.md
+  - aptitudes-of-intelligence-rr-common-factor.md
+  - wisdom-philosophical-traditions-empirical-research.md
 ---
 
 # Relevance Realization and Rationality: Theoretical, Practical, and Ecological

@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - agent-identity-synthesis.md
+  - agent-identity-design-recommendations.md
+  - parfit-what-matters-survival.md
 ---
 
 # Agent Identity Failure Modes and Their Philosophical Significance

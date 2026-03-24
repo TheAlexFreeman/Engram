@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - insight-impasse-incubation-aha-phenomenology.md
+  - opponent-processing-self-organizing-dynamics.md
+  - relevance-realization-synthesis.md
 ---
 
 # Neural Correlates of Insight: Gamma Burst, Semantic Distance, and the Default Mode Network

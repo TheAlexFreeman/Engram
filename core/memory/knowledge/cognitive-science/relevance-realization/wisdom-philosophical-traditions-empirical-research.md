@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - meaning-crisis-psychotechnologies.md
+  - four-kinds-of-knowing.md
+  - rr-rationality-theoretical-practical-ecological.md
 ---
 
 # Wisdom: Philosophical Traditions and Empirical Research

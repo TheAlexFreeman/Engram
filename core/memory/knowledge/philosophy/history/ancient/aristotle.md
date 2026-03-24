@@ -4,10 +4,10 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - ancient/pre-socratics.md
-  - ancient/plato.md
-  - ancient/hellenistic.md
-  - medieval/scholasticism.md
+  - pre-socratics.md
+  - plato.md
+  - hellenistic.md
+  - ../medieval/scholasticism.md
 origin_session: unknown
 ---
 

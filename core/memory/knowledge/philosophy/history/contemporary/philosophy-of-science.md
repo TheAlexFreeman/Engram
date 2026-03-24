@@ -4,9 +4,9 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - twentieth/analytic-foundations.md
-  - twentieth/philosophy-of-mind-language.md
-  - ancient/aristotle.md
+  - ../twentieth/analytic-foundations.md
+  - ../twentieth/philosophy-of-mind-language.md
+  - ../ancient/aristotle.md
 origin_session: unknown
 ---
 

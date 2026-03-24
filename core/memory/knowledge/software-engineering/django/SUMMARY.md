@@ -1,3 +1,11 @@
+---
+type: summary
+related:
+  - django-react-drf.md
+  - drf-spectacular.md
+  - django-storages.md
+---
+
 # Django Stack
 
 Django 6.0, DRF, Celery, Postgres, Redis. Promoted 2026-03-20.

@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: external-research
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - algorithmic-fairness.md
+  - responsibility-attribution-ai.md
+  - ../personal-identity/agent-identity-synthesis.md
 ---
 
 # Moral Status, AI Welfare, and the Question of Machine Consciousness

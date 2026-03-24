@@ -1,9 +1,13 @@
 ---
+
 created: '2026-03-21'
 last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related:
+  - milgram-obedience-experiments.md
+  - ../../philosophy/ethics/responsibility-attribution-ai.md
 ---
 
 # Zimbardo: Situation, Power, and the Stanford Prison Experiment

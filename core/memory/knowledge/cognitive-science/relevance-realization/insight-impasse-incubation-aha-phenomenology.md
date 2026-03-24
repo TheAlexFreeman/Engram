@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - insight-neural-correlates-gamma-dmc.md
+  - gestalt-productive-thinking-functional-fixedness.md
+  - representational-change-theory-ohlsson.md
 ---
 
 # Insight: Impasse, Incubation, and the Phenomenology of the Aha Moment

@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: external-research
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - anti-realism-expressivism.md
+  - moral-epistemology.md
+  - virtue-ethics.md
 ---
 
 # Moral Realism: Are Moral Facts Real?

@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-21'
 last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related:
+  - ../collective-action/olson-logic-of-collective-action.md
+  - ../../mathematics/game-theory/evolution-of-cooperation.md
+  - ../../philosophy/ethics/parfit-collective-action.md
 ---
 
 # Acemoglu & Robinson: Inclusive and Extractive Institutions

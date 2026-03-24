@@ -4,10 +4,10 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - medieval/augustine-neoplatonism.md
-  - medieval/islamic-jewish-transmission.md
-  - ancient/aristotle.md
-  - early-modern/rationalists.md
+  - augustine-neoplatonism.md
+  - islamic-jewish-transmission.md
+  - ../ancient/aristotle.md
+  - ../early-modern/rationalists.md
 origin_session: unknown
 ---
 

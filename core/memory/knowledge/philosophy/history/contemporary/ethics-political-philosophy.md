@@ -4,10 +4,10 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - nineteenth/kierkegaard-nietzsche.md
-  - nineteenth/marx-materialism.md
-  - twentieth/phenomenology-existentialism.md
-  - twentieth/continental-structuralism-poststructuralism.md
+  - ../nineteenth/kierkegaard-nietzsche.md
+  - ../nineteenth/marx-materialism.md
+  - ../twentieth/phenomenology-existentialism.md
+  - ../twentieth/continental-structuralism-poststructuralism.md
 origin_session: unknown
 ---
 

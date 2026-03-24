@@ -4,8 +4,8 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - nineteenth/german-idealism.md
-  - nineteenth/kierkegaard-nietzsche.md
+  - german-idealism.md
+  - kierkegaard-nietzsche.md
 origin_session: unknown
 ---
 

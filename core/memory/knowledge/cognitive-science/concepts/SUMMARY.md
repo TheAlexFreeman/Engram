@@ -1,9 +1,14 @@
 ---
+
 source: agent-generated
 type: index
 created: '2026-03-20'
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - concepts-synthesis-agent-implications.md
+  - basic-level-categories-asymmetry.md
+  - exemplar-theory-hybrid-models.md
 ---
 
 # Cognitive Science — Concepts and Categorization

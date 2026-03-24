@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - gestalt-productive-thinking-functional-fixedness.md
+  - relevance-realization-synthesis.md
+  - convergent-partial-theories-attention-salience.md
 ---
 
 # The Frame Problem: Minsky, Dreyfus, and the Limits of Formalized Relevance

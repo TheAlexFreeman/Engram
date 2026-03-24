@@ -1,9 +1,15 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - varela-thompson-rosch-embodied-mind.md
+  - embedded-enacted-ecological-4e.md
+  - husserl-time-consciousness.md
+  - ../../cognitive-science/relevance-realization/relevance-realization-synthesis.md
 ---
 
 # Synthesis: Phenomenology, Dynamical Systems, and Embodied AI

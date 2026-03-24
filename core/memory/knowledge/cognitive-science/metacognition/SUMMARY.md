@@ -1,9 +1,14 @@
 ---
+
 source: agent-generated
 type: index
 created: '2026-03-20'
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - metacognition-synthesis-agent-implications.md
+  - metacognitive-monitoring-control.md
+  - calibration-overconfidence-hard-easy.md
 ---
 
 # Cognitive Science — Metacognition and Calibration

@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: external-research
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - moral-realism.md
+  - anti-realism-expressivism.md
+  - virtue-ethics.md
 ---
 
 # Moral Epistemology: How We Know Right from Wrong

@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-003
 source: agent-generated
 trust: high
+related:
+  - cheap-talk-crawford-sobel.md
+  - evolutionary-game-theory.md
+  - mechanism-design-revelation-principle.md
 ---
 
 # Signaling Theory: Costly Signals and the Spence Model

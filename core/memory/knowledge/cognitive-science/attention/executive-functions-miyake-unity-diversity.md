@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - attention-synthesis-agent-implications.md
+  - attentional-bottleneck-limited-capacity.md
+  - cognitive-load-theory-sweller.md
 ---
 
 # Executive Functions: Miyake's Unity-and-Diversity Framework

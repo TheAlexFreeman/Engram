@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - agent-identity-design-recommendations.md
+  - agent-identity-failure-modes.md
+  - parfit-reductionism.md
 ---
 
 # Which Account of Personal Identity Fits AI Agents Best?

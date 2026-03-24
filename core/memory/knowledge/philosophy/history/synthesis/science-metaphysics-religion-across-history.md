@@ -4,19 +4,19 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - ancient/pre-socratics.md
-  - ancient/plato.md
-  - ancient/aristotle.md
-  - medieval/augustine-neoplatonism.md
-  - medieval/islamic-jewish-transmission.md
-  - medieval/scholasticism.md
-  - early-modern/renaissance-scientific-revolution.md
-  - early-modern/rationalists.md
-  - early-modern/empiricists.md
-  - early-modern/kant.md
-  - contemporary/philosophy-of-science.md
-  - non-western/indian-philosophy.md
-  - non-western/islamic-modern-philosophy.md
+  - ../ancient/pre-socratics.md
+  - ../ancient/plato.md
+  - ../ancient/aristotle.md
+  - ../medieval/augustine-neoplatonism.md
+  - ../medieval/islamic-jewish-transmission.md
+  - ../medieval/scholasticism.md
+  - ../early-modern/renaissance-scientific-revolution.md
+  - ../early-modern/rationalists.md
+  - ../early-modern/empiricists.md
+  - ../early-modern/kant.md
+  - ../contemporary/philosophy-of-science.md
+  - ../non-western/indian-philosophy.md
+  - ../non-western/islamic-modern-philosophy.md
 origin_session: unknown
 ---
 

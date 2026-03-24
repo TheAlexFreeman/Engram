@@ -4,8 +4,8 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - early-modern/rationalists.md
-  - early-modern/kant.md
+  - rationalists.md
+  - kant.md
 origin_session: unknown
 ---
 

@@ -1,9 +1,13 @@
 ---
+
 created: '2026-03-21'
 last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related:
+  - zimbardo-stanford-prison-situation.md
+  - ../../philosophy/ethics/moral-epistemology.md
 ---
 
 # Milgram: Obedience to Authority

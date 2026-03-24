@@ -1,9 +1,15 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - aptitudes-of-intelligence-rr-common-factor.md
+  - opponent-processing-self-organizing-dynamics.md
+  - meaning-crisis-psychotechnologies.md
+  - four-kinds-of-knowing.md
 ---
 
 # Relevance Realization: Synthesis and Implications for AI

@@ -1,3 +1,11 @@
+---
+type: summary
+related:
+  - docker-compose-local-dev.md
+  - docker-production-config.md
+  - zero-downtime-deploys.md
+---
+
 # DevOps — Docker, CI/CD, Monitoring
 
 Infrastructure for Django + React + Celery + Redis + Postgres. Promoted 2026-03-20.

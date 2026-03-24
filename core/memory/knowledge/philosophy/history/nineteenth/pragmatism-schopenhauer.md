@@ -4,10 +4,10 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - nineteenth/kierkegaard-nietzsche.md
-  - nineteenth/german-idealism.md
-  - twentieth/analytic-foundations.md
-  - twentieth/philosophy-of-mind-language.md
+  - kierkegaard-nietzsche.md
+  - german-idealism.md
+  - ../twentieth/analytic-foundations.md
+  - ../twentieth/philosophy-of-mind-language.md
 origin_session: unknown
 ---
 

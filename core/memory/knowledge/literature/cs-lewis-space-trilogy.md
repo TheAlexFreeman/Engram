@@ -7,7 +7,10 @@ origin_session: core/memory/activity/2026/03/20/chat-001
 type: knowledge
 domain: philosophy
 tags: [literature, cs-lewis, science-fiction, theology, cosmology, technocracy, inklings, ransom-trilogy]
-related: knowledge/_unverified/philosophy/mcluhan-and-media-theory.md
+related:
+  - ../philosophy/cognitive-linguistics-metaphor-blending.md
+  - mcluhan-and-media-theory.md
+  - cs-lewis-abolition-of-man.md
 ---
 
 # C.S. Lewis: The Space Trilogy (Ransom Trilogy)

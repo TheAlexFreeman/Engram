@@ -4,10 +4,10 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - ancient/aristotle.md
-  - ancient/hellenistic.md
-  - medieval/augustine-neoplatonism.md
-  - medieval/scholasticism.md
+  - ../ancient/aristotle.md
+  - ../ancient/hellenistic.md
+  - augustine-neoplatonism.md
+  - scholasticism.md
 origin_session: unknown
 ---
 

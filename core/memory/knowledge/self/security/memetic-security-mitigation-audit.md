@@ -1,8 +1,13 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: low
+related:
+  - ../operational-resilience-and-memetic-security-synthesis.md
+  - memetic-security-irreducible-core.md
+  - memetic-security-comparative-analysis.md
 ---
 
 # Existing Mitigations Audit: What Engram's Defenses Actually Provide

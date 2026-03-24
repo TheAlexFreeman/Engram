@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: external-research
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - kantian-deontology.md
+  - utilitarianism-bentham-to-singer.md
+  - moral-realism.md
 ---
 
 # Virtue Ethics: From Aristotle to Contemporary Revival

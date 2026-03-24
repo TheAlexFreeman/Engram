@@ -1,3 +1,10 @@
+---
+type: summary
+related:
+  - origins/cybernetics-perceptrons-and-the-first-connectionist-wave.md
+  - deep-learning/gpus-imagenet-and-the-deep-learning-turn.md
+---
+
 # AI Paradigm Genealogy — Summary
 
 Narrative history of how the current AI paradigm formed, written for causal understanding rather than encyclopedic completeness. Each file answers: what bottleneck existed, what insight addressed it, what enabling conditions made it practical, what remained hard, and what later work built on it.

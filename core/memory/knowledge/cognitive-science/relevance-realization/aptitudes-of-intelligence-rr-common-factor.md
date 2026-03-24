@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - four-kinds-of-knowing.md
+  - rr-rationality-theoretical-practical-ecological.md
+  - relevance-realization-synthesis.md
 ---
 
 # The Aptitudes of Intelligence: Relevance Realization as the Common Factor

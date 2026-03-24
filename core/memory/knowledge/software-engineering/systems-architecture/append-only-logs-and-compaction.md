@@ -1,4 +1,5 @@
 ---
+
 source: external-research
 origin_session: core/memory/activity/2026/03/19/chat-001
 type: knowledge
@@ -7,6 +8,10 @@ tags: [logs, compaction, lsm, kafka, cqrs, access-jsonl, archival, summaries]
 trust: medium
 created: 2026-03-19
 last_verified: 2026-03-19
+related:
+  - filesystem-atomicity-and-locking.md
+  - crdts-and-collaborative-text.md
+  - filesystems-for-developers.md
 ---
 
 # Append-Only Logs, Compaction, and Materialized Summaries

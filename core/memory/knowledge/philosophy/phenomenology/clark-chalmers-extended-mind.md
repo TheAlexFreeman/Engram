@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - embedded-enacted-ecological-4e.md
+  - varela-thompson-rosch-embodied-mind.md
+  - heidegger-readiness-presence-at-hand.md
 ---
 
 # The Extended Mind: Clark and Chalmers

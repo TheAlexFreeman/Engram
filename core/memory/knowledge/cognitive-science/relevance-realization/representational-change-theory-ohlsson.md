@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - insight-impasse-incubation-aha-phenomenology.md
+  - gestalt-productive-thinking-functional-fixedness.md
+  - frame-problem-minsky-dreyfus.md
 ---
 
 # Representational Change Theory, the Einstellung Effect, and RR as the Transformative Mechanism

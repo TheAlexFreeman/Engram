@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - insight-neural-correlates-gamma-dmc.md
+  - convergent-partial-theories-attention-salience.md
+  - relevance-realization-synthesis.md
 ---
 
 # Opponent Processing and the Self-Organizing Dynamics of Relevance Realization

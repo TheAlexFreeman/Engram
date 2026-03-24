@@ -4,9 +4,8 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - nineteenth/kierkegaard-nietzsche.md
-  - early-modern/kant.md
-  - knowledge/_unverified/philosophy/narrative-cognition.md
+  - ../nineteenth/kierkegaard-nietzsche.md
+  - ../early-modern/kant.md
 origin_session: unknown
 ---
 

@@ -4,9 +4,9 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - medieval/islamic-jewish-transmission.md
-  - twentieth/phenomenology-existentialism.md
-  - twentieth/philosophy-of-mind-language.md
+  - ../medieval/islamic-jewish-transmission.md
+  - ../twentieth/phenomenology-existentialism.md
+  - ../twentieth/philosophy-of-mind-language.md
 origin_session: unknown
 ---
 

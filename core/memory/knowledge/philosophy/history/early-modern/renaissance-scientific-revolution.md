@@ -4,8 +4,8 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - medieval/scholasticism.md
-  - early-modern/rationalists.md
+  - ../medieval/scholasticism.md
+  - rationalists.md
 origin_session: unknown
 ---
 

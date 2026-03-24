@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-003
 source: agent-generated
 trust: high
+related:
+  - evolution-of-cooperation.md
+  - normal-form-games-nash-equilibrium.md
+  - prisoner-dilemma-coordination-games.md
 ---
 
 # Evolutionary Game Theory and Replicator Dynamics

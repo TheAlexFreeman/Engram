@@ -1,4 +1,5 @@
 ---
+
 source: external-research
 origin_session: core/memory/activity/2026/03/19/chat-001
 type: knowledge
@@ -7,6 +8,10 @@ tags: [filesystem, journaling, copy-on-write, fuse, inotify, nfs, smb, apfs, ext
 trust: medium
 created: 2026-03-19
 last_verified: 2026-03-19
+related:
+  - filesystem-atomicity-and-locking.md
+  - append-only-logs-and-compaction.md
+  - git-object-model.md
 ---
 
 # Filesystems for Developers Building Stateful Tools

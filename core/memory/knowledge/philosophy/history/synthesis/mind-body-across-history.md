@@ -4,13 +4,13 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - ancient/aristotle.md
-  - early-modern/rationalists.md
-  - early-modern/kant.md
-  - nineteenth/german-idealism.md
-  - twentieth/phenomenology-existentialism.md
-  - twentieth/philosophy-of-mind-language.md
-  - contemporary/synthesis-open-questions.md
+  - ../ancient/aristotle.md
+  - ../early-modern/rationalists.md
+  - ../early-modern/kant.md
+  - ../nineteenth/german-idealism.md
+  - ../twentieth/phenomenology-existentialism.md
+  - ../twentieth/philosophy-of-mind-language.md
+  - ../contemporary/synthesis-open-questions.md
 origin_session: unknown
 ---
 

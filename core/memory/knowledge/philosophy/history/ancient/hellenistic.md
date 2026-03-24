@@ -4,9 +4,9 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - ancient/aristotle.md
-  - ancient/plato.md
-  - medieval/augustine-neoplatonism.md
+  - aristotle.md
+  - plato.md
+  - ../medieval/augustine-neoplatonism.md
 origin_session: unknown
 ---
 

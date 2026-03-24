@@ -7,10 +7,10 @@ trust: low
 tags: [axial-age, jaspers, confucius, buddha, socrates, prophets, zoroaster, upanishads, transcendence, universalism, reflexivity, comparative-religion, contemporary-relevance]
 period: c. 800–200 BCE
 related:
-  - ancient/pre-socratics.md
-  - ancient/plato.md
-  - ancient/aristotle.md
-  - ancient/hellenistic.md
+  - pre-socratics.md
+  - plato.md
+  - aristotle.md
+  - hellenistic.md
 origin_session: core/memory/activity/2026/03/19/chat-002
 ---
 

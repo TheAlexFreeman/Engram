@@ -4,14 +4,14 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - twentieth/philosophy-of-mind-language.md
-  - twentieth/analytic-foundations.md
-  - twentieth/continental-structuralism-poststructuralism.md
-  - twentieth/phenomenology-existentialism.md
-  - non-western/indian-philosophy.md
-  - non-western/chinese-philosophy.md
-  - contemporary/ethics-political-philosophy.md
-  - contemporary/philosophy-of-science.md
+  - ../twentieth/philosophy-of-mind-language.md
+  - ../twentieth/analytic-foundations.md
+  - ../twentieth/continental-structuralism-poststructuralism.md
+  - ../twentieth/phenomenology-existentialism.md
+  - ../non-western/indian-philosophy.md
+  - ../non-western/chinese-philosophy.md
+  - ethics-political-philosophy.md
+  - philosophy-of-science.md
 origin_session: unknown
 ---
 

@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - heidegger-being-in-the-world.md
+  - heidegger-care-temporality.md
+  - clark-chalmers-extended-mind.md
 ---
 
 # Heidegger: Readiness-to-Hand and Presence-at-Hand

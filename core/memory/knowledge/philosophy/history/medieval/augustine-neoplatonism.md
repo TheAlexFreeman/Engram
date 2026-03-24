@@ -4,9 +4,9 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - ancient/hellenistic.md
-  - ancient/plato.md
-  - medieval/scholasticism.md
+  - ../ancient/hellenistic.md
+  - ../ancient/plato.md
+  - scholasticism.md
 origin_session: unknown
 ---
 

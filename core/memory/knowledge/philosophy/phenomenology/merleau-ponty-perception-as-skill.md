@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - merleau-ponty-body-as-subject.md
+  - merleau-ponty-intersubjectivity.md
+  - embedded-enacted-ecological-4e.md
 ---
 
 # Merleau-Ponty: Perception as Skilled Activity

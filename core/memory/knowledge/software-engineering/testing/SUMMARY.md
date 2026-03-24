@@ -1,8 +1,13 @@
 ---
+
 created: 2026-03-20
 last_verified: 2026-03-20
 source: agent-generated
 type: summary
+related:
+  - black-box-test-design.md
+  - integration-testing-strategies.md
+  - test-doubles-mock-patterns.md
 ---
 
 # Software Testing, Validation, and Verification

@@ -1,9 +1,15 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: external-research
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - parfit-consequentialism-ethics.md
+  - parfit-population-ethics.md
+  - contractualism.md
+  - ../personal-identity/parfit-reductionism.md
 ---
 
 # Parfit on Self-Defeating Theories: *Reasons and Persons* Part One

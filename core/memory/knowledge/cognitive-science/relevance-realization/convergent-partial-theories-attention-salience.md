@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - opponent-processing-self-organizing-dynamics.md
+  - frame-problem-minsky-dreyfus.md
+  - ../attention/attention-synthesis-agent-implications.md
 ---
 
 # Convergent Partial Theories: Attention and Salience Before Vervaeke

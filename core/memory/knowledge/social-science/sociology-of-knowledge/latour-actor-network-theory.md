@@ -1,9 +1,13 @@
 ---
+
 created: '2026-03-21'
 last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related:
+  - mannheim-sociology-of-knowledge.md
+  - ../../philosophy/phenomenology/embedded-enacted-ecological-4e.md
 ---
 
 # Latour: Actor-Network Theory

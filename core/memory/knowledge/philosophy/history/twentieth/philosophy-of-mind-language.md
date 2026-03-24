@@ -4,9 +4,8 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - twentieth/analytic-foundations.md
-  - twentieth/later-wittgenstein-ordinary-language.md
-  - knowledge/_unverified/philosophy/narrative-cognition.md
+  - analytic-foundations.md
+  - later-wittgenstein-ordinary-language.md
 origin_session: unknown
 ---
 

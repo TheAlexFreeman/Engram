@@ -1,9 +1,14 @@
 ---
+
 source: agent-generated
 type: index
 created: 2026-03-20
 last_verified: 2026-03-20
 trust: medium
+related:
+  - agent-memory-in-ai-ecosystem.md
+  - ai-tools-landscape-2026.md
+  - frontier-synthesis.md
 ---
 
 # AI Tools — Landscape and Ecosystem Positioning

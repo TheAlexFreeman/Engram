@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - concepts-synthesis-agent-implications.md
+  - basic-level-categories-asymmetry.md
+  - ../../philosophy/phenomenology/varela-thompson-rosch-embodied-mind.md
 ---
 
 # Embodied and Grounded Cognition: Concepts and the Body

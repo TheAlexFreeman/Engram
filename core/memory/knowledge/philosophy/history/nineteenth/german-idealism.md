@@ -4,9 +4,9 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - early-modern/kant.md
-  - nineteenth/marx-materialism.md
-  - nineteenth/kierkegaard-nietzsche.md
+  - ../early-modern/kant.md
+  - marx-materialism.md
+  - kierkegaard-nietzsche.md
 origin_session: unknown
 ---
 

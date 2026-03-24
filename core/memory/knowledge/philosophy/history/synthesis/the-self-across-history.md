@@ -4,15 +4,15 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - ancient/plato.md
-  - ancient/aristotle.md
-  - medieval/augustine-neoplatonism.md
-  - early-modern/rationalists.md
-  - early-modern/empiricists.md
-  - early-modern/kant.md
-  - nineteenth/kierkegaard-nietzsche.md
-  - twentieth/phenomenology-existentialism.md
-  - contemporary/ethics-political-philosophy.md
+  - ../ancient/plato.md
+  - ../ancient/aristotle.md
+  - ../medieval/augustine-neoplatonism.md
+  - ../early-modern/rationalists.md
+  - ../early-modern/empiricists.md
+  - ../early-modern/kant.md
+  - ../nineteenth/kierkegaard-nietzsche.md
+  - ../twentieth/phenomenology-existentialism.md
+  - ../contemporary/ethics-political-philosophy.md
 origin_session: unknown
 ---
 

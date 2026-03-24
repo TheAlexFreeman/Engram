@@ -1,4 +1,5 @@
 ---
+
 title: "Galatea 2.2 — Richard Powers and Today's AI Discourse"
 author_of_work: Richard Powers
 work: Galatea 2.2 (1995)
@@ -9,6 +10,10 @@ source: agent-generated
 status: in-progress
 tags: [literature, ai, consciousness, language-models, turing-test, richard-powers, cognitive-science]
 trust: medium
+related:
+  - cs-lewis-abolition-of-man.md
+  - mcluhan-and-media-theory.md
+  - ../../rationalist-community/ai-discourse/synthesis/rationalist-ai-discourse-assessment.md
 ---
 
 # Galatea 2.2: Richard Powers and Today's AI Discourse

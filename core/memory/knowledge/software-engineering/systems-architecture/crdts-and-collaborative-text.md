@@ -1,4 +1,5 @@
 ---
+
 source: external-research
 origin_session: core/memory/activity/2026/03/19/chat-001
 type: knowledge
@@ -7,6 +8,10 @@ tags: [crdt, automerge, yjs, ot, collaborative-editing, markdown, frontmatter]
 trust: medium
 created: 2026-03-19
 last_verified: 2026-03-19
+related:
+  - append-only-logs-and-compaction.md
+  - concurrency-models-for-local-state.md
+  - content-addressable-storage-and-integrity.md
 ---
 
 # CRDTs and Collaborative Text in a Governed Markdown System

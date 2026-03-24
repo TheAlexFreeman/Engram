@@ -1,8 +1,13 @@
 ---
+
 created: '2026-03-21'
 origin_session: core/memory/activity/2026/03/21/chat-001
 source: agent-generated
 trust: low
+related:
+  - engram-governance-model.md
+  - security/memetic-security-mitigation-audit.md
+  - validation-as-adaptive-health.md
 ---
 
 # Operational Resilience and Memetic Security: System Notes Synthesis

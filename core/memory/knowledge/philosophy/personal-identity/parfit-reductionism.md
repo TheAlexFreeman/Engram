@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: external-research
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - parfit-connectedness-continuity.md
+  - parfit-what-matters-survival.md
+  - hume-bundle-theory.md
 ---
 
 # Parfit's Reductionism and the No-Further-Fact View

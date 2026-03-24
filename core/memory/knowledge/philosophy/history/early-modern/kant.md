@@ -4,9 +4,9 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - early-modern/rationalists.md
-  - early-modern/empiricists.md
-  - nineteenth/german-idealism.md
+  - rationalists.md
+  - empiricists.md
+  - ../nineteenth/german-idealism.md
 origin_session: unknown
 ---
 

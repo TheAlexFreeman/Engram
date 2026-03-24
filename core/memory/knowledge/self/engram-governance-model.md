@@ -1,4 +1,5 @@
 ---
+
 title: Engram Governance Model
 category: knowledge
 tags: [engram, governance, trust, curation, security, self-knowledge]
@@ -7,6 +8,10 @@ trust: medium
 origin_session: core/memory/activity/2026/03/20/chat-001
 created: 2026-03-20
 last_verified: 2026-03-20
+related:
+  - validation-as-adaptive-health.md
+  - protocol-design-considerations.md
+  - operational-resilience-and-memetic-security-synthesis.md
 ---
 
 # Engram Governance Model

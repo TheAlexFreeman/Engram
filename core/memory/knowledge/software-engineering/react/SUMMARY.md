@@ -1,3 +1,11 @@
+---
+type: summary
+related:
+  - react-19-overview.md
+  - tanstack-query.md
+  - tanstack-router.md
+---
+
 # React Stack
 
 React 19, Chakra UI 3, TanStack, Vite, testing. Promoted 2026-03-20.

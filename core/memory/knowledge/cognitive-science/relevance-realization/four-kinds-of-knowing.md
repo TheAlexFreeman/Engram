@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - aptitudes-of-intelligence-rr-common-factor.md
+  - rr-rationality-theoretical-practical-ecological.md
+  - wisdom-philosophical-traditions-empirical-research.md
 ---
 
 # The Four Kinds of Knowing and RR's Role in Each

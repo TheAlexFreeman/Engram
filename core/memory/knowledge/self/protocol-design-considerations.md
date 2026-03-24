@@ -1,4 +1,5 @@
 ---
+
 title: Protocol Design Considerations for Engram
 category: knowledge
 tags: [engram, governance, protocol-design, self-knowledge, architecture]
@@ -7,6 +8,9 @@ trust: medium
 origin_session: manual
 created: 2026-03-21
 last_verified: 2026-03-21
+related:
+  - engram-governance-model.md
+  - operational-resilience-and-memetic-security-synthesis.md
 ---
 
 # Protocol Design Considerations for Engram

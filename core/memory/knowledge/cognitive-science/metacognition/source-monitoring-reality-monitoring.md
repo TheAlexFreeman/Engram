@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - conflict-monitoring-feeling-of-rightness.md
+  - metacognitive-monitoring-control.md
+  - feeling-of-knowing-tip-of-tongue.md
 ---
 
 # Source Monitoring and Reality Monitoring

@@ -1,3 +1,10 @@
+---
+type: summary
+related:
+  - mcp-ecosystem-survey.md
+  - mcp-2026-roadmap-update.md
+---
+
 # MCP Knowledge — Summary
 
 Four files covering the Model Context Protocol specification, server design patterns, ecosystem landscape, and 2026 roadmap. Synthesized from `modelcontextprotocol.io` docs (spec version `2025-06-18`) and operational experience building the `agent_memory` MCP server in this repo. Promoted from `_unverified/` on 2026-03-20 after review.

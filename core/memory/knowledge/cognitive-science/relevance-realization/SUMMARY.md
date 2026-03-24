@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - relevance-realization-synthesis.md
+  - four-kinds-of-knowing.md
+  - meaning-crisis-psychotechnologies.md
 ---
 
 # Knowledge: Cognitive Science / Relevance Realization — Summary

@@ -4,8 +4,8 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - ancient/plato.md
-  - ancient/aristotle.md
+  - plato.md
+  - aristotle.md
 origin_session: unknown
 ---
 

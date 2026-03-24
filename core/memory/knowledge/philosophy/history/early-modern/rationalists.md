@@ -4,9 +4,9 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - early-modern/renaissance-scientific-revolution.md
-  - early-modern/empiricists.md
-  - early-modern/kant.md
+  - renaissance-scientific-revolution.md
+  - empiricists.md
+  - kant.md
 origin_session: unknown
 ---
 

@@ -8,9 +8,9 @@ trust: medium
 tags: [nick-land, accelerationism, ccru, dark-enlightenment, neoreaction, hyperstition, techno-capital, singularity, deleuze, cybernetics, nrx, warwick]
 origin_session: core/memory/activity/2026/03/19/chat-002
 related:
-  - philosophy/mcluhan-and-media-theory.md
-  - knowledge/_unverified/rationalist-community/
-  - knowledge/_unverified/ai-tools/agent-memory-in-ai-ecosystem.md
+  - mcluhan-and-media-theory.md
+  - ../rationalist-community/origins/eliezer-yudkowsky-intellectual-biography.md
+  - ../ai/tools/agent-memory-in-ai-ecosystem.md
 ---
 
 # Nick Land: Accelerationism, Hyperstition, and Techno-Capital

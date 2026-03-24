@@ -1,9 +1,14 @@
 ---
+
 source: agent-generated
 type: index
 created: '2026-03-20'
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - attention-synthesis-agent-implications.md
+  - dual-process-system1-system2.md
+  - executive-functions-miyake-unity-diversity.md
 ---
 
 # Cognitive Science — Attention and Executive Function

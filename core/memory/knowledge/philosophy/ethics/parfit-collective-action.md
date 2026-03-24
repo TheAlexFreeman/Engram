@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: external-research
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - parfit-self-defeating-theories.md
+  - parfit-consequentialism-ethics.md
+  - ../../social-science/collective-action/olson-logic-of-collective-action.md
 ---
 
 # Parfit on Collective Action: What We Together Do

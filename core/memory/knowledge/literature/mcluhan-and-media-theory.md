@@ -8,9 +8,10 @@ trust: medium
 tags: [mcluhan, media-theory, medium-is-the-message, global-village, tetrad, hot-cool-media, toronto-school, technology, extensions-of-man, innis, ong, orality-literacy]
 origin_session: core/memory/activity/2026/03/19/chat-002
 related:
-  - philosophy/narrative-cognition.md
-  - philosophy/cognitive-linguistics-metaphor-blending.md
-  - knowledge/_unverified/brainstorm-pwr-protocol.md
+  - ../philosophy/narrative-cognition.md
+  - ../philosophy/cognitive-linguistics-metaphor-blending.md
+  - cs-lewis-space-trilogy.md
+  - nick-land-accelerationism.md
 ---
 
 # Marshall McLuhan and Media Theory

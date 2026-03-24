@@ -4,9 +4,9 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - non-western/indian-philosophy.md
-  - medieval/islamic-jewish-transmission.md
-  - nineteenth/kierkegaard-nietzsche.md
+  - indian-philosophy.md
+  - ../medieval/islamic-jewish-transmission.md
+  - ../nineteenth/kierkegaard-nietzsche.md
 origin_session: unknown
 ---
 

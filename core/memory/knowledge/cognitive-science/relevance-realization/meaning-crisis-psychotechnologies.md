@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: unknown
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - wisdom-philosophical-traditions-empirical-research.md
+  - four-kinds-of-knowing.md
+  - relevance-realization-synthesis.md
 ---
 
 # The Meaning Crisis and Psychotechnologies

@@ -4,9 +4,9 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - twentieth/later-wittgenstein-ordinary-language.md
-  - twentieth/philosophy-of-mind-language.md
-  - nineteenth/pragmatism-schopenhauer.md
+  - later-wittgenstein-ordinary-language.md
+  - philosophy-of-mind-language.md
+  - ../nineteenth/pragmatism-schopenhauer.md
 origin_session: unknown
 ---
 

@@ -6,7 +6,8 @@ created: 2026-03-20
 trust: low
 origin_session: core/memory/activity/2026/03/20/chat-001
 tags: [git, architecture, multi-agent, environment, deployment, coordination]
-related: self/_archive/2026-03-19-tmp-data-loss-incident.md
+related:
+  - _archive/2026-03-19-tmp-data-loss-incident.md
 ---
 
 # Environment Capability Asymmetry in Engram Deployments

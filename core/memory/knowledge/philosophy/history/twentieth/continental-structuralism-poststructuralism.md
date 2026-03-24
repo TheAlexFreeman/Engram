@@ -4,8 +4,8 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - twentieth/phenomenology-existentialism.md
-  - nineteenth/kierkegaard-nietzsche.md
+  - phenomenology-existentialism.md
+  - ../nineteenth/kierkegaard-nietzsche.md
 origin_session: unknown
 ---
 

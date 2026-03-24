@@ -4,9 +4,9 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - medieval/islamic-jewish-transmission.md
-  - non-western/indian-philosophy.md
-  - twentieth/continental-structuralism-poststructuralism.md
+  - ../medieval/islamic-jewish-transmission.md
+  - indian-philosophy.md
+  - ../twentieth/continental-structuralism-poststructuralism.md
 origin_session: unknown
 ---
 

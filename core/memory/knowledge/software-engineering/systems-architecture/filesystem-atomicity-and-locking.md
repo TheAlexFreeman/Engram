@@ -1,4 +1,5 @@
 ---
+
 source: external-research
 origin_session: core/memory/activity/2026/03/19/chat-001
 type: knowledge
@@ -7,6 +8,10 @@ tags: [filesystem, atomicity, rename, locking, o-excl, flock, fsync, durability,
 trust: medium
 created: 2026-03-19
 last_verified: 2026-03-19
+related:
+  - append-only-logs-and-compaction.md
+  - filesystems-for-developers.md
+  - concurrency-models-for-local-state.md
 ---
 
 # Filesystem Atomicity, Locking, and Durability

@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - embedded-enacted-ecological-4e.md
+  - merleau-ponty-body-as-subject.md
+  - clark-chalmers-extended-mind.md
 ---
 
 # The Embodied Mind: Varela, Thompson, and Rosch

@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: external-research
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - virtue-ethics.md
+  - utilitarianism-bentham-to-singer.md
+  - contractualism.md
 ---
 
 # Kantian Deontology: The Categorical Imperative and Its Legacy

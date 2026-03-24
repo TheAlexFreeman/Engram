@@ -4,8 +4,8 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - nineteenth/german-idealism.md
-  - twentieth/phenomenology-existentialism.md
+  - german-idealism.md
+  - ../twentieth/phenomenology-existentialism.md
 origin_session: unknown
 ---
 

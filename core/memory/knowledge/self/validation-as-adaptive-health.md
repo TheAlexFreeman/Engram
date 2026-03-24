@@ -1,4 +1,5 @@
 ---
+
 title: Validation as Adaptive Health — How the Test Suite Closes the Loop
 category: knowledge
 tags: [self-knowledge, validation, governance, curation, adaptive-systems, health]
@@ -7,6 +8,9 @@ trust: medium
 origin_session: core/memory/activity/2026/03/20/chat-002
 created: 2026-03-20
 last_verified: 2026-03-20
+related:
+  - engram-governance-model.md
+  - operational-resilience-and-memetic-security-synthesis.md
 ---
 
 # Validation as Adaptive Health — How the Test Suite Closes the Loop

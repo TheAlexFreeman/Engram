@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: external-research
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - hume-bundle-theory.md
+  - parfit-connectedness-continuity.md
+  - schechtman-narrative-self-constitution.md
 ---
 
 # Locke's Memory Criterion of Personal Identity

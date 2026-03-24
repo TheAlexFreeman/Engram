@@ -4,14 +4,14 @@ type: knowledge
 created: 2026-03-19
 trust: low
 related:
-  - ancient/plato.md
-  - ancient/aristotle.md
-  - medieval/scholasticism.md
-  - early-modern/rationalists.md
-  - twentieth/analytic-foundations.md
-  - twentieth/later-wittgenstein-ordinary-language.md
-  - twentieth/philosophy-of-mind-language.md
-  - twentieth/continental-structuralism-poststructuralism.md
+  - ../ancient/plato.md
+  - ../ancient/aristotle.md
+  - ../medieval/scholasticism.md
+  - ../early-modern/rationalists.md
+  - ../twentieth/analytic-foundations.md
+  - ../twentieth/later-wittgenstein-ordinary-language.md
+  - ../twentieth/philosophy-of-mind-language.md
+  - ../twentieth/continental-structuralism-poststructuralism.md
 origin_session: unknown
 ---
 

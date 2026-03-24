@@ -1,9 +1,14 @@
 ---
+
 created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: external-research
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - ricoeur-idem-ipse.md
+  - macintyre-narrative-unity.md
+  - locke-memory-criterion.md
 ---
 
 # Schechtman: The Narrative Self-Constitution View
