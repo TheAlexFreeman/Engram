@@ -316,6 +316,10 @@ refs_updated = "References Updated"
 files_to_move = "Files To Move"
 outbox_root = "Outbox Root"
 exported_artifacts = "Exported Artifacts"
+output_path = "Output Path"
+knowledge_path = "Knowledge Subtree"
+names_count = "Names Indexed"
+files_scanned = "Files Scanned"
 
 [shared_result]
 fields = [

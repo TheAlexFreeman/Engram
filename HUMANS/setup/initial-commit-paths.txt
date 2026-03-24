@@ -68,6 +68,7 @@ core/memory/activity/2026/03/18/chat-001/SUMMARY.md
 core/memory/activity/ACCESS.jsonl
 core/memory/activity/SUMMARY.md
 core/memory/knowledge/ACCESS.jsonl
+core/memory/knowledge/NAMES.md
 core/memory/knowledge/SUMMARY.md
 core/memory/knowledge/_unverified/self/comprehensive-self-knowledge-summary.md
 core/memory/knowledge/ai/frontier-synthesis.md
@@ -558,6 +559,7 @@ core/tools/agent_memory_mcp/preview_contract.py
 core/tools/agent_memory_mcp/server.py
 core/tools/agent_memory_mcp/server_main.py
 core/tools/agent_memory_mcp/tools/__init__.py
+core/tools/agent_memory_mcp/tools/name_index.py
 core/tools/agent_memory_mcp/tools/read_tools.py
 core/tools/agent_memory_mcp/tools/reference_extractor.py
 core/tools/agent_memory_mcp/tools/semantic/__init__.py
@@ -573,6 +575,7 @@ core/tools/tests/__init__.py
 core/tools/tests/test_agent_memory_mcp_write_tools.py
 core/tools/tests/test_core_boundary.py
 core/tools/tests/test_memory_mcp.py
+extract_names.py
 pyproject.toml
 setup.html
 setup.sh

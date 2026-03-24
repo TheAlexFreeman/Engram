@@ -1190,7 +1190,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         if abs_output.exists():
             repo.check_version_token(output_path, version_token)
 
-        payload = generate_names_index(root, knowledge_path=normalized_path, output_path=output_path)
+        payload = generate_names_index(
+            root, knowledge_path=normalized_path, output_path=output_path
+        )
         draft = cast(str, payload["draft"])
         commit_msg = f"[curation] Refresh names index for {normalized_path}"
         new_state = {
@@ -1204,7 +1206,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             change_class="proposed",
             summary=f"Refresh the generated names index for {normalized_path}.",
             reasoning="This is a proposed durable-memory write because it updates a generated index that shapes future retrieval and navigation.",
-            target_files=[preview_target(output_path, "update" if abs_output.exists() else "create")],
+            target_files=[
+                preview_target(output_path, "update" if abs_output.exists() else "create")
+            ],
             invariant_effects=[
                 "Rebuilds the names index from heading-level extraction under the requested knowledge subtree.",
                 "Writes only to the conventional NAMES.md target for that subtree.",

@@ -1010,7 +1010,9 @@ def render_names_index(
     return "\n".join(lines).rstrip() + "\n"
 
 
-def write_names_index(root: Path, draft: str, output_path: str = "memory/knowledge/NAMES.md") -> Path:
+def write_names_index(
+    root: Path, draft: str, output_path: str = "memory/knowledge/NAMES.md"
+) -> Path:
     """Persist a rendered names-index draft under the content root."""
     resolved_root = root.resolve()
     target = (resolved_root / output_path.replace("\\", "/")).resolve()
