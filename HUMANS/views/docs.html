@@ -270,14 +270,14 @@
   var DOCS_PATH = 'HUMANS/docs/';
 
   var E = window.Engram;
+  var clearNode = E.clearNode;
+  var showError = E.showError;
+  var hideError = E.hideError;
+  var requestReadPermission = E.requestReadPermission;
   var rootHandle = null;
   var currentDoc = null;
 
   /* ── helpers ───────────────────────────────────────── */
-
-  function clearNode(node) {
-    while (node.firstChild) node.removeChild(node.firstChild);
-  }
 
   function findDoc(filename) {
     for (var i = 0; i < DOCS.length; i++) {
@@ -293,25 +293,8 @@
     return s;
   }
 
-  function showError(msg) {
-    var banner = document.getElementById('error-banner');
-    banner.textContent = msg;
-    banner.style.display = 'block';
-  }
-
-  function hideError() {
-    var banner = document.getElementById('error-banner');
-    banner.textContent = '';
-    banner.style.display = 'none';
-  }
-
   function setStatus(connected, text) {
-    var bar = document.getElementById('status-bar');
-    clearNode(bar);
-    var dot = document.createElement('span');
-    dot.className = 'dot ' + (connected ? 'connected' : 'disconnected');
-    bar.appendChild(dot);
-    bar.appendChild(document.createTextNode(' ' + text));
+    E.setStatus(document.getElementById('status-bar'), connected, text);
   }
 
   /* ── index view ────────────────────────────────────── */
@@ -374,19 +357,11 @@
   /* ── read doc ──────────────────────────────────────── */
 
   async function readDoc(filename) {
-    // Primary: File System Access API (works from file://)
-    if (rootHandle) {
-      var text = await E.readFile(rootHandle, DOCS_PATH + filename);
-      if (text) return text;
-    }
-    // Fallback: fetch (works when served from a web server)
-    try {
-      var resp = await fetch('../docs/' + encodeURIComponent(filename));
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      return await resp.text();
-    } catch (_) {
-      return null;
-    }
+    return await E.readTextWithFallback(
+      rootHandle,
+      DOCS_PATH + filename,
+      '../docs/' + encodeURIComponent(filename)
+    );
   }
 
   /* ── open doc (reader mode) ────────────────────────── */
@@ -534,16 +509,9 @@
       return;
     }
 
-    try {
-      var perm = await saved.requestPermission({ mode: 'read' });
-      if (perm !== 'granted') {
-        setStatus(false, 'Permission denied');
-        openBtn.style.display = '';
-        route();
-        return;
-      }
-    } catch (_) {
-      setStatus(false, 'Could not restore handle');
+    var perm = await requestReadPermission(saved, { prompt: true });
+    if (perm !== 'granted') {
+      setStatus(false, 'Permission denied');
       openBtn.style.display = '';
       route();
       return;

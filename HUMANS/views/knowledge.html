@@ -302,6 +302,7 @@
   var parseFlatYaml = E.parseFlatYaml;
   var parseMarkdownTable = E.parseMarkdownTable;
   var loadSavedHandle = E.loadSavedHandle;
+  var requestReadPermission = E.requestReadPermission;
 
   /* ── knowledge state ───────────────────────────────── */
 
@@ -658,14 +659,9 @@
       return;
     }
 
-    try {
-      var perm = await saved.requestPermission({ mode: 'read' });
-      if (perm !== 'granted') {
-        showError('Permission denied. Please open the dashboard and re-open your repo folder.');
-        return;
-      }
-    } catch (_) {
-      showError('Could not restore repo handle. Please open the dashboard and re-open your repo folder.');
+    var perm = await requestReadPermission(saved, { prompt: true });
+    if (perm !== 'granted') {
+      showError('Permission denied. Please open the dashboard and re-open your repo folder.');
       return;
     }
 

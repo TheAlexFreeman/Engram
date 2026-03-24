@@ -2,14 +2,15 @@
  * engram-utils.js — Shared utilities for Engram browser views.
  *
  * Exports via window.Engram:
- *   el, showError, hideError,
+ *   el, clearNode, escapeHtml, setStatus, showError, hideError,
  *   readFile, listDir,
  *   parseFrontmatter, parseFlatYaml, parseMarkdownTable,
  *   openDB, loadSavedHandle, saveHandle, clearSavedHandle,
+ *   requestReadPermission, readTextWithFallback,
  *   DB_NAME, STORE, HANDLE_KEY,
  *   renderMarkdown
  */
-(function () {
+(function (root) {
   'use strict';
 
   /* ── DOM helpers ───────────────────────────────────── */
@@ -21,14 +22,40 @@
     return e;
   }
 
+  function clearNode(node) {
+    if (!node) return;
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function setStatus(bar, connected, text) {
+    if (!bar) return;
+    clearNode(bar);
+    var dot = document.createElement('span');
+    dot.className = 'dot ' + (connected ? 'connected' : 'disconnected');
+    bar.appendChild(dot);
+    bar.appendChild(document.createTextNode(' ' + text));
+  }
+
   function showError(msg) {
     var banner = document.getElementById('error-banner');
+    if (!banner) return;
     banner.textContent = msg;
     banner.classList.add('visible');
   }
 
   function hideError() {
-    document.getElementById('error-banner').classList.remove('visible');
+    var banner = document.getElementById('error-banner');
+    if (!banner) return;
+    banner.classList.remove('visible');
   }
 
   /* ── File System Access helpers ────────────────────── */
@@ -157,6 +184,42 @@
       var tx = db.transaction(STORE, 'readwrite');
       tx.objectStore(STORE).delete(HANDLE_KEY);
     } catch (_) {}
+  }
+
+  async function requestReadPermission(handle, opts) {
+    if (!handle) return 'denied';
+    opts = opts || {};
+    var mode = opts.mode || 'read';
+    var prompt = opts.prompt !== false;
+
+    try {
+      if (typeof handle.queryPermission === 'function') {
+        var current = await handle.queryPermission({ mode: mode });
+        if (current === 'granted' || !prompt) return current;
+      }
+      if (prompt && typeof handle.requestPermission === 'function') {
+        return await handle.requestPermission({ mode: mode });
+      }
+    } catch (_) {
+      return 'denied';
+    }
+
+    return 'prompt';
+  }
+
+  async function readTextWithFallback(dirHandle, path, fallbackUrl) {
+    if (dirHandle) {
+      var text = await readFile(dirHandle, path);
+      if (text !== null) return text;
+    }
+    if (!fallbackUrl || typeof fetch !== 'function') return null;
+    try {
+      var resp = await fetch(fallbackUrl);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return await resp.text();
+    } catch (_) {
+      return null;
+    }
   }
 
   /* ── Markdown renderer ──────────────────────────────── */
@@ -435,8 +498,11 @@
 
   /* ── public API ────────────────────────────────────── */
 
-  window.Engram = {
+  var api = {
     el: el,
+    clearNode: clearNode,
+    escapeHtml: escapeHtml,
+    setStatus: setStatus,
     showError: showError,
     hideError: hideError,
     readFile: readFile,
@@ -448,9 +514,16 @@
     saveHandle: saveHandle,
     loadSavedHandle: loadSavedHandle,
     clearSavedHandle: clearSavedHandle,
+    requestReadPermission: requestReadPermission,
+    readTextWithFallback: readTextWithFallback,
     DB_NAME: DB_NAME,
     STORE: STORE,
     HANDLE_KEY: HANDLE_KEY,
     renderMarkdown: renderMarkdown
   };
-})();
+
+  if (root) root.Engram = api;
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = api;
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : this);

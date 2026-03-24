@@ -280,13 +280,10 @@ button:active { transform: scale(0.97); }
   var loadSavedHandle = E.loadSavedHandle;
   var saveHandle = E.saveHandle;
   var clearSavedHandle = E.clearSavedHandle;
+  var requestReadPermission = E.requestReadPermission;
 
   function setStatus(connected, text) {
-    var bar = document.getElementById('status-bar');
-    bar.innerHTML = '';
-    var dot = el('span', '', 'dot ' + (connected ? 'connected' : 'disconnected'));
-    bar.appendChild(dot);
-    bar.appendChild(document.createTextNode(' ' + text));
+    E.setStatus(document.getElementById('status-bar'), connected, text);
   }
 
   /** Count files recursively in a sub-directory. */
@@ -838,13 +835,8 @@ button:active { transform: scale(0.97); }
     if (!saved) return;
 
     // Request read permission on the saved handle
-    try {
-      var perm = await saved.requestPermission({ mode: 'read' });
-      if (perm !== 'granted') return;
-    } catch (_) {
-      await clearSavedHandle();
-      return;
-    }
+    var perm = await requestReadPermission(saved, { prompt: true });
+    if (perm !== 'granted') return;
 
     // Verify the saved handle still points to a valid repo
     rootHandle = saved;

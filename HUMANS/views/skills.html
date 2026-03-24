@@ -332,6 +332,9 @@ button:active { transform: scale(0.97); }
   var parseFlatYaml = E.parseFlatYaml;
   var loadSavedHandle = E.loadSavedHandle;
   var saveHandle = E.saveHandle;
+  var clearNode = E.clearNode;
+  var escapeHtml = E.escapeHtml;
+  var requestReadPermission = E.requestReadPermission;
 
   var rootHandle = null;
 
@@ -354,11 +357,7 @@ button:active { transform: scale(0.97); }
 
   /* ── Status bar ──────────────────────────────────── */
   function setStatus(connected, text) {
-    var bar = document.getElementById('status-bar');
-    bar.innerHTML = '';
-    var dot = el('span', '', 'dot ' + (connected ? 'connected' : 'disconnected'));
-    bar.appendChild(dot);
-    bar.appendChild(document.createTextNode(' ' + text));
+    E.setStatus(document.getElementById('status-bar'), connected, text);
   }
 
   /* ── Folder picker ───────────────────────────────── */
@@ -380,19 +379,10 @@ button:active { transform: scale(0.97); }
   async function tryAutoConnect() {
     var saved = await loadSavedHandle();
     if (!saved) return;
-    try {
-      var perm = await saved.queryPermission({ mode: 'read' });
-      if (perm === 'granted') {
-        rootHandle = saved;
-        await loadData();
-        return;
-      }
-      perm = await saved.requestPermission({ mode: 'read' });
-      if (perm === 'granted') {
-        rootHandle = saved;
-        await loadData();
-      }
-    } catch (_) {}
+    var perm = await requestReadPermission(saved, { prompt: true });
+    if (perm !== 'granted') return;
+    rootHandle = saved;
+    await loadData();
   }
 
   /* ── Main data loader ────────────────────────────── */
@@ -546,18 +536,29 @@ button:active { transform: scale(0.97); }
     var trust = skill.meta.trust || '';
     var trustClass = trust === 'high' ? 'badge-high' : trust === 'medium' ? 'badge-medium' : trust === 'low' ? 'badge-low' : '';
 
-    card.innerHTML =
-      '<div class="card-top">' +
-        '<div class="card-icon">' + getIcon(skill.name) + '</div>' +
-        '<span class="card-name">' + escapeHtml(formatName(skill.name)) + '</span>' +
-        (trustClass ? '<span class="badge ' + trustClass + '">' + escapeHtml(trust) + '</span>' : '') +
-      '</div>' +
-      '<div class="card-desc">' + escapeHtml(skill.desc || 'No description available.') + '</div>' +
-      '<div class="card-footer">' +
-        (skill.meta.source ? '<span class="tag">' + escapeHtml(skill.meta.source) + '</span>' : '') +
-        (skill.meta.created ? '<span class="tag">created ' + escapeHtml(skill.meta.created) + '</span>' : '') +
-        (skill.archived ? '<span class="tag">archived</span>' : '') +
-      '</div>';
+    var top = document.createElement('div');
+    top.className = 'card-top';
+    top.appendChild(el('div', getIcon(skill.name), 'card-icon'));
+    top.appendChild(el('span', formatName(skill.name), 'card-name'));
+    if (trustClass) {
+      top.appendChild(el('span', trust, 'badge ' + trustClass));
+    }
+    card.appendChild(top);
+
+    card.appendChild(el('div', skill.desc || 'No description available.', 'card-desc'));
+
+    var footer = document.createElement('div');
+    footer.className = 'card-footer';
+    if (skill.meta.source) {
+      footer.appendChild(el('span', skill.meta.source, 'tag'));
+    }
+    if (skill.meta.created) {
+      footer.appendChild(el('span', 'created ' + skill.meta.created, 'tag'));
+    }
+    if (skill.archived) {
+      footer.appendChild(el('span', 'archived', 'tag'));
+    }
+    card.appendChild(footer);
 
     card.addEventListener('click', (function (s) {
       return function () { showDetailView(s.fileName, s.archived); };
@@ -583,7 +584,7 @@ button:active { transform: scale(0.97); }
 
     // Breadcrumb
     var bc = document.getElementById('breadcrumb');
-    bc.innerHTML = '';
+    clearNode(bc);
     var skillsLink = document.createElement('a');
     skillsLink.textContent = 'Skills';
     skillsLink.addEventListener('click', function () { showListView(); });
@@ -593,9 +594,9 @@ button:active { transform: scale(0.97); }
 
     // Header
     var header = document.getElementById('detail-header');
-    header.innerHTML =
-      '<div class="icon-lg">' + getIcon(skill.name) + '</div>' +
-      '<h2>' + escapeHtml(formatName(skill.name)) + '</h2>';
+    clearNode(header);
+    header.appendChild(el('div', getIcon(skill.name), 'icon-lg'));
+    header.appendChild(el('h2', formatName(skill.name)));
 
     // Meta grid
     var metaEl = document.getElementById('detail-meta');
@@ -652,12 +653,6 @@ button:active { transform: scale(0.97); }
   }
 
   /* ── Helpers ─────────────────────────────────────── */
-  function escapeHtml(str) {
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
   function formatName(name) {
     return name.replace(/-/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   }

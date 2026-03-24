@@ -345,6 +345,9 @@ button:active { transform: scale(0.97); }
   var parseFlatYaml = E.parseFlatYaml;
   var loadSavedHandle = E.loadSavedHandle;
   var saveHandle = E.saveHandle;
+  var clearNode = E.clearNode;
+  var escapeHtml = E.escapeHtml;
+  var requestReadPermission = E.requestReadPermission;
 
   var rootHandle = null;
 
@@ -355,11 +358,7 @@ button:active { transform: scale(0.97); }
 
   /* ── Status bar ──────────────────────────────────── */
   function setStatus(connected, text) {
-    var bar = document.getElementById('status-bar');
-    bar.innerHTML = '';
-    var dot = el('span', '', 'dot ' + (connected ? 'connected' : 'disconnected'));
-    bar.appendChild(dot);
-    bar.appendChild(document.createTextNode(' ' + text));
+    E.setStatus(document.getElementById('status-bar'), connected, text);
   }
 
   /* ── Folder picker ───────────────────────────────── */
@@ -381,19 +380,10 @@ button:active { transform: scale(0.97); }
   async function tryAutoConnect() {
     var saved = await loadSavedHandle();
     if (!saved) return;
-    try {
-      var perm = await saved.queryPermission({ mode: 'read' });
-      if (perm === 'granted') {
-        rootHandle = saved;
-        await loadData();
-        return;
-      }
-      perm = await saved.requestPermission({ mode: 'read' });
-      if (perm === 'granted') {
-        rootHandle = saved;
-        await loadData();
-      }
-    } catch (_) { /* permission denied or handle expired */ }
+    var perm = await requestReadPermission(saved, { prompt: true });
+    if (perm !== 'granted') return;
+    rootHandle = saved;
+    await loadData();
   }
 
   /* ── Main data loader ────────────────────────────── */
@@ -493,17 +483,24 @@ button:active { transform: scale(0.97); }
       var trust = u.profileMeta.trust || '';
       var trustClass = trust === 'high' ? 'badge-high' : trust === 'medium' ? 'badge-medium' : '';
 
-      card.innerHTML =
-        '<div class="card-top">' +
-          '<div class="card-avatar">' + initial + '</div>' +
-          '<span class="card-name">' + escapeHtml(u.name) + '</span>' +
-          (trustClass ? '<span class="badge ' + trustClass + '">' + escapeHtml(trust) + '</span>' : '') +
-        '</div>' +
-        '<div class="card-role">' + escapeHtml(u.profileSnippet || u.summaryLine || 'No description available.') + '</div>' +
-        '<div class="card-footer">' +
-          '<span>&#128196; ' + u.files.length + ' file' + (u.files.length !== 1 ? 's' : '') + '</span>' +
-          (u.profileMeta.created ? '<span class="tag">since ' + escapeHtml(u.profileMeta.created) + '</span>' : '') +
-        '</div>';
+      var top = document.createElement('div');
+      top.className = 'card-top';
+      top.appendChild(el('div', initial, 'card-avatar'));
+      top.appendChild(el('span', u.name, 'card-name'));
+      if (trustClass) {
+        top.appendChild(el('span', trust, 'badge ' + trustClass));
+      }
+      card.appendChild(top);
+
+      card.appendChild(el('div', u.profileSnippet || u.summaryLine || 'No description available.', 'card-role'));
+
+      var footer = document.createElement('div');
+      footer.className = 'card-footer';
+      footer.appendChild(el('span', '\uD83D\uDCC4 ' + u.files.length + ' file' + (u.files.length !== 1 ? 's' : '')));
+      if (u.profileMeta.created) {
+        footer.appendChild(el('span', 'since ' + u.profileMeta.created, 'tag'));
+      }
+      card.appendChild(footer);
 
       card.addEventListener('click', (function (name) {
         return function () { showDetailView(name); };
@@ -528,7 +525,7 @@ button:active { transform: scale(0.97); }
 
     // Breadcrumb
     var bc = document.getElementById('breadcrumb');
-    bc.innerHTML = '';
+    clearNode(bc);
     var usersLink = document.createElement('a');
     usersLink.textContent = 'Users';
     usersLink.addEventListener('click', function () { showListView(); });
@@ -539,9 +536,9 @@ button:active { transform: scale(0.97); }
     // Header
     var header = document.getElementById('detail-header');
     var initial = user.name.charAt(0).toUpperCase();
-    header.innerHTML =
-      '<div class="avatar-lg">' + initial + '</div>' +
-      '<h2>' + escapeHtml(user.name) + '</h2>';
+    clearNode(header);
+    header.appendChild(el('div', initial, 'avatar-lg'));
+    header.appendChild(el('h2', user.name));
 
     // Summary
     var summaryEl = document.getElementById('detail-summary');
@@ -554,11 +551,12 @@ button:active { transform: scale(0.97); }
 
     // Sidebar file list
     var sidebar = document.getElementById('sidebar-list');
-    sidebar.innerHTML = '';
+    clearNode(sidebar);
     for (var j = 0; j < user.files.length; j++) {
       var li = document.createElement('li');
       li.setAttribute('data-file', user.files[j]);
-      li.innerHTML = '<span class="icon">&#128196;</span> ' + escapeHtml(formatFileName(user.files[j]));
+      li.appendChild(el('span', '\uD83D\uDCC4', 'icon'));
+      li.appendChild(document.createTextNode(' ' + formatFileName(user.files[j])));
       li.addEventListener('click', (function (fileName) {
         return function () { loadFile(fileName); };
       })(user.files[j]));
@@ -583,7 +581,7 @@ button:active { transform: scale(0.97); }
 
     // Update breadcrumb
     var bc = document.getElementById('breadcrumb');
-    bc.innerHTML = '';
+    clearNode(bc);
     var usersLink = document.createElement('a');
     usersLink.textContent = 'Users';
     usersLink.addEventListener('click', function () { showListView(); });
@@ -649,12 +647,6 @@ button:active { transform: scale(0.97); }
   }
 
   /* ── Helpers ─────────────────────────────────────── */
-  function escapeHtml(str) {
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
   function formatFileName(name) {
     return name.replace(/\.md$/, '').replace(/-/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   }
