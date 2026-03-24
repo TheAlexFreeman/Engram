@@ -89,7 +89,7 @@ The pytest tests in `HUMANS/tooling/tests/test_validate_memory_repo.py` enforce:
 - Required frontmatter fields (`source`, `trust`, `origin_session`, `created`, `type`/`category`)
 - `origin_session` format (`core/memory/activity/YYYY/MM/DD/chat-NNN` or sentinel values)
 - Token budget compliance for compact startup files
-- Manifest completeness (all tracked files in `setup/initial-commit-paths.txt`)
+- Manifest completeness (all tracked files in `HUMANS/setup/initial-commit-paths.txt`)
 - Section heading requirements (`## Active plans`, `## Recent completions` in SUMMARY.md)
 - Specific file structure requirements for plan files, identity files, etc.
 

@@ -41,7 +41,7 @@ A four-layer audit was performed covering governance/routing, MCP tooling, memor
 - `core/memory/knowledge/SUMMARY.md` was missing (created this session)
 - `core/memory/users/SUMMARY.md` drill-down links pointed to wrong paths
 - ACCESS.jsonl files missing from all access-tracked namespaces
-- `setup/initial-commit-paths.txt` referenced non-existent files
+- `HUMANS/setup/initial-commit-paths.txt` referenced non-existent files
 
 **High (incorrect for launch):**
 - QUICKSTART ChatGPT/Generic instructions used bare paths without `core/` prefix

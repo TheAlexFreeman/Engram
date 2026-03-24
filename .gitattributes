@@ -5,5 +5,5 @@
 *.toml text eol=lf
 *.yaml text eol=lf
 *.yml text eol=lf
-setup/initial-commit-paths.txt text eol=lf
-setup/init-worktree-paths.txt text eol=lf
+HUMANS/setup/initial-commit-paths.txt text eol=lf
+HUMANS/setup/init-worktree-paths.txt text eol=lf

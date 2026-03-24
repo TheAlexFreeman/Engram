@@ -274,12 +274,12 @@ RUNTIME_GUIDANCE_FILES = (
     Path("core/governance/session-checklists.md"),
 )
 PROMPT_COPY_FILES = (
-    Path("setup/setup.sh"),
-    Path("setup/setup.html"),
+    Path("HUMANS/setup/setup.sh"),
+    Path("HUMANS/views/setup.html"),
     Path("HUMANS/docs/QUICKSTART.md"),
 )
 SETUP_GUIDANCE_FILES = (
-    Path("setup/setup.sh"),
+    Path("HUMANS/setup/setup.sh"),
     Path("HUMANS/docs/QUICKSTART.md"),
 )
 ONBOARDING_EXPORT_TEMPLATE_PATH = Path("HUMANS/tooling/onboard-export-template.md")
@@ -287,10 +287,10 @@ ONBOARDING_EXPORT_REQUIRED_PHRASE = "bash HUMANS/tooling/scripts/onboard-export.
 ONBOARDING_EXPORT_FORBIDDEN_PATTERNS = (r"bash scripts/onboard-export\.sh(?: <file>)?",)
 ADAPTER_FILES = (Path("AGENTS.md"), Path("CLAUDE.md"), Path(".cursorrules"))
 ROOT_SETUP_TARGETS = {
-    Path("setup.sh"): "setup/setup.sh",
-    Path("setup.html"): "setup/setup.html",
+    Path("setup.sh"): "HUMANS/setup/setup.sh",
+    Path("setup.html"): "HUMANS/views/setup.html",
 }
-CANONICAL_SETUP_FILES = (Path("setup/setup.sh"), Path("setup/setup.html"))
+CANONICAL_SETUP_FILES = (Path("HUMANS/setup/setup.sh"), Path("HUMANS/views/setup.html"))
 CAPABILITIES_MANIFEST_PATH = Path("HUMANS/tooling/agent-memory-capabilities.toml")
 EXPECTED_MCP_RUNTIME_DIR = Path("core/tools")
 EXPECTED_MCP_ENTRYPOINT = Path("core/tools/memory_mcp.py")

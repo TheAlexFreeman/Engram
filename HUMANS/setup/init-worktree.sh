@@ -308,7 +308,7 @@ install_profile() {
     local destination="$worktree_root/core/memory/users/profile.md"
 
     if [[ -n "$profile_name" ]]; then
-        local template_path="$SEED_REPO_ROOT/setup/templates/profiles/${profile_name}.md"
+        local template_path="$SEED_REPO_ROOT/HUMANS/setup/templates/profiles/${profile_name}.md"
         if [[ ! -f "$template_path" ]]; then
             echo "Error: profile template not found: $template_path"
             exit 1
@@ -420,7 +420,7 @@ write_codebase_starters() {
     local worktree_native="$3"
     local branch_name="$4"
     local project_name="$5"
-    local template_root="$SEED_REPO_ROOT/setup/templates"
+    local template_root="$SEED_REPO_ROOT/HUMANS/setup/templates"
     local template_path
 
     render_template_file \

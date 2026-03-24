@@ -21,7 +21,7 @@ Use the repository as-is when the memory system is the primary project.
 
 ### Worktree mode
 
-Use `setup/init-worktree.sh` when you want a host codebase to keep its own persistent memory without mixing memory commits into product history.
+Use `HUMANS/setup/init-worktree.sh` when you want a host codebase to keep its own persistent memory without mixing memory commits into product history.
 
 - host repository: application code, normal branch protection, normal CI
 - memory branch: orphan branch such as `agent-memory`
@@ -44,7 +44,7 @@ If you already have an agent runtime, prefer MCP over direct file access wheneve
 Run the init script from the **host repository root**:
 
 ```bash
-bash setup/init-worktree.sh \
+bash HUMANS/setup/init-worktree.sh \
     --non-interactive \
     --platform codex \
     --profile software-developer \

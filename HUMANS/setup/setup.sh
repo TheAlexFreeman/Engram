@@ -14,7 +14,7 @@ PROFILE=""
 USER_NAME=""
 USER_CONTEXT=""
 CODEX_PORTABLE=false
-INITIAL_COMMIT_MANIFEST="setup/initial-commit-paths.txt"
+INITIAL_COMMIT_MANIFEST="HUMANS/setup/initial-commit-paths.txt"
 declare -a INITIAL_COMMIT_PATHS=()
 
 usage() {
@@ -326,7 +326,7 @@ write_identity_summary() {
 
 install_profile() {
     local profile_name="$1"
-    local template_file="setup/templates/profiles/${profile_name}.md"
+    local template_file="HUMANS/setup/templates/profiles/${profile_name}.md"
     if [[ ! -f "$template_file" ]]; then
         echo "[error] Profile template not found: $template_file"
         return 1
@@ -525,7 +525,7 @@ if ! git rev-parse HEAD >/dev/null 2>&1; then
         echo "         git config user.email \"you@example.com\""
         echo "         git commit -m '[system] Initialize Engram' -m 'Created from Engram template on $TODAY.'"
         echo "       If you need to rebuild the same staged allowlist first, run:"
-        echo "         git add --pathspec-from-file=setup/initial-commit-paths.txt --"
+        echo "         git add --pathspec-from-file=HUMANS/setup/initial-commit-paths.txt --"
         echo "         git commit -m '[system] Initialize Engram' -m 'Created from Engram template on $TODAY.'"
     else
         git commit -m "[system] Initialize Engram" \

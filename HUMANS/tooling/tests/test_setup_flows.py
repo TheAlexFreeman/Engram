@@ -66,7 +66,6 @@ def build_setup_repo(root: Path) -> None:
         ".vscode",
         "core",
         "HUMANS",
-        "setup",
     ):
         shutil.copytree(
             REPO_ROOT / dirname,
@@ -76,7 +75,7 @@ def build_setup_repo(root: Path) -> None:
 
 
 def read_initial_commit_manifest(root: Path) -> list[str]:
-    manifest = root / "setup" / "initial-commit-paths.txt"
+    manifest = root / "HUMANS" / "setup" / "initial-commit-paths.txt"
     lines = manifest.read_text(encoding="utf-8").splitlines()
     return [line for line in lines if line and not line.startswith("#")]
 
@@ -123,7 +122,7 @@ class SetupFlowTests(unittest.TestCase):
         if env_updates:
             env.update(env_updates)
         return subprocess.run(
-            [bash, str(seed_root / "setup" / "init-worktree.sh"), *args],
+            [bash, str(seed_root / "HUMANS" / "setup" / "init-worktree.sh"), *args],
             cwd=host_root,
             env=env,
             check=True,
@@ -508,8 +507,8 @@ class SetupFlowTests(unittest.TestCase):
     def test_shell_and_browser_setup_sources_keep_profile_summary_copy_aligned(
         self,
     ) -> None:
-        shell_text = (REPO_ROOT / "setup" / "setup.sh").read_text(encoding="utf-8")
-        browser_text = (REPO_ROOT / "setup" / "setup.html").read_text(encoding="utf-8")
+        shell_text = (REPO_ROOT / "HUMANS" / "setup" / "setup.sh").read_text(encoding="utf-8")
+        browser_text = (REPO_ROOT / "HUMANS" / "views" / "setup.html").read_text(encoding="utf-8")
 
         required_phrases = (
             "Template-based profile",
@@ -528,7 +527,7 @@ class SetupFlowTests(unittest.TestCase):
     def test_browser_setup_uses_local_date_components_for_created_frontmatter(
         self,
     ) -> None:
-        browser_text = (REPO_ROOT / "setup" / "setup.html").read_text(encoding="utf-8")
+        browser_text = (REPO_ROOT / "HUMANS" / "views" / "setup.html").read_text(encoding="utf-8")
 
         self.assertNotIn("toISOString().slice(0, 10)", browser_text)
         self.assertIn("getFullYear()", browser_text)
@@ -536,7 +535,7 @@ class SetupFlowTests(unittest.TestCase):
         self.assertIn("getDate()", browser_text)
 
     def test_browser_setup_collects_codex_paths_and_generates_config(self) -> None:
-        browser_text = (REPO_ROOT / "setup" / "setup.html").read_text(encoding="utf-8")
+        browser_text = (REPO_ROOT / "HUMANS" / "views" / "setup.html").read_text(encoding="utf-8")
 
         self.assertIn('id="codex-repo-path"', browser_text)
         self.assertIn('id="codex-python-path"', browser_text)
@@ -561,7 +560,7 @@ class SetupFlowTests(unittest.TestCase):
             ).stdout.splitlines()
         )
 
-        expected_seed_paths = tracked_paths | {"setup/initial-commit-paths.txt"}
+        expected_seed_paths = tracked_paths | {"HUMANS/setup/initial-commit-paths.txt"}
 
         self.assertTrue(
             expected_seed_paths.issubset(manifest_paths),
@@ -647,7 +646,7 @@ class SetupFlowTests(unittest.TestCase):
                     text=True,
                 ).stdout.splitlines()
             )
-            self.assertIn("setup/initial-commit-paths.txt", head_files)
+            self.assertIn("HUMANS/setup/initial-commit-paths.txt", head_files)
             self.assertIn("README.md", head_files)
             self.assertIn("core/memory/working/projects/SUMMARY.md", head_files)
             self.assertNotIn("notes.txt", head_files)
@@ -701,7 +700,7 @@ class SetupFlowTests(unittest.TestCase):
             )
 
             self.assertIn(
-                "git add --pathspec-from-file=setup/initial-commit-paths.txt --",
+                "git add --pathspec-from-file=HUMANS/setup/initial-commit-paths.txt --",
                 result.stdout,
             )
             self.assertIn(
@@ -723,7 +722,7 @@ class SetupFlowTests(unittest.TestCase):
             )
 
             self.assertIn("README.md", staged_files)
-            self.assertIn("setup/initial-commit-paths.txt", staged_files)
+            self.assertIn("HUMANS/setup/initial-commit-paths.txt", staged_files)
             self.assertIn("core/memory/working/projects/SUMMARY.md", staged_files)
             self.assertNotIn("notes.txt", staged_files)
             self.assertNotIn("system-prompt.txt", staged_files)
@@ -731,8 +730,8 @@ class SetupFlowTests(unittest.TestCase):
     def test_generated_prompt_copy_mentions_semantic_default_and_deferred_file_blind_writes(
         self,
     ) -> None:
-        shell_text = (REPO_ROOT / "setup" / "setup.sh").read_text(encoding="utf-8")
-        browser_text = (REPO_ROOT / "setup" / "setup.html").read_text(encoding="utf-8")
+        shell_text = (REPO_ROOT / "HUMANS" / "setup" / "setup.sh").read_text(encoding="utf-8")
+        browser_text = (REPO_ROOT / "HUMANS" / "views" / "setup.html").read_text(encoding="utf-8")
 
         required_phrases = (
             "default repo-local runtime is semantic/governed MCP",

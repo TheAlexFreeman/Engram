@@ -36,7 +36,7 @@ bash setup.sh
 
 **Option B — Browser** (no terminal required):
 
-Open `setup.html` in any browser. It redirects to the local starter-file generator in `setup/setup.html`: optional personal context, starter profile, and platform instructions. Git remote setup stays manual. Nothing is uploaded — everything runs locally.
+Open `setup.html` in any browser. It redirects to the local starter-file generator in `HUMANS/views/setup.html`: optional personal context, starter profile, and platform instructions. Git remote setup stays manual. Nothing is uploaded — everything runs locally.
 
 ---
 
@@ -85,7 +85,7 @@ From session two onward, the agent will use `core/memory/HOME.md` as the session
 
 ### Codex Desktop
 
-**Project-scoped MCP config is portable by default.** [`.codex/config.toml`](../../.codex/config.toml) uses relative paths and `python` from your PATH, so it works across systems without modification. Codex CLI uses it as-is. If Codex App does not detect the MCP server (a [known issue](https://github.com/openai/codex/issues/14573)), run `setup.sh` without `--codex-portable` to regenerate with absolute paths, or use `setup/setup.html` to generate a machine-specific config.
+**Project-scoped MCP config is portable by default.** [`.codex/config.toml`](../../.codex/config.toml) uses relative paths and `python` from your PATH, so it works across systems without modification. Codex CLI uses it as-is. If Codex App does not detect the MCP server (a [known issue](https://github.com/openai/codex/issues/14573)), run `setup.sh` without `--codex-portable` to regenerate with absolute paths, or use `HUMANS/views/setup.html` to generate a machine-specific config.
 
 To use it:
 

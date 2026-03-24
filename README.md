@@ -97,12 +97,8 @@ For the complete mapping of which files to load per session type, see `core/INIT
 ├── AGENTS.md              ← Platform adapter. Points to core/INIT.md.
 ├── CLAUDE.md              ← Platform adapter. Points to core/INIT.md.
 ├── .cursorrules           ← Cursor platform adapter. Points to core/INIT.md.
-├── setup.sh               ← Repo-root compatibility wrapper for setup/setup.sh.
-├── setup.html             ← Repo-root compatibility wrapper for setup/setup.html.
-├── setup/                 ← Canonical setup implementation.
-│   ├── setup.sh           ← Post-clone setup script implementation.
-│   ├── setup.html         ← Browser-based starter-file generator implementation.
-│   └── templates/profiles/ ← Starter user templates.
+├── setup.sh               ← Repo-root compatibility wrapper for HUMANS/setup/setup.sh.
+├── setup.html             ← Repo-root compatibility wrapper for HUMANS/views/setup.html.
 │
 ├── core/                  ← Memory content root. All managed content lives here.
 │   ├── INIT.md            ← Live operational router, thresholds, context loading manifest.
@@ -172,6 +168,13 @@ For the complete mapping of which files to load per session type, see `core/INIT
 │   │   ├── DESIGN.md      ← Design philosophy, use cases, and future directions.
 │   │   ├── MCP.md         ← Human guide to the MCP architecture and tool surface.
 │   │   └── GLOSSARY.md    ← Definitions of system terminology.
+│   ├── setup/             ← Canonical setup implementation.
+│   │   ├── setup.sh       ← Post-clone setup script implementation.
+│   │   ├── init-worktree.sh ← Memory-as-worktree initializer.
+│   │   └── templates/     ← Starter user and knowledge templates.
+│   ├── views/             ← Browser-based UI files.
+│   │   ├── setup.html     ← Browser-based starter-file generator.
+│   │   └── dashboard.html ← Read-only memory dashboard.
 │   └── tooling/           ← Maintenance tooling and tests.
 │       ├── mcp-config-example.json ← Example MCP configuration.
 │       ├── onboard-export-template.md ← Structured format for onboarding exports.

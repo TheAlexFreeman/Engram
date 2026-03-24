@@ -113,16 +113,16 @@ def build_minimal_repo(root: Path) -> None:
             """\
             #!/usr/bin/env bash
             set -euo pipefail
-            exec bash "$(pwd)/setup/setup.sh" "$@"
+            exec bash "$(pwd)/HUMANS/setup/setup.sh" "$@"
             """
         ),
     )
     write(
         root / "setup.html",
-        '<!DOCTYPE html><html><body><a href="setup/setup.html">setup/setup.html</a></body></html>\n',
+        '<!DOCTYPE html><html><body><a href="HUMANS/views/setup.html">HUMANS/views/setup.html</a></body></html>\n',
     )
     write(
-        root / "setup" / "setup.sh",
+        root / "HUMANS" / "setup" / "setup.sh",
         textwrap.dedent(
             f"""\
             #!/usr/bin/env bash
@@ -135,7 +135,7 @@ def build_minimal_repo(root: Path) -> None:
         ),
     )
     write(
-        root / "setup" / "setup.html",
+        root / "HUMANS" / "views" / "setup.html",
         textwrap.dedent(
             f"""\
             <!DOCTYPE html>
@@ -1722,8 +1722,8 @@ class ValidateMemoryRepoTests(unittest.TestCase):
 
     def test_setup_copy_uses_quick_reference_routing_language(self) -> None:
         for path in (
-            REPO_ROOT / "setup" / "setup.sh",
-            REPO_ROOT / "setup" / "setup.html",
+            REPO_ROOT / "HUMANS" / "setup" / "setup.sh",
+            REPO_ROOT / "HUMANS" / "views" / "setup.html",
             REPO_ROOT / "HUMANS" / "docs" / "QUICKSTART.md",
         ):
             text = path.read_text(encoding="utf-8")
@@ -1733,15 +1733,15 @@ class ValidateMemoryRepoTests(unittest.TestCase):
 
         self.assertNotIn(
             "start with README.md and follow its routing rules",
-            (REPO_ROOT / "setup" / "setup.sh").read_text(encoding="utf-8"),
+            (REPO_ROOT / "HUMANS" / "setup" / "setup.sh").read_text(encoding="utf-8"),
         )
         self.assertNotIn(
             "start with README.md and follow its routing rules",
-            (REPO_ROOT / "setup" / "setup.html").read_text(encoding="utf-8"),
+            (REPO_ROOT / "HUMANS" / "views" / "setup.html").read_text(encoding="utf-8"),
         )
         self.assertNotIn(
             "follow the bootstrap sequence",
-            (REPO_ROOT / "setup" / "setup.sh").read_text(encoding="utf-8"),
+            (REPO_ROOT / "HUMANS" / "setup" / "setup.sh").read_text(encoding="utf-8"),
         )
 
     def test_adapter_files_point_to_quick_reference(self) -> None:
@@ -1759,12 +1759,12 @@ class ValidateMemoryRepoTests(unittest.TestCase):
         wrapper = (REPO_ROOT / "setup.sh").read_text(encoding="utf-8")
         wrapper_html = (REPO_ROOT / "setup.html").read_text(encoding="utf-8")
 
-        self.assertIn("setup/setup.sh", wrapper)
-        self.assertIn("setup/setup.html", wrapper_html)
+        self.assertIn("HUMANS/setup/setup.sh", wrapper)
+        self.assertIn("HUMANS/views/setup.html", wrapper_html)
 
     def test_browser_setup_copy_no_longer_claims_remote_parity(self) -> None:
         quickstart = (REPO_ROOT / "HUMANS" / "docs" / "QUICKSTART.md").read_text(encoding="utf-8")
-        setup_html = (REPO_ROOT / "setup" / "setup.html").read_text(encoding="utf-8")
+        setup_html = (REPO_ROOT / "HUMANS" / "views" / "setup.html").read_text(encoding="utf-8")
 
         self.assertIn("Git remote setup stays manual.", quickstart)
         self.assertIn("git remote setup stays manual", setup_html)

@@ -4,4 +4,4 @@ set -euo pipefail
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$repo_root"
 
-exec bash "$repo_root/setup/setup.sh" "$@"
+exec bash "$repo_root/HUMANS/setup/setup.sh" "$@"
