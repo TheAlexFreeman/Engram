@@ -4,21 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Engram — Dashboard</title>
+<link rel="stylesheet" href="engram-shared.css">
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  line-height: 1.6;
-  color: #1a1a1a;
-  background: #f8f9fa;
-  padding: 2rem 1rem;
-}
-
 .dashboard { max-width: 960px; margin: 0 auto; }
-
-h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
-.subtitle { color: #555; margin-bottom: 1.5rem; font-size: 0.95rem; }
 
 .toolbar {
   display: flex; align-items: center; gap: 0.75rem;
@@ -110,25 +98,14 @@ button {
 }
 .panel th { font-weight: 600; color: #555; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; }
 
-/* Trust badges */
-.badge {
-  display: inline-block; padding: 0.1rem 0.4rem;
-  border-radius: 4px; font-size: 0.7rem; font-weight: 600;
-}
-.badge-high { background: #dcfce7; color: #166534; }
-.badge-medium { background: #fef9c3; color: #854d0e; }
-.badge-low { background: #fee2e2; color: #991b1b; }
+
 
 /* Tree / list styling */
 .file-tree { list-style: none; padding-left: 0; }
 .file-tree li { padding: 0.2rem 0; font-size: 0.8rem; font-family: monospace; }
 .file-tree li .folder { color: #2563eb; font-weight: 500; }
 
-/* Placeholder state */
-.placeholder {
-  text-align: center; padding: 2rem 1rem; color: #999;
-}
-.placeholder .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+
 
 /* Scratchpad */
 .scratchpad-content {
@@ -138,33 +115,7 @@ button {
   padding: 0.75rem; max-height: 200px; overflow-y: auto;
 }
 
-/* Knowledge domain cards */
-.domain-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
-@media (max-width: 700px) { .domain-cards { grid-template-columns: repeat(2, 1fr); } }
-.domain-card {
-  background: #f8f9fa; border-radius: 6px; padding: 0.5rem 0.6rem;
-  cursor: pointer; transition: background 0.12s, box-shadow 0.12s;
-  border: 1px solid transparent;
-}
-.domain-card:hover { background: #eef2ff; border-color: #c7d2fe; }
-.domain-card .name { font-weight: 600; font-size: 0.8rem; }
-.domain-card .count { font-size: 0.75rem; color: #555; }
 
-/* Link to setup */
-.nav-link {
-  display: inline-flex; align-items: center; gap: 0.35rem;
-  color: #2563eb; text-decoration: none; font-size: 0.85rem;
-}
-.nav-link:hover { text-decoration: underline; }
-
-.error-banner {
-  display: none;
-  background: #fef2f2; border: 1px solid #fecaca;
-  border-radius: 6px; padding: 0.6rem 1rem;
-  font-size: 0.85rem; color: #991b1b;
-  margin-bottom: 1rem;
-}
-.error-banner.visible { display: block; }
 </style>
 </head>
 <body>
@@ -271,18 +222,23 @@ button {
 
 <noscript><p style="text-align:center;margin-top:3rem;color:#b91c1c;">JavaScript is required for the dashboard.</p></noscript>
 
+<script src="engram-utils.js"></script>
 <script>
 (function () {
   'use strict';
 
-  /* ── helpers ───────────────────────────────────────── */
-
-  function el(tag, text, classes) {
-    var e = document.createElement(tag);
-    if (text) e.textContent = text;
-    if (classes) e.className = classes;
-    return e;
-  }
+  var E = window.Engram;
+  var el = E.el;
+  var showError = E.showError;
+  var hideError = E.hideError;
+  var readFile = E.readFile;
+  var listDir = E.listDir;
+  var parseFrontmatter = E.parseFrontmatter;
+  var parseFlatYaml = E.parseFlatYaml;
+  var parseMarkdownTable = E.parseMarkdownTable;
+  var loadSavedHandle = E.loadSavedHandle;
+  var saveHandle = E.saveHandle;
+  var clearSavedHandle = E.clearSavedHandle;
 
   function setStatus(connected, text) {
     var bar = document.getElementById('status-bar');
@@ -290,50 +246,6 @@ button {
     var dot = el('span', '', 'dot ' + (connected ? 'connected' : 'disconnected'));
     bar.appendChild(dot);
     bar.appendChild(document.createTextNode(' ' + text));
-  }
-
-  function showError(msg) {
-    var banner = document.getElementById('error-banner');
-    banner.textContent = msg;
-    banner.classList.add('visible');
-  }
-
-  function hideError() {
-    document.getElementById('error-banner').classList.remove('visible');
-  }
-
-  /** Read a text file from a directory handle. Returns null if not found. */
-  async function readFile(dirHandle, path) {
-    var parts = path.split('/').filter(Boolean);
-    var current = dirHandle;
-    for (var i = 0; i < parts.length - 1; i++) {
-      try { current = await current.getDirectoryHandle(parts[i]); }
-      catch (_) { return null; }
-    }
-    try {
-      var fh = await current.getFileHandle(parts[parts.length - 1]);
-      var file = await fh.getFile();
-      return await file.text();
-    } catch (_) { return null; }
-  }
-
-  /** List immediate children of a sub-directory. Returns {dirs:[], files:[]}. */
-  async function listDir(dirHandle, path) {
-    var current = dirHandle;
-    if (path) {
-      var parts = path.split('/').filter(Boolean);
-      for (var i = 0; i < parts.length; i++) {
-        try { current = await current.getDirectoryHandle(parts[i]); }
-        catch (_) { return { dirs: [], files: [] }; }
-      }
-    }
-    var dirs = [], files = [];
-    for await (var entry of current.values()) {
-      if (entry.kind === 'directory') dirs.push(entry.name);
-      else files.push(entry.name);
-    }
-    dirs.sort(); files.sort();
-    return { dirs: dirs, files: files };
   }
 
   /** Count files recursively in a sub-directory. */
@@ -356,30 +268,6 @@ button {
       else n += await countRecursive(entry);
     }
     return n;
-  }
-
-  /** Strip YAML frontmatter and return {frontmatter: string|null, body: string}. */
-  function parseFrontmatter(text) {
-    if (!text) return { frontmatter: null, body: '' };
-    var m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-    if (m) return { frontmatter: m[1], body: m[2] };
-    return { frontmatter: null, body: text };
-  }
-
-  /** Parse YAML frontmatter into a simple key:value map (flat, string values only). */
-  function parseFlatYaml(yamlStr) {
-    var obj = {};
-    if (!yamlStr) return obj;
-    var lines = yamlStr.split(/\r?\n/);
-    for (var i = 0; i < lines.length; i++) {
-      var colon = lines[i].indexOf(':');
-      if (colon > 0) {
-        var key = lines[i].substring(0, colon).trim();
-        var val = lines[i].substring(colon + 1).trim();
-        obj[key] = val;
-      }
-    }
-    return obj;
   }
 
   /** Parse JSONL text into array of objects. */
@@ -411,76 +299,9 @@ button {
     return sections;
   }
 
-  /** Parse a markdown table (simple) into array of row objects. */
-  function parseMarkdownTable(text) {
-    var lines = text.trim().split(/\r?\n/).filter(function (l) { return l.trim(); });
-    if (lines.length < 2) return [];
-    // Find header row (first line with |)
-    var headerIdx = -1;
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].indexOf('|') >= 0) { headerIdx = i; break; }
-    }
-    if (headerIdx < 0) return [];
-    var headers = lines[headerIdx].split('|').map(function (c) { return c.trim(); }).filter(Boolean);
-    // skip separator row
-    var rows = [];
-    for (var j = headerIdx + 2; j < lines.length; j++) {
-      if (lines[j].indexOf('|') < 0) break;
-      var cells = lines[j].split('|').map(function (c) { return c.trim(); }).filter(Boolean);
-      var row = {};
-      for (var k = 0; k < headers.length; k++) {
-        row[headers[k]] = cells[k] || '';
-      }
-      rows.push(row);
-    }
-    return rows;
-  }
-
   /* ── state ─────────────────────────────────────────── */
 
   var rootHandle = null;
-  var DB_NAME = 'engram-dashboard';
-  var STORE = 'handles';
-  var HANDLE_KEY = 'repoRoot';
-
-  /* ── IndexedDB handle persistence ──────────────────── */
-
-  function openDB() {
-    return new Promise(function (resolve, reject) {
-      var req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = function () { req.result.createObjectStore(STORE); };
-      req.onsuccess = function () { resolve(req.result); };
-      req.onerror = function () { reject(req.error); };
-    });
-  }
-
-  async function saveHandle(handle) {
-    try {
-      var db = await openDB();
-      var tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(handle, HANDLE_KEY);
-    } catch (_) { /* IndexedDB unavailable — degrade gracefully */ }
-  }
-
-  async function loadSavedHandle() {
-    try {
-      var db = await openDB();
-      return new Promise(function (resolve) {
-        var tx = db.transaction(STORE, 'readonly');
-        var req = tx.objectStore(STORE).get(HANDLE_KEY);
-        req.onsuccess = function () { resolve(req.result || null); };
-        req.onerror = function () { resolve(null); };
-      });
-    } catch (_) { return null; }
-  }
-
-  async function clearSavedHandle() {
-    try {
-      var db = await openDB();
-      var tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).delete(HANDLE_KEY);
-    } catch (_) {}
-  }
 
   /* ── public API ────────────────────────────────────── */
 
