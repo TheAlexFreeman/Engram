@@ -39,6 +39,7 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, cast
 
 from ..path_policy import KNOWN_COMMIT_PREFIXES  # noqa: F401 — re-exported for callers
+from .name_index import generate_names_index
 from .reference_extractor import (
     find_references,
     find_unlinked_files,
@@ -3839,6 +3840,56 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         return draft
 
     # ------------------------------------------------------------------
+    # memory_generate_names_index
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_generate_names_index",
+        annotations=_tool_annotations(
+            title="Generate Names Index Draft",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_generate_names_index(path: str = "memory/knowledge") -> str:
+        """Generate a structured draft NAMES.md payload for knowledge files.
+
+        The tool scans the requested knowledge subtree, extracts likely person
+        names from H1 headings and parenthesized H2/H3 attributions, and
+        returns extraction stats together with a paste-ready NAMES.md draft.
+        It previews content only and does not write the file.
+        """
+        from ..errors import ValidationError
+
+        requested_path = path.strip() or "memory/knowledge"
+        root = get_root()
+        resolved_path = _resolve_visible_path(root, requested_path)
+        try:
+            resolved_path.relative_to(root)
+        except ValueError as exc:
+            raise ValidationError("path must stay within the repository root") from exc
+        if not resolved_path.exists():
+            return f"Error: Path not found: {path}"
+        if not resolved_path.is_dir():
+            return f"Error: Folder not found: {path}"
+
+        display_path = _display_rel_path(resolved_path, root)
+        if display_path != "memory/knowledge" and not display_path.startswith("memory/knowledge/"):
+            raise ValidationError("path must point to memory/knowledge or one of its subfolders")
+
+        try:
+            payload = generate_names_index(
+                root,
+                knowledge_path=display_path,
+                output_path=f"{display_path.rstrip('/')}/NAMES.md",
+            )
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+
+        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
     # memory_access_analytics
     # ------------------------------------------------------------------
     @mcp.tool(
@@ -5836,6 +5887,7 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         "memory_check_cross_references": memory_check_cross_references,
         "memory_surface_unlinked": memory_surface_unlinked,
         "memory_generate_summary": memory_generate_summary,
+        "memory_generate_names_index": memory_generate_names_index,
         "memory_access_analytics": memory_access_analytics,
         "memory_diff_branch": memory_diff_branch,
         "memory_git_log": memory_git_log,

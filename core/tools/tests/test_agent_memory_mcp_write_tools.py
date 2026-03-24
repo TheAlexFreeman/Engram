@@ -2102,6 +2102,65 @@ See [alpha](../alpha.md).
         plan_text = (repo_root / "memory/working/projects/reorg.md").read_text(encoding="utf-8")
         self.assertIn("../knowledge/ai/frontier/alpha.md", plan_text)
 
+    def test_memory_update_names_index_preview_returns_generated_content(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/philosophy/simone-weil.md": """---
+source: test
+created: 2026-03-20
+trust: medium
+---
+
+# Simone Weil: attention and obligation
+
+Primary body.
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_update_names_index"](path="memory/knowledge", preview=True))
+        )
+
+        self.assertIsNone(payload["commit_sha"])
+        self.assertEqual(payload["new_state"]["output_path"], "memory/knowledge/NAMES.md")
+        self.assertEqual(payload["preview"]["mode"], "preview")
+        self.assertIn("### Simone Weil", payload["preview"]["content_preview"])
+        self.assertFalse((repo_root / "memory/knowledge/NAMES.md").exists())
+
+    def test_memory_update_names_index_applies_and_commits_output(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/philosophy/simone-weil.md": """---
+source: test
+created: 2026-03-20
+trust: medium
+---
+
+# Simone Weil: attention and obligation
+
+Primary body.
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(asyncio.run(tools["memory_update_names_index"]()))
+
+        self.assertIsNotNone(payload["commit_sha"])
+        self.assertEqual(payload["new_state"]["output_path"], "memory/knowledge/NAMES.md")
+        self.assertIn("version_token", payload["new_state"])
+        names_index = (repo_root / "memory/knowledge/NAMES.md").read_text(encoding="utf-8")
+        self.assertIn("### Simone Weil", names_index)
+
+    def test_memory_update_names_index_rejects_non_knowledge_paths(self) -> None:
+        repo_root = self._init_repo({"memory/users/profile.md": "# Profile\n"})
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(tools["memory_update_names_index"](path="memory/users", preview=True))
+
     def test_memory_reorganize_path_blocks_existing_destination_without_mutation(self) -> None:
         repo_root = self._init_repo(
             {
@@ -2791,6 +2850,45 @@ Detailed descriptions should preserve the first paragraph.
         self.assertIn(
             "Metadata: trust: medium; source: agent-generated; verified: 2026-03-20.", output
         )
+
+    def test_memory_generate_names_index_returns_structured_payload(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/philosophy/simone-weil.md": """---
+source: test
+created: 2026-03-20
+trust: medium
+---
+
+# Simone Weil: attention and obligation
+
+Primary body.
+
+## Reception (Iris Murdoch)
+
+Secondary body.
+""",
+                "memory/knowledge/philosophy/_unverified/draft.md": "# Draft Person: should not appear\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(asyncio.run(tools["memory_generate_names_index"]()))
+
+        self.assertEqual(payload["knowledge_path"], "memory/knowledge")
+        self.assertEqual(payload["output_path"], "memory/knowledge/NAMES.md")
+        self.assertEqual(payload["files_scanned"], 1)
+        self.assertGreaterEqual(payload["names_count"], 2)
+        self.assertIn("### Simone Weil", payload["draft"])
+        self.assertIn("### Iris Murdoch", payload["draft"])
+        self.assertIn("[philosophy/simone-weil.md](philosophy/simone-weil.md)", payload["draft"])
+
+    def test_memory_generate_names_index_rejects_non_knowledge_paths(self) -> None:
+        repo_root = self._init_repo({"memory/users/profile.md": "# Profile\n"})
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(tools["memory_generate_names_index"](path="memory/users"))
 
     def test_memory_generate_summary_rejects_unknown_style(self) -> None:
         repo_root = self._init_repo({"memory/knowledge/topic/note.md": "# Note\n\nBody.\n"})

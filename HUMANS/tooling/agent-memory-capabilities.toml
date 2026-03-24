@@ -31,6 +31,7 @@ read_support = [
   "memory_suggest_structure",
   "memory_check_cross_references",
   "memory_generate_summary",
+  "memory_generate_names_index",
   "memory_access_analytics",
   "memory_diff_branch",
   # memory_git_log supports optional `since` (YYYY-MM-DD) and `path_filter`
@@ -75,6 +76,7 @@ semantic_extensions = [
   "memory_reorganize_path",
   "memory_promote_knowledge_batch",
   "memory_promote_knowledge",
+  "memory_update_names_index",
   "memory_demote_knowledge",
   "memory_archive_knowledge",
   "memory_append_scratchpad",
@@ -499,6 +501,16 @@ tier = "semantic"
 operation_group = "knowledge"
 change_class = "proposed"
 
+[desktop_operations.update_names_index]
+status = "implemented"
+tool = "memory_update_names_index"
+tier = "semantic"
+operation_group = "knowledge"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+
 [desktop_operations.demote_knowledge]
 status = "implemented"
 tool = "memory_demote_knowledge"
@@ -785,6 +797,30 @@ result_fields = [
 ]
 fallback_tools = ["memory_move", "memory_update_frontmatter", "memory_commit"]
 error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+
+[operations.memory_update_names_index]
+group = "knowledge"
+tier = "semantic"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "curation"
+writes = ["memory/knowledge/**/NAMES.md"]
+owns_frontmatter = ["memory/knowledge/**/NAMES.md"]
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "output_path",
+  "knowledge_path",
+  "names_count",
+  "files_scanned",
+  "version_token",
+]
+fallback_tools = ["memory_write", "memory_commit"]
+error_kinds = ["ConflictError", "ValidationError", "StagingError"]
 
 [operations.memory_reorganize_path]
 group = "knowledge"

@@ -108,7 +108,9 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertIn("memory_reorganize_preview", payload["tool_sets"]["read_support"])
         self.assertIn("memory_suggest_structure", payload["tool_sets"]["read_support"])
         self.assertIn("memory_reorganize_path", payload["tool_sets"]["semantic_extensions"])
+        self.assertIn("memory_update_names_index", payload["tool_sets"]["semantic_extensions"])
         self.assertIn("memory_extract_file", payload["tool_sets"]["read_support"])
+        self.assertIn("memory_generate_names_index", payload["tool_sets"]["read_support"])
         self.assertEqual(payload["summary"]["contract_versions"]["mcp"], 1)
         self.assertGreaterEqual(payload["summary"]["total_tools"], 1)
         self.assertGreaterEqual(payload["summary"]["tool_profile_count"], 1)
@@ -227,6 +229,8 @@ class MemoryMCPTests(unittest.TestCase):
             "memory_suggest_structure",
             "memory_reorganize_path",
             "memory_generate_summary",
+            "memory_generate_names_index",
+            "memory_update_names_index",
             "memory_access_analytics",
             "memory_diff_branch",
             "memory_check_knowledge_freshness",

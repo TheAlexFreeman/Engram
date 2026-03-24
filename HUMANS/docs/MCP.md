@@ -123,6 +123,7 @@ These tools inspect or analyze the repo without changing it.
 - `memory_search`
 - `memory_check_cross_references`
 - `memory_generate_summary`
+- `memory_generate_names_index`
 - `memory_access_analytics`
 - `memory_diff_branch`
 - `memory_git_log`
@@ -158,6 +159,7 @@ These are the normal write path. Each tool represents a bounded operation with b
 **Knowledge lifecycle**
 
 - `memory_add_knowledge_file`
+- `memory_update_names_index`
 - `memory_promote_knowledge_batch`
 - `memory_promote_knowledge`
 - `memory_demote_knowledge`

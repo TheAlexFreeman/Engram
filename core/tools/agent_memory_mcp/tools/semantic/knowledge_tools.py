@@ -18,6 +18,7 @@ from ...path_policy import (
     validate_top_level_root,
 )
 from ...preview_contract import build_governed_preview, preview_target
+from ..name_index import generate_names_index, write_names_index
 from ..reference_extractor import plan_reorganization
 
 if TYPE_CHECKING:
@@ -63,6 +64,10 @@ _ARCHIVE_META = _GovernedKnowledgeOperationMeta(
 _REORGANIZE_META = _GovernedKnowledgeOperationMeta(
     name="memory_reorganize_path",
     title="Reorganize Knowledge Path",
+)
+_UPDATE_NAMES_INDEX_META = _GovernedKnowledgeOperationMeta(
+    name="memory_update_names_index",
+    title="Update Names Index",
 )
 _ADD_META = _GovernedKnowledgeOperationMeta(
     name="memory_add_knowledge_file",
@@ -1150,6 +1155,93 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         return result.to_json()
 
     @mcp.tool(
+        name="memory_update_names_index",
+        annotations=_governed_knowledge_annotations(_UPDATE_NAMES_INDEX_META),
+    )
+    async def memory_update_names_index(
+        path: str = "memory/knowledge",
+        version_token: str | None = None,
+        preview: bool = False,
+    ) -> str:
+        """Generate and optionally write a NAMES.md index for a knowledge subtree.
+
+        This tool materializes the same draft produced by
+        memory_generate_names_index, but through the governed semantic write
+        path. It only writes to the conventional target ``<path>/NAMES.md`` and
+        supports preview before applying the durable update.
+        """
+        from ...errors import ValidationError
+        from ...models import MemoryWriteResult
+
+        repo = get_repo()
+        root = get_root()
+
+        requested_path = path.strip() or "memory/knowledge"
+        normalized_path, abs_path = resolve_repo_path(repo, requested_path, field_name="path")
+        if normalized_path != "memory/knowledge":
+            require_under_prefix(normalized_path, "memory/knowledge", field_name="path")
+        if not abs_path.exists():
+            raise ValidationError(f"Path not found: {normalized_path}")
+        if not abs_path.is_dir():
+            raise ValidationError("path must refer to a folder under memory/knowledge")
+
+        output_path = f"{normalized_path.rstrip('/')}/NAMES.md"
+        abs_output = repo.abs_path(output_path)
+        if abs_output.exists():
+            repo.check_version_token(output_path, version_token)
+
+        payload = generate_names_index(root, knowledge_path=normalized_path, output_path=output_path)
+        draft = cast(str, payload["draft"])
+        commit_msg = f"[curation] Refresh names index for {normalized_path}"
+        new_state = {
+            "output_path": output_path,
+            "knowledge_path": normalized_path,
+            "names_count": payload["names_count"],
+            "files_scanned": payload["files_scanned"],
+        }
+        preview_payload = build_governed_preview(
+            mode="preview" if preview else "apply",
+            change_class="proposed",
+            summary=f"Refresh the generated names index for {normalized_path}.",
+            reasoning="This is a proposed durable-memory write because it updates a generated index that shapes future retrieval and navigation.",
+            target_files=[preview_target(output_path, "update" if abs_output.exists() else "create")],
+            invariant_effects=[
+                "Rebuilds the names index from heading-level extraction under the requested knowledge subtree.",
+                "Writes only to the conventional NAMES.md target for that subtree.",
+            ],
+            commit_message=commit_msg,
+            resulting_state=new_state,
+            warnings=[],
+        )
+
+        if preview:
+            result = MemoryWriteResult(
+                files_changed=[output_path],
+                commit_sha=None,
+                commit_message=None,
+                new_state=new_state,
+                warnings=[],
+                preview={**preview_payload, "content_preview": draft},
+            )
+            return result.to_json()
+
+        write_names_index(root, draft, output_path)
+        repo.add(output_path)
+        commit_result = repo.commit(commit_msg)
+        result = MemoryWriteResult.from_commit(
+            files_changed=[output_path],
+            commit_result=commit_result,
+            commit_message=commit_msg,
+            new_state={
+                **new_state,
+                "version_token": repo.hash_object(output_path),
+            },
+            warnings=[],
+            preview=preview_payload,
+        )
+        return result.to_json()
+
+    @mcp.tool(
         name="memory_demote_knowledge",
         annotations=_governed_knowledge_annotations(_DEMOTE_META),
     )
@@ -1675,6 +1767,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         "memory_promote_knowledge_subtree": memory_promote_knowledge_subtree,
         "memory_reorganize_path": memory_reorganize_path,
         "memory_promote_knowledge": memory_promote_knowledge,
+        "memory_update_names_index": memory_update_names_index,
         "memory_demote_knowledge": memory_demote_knowledge,
         "memory_archive_knowledge": memory_archive_knowledge,
         "memory_add_knowledge_file": memory_add_knowledge_file,
