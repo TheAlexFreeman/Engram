@@ -6,7 +6,7 @@ source: external-research
 topic: Agent architecture patterns — ReAct, Plan-and-execute, Reflexion, orchestrator-subagent
 trust: medium
 type: knowledge
-related: multi-agent-coordination.md, ../retrieval-memory/rag-architecture.md, ../../tools/mcp/mcp-server-design-patterns.md
+related: multi-agent-coordination.md, ../retrieval-memory/rag-architecture.md, ../../tools/mcp/mcp-server-design-patterns.md, ../../../software-engineering/ai-engineering/ai-assisted-development-workflows.md
 ---
 
 # Agent Architecture Patterns
@@ -113,7 +113,7 @@ Final Answer: GPT-4 was released on March 14, 2023.
 ```
 Orchestrator
 ├── Subagent A (web search specialist)
-├── Subagent B (code execution specialist)  
+├── Subagent B (code execution specialist)
 ├── Subagent C (data analysis specialist)
 └── Synthesis step: integrates A, B, C outputs
 ```

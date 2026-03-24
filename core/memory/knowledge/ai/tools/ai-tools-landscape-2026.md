@@ -6,6 +6,7 @@ trust: medium
 origin_session: core/memory/activity/2026/03/19/chat-002
 type: knowledge
 domain: ai-tools
+related: ../../software-engineering/ai-engineering/agent-configuration-and-tooling.md
 ---
 
 # Practical AI Tools Landscape — Cutting-Edge Tools (2026)

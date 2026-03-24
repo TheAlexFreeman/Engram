@@ -3,7 +3,7 @@ created: 2026-03-20
 domain: ai/frontier
 last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/20/chat-001
-related: knowledge/ai/frontier/multi-agent/multi-agent-coordination.md
+related: knowledge/ai/frontier/multi-agent/multi-agent-coordination.md, ../../software-engineering/ai-engineering/ai-assisted-development-workflows.md
 source: external-research
 tags:
 - agentic-ai

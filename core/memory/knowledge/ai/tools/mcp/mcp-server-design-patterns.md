@@ -5,7 +5,7 @@ last_verified: 2026-03-20
 trust: medium
 origin_session: core/memory/activity/2026/03/19/chat-002
 topic: mcp-protocol
-related: mcp-protocol-overview.md, mcp-2026-roadmap-update.md, mcp-ecosystem-survey.md
+related: mcp-protocol-overview.md, mcp-2026-roadmap-update.md, mcp-ecosystem-survey.md, ../../../software-engineering/ai-engineering/agent-configuration-and-tooling.md
 ---
 
 # MCP Server Design Patterns — Practical Build Guide
@@ -26,7 +26,7 @@ mcp = FastMCP("my-server")  # name appears in serverInfo during init
 @mcp.tool()
 async def search_documents(query: str, limit: int = 10) -> str:
     """Search documents matching the query. Returns JSON array of matches.
-    
+
     Use this when the user asks to find or look up information in the document store.
     Prefer over read_document when you need to discover what exists.
     """
@@ -74,15 +74,15 @@ Good description structure:
 @mcp.tool()
 async def memory_search(query: str, max_results: int = 20) -> str:
     """Full-text search across all memory files.
-    
+
     Use this to find files containing a specific term, concept, or phrase when
     you don't know which file contains the information. Returns file paths and
     matching lines with line numbers.
-    
+
     Do NOT use this for reading a file you already know the path to — use
     memory_read_file instead. Do NOT use for listing folder contents — use
     memory_list_folder.
-    
+
     max_results: cap on returned matches (not files). Set higher for broad sweeps.
     """
 ```
@@ -228,7 +228,7 @@ import asyncio
 async def slow_tool(path: str) -> str:
     # WRONG: blocks event loop
     result = some_blocking_operation(path)
-    
+
     # CORRECT: run blocking code in thread pool
     result = await asyncio.to_thread(some_blocking_operation, path)
     return result
