@@ -180,17 +180,6 @@ button:active { transform: scale(0.97); }
 <!-- panels (hidden until folder loaded) -->
 <div class="panels" id="panels" style="display:none">
 
-  <!-- User Portrait -->
-  <div class="panel" id="panel-portrait">
-    <div class="panel-header">
-      <h2><span class="icon">&#128100;</span> User Portrait</h2>
-      <a href="users.html" class="nav-link" style="margin-left:auto;font-size:0.75rem;">View all &#8594;</a>
-    </div>
-    <div class="panel-body" id="portrait-body">
-      <div class="placeholder"><span class="icon">&#128100;</span><p>No user data found.</p></div>
-    </div>
-  </div>
-
   <!-- System Health -->
   <div class="panel" id="panel-health">
     <div class="panel-header">
@@ -201,8 +190,18 @@ button:active { transform: scale(0.97); }
     </div>
   </div>
 
-  <!-- Active Projects -->
-  <div class="panel" id="panel-projects">
+  <!-- Recent Activity -->
+  <div class="panel" id="panel-activity">
+    <div class="panel-header">
+      <h2><span class="icon">&#128337;</span> Recent Activity</h2>
+    </div>
+    <div class="panel-body" id="activity-body">
+      <div class="placeholder"><span class="icon">&#128337;</span><p>No activity data found.</p></div>
+    </div>
+  </div>
+
+  <!-- Active Projects (full width) -->
+  <div class="panel full-width" id="panel-projects">
     <div class="panel-header">
       <h2><span class="icon">&#128230;</span> Active Projects</h2>
       <a href="projects.html" class="nav-link" style="margin-left:auto;font-size:0.75rem;">View all &#8594;</a>
@@ -212,13 +211,14 @@ button:active { transform: scale(0.97); }
     </div>
   </div>
 
-  <!-- Recent Activity -->
-  <div class="panel" id="panel-activity">
+  <!-- User Portrait (full width) -->
+  <div class="panel full-width" id="panel-portrait">
     <div class="panel-header">
-      <h2><span class="icon">&#128337;</span> Recent Activity</h2>
+      <h2><span class="icon">&#128100;</span> User Portrait</h2>
+      <a href="users.html" class="nav-link" style="margin-left:auto;font-size:0.75rem;">View all &#8594;</a>
     </div>
-    <div class="panel-body" id="activity-body">
-      <div class="placeholder"><span class="icon">&#128337;</span><p>No activity data found.</p></div>
+    <div class="panel-body" id="portrait-body">
+      <div class="placeholder"><span class="icon">&#128100;</span><p>No user data found.</p></div>
     </div>
   </div>
 
