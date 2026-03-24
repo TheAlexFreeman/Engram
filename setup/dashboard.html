@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Memory System — Dashboard</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.6;
+  color: #1a1a1a;
+  background: #f8f9fa;
+  padding: 2rem 1rem;
+}
+
+.dashboard { max-width: 960px; margin: 0 auto; }
+
+h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+.subtitle { color: #555; margin-bottom: 1.5rem; font-size: 0.95rem; }
+
+.toolbar {
+  display: flex; align-items: center; gap: 0.75rem;
+  margin-bottom: 2rem; flex-wrap: wrap;
+}
+.toolbar .status {
+  font-size: 0.85rem; color: #555;
+  margin-left: auto;
+}
+.toolbar .status .dot {
+  display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; margin-right: 4px; vertical-align: middle;
+}
+.toolbar .status .dot.connected { background: #16a34a; }
+.toolbar .status .dot.disconnected { background: #d97706; }
+
+button {
+  padding: 0.5rem 1.25rem; border: none; border-radius: 6px;
+  font-size: 0.9rem; font-family: inherit; cursor: pointer; transition: background 0.15s;
+}
+.btn-primary { background: #2563eb; color: #fff; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-secondary { background: #e2e8f0; color: #1a1a1a; }
+.btn-secondary:hover { background: #cbd5e1; }
+.btn-small {
+  padding: 0.25rem 0.6rem; font-size: 0.8rem;
+  border-radius: 4px; border: 1px solid #ccc; background: #fff; cursor: pointer;
+}
+.btn-small:hover { background: #f1f5f9; }
+
+.panels {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+@media (max-width: 700px) {
+  .panels { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid #eee;
+  background: #fafbfc;
+}
+.panel-header h2 {
+  font-size: 0.9rem; font-weight: 600;
+}
+.panel-header .icon { font-size: 1.1rem; margin-right: 0.4rem; }
+.panel-body {
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.panel-body.tall { max-height: 440px; }
+
+.panel.full-width {
+  grid-column: 1 / -1;
+}
+
+/* Mini stat cards inside panels */
+.stat-row {
+  display: flex; gap: 0.75rem; flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.stat {
+  flex: 1; min-width: 100px;
+  background: #f8f9fa; border-radius: 6px;
+  padding: 0.5rem 0.75rem; text-align: center;
+}
+.stat .value { font-size: 1.25rem; font-weight: 700; color: #2563eb; }
+.stat .label { font-size: 0.75rem; color: #555; }
+
+/* Table styling */
+.panel table {
+  width: 100%; border-collapse: collapse;
+}
+.panel th, .panel td {
+  text-align: left; padding: 0.35rem 0.5rem;
+  font-size: 0.8rem; border-bottom: 1px solid #f0f0f0;
+}
+.panel th { font-weight: 600; color: #555; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; }
+
+/* Trust badges */
+.badge {
+  display: inline-block; padding: 0.1rem 0.4rem;
+  border-radius: 4px; font-size: 0.7rem; font-weight: 600;
+}
+.badge-high { background: #dcfce7; color: #166534; }
+.badge-medium { background: #fef9c3; color: #854d0e; }
+.badge-low { background: #fee2e2; color: #991b1b; }
+
+/* Tree / list styling */
+.file-tree { list-style: none; padding-left: 0; }
+.file-tree li { padding: 0.2rem 0; font-size: 0.8rem; font-family: monospace; }
+.file-tree li .folder { color: #2563eb; font-weight: 500; }
+
+/* Placeholder state */
+.placeholder {
+  text-align: center; padding: 2rem 1rem; color: #999;
+}
+.placeholder .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+
+/* Scratchpad */
+.scratchpad-content {
+  white-space: pre-wrap; word-break: break-word;
+  font-family: monospace; font-size: 0.8rem;
+  background: #f8f9fa; border-radius: 6px;
+  padding: 0.75rem; max-height: 200px; overflow-y: auto;
+}
+
+/* Knowledge domain cards */
+.domain-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+@media (max-width: 700px) { .domain-cards { grid-template-columns: repeat(2, 1fr); } }
+.domain-card {
+  background: #f8f9fa; border-radius: 6px; padding: 0.5rem 0.6rem;
+}
+.domain-card .name { font-weight: 600; font-size: 0.8rem; }
+.domain-card .count { font-size: 0.75rem; color: #555; }
+
+/* Link to setup */
+.nav-link {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  color: #2563eb; text-decoration: none; font-size: 0.85rem;
+}
+.nav-link:hover { text-decoration: underline; }
+
+.error-banner {
+  display: none;
+  background: #fef2f2; border: 1px solid #fecaca;
+  border-radius: 6px; padding: 0.6rem 1rem;
+  font-size: 0.85rem; color: #991b1b;
+  margin-bottom: 1rem;
+}
+.error-banner.visible { display: block; }
+</style>
+</head>
+<body>
+<div class="dashboard">
+
+<h1>Agent Memory System &#8212; Dashboard</h1>
+<p class="subtitle">Read-only view of your local memory repository. Nothing is sent anywhere.</p>
+
+<div class="toolbar">
+  <button class="btn-primary" id="open-btn" onclick="openFolder()">Open Memory Repo</button>
+  <button class="btn-secondary" id="refresh-btn" onclick="refresh()" style="display:none">Refresh</button>
+  <a href="setup.html" class="nav-link" style="margin-left: 0.5rem">&#8592; Setup Wizard</a>
+  <span class="status" id="status-bar">
+    <span class="dot disconnected"></span> No folder loaded
+  </span>
+</div>
+
+<div class="error-banner" id="error-banner"></div>
+
+<!-- placeholder before folder is loaded -->
+<div class="placeholder" id="placeholder">
+  <div class="icon">&#128193;</div>
+  <p>Click <strong>Open Memory Repo</strong> to load your <code>agent-memory-seed</code> folder.<br>
+  The dashboard reads files locally using your browser — nothing leaves your machine.</p>
+  <p style="margin-top:0.5rem; font-size:0.8rem; color:#999">Requires a Chromium-based browser (Chrome, Edge, Brave, Arc).</p>
+</div>
+
+<!-- panels (hidden until folder loaded) -->
+<div class="panels" id="panels" style="display:none">
+
+  <!-- User Portrait -->
+  <div class="panel" id="panel-portrait">
+    <div class="panel-header">
+      <h2><span class="icon">&#128100;</span> User Portrait</h2>
+    </div>
+    <div class="panel-body" id="portrait-body">
+      <div class="placeholder"><span class="icon">&#128100;</span><p>No user data found.</p></div>
+    </div>
+  </div>
+
+  <!-- System Health -->
+  <div class="panel" id="panel-health">
+    <div class="panel-header">
+      <h2><span class="icon">&#9889;</span> System Health</h2>
+    </div>
+    <div class="panel-body" id="health-body">
+      <div class="placeholder"><span class="icon">&#9889;</span><p>Loading&#8230;</p></div>
+    </div>
+  </div>
+
+  <!-- Active Projects -->
+  <div class="panel" id="panel-projects">
+    <div class="panel-header">
+      <h2><span class="icon">&#128230;</span> Active Projects</h2>
+    </div>
+    <div class="panel-body" id="projects-body">
+      <div class="placeholder"><span class="icon">&#128230;</span><p>No projects found.</p></div>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="panel" id="panel-activity">
+    <div class="panel-header">
+      <h2><span class="icon">&#128337;</span> Recent Activity</h2>
+    </div>
+    <div class="panel-body" id="activity-body">
+      <div class="placeholder"><span class="icon">&#128337;</span><p>No activity data found.</p></div>
+    </div>
+  </div>
+
+  <!-- Knowledge Map (full width) -->
+  <div class="panel full-width" id="panel-knowledge">
+    <div class="panel-header">
+      <h2><span class="icon">&#128218;</span> Knowledge Base</h2>
+    </div>
+    <div class="panel-body" id="knowledge-body">
+      <div class="placeholder"><span class="icon">&#128218;</span><p>No knowledge data found.</p></div>
+    </div>
+  </div>
+
+  <!-- Scratchpad -->
+  <div class="panel" id="panel-scratchpad">
+    <div class="panel-header">
+      <h2><span class="icon">&#128221;</span> Scratchpad</h2>
+    </div>
+    <div class="panel-body" id="scratchpad-body">
+      <div class="placeholder"><span class="icon">&#128221;</span><p>No scratchpad data.</p></div>
+    </div>
+  </div>
+
+  <!-- Skills -->
+  <div class="panel" id="panel-skills">
+    <div class="panel-header">
+      <h2><span class="icon">&#128295;</span> Skills</h2>
+    </div>
+    <div class="panel-body" id="skills-body">
+      <div class="placeholder"><span class="icon">&#128295;</span><p>No skill data found.</p></div>
+    </div>
+  </div>
+
+</div><!-- /panels -->
+
+</div><!-- /dashboard -->
+
+<noscript><p style="text-align:center;margin-top:3rem;color:#b91c1c;">JavaScript is required for the dashboard.</p></noscript>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── helpers ───────────────────────────────────────── */
+
+  function el(tag, text, classes) {
+    var e = document.createElement(tag);
+    if (text) e.textContent = text;
+    if (classes) e.className = classes;
+    return e;
+  }
+
+  function setStatus(connected, text) {
+    var bar = document.getElementById('status-bar');
+    bar.innerHTML = '';
+    var dot = el('span', '', 'dot ' + (connected ? 'connected' : 'disconnected'));
+    bar.appendChild(dot);
+    bar.appendChild(document.createTextNode(' ' + text));
+  }
+
+  function showError(msg) {
+    var banner = document.getElementById('error-banner');
+    banner.textContent = msg;
+    banner.classList.add('visible');
+  }
+
+  function hideError() {
+    document.getElementById('error-banner').classList.remove('visible');
+  }
+
+  /** Read a text file from a directory handle. Returns null if not found. */
+  async function readFile(dirHandle, path) {
+    var parts = path.split('/').filter(Boolean);
+    var current = dirHandle;
+    for (var i = 0; i < parts.length - 1; i++) {
+      try { current = await current.getDirectoryHandle(parts[i]); }
+      catch (_) { return null; }
+    }
+    try {
+      var fh = await current.getFileHandle(parts[parts.length - 1]);
+      var file = await fh.getFile();
+      return await file.text();
+    } catch (_) { return null; }
+  }
+
+  /** List immediate children of a sub-directory. Returns {dirs:[], files:[]}. */
+  async function listDir(dirHandle, path) {
+    var current = dirHandle;
+    if (path) {
+      var parts = path.split('/').filter(Boolean);
+      for (var i = 0; i < parts.length; i++) {
+        try { current = await current.getDirectoryHandle(parts[i]); }
+        catch (_) { return { dirs: [], files: [] }; }
+      }
+    }
+    var dirs = [], files = [];
+    for await (var entry of current.values()) {
+      if (entry.kind === 'directory') dirs.push(entry.name);
+      else files.push(entry.name);
+    }
+    dirs.sort(); files.sort();
+    return { dirs: dirs, files: files };
+  }
+
+  /** Count files recursively in a sub-directory. */
+  async function countFiles(dirHandle, path) {
+    var current = dirHandle;
+    if (path) {
+      var parts = path.split('/').filter(Boolean);
+      for (var i = 0; i < parts.length; i++) {
+        try { current = await current.getDirectoryHandle(parts[i]); }
+        catch (_) { return 0; }
+      }
+    }
+    return await countRecursive(current);
+  }
+
+  async function countRecursive(dh) {
+    var n = 0;
+    for await (var entry of dh.values()) {
+      if (entry.kind === 'file') n++;
+      else n += await countRecursive(entry);
+    }
+    return n;
+  }
+
+  /** Strip YAML frontmatter and return {frontmatter: string|null, body: string}. */
+  function parseFrontmatter(text) {
+    if (!text) return { frontmatter: null, body: '' };
+    var m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+    if (m) return { frontmatter: m[1], body: m[2] };
+    return { frontmatter: null, body: text };
+  }
+
+  /** Parse YAML frontmatter into a simple key:value map (flat, string values only). */
+  function parseFlatYaml(yamlStr) {
+    var obj = {};
+    if (!yamlStr) return obj;
+    var lines = yamlStr.split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var colon = lines[i].indexOf(':');
+      if (colon > 0) {
+        var key = lines[i].substring(0, colon).trim();
+        var val = lines[i].substring(colon + 1).trim();
+        obj[key] = val;
+      }
+    }
+    return obj;
+  }
+
+  /** Parse JSONL text into array of objects. */
+  function parseJsonl(text) {
+    if (!text) return [];
+    var lines = text.split(/\r?\n/).filter(function (l) { return l.trim(); });
+    var results = [];
+    for (var i = 0; i < lines.length; i++) {
+      try { results.push(JSON.parse(lines[i])); }
+      catch (_) { /* skip malformed lines */ }
+    }
+    return results;
+  }
+
+  /** Extract markdown sections (## heading) from body text. */
+  function extractSections(body) {
+    var sections = {};
+    var current = null;
+    var lines = body.split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var hm = lines[i].match(/^##\s+(.+)/);
+      if (hm) {
+        current = hm[1].trim();
+        sections[current] = '';
+      } else if (current !== null) {
+        sections[current] += lines[i] + '\n';
+      }
+    }
+    return sections;
+  }
+
+  /** Parse a markdown table (simple) into array of row objects. */
+  function parseMarkdownTable(text) {
+    var lines = text.trim().split(/\r?\n/).filter(function (l) { return l.trim(); });
+    if (lines.length < 2) return [];
+    // Find header row (first line with |)
+    var headerIdx = -1;
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].indexOf('|') >= 0) { headerIdx = i; break; }
+    }
+    if (headerIdx < 0) return [];
+    var headers = lines[headerIdx].split('|').map(function (c) { return c.trim(); }).filter(Boolean);
+    // skip separator row
+    var rows = [];
+    for (var j = headerIdx + 2; j < lines.length; j++) {
+      if (lines[j].indexOf('|') < 0) break;
+      var cells = lines[j].split('|').map(function (c) { return c.trim(); }).filter(Boolean);
+      var row = {};
+      for (var k = 0; k < headers.length; k++) {
+        row[headers[k]] = cells[k] || '';
+      }
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  /* ── state ─────────────────────────────────────────── */
+
+  var rootHandle = null;
+
+  /* ── public API ────────────────────────────────────── */
+
+  window.openFolder = async function () {
+    hideError();
+    if (!window.showDirectoryPicker) {
+      showError('Your browser does not support the File System Access API. Please use Chrome, Edge, Brave, or Arc.');
+      return;
+    }
+    try {
+      rootHandle = await window.showDirectoryPicker({ mode: 'read' });
+    } catch (e) {
+      if (e.name !== 'AbortError') showError('Could not open folder: ' + e.message);
+      return;
+    }
+    // Verify it looks like an Engram repo
+    var readme = await readFile(rootHandle, 'README.md');
+    var hasCore = false;
+    try { await rootHandle.getDirectoryHandle('core'); hasCore = true; } catch (_) {}
+    if (!readme || !hasCore) {
+      showError('This folder does not appear to be an agent-memory-seed repo. Expected README.md and core/ directory.');
+      rootHandle = null;
+      return;
+    }
+    document.getElementById('refresh-btn').style.display = '';
+    await refresh();
+  };
+
+  window.refresh = async function () {
+    if (!rootHandle) return;
+    hideError();
+    setStatus(true, 'Loading\u2026');
+    document.getElementById('placeholder').style.display = 'none';
+    document.getElementById('panels').style.display = '';
+
+    try {
+      await Promise.all([
+        loadPortrait(),
+        loadHealth(),
+        loadProjects(),
+        loadActivity(),
+        loadKnowledge(),
+        loadScratchpad(),
+        loadSkills()
+      ]);
+      setStatus(true, 'Loaded from ' + rootHandle.name);
+    } catch (e) {
+      setStatus(false, 'Error during load');
+      showError('Error loading dashboard data: ' + e.message);
+    }
+  };
+
+  /* ── panel loaders ─────────────────────────────────── */
+
+  async function loadPortrait() {
+    var body = document.getElementById('portrait-body');
+    body.innerHTML = '';
+
+    var summary = await readFile(rootHandle, 'core/memory/users/SUMMARY.md');
+    if (!summary) {
+      body.appendChild(el('p', 'No users/SUMMARY.md found.', 'placeholder'));
+      return;
+    }
+
+    // Find user directories
+    var listing = await listDir(rootHandle, 'core/memory/users');
+    var userDirs = listing.dirs;
+
+    var parsed = parseFrontmatter(summary);
+    var lines = parsed.body.split(/\r?\n/).filter(function (l) { return l.trim(); });
+
+    // Render user summary lines (skip the heading)
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (line.match(/^#+\s/)) {
+        var level = line.match(/^(#+)/)[1].length;
+        var heading = el(level <= 2 ? 'h3' : 'h4', line.replace(/^#+\s*/, ''));
+        heading.style.marginTop = '0.75rem';
+        heading.style.marginBottom = '0.25rem';
+        heading.style.fontSize = level <= 2 ? '0.9rem' : '0.85rem';
+        frag.appendChild(heading);
+      } else if (line.startsWith('-') || line.startsWith('*')) {
+        var p = el('p', line.replace(/^[-*]\s*/, ''));
+        p.style.marginLeft = '0.75rem';
+        p.style.marginBottom = '0.15rem';
+        frag.appendChild(p);
+      } else if (line.startsWith('Drill')) {
+        // skip drill-down lines
+      } else {
+        frag.appendChild(el('p', line));
+      }
+    }
+
+    if (userDirs.length > 0) {
+      var tag = el('p', 'User folders: ' + userDirs.join(', '));
+      tag.style.marginTop = '0.5rem';
+      tag.style.fontSize = '0.8rem';
+      tag.style.color = '#555';
+      frag.appendChild(tag);
+    }
+
+    body.appendChild(frag);
+  }
+
+  async function loadHealth() {
+    var body = document.getElementById('health-body');
+    body.innerHTML = '';
+
+    // Count key metrics
+    var sessionCount = 0;
+    var knowledgeCount = 0;
+    var skillCount = 0;
+    var projectCount = 0;
+
+    // Count sessions (year/month/day/chat-NNN dirs)
+    var actYears = await listDir(rootHandle, 'core/memory/activity');
+    for (var yi = 0; yi < actYears.dirs.length; yi++) {
+      if (!actYears.dirs[yi].match(/^\d{4}$/)) continue;
+      var months = await listDir(rootHandle, 'core/memory/activity/' + actYears.dirs[yi]);
+      for (var mi = 0; mi < months.dirs.length; mi++) {
+        var days = await listDir(rootHandle, 'core/memory/activity/' + actYears.dirs[yi] + '/' + months.dirs[mi]);
+        for (var di = 0; di < days.dirs.length; di++) {
+          var chats = await listDir(rootHandle, 'core/memory/activity/' + actYears.dirs[yi] + '/' + months.dirs[mi] + '/' + days.dirs[di]);
+          sessionCount += chats.dirs.length;
+        }
+      }
+    }
+
+    // Count knowledge files
+    knowledgeCount = await countFiles(rootHandle, 'core/memory/knowledge');
+    // Subtract SUMMARY.md and ACCESS.jsonl
+    knowledgeCount = Math.max(0, knowledgeCount - 2);
+
+    // Count skills
+    var skillListing = await listDir(rootHandle, 'core/memory/skills');
+    skillCount = skillListing.files.filter(function (f) { return f.endsWith('.md') && f !== 'SUMMARY.md'; }).length;
+
+    // Count projects
+    var projListing = await listDir(rootHandle, 'core/memory/working/projects');
+    projectCount = projListing.dirs.filter(function (d) { return d !== 'OUT'; }).length;
+
+    // ACCESS log stats
+    var accessFiles = [
+      'core/memory/knowledge/ACCESS.jsonl',
+      'core/memory/activity/ACCESS.jsonl',
+      'core/memory/skills/ACCESS.jsonl',
+      'core/memory/users/ACCESS.jsonl',
+      'core/memory/working/projects/ACCESS.jsonl'
+    ];
+    var totalAccess = 0;
+    for (var ai = 0; ai < accessFiles.length; ai++) {
+      var raw = await readFile(rootHandle, accessFiles[ai]);
+      if (raw) totalAccess += parseJsonl(raw).length;
+    }
+
+    // Maturity stage (try to read system-maturity.md)
+    var maturity = await readFile(rootHandle, 'core/governance/system-maturity.md');
+    var stage = 'Unknown';
+    if (sessionCount < 20) stage = 'Exploration';
+    else if (sessionCount < 80) stage = 'Calibration';
+    else stage = 'Maturity';
+
+    var frag = document.createDocumentFragment();
+
+    var row = el('div', '', 'stat-row');
+    row.appendChild(makeStat(sessionCount, 'Sessions'));
+    row.appendChild(makeStat(knowledgeCount, 'Knowledge files'));
+    row.appendChild(makeStat(skillCount, 'Skills'));
+    frag.appendChild(row);
+
+    var row2 = el('div', '', 'stat-row');
+    row2.appendChild(makeStat(projectCount, 'Projects'));
+    row2.appendChild(makeStat(totalAccess, 'ACCESS entries'));
+    row2.appendChild(makeStat(stage, 'Maturity'));
+    frag.appendChild(row2);
+
+    body.appendChild(frag);
+  }
+
+  function makeStat(value, label) {
+    var s = el('div', '', 'stat');
+    s.appendChild(el('div', String(value), 'value'));
+    s.appendChild(el('div', label, 'label'));
+    return s;
+  }
+
+  async function loadProjects() {
+    var body = document.getElementById('projects-body');
+    body.innerHTML = '';
+
+    var summary = await readFile(rootHandle, 'core/memory/working/projects/SUMMARY.md');
+    if (!summary) {
+      body.appendChild(el('p', 'No projects/SUMMARY.md found.', 'placeholder'));
+      return;
+    }
+
+    var parsed = parseFrontmatter(summary);
+    var rows = parseMarkdownTable(parsed.body);
+
+    if (rows.length === 0) {
+      body.appendChild(el('p', 'No projects found in SUMMARY table.'));
+      return;
+    }
+
+    var table = document.createElement('table');
+    var thead = document.createElement('thead');
+    var headRow = document.createElement('tr');
+    ['Project', 'Status', 'Mode', 'Open Qs', 'Focus'].forEach(function (h) {
+      headRow.appendChild(el('th', h));
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    for (var i = 0; i < rows.length; i++) {
+      var tr = document.createElement('tr');
+      var name = (rows[i]['Project'] || '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+      tr.appendChild(el('td', name));
+
+      var statusTd = document.createElement('td');
+      var statusText = rows[i]['Status'] || '';
+      var badge = el('span', statusText, 'badge');
+      if (statusText === 'completed') badge.className = 'badge badge-high';
+      else if (statusText === 'active' || statusText === 'ongoing') badge.className = 'badge badge-medium';
+      else badge.className = 'badge badge-low';
+      statusTd.appendChild(badge);
+      tr.appendChild(statusTd);
+
+      tr.appendChild(el('td', rows[i]['Mode'] || ''));
+      tr.appendChild(el('td', rows[i]['Open Qs'] || ''));
+
+      var focusTd = el('td', (rows[i]['Focus'] || '').substring(0, 80));
+      focusTd.style.maxWidth = '200px';
+      focusTd.style.overflow = 'hidden';
+      focusTd.style.textOverflow = 'ellipsis';
+      focusTd.style.whiteSpace = 'nowrap';
+      tr.appendChild(focusTd);
+
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    body.appendChild(table);
+  }
+
+  async function loadActivity() {
+    var body = document.getElementById('activity-body');
+    body.innerHTML = '';
+
+    var summary = await readFile(rootHandle, 'core/memory/activity/SUMMARY.md');
+    if (!summary) {
+      body.appendChild(el('p', 'No activity/SUMMARY.md found.', 'placeholder'));
+      return;
+    }
+
+    var parsed = parseFrontmatter(summary);
+    var sections = extractSections(parsed.body);
+
+    var frag = document.createDocumentFragment();
+
+    // Live themes
+    if (sections['Live themes']) {
+      frag.appendChild(el('h4', 'Live themes'));
+      var themes = sections['Live themes'].trim().split(/\r?\n/).filter(function (l) { return l.trim().startsWith('-'); });
+      for (var t = 0; t < themes.length; t++) {
+        var p = el('p', themes[t].replace(/^-\s*/, ''));
+        p.style.marginLeft = '0.5rem';
+        frag.appendChild(p);
+      }
+    }
+
+    // Recent continuity
+    if (sections['Recent continuity']) {
+      frag.appendChild(el('h4', 'Recent continuity'));
+      var contLines = sections['Recent continuity'].trim().split(/\r?\n/).filter(function (l) { return l.trim(); });
+      for (var c = 0; c < contLines.length; c++) {
+        var line = contLines[c].replace(/^-\s*/, '').replace(/\*\*/g, '');
+        frag.appendChild(el('p', line));
+      }
+    }
+
+    if (frag.childElementCount === 0) {
+      frag.appendChild(el('p', 'Activity summary is empty.'));
+    }
+
+    // Style sub-headings
+    var h4s = frag.querySelectorAll('h4');
+    for (var h = 0; h < h4s.length; h++) {
+      h4s[h].style.fontSize = '0.85rem';
+      h4s[h].style.marginTop = '0.5rem';
+      h4s[h].style.marginBottom = '0.25rem';
+      h4s[h].style.color = '#555';
+      h4s[h].style.textTransform = 'uppercase';
+      h4s[h].style.letterSpacing = '0.03em';
+    }
+
+    body.appendChild(frag);
+  }
+
+  async function loadKnowledge() {
+    var body = document.getElementById('knowledge-body');
+    body.innerHTML = '';
+
+    var summary = await readFile(rootHandle, 'core/memory/knowledge/SUMMARY.md');
+    if (!summary) {
+      body.appendChild(el('p', 'No knowledge/SUMMARY.md found.', 'placeholder'));
+      return;
+    }
+
+    // Parse the domain table
+    var parsed = parseFrontmatter(summary);
+    var rows = parseMarkdownTable(parsed.body);
+
+    if (rows.length === 0) {
+      // Fallback: just list subdirectories
+      var listing = await listDir(rootHandle, 'core/memory/knowledge');
+      var frag = document.createDocumentFragment();
+      var grid = el('div', '', 'domain-cards');
+      for (var d = 0; d < listing.dirs.length; d++) {
+        if (listing.dirs[d].startsWith('_')) continue;
+        var card = el('div', '', 'domain-card');
+        card.appendChild(el('div', listing.dirs[d], 'name'));
+        grid.appendChild(card);
+      }
+      frag.appendChild(grid);
+      body.appendChild(frag);
+      return;
+    }
+
+    // Render domain cards from table
+    var frag = document.createDocumentFragment();
+
+    // Summary stat
+    var headerLine = parsed.body.match(/^#[^#].*?(\d+)\s*files/m);
+    if (headerLine) {
+      var totalP = el('p', headerLine[0].replace(/^#\s*/, ''));
+      totalP.style.marginBottom = '0.75rem';
+      totalP.style.fontWeight = '500';
+      frag.appendChild(totalP);
+    }
+
+    var grid = el('div', '', 'domain-cards');
+    for (var i = 0; i < rows.length; i++) {
+      var domain = (rows[i]['Domain'] || '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\//g, '');
+      var files = rows[i]['Files'] || '';
+      var trust = rows[i]['Trust'] || '';
+      var scope = rows[i]['Scope'] || '';
+
+      var card = el('div', '', 'domain-card');
+      card.appendChild(el('div', domain, 'name'));
+      card.appendChild(el('div', files + ' files', 'count'));
+      if (scope) {
+        var scopeP = el('div', scope.substring(0, 100));
+        scopeP.style.fontSize = '0.7rem';
+        scopeP.style.color = '#777';
+        scopeP.style.marginTop = '0.2rem';
+        card.appendChild(scopeP);
+      }
+      grid.appendChild(card);
+    }
+    frag.appendChild(grid);
+    body.appendChild(frag);
+  }
+
+  async function loadScratchpad() {
+    var body = document.getElementById('scratchpad-body');
+    body.innerHTML = '';
+
+    var content = await readFile(rootHandle, 'core/memory/working/scratchpad/CURRENT.md');
+    if (!content) {
+      body.appendChild(el('p', 'No scratchpad/CURRENT.md found.', 'placeholder'));
+      return;
+    }
+
+    var parsed = parseFrontmatter(content);
+    var sections = extractSections(parsed.body);
+
+    var frag = document.createDocumentFragment();
+    var anyContent = false;
+
+    ['Active threads', 'Immediate next actions', 'Open questions'].forEach(function (key) {
+      if (sections[key]) {
+        var trimmed = sections[key].trim();
+        if (trimmed && trimmed !== '_None_') {
+          anyContent = true;
+          frag.appendChild(el('h4', key));
+          var pre = el('div', trimmed, 'scratchpad-content');
+          frag.appendChild(pre);
+        }
+      }
+    });
+
+    if (!anyContent) {
+      frag.appendChild(el('p', 'Scratchpad is empty — no active threads, actions, or questions.'));
+      var note = el('p', 'This is normal for a freshly set up system.');
+      note.style.fontSize = '0.8rem';
+      note.style.color = '#999';
+      note.style.marginTop = '0.25rem';
+      frag.appendChild(note);
+    }
+
+    // Style sub-headings
+    var h4s = frag.querySelectorAll('h4');
+    for (var h = 0; h < h4s.length; h++) {
+      h4s[h].style.fontSize = '0.85rem';
+      h4s[h].style.marginTop = '0.5rem';
+      h4s[h].style.marginBottom = '0.25rem';
+    }
+
+    body.appendChild(frag);
+  }
+
+  async function loadSkills() {
+    var body = document.getElementById('skills-body');
+    body.innerHTML = '';
+
+    var summary = await readFile(rootHandle, 'core/memory/skills/SUMMARY.md');
+    if (!summary) {
+      body.appendChild(el('p', 'No skills/SUMMARY.md found.', 'placeholder'));
+      return;
+    }
+
+    var parsed = parseFrontmatter(summary);
+    // Extract skill names from **[name.md](name.md)** — description pattern
+    var skillLines = parsed.body.split(/\r?\n/).filter(function (l) { return l.match(/^\s*-\s*\*\*/); });
+
+    var frag = document.createDocumentFragment();
+
+    if (skillLines.length === 0) {
+      frag.appendChild(el('p', 'No skills listed.'));
+    } else {
+      var list = document.createElement('ul');
+      list.style.paddingLeft = '1.2rem';
+      for (var i = 0; i < skillLines.length; i++) {
+        var line = skillLines[i];
+        // Extract name and description
+        var m = line.match(/\*\*\[?([^\]]*?\.md)\]?(?:\([^)]*\))?\*\*\s*(?:—|-)\s*(.*)/);
+        if (m) {
+          var li = document.createElement('li');
+          li.style.marginBottom = '0.25rem';
+          var strong = el('strong', m[1].replace('.md', ''));
+          li.appendChild(strong);
+          li.appendChild(document.createTextNode(' — ' + m[2]));
+          list.appendChild(li);
+        }
+      }
+      frag.appendChild(list);
+    }
+
+    body.appendChild(frag);
+  }
+
+})();
+</script>
+</body>
+</html>
