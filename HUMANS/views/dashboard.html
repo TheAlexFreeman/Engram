@@ -152,11 +152,11 @@ button:active { transform: scale(0.97); }
 </head>
 <body>
 
-<div class="dashboard-header">
+<header class="dashboard-header">
   <div style="max-width:1020px;margin:0 auto;">
     <h1>Engram</h1>
     <p class="subtitle">Read-only view of your local memory repository. Nothing is sent anywhere.</p>
-    <div class="toolbar">
+    <nav class="toolbar" aria-label="Dashboard navigation and repository actions">
       <a href="setup.html" class="nav-link" style="margin-left: 0.5rem">&#8592; Setup Wizard</a>
       <a href="docs.html" class="nav-link" style="margin-left: 0.5rem">&#128203; Docs</a>
       <button class="btn-primary" id="open-btn" onclick="openFolder()">Open Memory Repo</button>
@@ -164,11 +164,11 @@ button:active { transform: scale(0.97); }
       <span class="status" id="status-bar">
         <span class="dot disconnected"></span> No folder loaded
       </span>
-    </div>
+    </nav>
   </div>
-</div>
+</header>
 
-<div class="dashboard-body">
+<main class="dashboard-body" id="main-content">
 
 <div class="error-banner" id="error-banner"></div>
 
@@ -259,7 +259,7 @@ button:active { transform: scale(0.97); }
 
 </div><!-- /panels -->
 
-</div><!-- /dashboard-body -->
+</main><!-- /dashboard-body -->
 
 <noscript><p style="text-align:center;margin-top:3rem;color:#f87171;">JavaScript is required for the dashboard.</p></noscript>
 
@@ -280,6 +280,7 @@ button:active { transform: scale(0.97); }
   var loadSavedHandle = E.loadSavedHandle;
   var saveHandle = E.saveHandle;
   var clearSavedHandle = E.clearSavedHandle;
+  var makeActivatable = E.makeActivatable;
   var requestReadPermission = E.requestReadPermission;
 
   function setStatus(connected, text) {
@@ -587,9 +588,9 @@ button:active { transform: scale(0.97); }
       tr.appendChild(focusTd);
 
       (function (slug) {
-        tr.addEventListener('click', function () {
+        makeActivatable(tr, function () {
           window.location.href = 'projects.html?project=' + encodeURIComponent(slug);
-        });
+        }, { role: 'link', label: 'Open project ' + slug });
       })(name);
       tbody.appendChild(tr);
     }
@@ -675,7 +676,10 @@ button:active { transform: scale(0.97); }
         var card = el('div', '', 'domain-card');
         card.appendChild(el('div', listing.dirs[d], 'name'));
         (function (name) {
-          card.addEventListener('click', function () { window.location.href = 'knowledge.html?domain=' + encodeURIComponent(name); });
+          makeActivatable(card, function () { window.location.href = 'knowledge.html?domain=' + encodeURIComponent(name); }, {
+            role: 'link',
+            label: 'Open knowledge domain ' + name
+          });
         })(listing.dirs[d]);
         grid.appendChild(card);
       }
@@ -714,7 +718,10 @@ button:active { transform: scale(0.97); }
         card.appendChild(scopeP);
       }
       (function (domainName) {
-        card.addEventListener('click', function () { window.location.href = 'knowledge.html?domain=' + encodeURIComponent(domainName); });
+        makeActivatable(card, function () { window.location.href = 'knowledge.html?domain=' + encodeURIComponent(domainName); }, {
+          role: 'link',
+          label: 'Open knowledge domain ' + domainName
+        });
       })(domain);
       grid.appendChild(card);
     }

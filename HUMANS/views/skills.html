@@ -262,11 +262,11 @@ button:active { transform: scale(0.97); }
 </head>
 <body>
 
-<div class="skills-header">
+<header class="skills-header">
   <div style="max-width:1020px;margin:0 auto;">
     <h1>&#128295; Skills</h1>
     <p class="subtitle">Procedural knowledge &#8212; how the agent performs specific tasks.</p>
-    <div class="toolbar">
+    <nav class="toolbar" aria-label="Skills navigation and repository actions">
       <a href="dashboard.html" class="nav-link">&#8592; Dashboard</a>
       <a href="knowledge.html" class="nav-link" style="margin-left:0.5rem">Knowledge</a>
       <a href="projects.html" class="nav-link" style="margin-left:0.5rem">Projects</a>
@@ -276,11 +276,11 @@ button:active { transform: scale(0.97); }
       <span class="status" id="status-bar">
         <span class="dot disconnected"></span> No folder loaded
       </span>
-    </div>
+    </nav>
   </div>
-</div>
+</header>
 
-<div class="skills-body">
+<main class="skills-body" id="main-content">
 
 <div class="error-banner" id="error-banner"></div>
 
@@ -313,7 +313,7 @@ button:active { transform: scale(0.97); }
   </div>
 </div>
 
-</div><!-- /skills-body -->
+</main><!-- /skills-body -->
 
 <noscript><p style="text-align:center;margin-top:3rem;color:#f87171;">JavaScript is required for this page.</p></noscript>
 
@@ -334,6 +334,7 @@ button:active { transform: scale(0.97); }
   var saveHandle = E.saveHandle;
   var clearNode = E.clearNode;
   var escapeHtml = E.escapeHtml;
+  var makeActivatable = E.makeActivatable;
   var requestReadPermission = E.requestReadPermission;
 
   var rootHandle = null;
@@ -560,9 +561,9 @@ button:active { transform: scale(0.97); }
     }
     card.appendChild(footer);
 
-    card.addEventListener('click', (function (s) {
+    makeActivatable(card, (function (s) {
       return function () { showDetailView(s.fileName, s.archived); };
-    })(skill));
+    })(skill), { role: 'button', label: 'View skill ' + formatName(skill.name) });
 
     return card;
   }

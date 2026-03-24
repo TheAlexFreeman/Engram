@@ -205,26 +205,26 @@
 </head>
 <body>
 
-<div class="docs-header">
+<header class="docs-header">
   <div style="max-width:1020px;margin:0 auto;">
     <h1>&#128203; Documentation</h1>
-    <p class="subtitle">
+    <nav class="subtitle" aria-label="Documentation navigation">
       <a href="dashboard.html" class="nav-link">&#8592; Dashboard</a>
       <a href="knowledge.html" class="nav-link" style="margin-left:0.5rem">Knowledge</a>
       <a href="projects.html" class="nav-link" style="margin-left:0.5rem">Projects</a>
       <a href="skills.html" class="nav-link" style="margin-left:0.5rem">Skills</a>
       <a href="users.html" class="nav-link" style="margin-left:0.5rem">Users</a>
-    </p>
-    <div class="toolbar">
+    </nav>
+    <div class="toolbar" aria-label="Documentation repository actions">
       <button class="btn-primary" id="open-btn" style="display:none">Open Memory Repo</button>
       <span class="status" id="status-bar">
         <span class="dot disconnected"></span> No folder loaded
       </span>
     </div>
   </div>
-</div>
+</header>
 
-<div class="docs-body">
+<main class="docs-body" id="main-content">
 
 <div class="error-banner" id="error-banner"></div>
 
@@ -250,7 +250,7 @@
   </div>
 </div>
 
-</div><!-- /docs-body -->
+</main><!-- /docs-body -->
 
 <script src="engram-utils.js"></script>
 <script>
@@ -271,6 +271,7 @@
 
   var E = window.Engram;
   var clearNode = E.clearNode;
+  var makeActivatable = E.makeActivatable;
   var showError = E.showError;
   var hideError = E.hideError;
   var requestReadPermission = E.requestReadPermission;
@@ -323,7 +324,10 @@
         descDiv.textContent = doc.desc;
         card.appendChild(descDiv);
 
-        card.addEventListener('click', function () { openDoc(doc.file); });
+        makeActivatable(card, function () { openDoc(doc.file); }, {
+          role: 'link',
+          label: 'Open documentation page ' + doc.title
+        });
         container.appendChild(card);
       })(DOCS[i]);
     }
@@ -347,7 +351,11 @@
         li.appendChild(iconSpan);
         li.appendChild(document.createTextNode(doc.title));
 
-        li.addEventListener('click', function () { openDoc(doc.file); });
+        makeActivatable(li, function () { openDoc(doc.file); }, {
+          role: 'link',
+          label: 'Open documentation page ' + doc.title,
+          current: doc.file === activeFile ? 'page' : null
+        });
         ul.appendChild(li);
       })(DOCS[i]);
     }

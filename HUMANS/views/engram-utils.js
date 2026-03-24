@@ -2,7 +2,7 @@
  * engram-utils.js — Shared utilities for Engram browser views.
  *
  * Exports via window.Engram:
- *   el, clearNode, escapeHtml, setStatus, showError, hideError,
+ *   el, clearNode, escapeHtml, setStatus, makeActivatable, showError, hideError,
  *   readFile, listDir,
  *   parseFrontmatter, parseFlatYaml, parseMarkdownTable,
  *   openDB, loadSavedHandle, saveHandle, clearSavedHandle,
@@ -43,6 +43,29 @@
     dot.className = 'dot ' + (connected ? 'connected' : 'disconnected');
     bar.appendChild(dot);
     bar.appendChild(document.createTextNode(' ' + text));
+  }
+
+  function makeActivatable(node, activate, opts) {
+    if (!node || typeof activate !== 'function') return node;
+    opts = opts || {};
+
+    node.tabIndex = opts.tabIndex !== undefined ? opts.tabIndex : 0;
+    if (opts.role !== false) {
+      node.setAttribute('role', opts.role || 'button');
+    }
+    if (opts.label) node.setAttribute('aria-label', opts.label);
+    if (opts.current) node.setAttribute('aria-current', opts.current);
+
+    node.addEventListener('click', function (ev) {
+      activate(ev);
+    });
+    node.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+        ev.preventDefault();
+        activate(ev);
+      }
+    });
+    return node;
   }
 
   function showError(msg) {
@@ -503,6 +526,7 @@
     clearNode: clearNode,
     escapeHtml: escapeHtml,
     setStatus: setStatus,
+    makeActivatable: makeActivatable,
     showError: showError,
     hideError: hideError,
     readFile: readFile,

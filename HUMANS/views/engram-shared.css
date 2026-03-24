@@ -92,6 +92,33 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-primary-hover);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 3px rgba(194, 180, 154, 0.18);
+}
+
+[role="button"],
+[role="link"] {
+  cursor: pointer;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ── Scrollbars ──────────────────────────────────────── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }

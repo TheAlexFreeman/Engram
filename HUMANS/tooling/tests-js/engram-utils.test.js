@@ -99,3 +99,32 @@ test('requestReadPermission does not prompt when prompting is disabled', async f
   assert.equal(perm, 'prompt');
   assert.equal(requested, false);
 });
+
+test('makeActivatable wires click and keyboard activation semantics', function () {
+  const listeners = {};
+  const attrs = {};
+  let activations = 0;
+  let prevented = false;
+  const node = {
+    tabIndex: null,
+    setAttribute(name, value) {
+      attrs[name] = value;
+    },
+    addEventListener(type, handler) {
+      listeners[type] = handler;
+    }
+  };
+
+  utils.makeActivatable(node, function () {
+    activations += 1;
+  }, { role: 'link', label: 'Open document' });
+
+  listeners.click({});
+  listeners.keydown({ key: 'Enter', preventDefault() { prevented = true; } });
+
+  assert.equal(node.tabIndex, 0);
+  assert.equal(attrs.role, 'link');
+  assert.equal(attrs['aria-label'], 'Open document');
+  assert.equal(activations, 2);
+  assert.equal(prevented, true);
+});

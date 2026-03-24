@@ -271,11 +271,11 @@ button:active { transform: scale(0.97); }
 </head>
 <body>
 
-<div class="users-header">
+<header class="users-header">
   <div style="max-width:1020px;margin:0 auto;">
     <h1>&#128100; Users</h1>
     <p class="subtitle">People known to Engram &#8212; profiles, interests, and working patterns.</p>
-    <div class="toolbar">
+    <nav class="toolbar" aria-label="Users navigation and repository actions">
       <a href="dashboard.html" class="nav-link">&#8592; Dashboard</a>
       <a href="knowledge.html" class="nav-link" style="margin-left:0.5rem">Knowledge</a>
       <a href="projects.html" class="nav-link" style="margin-left:0.5rem">Projects</a>
@@ -285,11 +285,11 @@ button:active { transform: scale(0.97); }
       <span class="status" id="status-bar">
         <span class="dot disconnected"></span> No folder loaded
       </span>
-    </div>
+    </nav>
   </div>
-</div>
+</header>
 
-<div class="users-body">
+<main class="users-body" id="main-content">
 
 <div class="error-banner" id="error-banner"></div>
 
@@ -326,7 +326,7 @@ button:active { transform: scale(0.97); }
   </div>
 </div>
 
-</div><!-- /users-body -->
+</main><!-- /users-body -->
 
 <noscript><p style="text-align:center;margin-top:3rem;color:#f87171;">JavaScript is required for this page.</p></noscript>
 
@@ -347,6 +347,7 @@ button:active { transform: scale(0.97); }
   var saveHandle = E.saveHandle;
   var clearNode = E.clearNode;
   var escapeHtml = E.escapeHtml;
+  var makeActivatable = E.makeActivatable;
   var requestReadPermission = E.requestReadPermission;
 
   var rootHandle = null;
@@ -502,9 +503,9 @@ button:active { transform: scale(0.97); }
       }
       card.appendChild(footer);
 
-      card.addEventListener('click', (function (name) {
+      makeActivatable(card, (function (name) {
         return function () { showDetailView(name); };
-      })(u.name));
+      })(u.name), { role: 'button', label: 'View user ' + u.name });
 
       container.appendChild(card);
     }
@@ -557,9 +558,9 @@ button:active { transform: scale(0.97); }
       li.setAttribute('data-file', user.files[j]);
       li.appendChild(el('span', '\uD83D\uDCC4', 'icon'));
       li.appendChild(document.createTextNode(' ' + formatFileName(user.files[j])));
-      li.addEventListener('click', (function (fileName) {
+      makeActivatable(li, (function (fileName) {
         return function () { loadFile(fileName); };
-      })(user.files[j]));
+      })(user.files[j]), { role: 'button', label: 'Open user file ' + formatFileName(user.files[j]) });
       sidebar.appendChild(li);
     }
 
