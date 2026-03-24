@@ -10,7 +10,7 @@
  *   EngramGraph.open('ai');      // opens scoped to a domain
  *   EngramGraph.stop();          // tears down the running sim
  */
-(function () {
+(function (root) {
   'use strict';
 
   /* ── Dependencies (set via init) ─────────────────────── */
@@ -30,6 +30,66 @@
     '_unverified':           '#757575'
   };
   var DOMAIN_DEFAULT_COLOR = '#888888';
+
+  function clearNode(node) {
+    if (!node) return;
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function formatNumber(value, digits) {
+    return digits === undefined ? value.toString() : value.toFixed(digits);
+  }
+
+  function summarizeGraph(result, scope) {
+    if (!result || result.insufficient) {
+      return {
+        title: 'Graph summary unavailable',
+        sentences: ['The graph does not contain enough nodes to summarize.'],
+        topDomains: [],
+        topHubs: []
+      };
+    }
+
+    var topDomains = result.domains.slice(0, 3).map(function (domain) {
+      return {
+        name: domain.name,
+        nodes: domain.nodes,
+        status: domain.status
+      };
+    });
+    var topHubs = result.hubs.slice(0, 3).map(function (hub) {
+      return {
+        label: hub.label,
+        domain: hub.domain,
+        degree: hub.degree
+      };
+    });
+
+    var scopeLabel = scope || 'all knowledge domains';
+    var sentences = [
+      'Scope: ' + scopeLabel + '.',
+      'The graph contains ' + result.nodes + ' files and ' + result.edges + ' links, with an average degree of ' + formatNumber(result.avgDegree, 1) + '.',
+      'Average path length is ' + formatNumber(result.avgPathLength, 2) + ' and average clustering is ' + formatNumber(result.avgClustering, 3) + '.',
+      result.sigma > 1
+        ? 'Small-world structure is present with sigma ' + formatNumber(result.sigma, 2) + '.'
+        : (result.sigma > 0
+            ? 'Small-world structure is weak with sigma ' + formatNumber(result.sigma, 2) + '.'
+            : 'Small-world structure could not be computed from the current graph.'),
+      result.bridges.length > 0
+        ? 'Bridge nodes detected: ' + result.bridges.slice(0, 3).map(function (bridge) { return bridge.label; }).join(', ') + '.'
+        : 'No strong bridge nodes were detected.',
+      result.orphans.length > 0
+        ? result.orphans.length + ' node' + (result.orphans.length === 1 ? '' : 's') + ' are isolated or weakly connected.'
+        : 'No isolated or weakly connected nodes were detected.'
+    ];
+
+    return {
+      title: 'Graph summary for ' + scopeLabel,
+      sentences: sentences,
+      topDomains: topDomains,
+      topHubs: topHubs
+    };
+  }
 
   /* ── Network analysis engine ─────────────────────────── */
 
@@ -433,8 +493,61 @@
     var tooltip = document.getElementById('graph-tooltip');
     var legend = document.getElementById('graph-legend');
     var stats = document.getElementById('graph-stats');
+    var a11ySummary = document.getElementById('graph-accessible-summary');
 
     stats.textContent = graph.nodes.length + ' files \u00B7 ' + graph.edges.length + ' links';
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('tabindex', '0');
+    canvas.setAttribute('aria-label', 'Interactive knowledge graph canvas');
+
+    function renderAccessibleSummary(result) {
+      if (!a11ySummary) return;
+      clearNode(a11ySummary);
+      var summary = summarizeGraph(result, graph.scope || 'all knowledge domains');
+      a11ySummary.setAttribute('aria-label', summary.title);
+
+      var title = document.createElement('h3');
+      title.textContent = summary.title;
+      a11ySummary.appendChild(title);
+
+      for (var si = 0; si < summary.sentences.length; si++) {
+        var p = document.createElement('p');
+        p.textContent = summary.sentences[si];
+        a11ySummary.appendChild(p);
+      }
+
+      if (summary.topDomains.length > 0) {
+        var domainTitle = document.createElement('p');
+        domainTitle.className = 'graph-summary-label';
+        domainTitle.textContent = 'Largest domains';
+        a11ySummary.appendChild(domainTitle);
+
+        var domainList = document.createElement('ul');
+        for (var di = 0; di < summary.topDomains.length; di++) {
+          var domainItem = document.createElement('li');
+          var domain = summary.topDomains[di];
+          domainItem.textContent = domain.name + ': ' + domain.nodes + ' nodes (' + domain.status + ')';
+          domainList.appendChild(domainItem);
+        }
+        a11ySummary.appendChild(domainList);
+      }
+
+      if (summary.topHubs.length > 0) {
+        var hubTitle = document.createElement('p');
+        hubTitle.className = 'graph-summary-label';
+        hubTitle.textContent = 'Top hubs';
+        a11ySummary.appendChild(hubTitle);
+
+        var hubList = document.createElement('ul');
+        for (var hi = 0; hi < summary.topHubs.length; hi++) {
+          var hubItem = document.createElement('li');
+          var hub = summary.topHubs[hi];
+          hubItem.textContent = hub.label + ' (' + hub.domain + ', degree ' + hub.degree + ')';
+          hubList.appendChild(hubItem);
+        }
+        a11ySummary.appendChild(hubList);
+      }
+    }
 
     function resize() {
       canvas.width = canvas.parentElement.clientWidth;
@@ -627,6 +740,13 @@
     function closePreview() {
       preview.classList.remove('visible');
       previewNodeId = null;
+    }
+
+    function closeOverlay() {
+      closePreview();
+      closeAnalysis();
+      overlay.classList.remove('visible');
+      if (graphSim) { graphSim.stop(); graphSim = null; }
     }
 
     // Resize handle
@@ -1023,9 +1143,9 @@
       interp.style.color = 'var(--color-text-secondary)';
       interp.style.margin = '0 0 1rem';
       if (result.sigma > 1) {
-        interp.innerHTML = '\u03c3 > 1 \u2014 this graph exhibits <strong>small-world structure</strong>: high clustering with short average paths.';
+        interp.textContent = '\u03c3 > 1: this graph exhibits small-world structure with high clustering and short average paths.';
       } else if (result.sigma > 0) {
-        interp.innerHTML = '\u03c3 < 1 \u2014 this graph does <strong>not</strong> show strong small-world properties.';
+        interp.textContent = '\u03c3 < 1: this graph does not show strong small-world properties.';
       } else {
         interp.textContent = '\u03c3 could not be computed (disconnected graph or insufficient edges).';
       }
@@ -1211,13 +1331,27 @@
         for (var i = 0; i < analysisResult.orphans.length; i++) orphanSet[analysisResult.orphans[i].index] = true;
       }
       populateAnalysis(analysisResult);
+      renderAccessibleSummary(analysisResult);
       analysisBackdrop.classList.add('visible');
     });
+
+    function onOverlayKeydown(ev) {
+      if (ev.key !== 'Escape') return;
+      if (analysisBackdrop.classList.contains('visible')) {
+        closeAnalysis();
+        return;
+      }
+      closeOverlay();
+    }
+    overlay.addEventListener('keydown', onOverlayKeydown);
+
+    renderAccessibleSummary(analyzeGraph(nodes, graph.edges));
 
     graphSim = {
       stop: function () {
         running = false;
         window.removeEventListener('resize', resize);
+        overlay.removeEventListener('keydown', onOverlayKeydown);
         closeAnalysis();
       }
     };
@@ -1288,7 +1422,7 @@
     }
   }
 
-  window.EngramGraph = {
+  var api = {
     /** Provide host-page dependencies. Must be called before open(). */
     init: function (config) {
       deps = config;
@@ -1317,6 +1451,17 @@
     },
 
     /** Update the scope indicator in the toolbar. */
-    updateScope: updateGraphScope
+    updateScope: updateGraphScope,
+
+    /** Export pure helpers for unit tests. */
+    _test: {
+      analyzeGraph: analyzeGraph,
+      summarizeGraph: summarizeGraph
+    }
   };
-})();
+
+  if (root) root.EngramGraph = api;
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = api;
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -245,9 +245,9 @@
 </div><!-- /knowledge-body -->
 
 <!-- Graph overlay -->
-<div class="graph-overlay" id="graph-overlay">
+<div class="graph-overlay" id="graph-overlay" role="dialog" aria-modal="true" aria-labelledby="graph-overlay-title" aria-describedby="graph-accessible-summary" tabindex="-1">
   <div class="graph-toolbar">
-    <h2>&#128476; Knowledge Graph</h2>
+    <h2 id="graph-overlay-title">&#128476; Knowledge Graph</h2>
     <span class="graph-stats" id="graph-stats"></span>
     <span class="graph-scope" id="graph-scope" style="display:none"></span>
     <span class="spacer"></span>
@@ -256,11 +256,12 @@
     <button id="graph-close-btn">&#10005; Close</button>
   </div>
   <div style="position:relative;flex:1;overflow:hidden;">
-    <canvas id="graph-canvas"></canvas>
+    <canvas id="graph-canvas" aria-describedby="graph-accessible-summary">Interactive knowledge graph</canvas>
     <div class="graph-progress" id="graph-progress" style="display:none;">
       <div class="spinner"></div>
       <div id="graph-progress-text">Scanning knowledge files&#8230;</div>
     </div>
+    <section class="graph-accessible-summary" id="graph-accessible-summary" aria-live="polite"></section>
     <div class="graph-legend" id="graph-legend"></div>
     <div class="graph-tooltip" id="graph-tooltip"></div>
     <div class="graph-preview" id="graph-preview">

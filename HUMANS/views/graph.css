@@ -77,6 +77,34 @@
 .graph-tooltip .tt-path { color: var(--color-text-muted); font-size: 0.65rem; }
 .graph-tooltip .tt-refs { color: var(--color-primary); margin-top: 0.15rem; }
 
+.graph-accessible-summary {
+  position: absolute; top: 1rem; left: 1rem; z-index: 1;
+  max-width: min(360px, calc(100% - 2rem));
+  padding: 0.7rem 0.85rem;
+  background: rgba(255, 252, 248, 0.94);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+.graph-accessible-summary h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.76rem;
+}
+.graph-accessible-summary p {
+  margin: 0 0 0.3rem;
+}
+.graph-accessible-summary ul {
+  margin: 0.2rem 0 0.45rem 1rem;
+  padding: 0;
+}
+.graph-summary-label {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
 /* ── Graph file preview panel ──────────────────────── */
 .graph-preview {
   position: absolute; top: 0; right: 0; bottom: 0;
