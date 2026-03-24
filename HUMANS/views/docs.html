@@ -215,6 +215,12 @@
       <a href="skills.html" class="nav-link" style="margin-left:0.5rem">Skills</a>
       <a href="users.html" class="nav-link" style="margin-left:0.5rem">Users</a>
     </p>
+    <div class="toolbar">
+      <button class="btn-primary" id="open-btn" style="display:none">Open Memory Repo</button>
+      <span class="status" id="status-bar">
+        <span class="dot disconnected"></span> No folder loaded
+      </span>
+    </div>
   </div>
 </div>
 
@@ -261,7 +267,10 @@
     { file: 'HELP.md',       icon: '\uD83D\uDEA8',        title: 'Troubleshooting',   desc: 'Debugging guide for git, CI, pre-commit, and more' }
   ];
 
+  var DOCS_PATH = 'HUMANS/docs/';
+
   var E = window.Engram;
+  var rootHandle = null;
   var currentDoc = null;
 
   /* ── helpers ───────────────────────────────────────── */
@@ -282,6 +291,27 @@
     s.className = 'sep';
     s.textContent = '/';
     return s;
+  }
+
+  function showError(msg) {
+    var banner = document.getElementById('error-banner');
+    banner.textContent = msg;
+    banner.style.display = 'block';
+  }
+
+  function hideError() {
+    var banner = document.getElementById('error-banner');
+    banner.textContent = '';
+    banner.style.display = 'none';
+  }
+
+  function setStatus(connected, text) {
+    var bar = document.getElementById('status-bar');
+    clearNode(bar);
+    var dot = document.createElement('span');
+    dot.className = 'dot ' + (connected ? 'connected' : 'disconnected');
+    bar.appendChild(dot);
+    bar.appendChild(document.createTextNode(' ' + text));
   }
 
   /* ── index view ────────────────────────────────────── */
@@ -341,9 +371,15 @@
     list.appendChild(ul);
   }
 
-  /* ── fetch doc ─────────────────────────────────────── */
+  /* ── read doc ──────────────────────────────────────── */
 
-  async function fetchDoc(filename) {
+  async function readDoc(filename) {
+    // Primary: File System Access API (works from file://)
+    if (rootHandle) {
+      var text = await E.readFile(rootHandle, DOCS_PATH + filename);
+      if (text) return text;
+    }
+    // Fallback: fetch (works when served from a web server)
     try {
       var resp = await fetch('../docs/' + encodeURIComponent(filename));
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -404,10 +440,11 @@
     loading.textContent = 'Loading\u2026';
     body.appendChild(loading);
 
-    var text = await fetchDoc(filename);
+    var text = await readDoc(filename);
     clearNode(body);
 
     if (text) {
+      hideError();
       var parsed = E.parseFrontmatter(text);
       E.renderMarkdown(parsed.body, body, {
         onXrefClick: function (ref) {
@@ -423,8 +460,11 @@
     } else {
       var errDiv = document.createElement('div');
       errDiv.className = 'content-placeholder';
-      errDiv.textContent = '\u26A0 Could not load ' + filename + '. Make sure you are serving this page from a web server (file:// protocol may block fetch requests).';
+      errDiv.textContent = '\u26A0 Could not load ' + filename + '.';
       body.appendChild(errDiv);
+      if (!rootHandle) {
+        showError('No repo folder loaded. Open the dashboard and click "Open Memory Repo", or click the button above.');
+      }
     }
   }
 
@@ -454,9 +494,65 @@
 
   window.addEventListener('popstate', route);
 
-  // init
-  buildIndex();
-  route();
+  /* ── open folder ───────────────────────────────────── */
+
+  window.openFolder = async function () {
+    try {
+      rootHandle = await window.showDirectoryPicker({ mode: 'read' });
+      await E.saveHandle(rootHandle);
+      hideError();
+      setStatus(true, rootHandle.name);
+      document.getElementById('open-btn').style.display = 'none';
+      // reload current doc if we were viewing one
+      if (currentDoc) openDoc(currentDoc);
+    } catch (err) {
+      if (err.name !== 'AbortError')
+        showError('Could not open folder: ' + err.message);
+    }
+  };
+
+  /* ── init ──────────────────────────────────────────── */
+
+  (async function init() {
+    buildIndex();
+
+    var openBtn = document.getElementById('open-btn');
+    openBtn.addEventListener('click', window.openFolder);
+
+    if (!window.showDirectoryPicker) {
+      // No File System Access API — rely on fetch fallback
+      setStatus(false, 'File System Access API unavailable');
+      route();
+      return;
+    }
+
+    var saved = await E.loadSavedHandle();
+    if (!saved) {
+      setStatus(false, 'No folder loaded');
+      openBtn.style.display = '';
+      route();
+      return;
+    }
+
+    try {
+      var perm = await saved.requestPermission({ mode: 'read' });
+      if (perm !== 'granted') {
+        setStatus(false, 'Permission denied');
+        openBtn.style.display = '';
+        route();
+        return;
+      }
+    } catch (_) {
+      setStatus(false, 'Could not restore handle');
+      openBtn.style.display = '';
+      route();
+      return;
+    }
+
+    rootHandle = saved;
+    setStatus(true, rootHandle.name);
+    route();
+  })();
 })();
 </script>
 </body>
