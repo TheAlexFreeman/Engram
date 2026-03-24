@@ -436,6 +436,48 @@ button {
   /* ── state ─────────────────────────────────────────── */
 
   var rootHandle = null;
+  var DB_NAME = 'engram-dashboard';
+  var STORE = 'handles';
+  var HANDLE_KEY = 'repoRoot';
+
+  /* ── IndexedDB handle persistence ──────────────────── */
+
+  function openDB() {
+    return new Promise(function (resolve, reject) {
+      var req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = function () { req.result.createObjectStore(STORE); };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+
+  async function saveHandle(handle) {
+    try {
+      var db = await openDB();
+      var tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(handle, HANDLE_KEY);
+    } catch (_) { /* IndexedDB unavailable — degrade gracefully */ }
+  }
+
+  async function loadSavedHandle() {
+    try {
+      var db = await openDB();
+      return new Promise(function (resolve) {
+        var tx = db.transaction(STORE, 'readonly');
+        var req = tx.objectStore(STORE).get(HANDLE_KEY);
+        req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { resolve(null); };
+      });
+    } catch (_) { return null; }
+  }
+
+  async function clearSavedHandle() {
+    try {
+      var db = await openDB();
+      var tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete(HANDLE_KEY);
+    } catch (_) {}
+  }
 
   /* ── public API ────────────────────────────────────── */
 
@@ -451,18 +493,24 @@ button {
       if (e.name !== 'AbortError') showError('Could not open folder: ' + e.message);
       return;
     }
-    // Verify it looks like an Engram repo
-    var readme = await readFile(rootHandle, 'README.md');
-    var hasCore = false;
-    try { await rootHandle.getDirectoryHandle('core'); hasCore = true; } catch (_) {}
-    if (!readme || !hasCore) {
-      showError('This folder does not appear to be an Engram repo. Expected README.md and core/ directory.');
-      rootHandle = null;
-      return;
-    }
+    if (!(await verifyRepo(rootHandle))) return;
+    await saveHandle(rootHandle);
     document.getElementById('refresh-btn').style.display = '';
     await refresh();
   };
+
+  /** Verify that a handle points to a plausible Engram repo. */
+  async function verifyRepo(handle) {
+    var readme = await readFile(handle, 'README.md');
+    var hasCore = false;
+    try { await handle.getDirectoryHandle('core'); hasCore = true; } catch (_) {}
+    if (!readme || !hasCore) {
+      showError('This folder does not appear to be an Engram repo. Expected README.md and core/ directory.');
+      rootHandle = null;
+      return false;
+    }
+    return true;
+  }
 
   window.refresh = async function () {
     if (!rootHandle) return;
@@ -887,6 +935,51 @@ button {
 
     body.appendChild(frag);
   }
+
+  /* ── auto-restore on page load ─────────────────────── */
+
+  (async function init() {
+    // Browser compatibility check
+    if (!window.showDirectoryPicker) {
+      document.getElementById('open-btn').disabled = true;
+      var ph = document.getElementById('placeholder');
+      ph.textContent = '';
+      var warn = el('div', '\u26A0', 'icon');
+      var p1 = el('p');
+      p1.appendChild(el('strong', 'Browser not supported.'));
+      p1.appendChild(document.createTextNode(' The File System Access API is required to read your local memory repo.'));
+      var p2 = el('p', 'Please open this page in Chrome, Edge, Brave, or Arc.');
+      p2.style.marginTop = '0.5rem';
+      ph.appendChild(warn);
+      ph.appendChild(p1);
+      ph.appendChild(p2);
+      return;
+    }
+
+    // Try to restore a previously opened directory
+    var saved = await loadSavedHandle();
+    if (!saved) return;
+
+    // Request read permission on the saved handle
+    try {
+      var perm = await saved.requestPermission({ mode: 'read' });
+      if (perm !== 'granted') return;
+    } catch (_) {
+      await clearSavedHandle();
+      return;
+    }
+
+    // Verify the saved handle still points to a valid repo
+    rootHandle = saved;
+    if (!(await verifyRepo(rootHandle))) {
+      rootHandle = null;
+      await clearSavedHandle();
+      return;
+    }
+
+    document.getElementById('refresh-btn').style.display = '';
+    await refresh();
+  })();
 
 })();
 </script>
