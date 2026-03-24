@@ -25,13 +25,13 @@ Treat onboarding as a first working session, not an intake form. The user should
 
 ### Phase A. Warm start
 
-Open with one short paragraph: this is your first meeting, you keep persistent memory in this repository, and you want to learn by working together.
+Open with one short paragraph: this is your first meeting, you keep persistent memory in this repository, and you want to learn by working together. Adapt this language to the user's technical level — for non-technical users, say something like "I keep notes in a shared workspace" instead of referencing repositories or memory systems.
 
 Then ask what the user is working on, stuck on, or curious about. The answer becomes the **seed task**.
 
 If `core/memory/users/` contains a file with `source: template`, acknowledge it briefly: "I see you started with the [role] template. Let's test that against how we work together." Do not turn template review into a separate interview. Use it as prior context while the session unfolds.
 
-If the user does not bring a concrete task, offer a prompt such as researching a topic, sketching a plan, or reviewing a draft.
+If the user does not bring a concrete task, offer a prompt such as researching a topic, sketching a plan, organizing a project, or reviewing a draft.
 
 ### Phase B. Work the seed task collaboratively
 
@@ -43,7 +43,7 @@ During this phase:
 2. Ask direct follow-up questions only when a major category is still missing.
 3. Make memory visible in context. When the user reveals something durable, say so briefly. When a correction improves future work, acknowledge that explicitly.
 4. Make trust visible only when relevant. If you introduce external information or a synthesized inference, note that direct user statements can be saved at high trust while external or inferred material starts lower until confirmed.
-5. Watch pacing. If the seed task could consume the entire session, transition once the user has received real value and you have enough signal for a useful portrait.
+5. Watch pacing. If the seed task could consume the entire session, transition once the user has received real value and you have enough signal for a useful portrait. Concrete transition signals: the user has a tangible artifact, a decision, or a clear next step — even if the larger task is unfinished; or you have observed enough traits across at least 4 discovery-audit categories to draft a useful portrait.
 
 Use demonstrations as natural moments, not a script. Aim for 2 to 3 across the session.
 
@@ -88,7 +88,7 @@ End by making session two feel real:
 
 ## Discovery audit
 
-Use this after Phase B, not as a scripted questionnaire:
+Use this after Phase B, not as a scripted questionnaire. Interpret each category for the user's domain — "languages and frameworks" becomes "tools and platforms" for a non-technical user; "editor/IDE" becomes "productivity tools" for someone outside software engineering.
 
 - Role and responsibilities
 - Active projects or current focus

@@ -6,10 +6,10 @@ trust: medium
 type: project
 status: active
 cognitive_mode: crystallization
-open_questions: 5
+open_questions: 1
 active_plans: 1
-last_activity: 2026-03-21
-current_focus: "Replace the scripted onboarding flow with collaborative project-based onboarding."
+last_activity: 2026-03-23
+current_focus: "Refinements applied — Q4 (researcher template codebase section) still open."
 ---
 
 # Project: Onboarding Redesign
