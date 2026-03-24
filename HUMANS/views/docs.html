@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Engram &#8212; Documentation</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="engram-shared.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" integrity="sha384-zh0CIslj3dQfr5GQttW75N5yzjaqaXzaosFOBb3a6qYWDMPFimSGKIgSLwBPYPgw" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js" integrity="sha384-Rma6DA2IPUxQ1OahHGGVKMB9YnAiMEfjNTmECIK1JuzLCAb7DQPAfGMilDJ74Nfm" crossorigin="anonymous"></script>
+<style>
+/* ── Layout ──────────────────────────────────────────── */
+.docs-header {
+  background: var(--dark-bg); color: var(--dark-text);
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+}
+.docs-header h1 { color: #fff; }
+.docs-header .subtitle { color: var(--dark-text-muted); }
+.docs-header .nav-link { color: var(--dark-text-muted); }
+.docs-header .nav-link:hover { color: #fff; }
+
+.docs-body {
+  max-width: 1020px; margin: 0 auto;
+  padding: var(--space-lg);
+}
+
+/* ── Doc cards ───────────────────────────────────────── */
+.doc-cards {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md);
+}
+@media (max-width: 700px) { .doc-cards { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .doc-cards { grid-template-columns: 1fr; } }
+
+.doc-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  padding: var(--space-md) calc(var(--space-md) * 1.1);
+  cursor: pointer;
+  transition: box-shadow var(--duration) var(--ease), transform var(--duration) var(--ease);
+  box-shadow: var(--shadow-card);
+}
+.doc-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+.doc-card .doc-icon { font-size: 1.5rem; margin-bottom: var(--space-xs); }
+.doc-card .doc-title { font-weight: 600; font-size: var(--text-sm); margin-bottom: 0.15rem; }
+.doc-card .doc-desc { font-size: var(--text-xs); color: var(--color-text-muted); line-height: 1.5; }
+
+/* ── Breadcrumb ──────────────────────────────────────── */
+.detail-breadcrumb {
+  display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+  font-size: var(--text-sm); margin-bottom: var(--space-md);
+}
+.detail-breadcrumb a {
+  color: var(--color-primary); text-decoration: none; cursor: pointer;
+  font-weight: 500;
+}
+.detail-breadcrumb a:hover { color: var(--color-primary-hover); }
+.detail-breadcrumb .sep { color: var(--color-text-faint); }
+.detail-breadcrumb .current { font-weight: 600; color: var(--color-text); }
+
+/* ── Detail grid ─────────────────────────────────────── */
+.detail-grid {
+  display: grid; grid-template-columns: 280px 1fr; gap: 1.5rem;
+  min-height: 400px;
+}
+@media (max-width: 700px) { .detail-grid { grid-template-columns: 1fr; } }
+
+/* ── Sidebar ─────────────────────────────────────────── */
+.detail-sidebar {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  overflow: hidden; box-shadow: var(--shadow-card);
+}
+.detail-sidebar .sidebar-header {
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: var(--text-sm); font-weight: 600;
+}
+.detail-sidebar .sidebar-body {
+  padding: 0; max-height: 500px; overflow-y: auto;
+}
+.detail-sidebar .sidebar-body ul {
+  list-style: none; padding: 0; margin: 0;
+}
+.detail-sidebar .sidebar-body li {
+  font-size: var(--text-sm); cursor: pointer;
+  padding: 0.45rem 0.9rem;
+  border-bottom: 1px solid var(--color-border-fine);
+  transition: background var(--duration) var(--ease);
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.detail-sidebar .sidebar-body li:hover { background: var(--color-bg); }
+.detail-sidebar .sidebar-body li.active {
+  background: var(--color-active-bg);
+  border-left: 3px solid var(--color-primary);
+  font-weight: 600;
+}
+.detail-sidebar .sidebar-body li .icon { font-size: 0.85rem; flex-shrink: 0; }
+
+/* ── Content panel ───────────────────────────────────── */
+.detail-content {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  overflow: hidden; box-shadow: var(--shadow-card);
+}
+.detail-content .content-header {
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: var(--text-sm); font-weight: 600;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.detail-content .content-body {
+  padding: 1.15rem 1.25rem;
+  max-height: 70vh; overflow-y: auto;
+  font-size: var(--text-base); line-height: 1.75;
+}
+
+/* ── Content typography ──────────────────────────────── */
+.detail-content .content-body h1,
+.detail-content .content-body h2,
+.detail-content .content-body h3,
+.detail-content .content-body h4 {
+  margin: 1.2em 0 0.4em; line-height: 1.3;
+}
+.detail-content .content-body h1 { font-size: 1.25rem; border-bottom: 1px solid var(--color-border-light); padding-bottom: 0.3rem; }
+.detail-content .content-body h2 { font-size: 1.1rem; border-bottom: 1px solid var(--color-border-fine); padding-bottom: 0.2rem; }
+.detail-content .content-body h3 { font-size: 0.98rem; }
+.detail-content .content-body h4 { font-size: 0.9rem; color: var(--color-text-secondary); }
+.detail-content .content-body p  { margin: 0.6em 0; }
+.detail-content .content-body ul,
+.detail-content .content-body ol {
+  margin: 0.5em 0; padding-left: 1.6em;
+}
+.detail-content .content-body li { margin: 0.25em 0; }
+.detail-content .content-body li > ul,
+.detail-content .content-body li > ol { margin: 0.15em 0; }
+.detail-content .content-body hr {
+  border: none; border-top: 1px solid var(--color-border-light);
+  margin: 1.25rem 0;
+}
+.detail-content .content-body blockquote {
+  margin: 0.6em 0; padding: 0.5em 0.85em;
+  border-left: 3px solid var(--color-primary);
+  background: var(--color-hover-bg); color: var(--color-text-secondary);
+  border-radius: 0 var(--radius-small) var(--radius-small) 0;
+}
+.detail-content .content-body code {
+  font-family: var(--font-mono);
+  font-size: 0.82em; padding: 0.15em 0.35em;
+  background: var(--color-code-bg); border-radius: 3px;
+}
+.detail-content .content-body pre {
+  margin: 0.6em 0; padding: 0.85em; overflow-x: auto;
+  background: #0d1117; color: #e2e8f0;
+  border-radius: var(--radius-button);
+  font-family: var(--font-mono);
+  font-size: 0.8rem; line-height: 1.55;
+}
+.detail-content .content-body pre code {
+  background: none; padding: 0; color: inherit; font-size: inherit;
+}
+.detail-content .content-body table {
+  width: 100%; border-collapse: collapse; margin: 0.6em 0;
+  font-size: var(--text-sm);
+}
+.detail-content .content-body th,
+.detail-content .content-body td {
+  text-align: left; padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--color-border-light);
+}
+.detail-content .content-body th {
+  font-weight: 600; font-size: var(--text-xs); color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: 2px solid var(--color-border);
+}
+.detail-content .content-body tr:hover td { background: var(--color-bg); }
+.detail-content .content-body strong { font-weight: 600; }
+.detail-content .content-body em { font-style: italic; }
+.detail-content .content-body a {
+  color: var(--color-primary); text-decoration: none;
+}
+.detail-content .content-body a:hover { text-decoration: underline; }
+
+/* ── Cross-reference links ───────────────────────────── */
+.docs-xref {
+  color: var(--color-primary); cursor: pointer; text-decoration: none;
+  border-bottom: 1px dashed var(--color-hover-border);
+  transition: border-color var(--duration) var(--ease);
+}
+.docs-xref:hover { border-bottom-style: solid; border-color: var(--color-primary); }
+
+/* ── Placeholder ─────────────────────────────────────── */
+.content-placeholder {
+  padding: 3rem 1rem; text-align: center; color: var(--color-text-faint);
+}
+</style>
+</head>
+<body>
+
+<div class="docs-header">
+  <div style="max-width:1020px;margin:0 auto;">
+    <h1>&#128203; Documentation</h1>
+    <p class="subtitle">
+      <a href="dashboard.html" class="nav-link">&#8592; Dashboard</a>
+      <a href="knowledge.html" class="nav-link" style="margin-left:0.5rem">Knowledge</a>
+      <a href="projects.html" class="nav-link" style="margin-left:0.5rem">Projects</a>
+      <a href="skills.html" class="nav-link" style="margin-left:0.5rem">Skills</a>
+      <a href="users.html" class="nav-link" style="margin-left:0.5rem">Users</a>
+    </p>
+  </div>
+</div>
+
+<div class="docs-body">
+
+<div class="error-banner" id="error-banner"></div>
+
+<!-- Index view: doc cards -->
+<div id="index-view">
+  <div class="doc-cards" id="doc-cards"></div>
+</div>
+
+<!-- Reader view: sidebar + content -->
+<div id="reader-view" style="display:none">
+  <div class="detail-breadcrumb" id="reader-breadcrumb"></div>
+  <div class="detail-grid">
+    <div class="detail-sidebar">
+      <div class="sidebar-header">Documentation</div>
+      <div class="sidebar-body" id="sidebar-list"></div>
+    </div>
+    <div class="detail-content">
+      <div class="content-header" id="content-header">Select a document</div>
+      <div class="content-body" id="content-body">
+        <div class="content-placeholder">&#128196; Select a document to read.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /docs-body -->
+
+<script src="engram-utils.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var DOCS = [
+    { file: 'QUICKSTART.md', icon: '\u26A1',              title: 'Quick Start',       desc: 'Get Engram set up and running in minutes' },
+    { file: 'CORE.md',       icon: '\uD83D\uDEE0\uFE0F', title: 'Core Concepts',     desc: 'Architecture rationale and design principles' },
+    { file: 'DESIGN.md',     icon: '\uD83D\uDE80',        title: 'Design Philosophy', desc: 'Product vision, use cases, and future directions' },
+    { file: 'MCP.md',        icon: '\uD83D\uDD0C',        title: 'MCP Protocol',      desc: 'Model Context Protocol server architecture' },
+    { file: 'INTEGRATIONS.md', icon: '\uD83D\uDD17',      title: 'Integrations',      desc: 'Worktree mode, CI setup, and tooling configuration' },
+    { file: 'GLOSSARY.md',   icon: '\uD83D\uDCD6',        title: 'Glossary',          desc: 'Definitions of key terms and concepts' },
+    { file: 'HELP.md',       icon: '\uD83D\uDEA8',        title: 'Troubleshooting',   desc: 'Debugging guide for git, CI, pre-commit, and more' }
+  ];
+
+  var E = window.Engram;
+  var currentDoc = null;
+
+  /* ── helpers ───────────────────────────────────────── */
+
+  function clearNode(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function findDoc(filename) {
+    for (var i = 0; i < DOCS.length; i++) {
+      if (DOCS[i].file === filename) return DOCS[i];
+    }
+    return null;
+  }
+
+  function makeSep() {
+    var s = document.createElement('span');
+    s.className = 'sep';
+    s.textContent = '/';
+    return s;
+  }
+
+  /* ── index view ────────────────────────────────────── */
+
+  function buildIndex() {
+    var container = document.getElementById('doc-cards');
+    clearNode(container);
+
+    for (var i = 0; i < DOCS.length; i++) {
+      (function (doc) {
+        var card = document.createElement('div');
+        card.className = 'doc-card';
+
+        var iconDiv = document.createElement('div');
+        iconDiv.className = 'doc-icon';
+        iconDiv.textContent = doc.icon;
+        card.appendChild(iconDiv);
+
+        var titleDiv = document.createElement('div');
+        titleDiv.className = 'doc-title';
+        titleDiv.textContent = doc.title;
+        card.appendChild(titleDiv);
+
+        var descDiv = document.createElement('div');
+        descDiv.className = 'doc-desc';
+        descDiv.textContent = doc.desc;
+        card.appendChild(descDiv);
+
+        card.addEventListener('click', function () { openDoc(doc.file); });
+        container.appendChild(card);
+      })(DOCS[i]);
+    }
+  }
+
+  /* ── sidebar ───────────────────────────────────────── */
+
+  function buildSidebar(activeFile) {
+    var list = document.getElementById('sidebar-list');
+    clearNode(list);
+
+    var ul = document.createElement('ul');
+    for (var i = 0; i < DOCS.length; i++) {
+      (function (doc) {
+        var li = document.createElement('li');
+        if (doc.file === activeFile) li.className = 'active';
+
+        var iconSpan = document.createElement('span');
+        iconSpan.className = 'icon';
+        iconSpan.textContent = doc.icon;
+        li.appendChild(iconSpan);
+        li.appendChild(document.createTextNode(doc.title));
+
+        li.addEventListener('click', function () { openDoc(doc.file); });
+        ul.appendChild(li);
+      })(DOCS[i]);
+    }
+    list.appendChild(ul);
+  }
+
+  /* ── fetch doc ─────────────────────────────────────── */
+
+  async function fetchDoc(filename) {
+    try {
+      var resp = await fetch('../docs/' + encodeURIComponent(filename));
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return await resp.text();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /* ── open doc (reader mode) ────────────────────────── */
+
+  async function openDoc(filename) {
+    var url = new URL(window.location);
+    url.searchParams.set('doc', filename);
+    history.pushState({ doc: filename }, '', url);
+
+    currentDoc = filename;
+    document.getElementById('index-view').style.display = 'none';
+    document.getElementById('reader-view').style.display = '';
+
+    var meta = findDoc(filename);
+    var title = meta ? meta.title : filename;
+
+    // breadcrumb
+    var bc = document.getElementById('reader-breadcrumb');
+    clearNode(bc);
+
+    var dashLink = document.createElement('a');
+    dashLink.href = 'dashboard.html';
+    dashLink.textContent = '\u2190 Dashboard';
+    bc.appendChild(dashLink);
+    bc.appendChild(makeSep());
+
+    var indexLink = document.createElement('a');
+    indexLink.href = '#';
+    indexLink.textContent = 'Documentation';
+    indexLink.addEventListener('click', function (e) { e.preventDefault(); showIndex(); });
+    bc.appendChild(indexLink);
+    bc.appendChild(makeSep());
+
+    var cur = document.createElement('span');
+    cur.className = 'current';
+    cur.textContent = title;
+    bc.appendChild(cur);
+
+    // sidebar
+    buildSidebar(filename);
+
+    // header
+    document.getElementById('content-header').textContent = (meta ? meta.icon + ' ' : '') + title;
+
+    // body
+    var body = document.getElementById('content-body');
+    clearNode(body);
+
+    var loading = document.createElement('p');
+    loading.style.color = 'var(--color-text-faint)';
+    loading.textContent = 'Loading\u2026';
+    body.appendChild(loading);
+
+    var text = await fetchDoc(filename);
+    clearNode(body);
+
+    if (text) {
+      var parsed = E.parseFrontmatter(text);
+      E.renderMarkdown(parsed.body, body, {
+        onXrefClick: function (ref) {
+          var match = null;
+          for (var j = 0; j < DOCS.length; j++) {
+            if (DOCS[j].file === ref || ref.endsWith(DOCS[j].file)) {
+              match = DOCS[j]; break;
+            }
+          }
+          if (match) openDoc(match.file);
+        }
+      });
+    } else {
+      var errDiv = document.createElement('div');
+      errDiv.className = 'content-placeholder';
+      errDiv.textContent = '\u26A0 Could not load ' + filename + '. Make sure you are serving this page from a web server (file:// protocol may block fetch requests).';
+      body.appendChild(errDiv);
+    }
+  }
+
+  /* ── show index ────────────────────────────────────── */
+
+  function showIndex() {
+    var url = new URL(window.location);
+    url.searchParams.delete('doc');
+    history.pushState({}, '', url);
+    currentDoc = null;
+    document.getElementById('index-view').style.display = '';
+    document.getElementById('reader-view').style.display = 'none';
+  }
+
+  /* ── routing ───────────────────────────────────────── */
+
+  function route() {
+    var params = new URLSearchParams(window.location.search);
+    var doc = params.get('doc');
+    if (doc && findDoc(doc)) {
+      openDoc(doc);
+    } else {
+      document.getElementById('index-view').style.display = '';
+      document.getElementById('reader-view').style.display = 'none';
+    }
+  }
+
+  window.addEventListener('popstate', route);
+
+  // init
+  buildIndex();
+  route();
+})();
+</script>
+</body>
+</html>

@@ -14,6 +14,7 @@ A collection of standalone HTML pages for browsing a local Engram memory repo in
 | `projects.html` | Project viewer with card-based list and detail view: metadata, focus callout, collapsible questions, YAML plan timeline with phase indicators, inline note viewer. |
 | `skills.html` | Skill library browser. Lists skills from `core/memory/skills/` (active and archived) with trust badges, detail view with frontmatter metadata, and full markdown rendering. |
 | `users.html` | User profile browser. Lists user directories from `core/memory/users/` with avatar cards, per-user file sidebar, detail view with frontmatter metadata, and full markdown rendering. |
+| `docs.html` | **Documentation viewer.** Card-based index of all human-facing docs with sidebar reader, markdown rendering (with KaTeX), breadcrumb navigation, and deep-link support via `?doc=FILENAME` query params. |
 
 ### Architecture
 
@@ -30,5 +31,6 @@ setup.html  →  dashboard.html  ─→  knowledge.html
                      │              projects.html
                      │              skills.html
                      │              users.html
+                     │              docs.html
                      └──────────→  setup.html
 ```

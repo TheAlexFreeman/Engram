@@ -426,6 +426,8 @@ Copy the relevant section of a GitHub Actions log and ask the AI to explain it. 
 
 ## Related documentation
 
+> **Tip:** All docs below can also be browsed in the [documentation viewer](../views/docs.html) — a styled reader with sidebar navigation.
+
 | Document | What it covers |
 |----------|---------------|
 | [QUICKSTART.md](QUICKSTART.md) | First-time setup walkthrough |
