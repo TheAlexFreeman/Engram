@@ -8,8 +8,6 @@ project_count: 5
 
 | Project | Status | Mode | Open Qs | Focus | Last activity |
 |---|---|---|---|---|---|
-| onboarding-redesign | active | crystallization | 5 | Replace the scripted onboarding flow with collaborative project-based onboarding. | 2026-03-21 |
 | getting-to-know-you | ongoing | exploration | 4 | Build a durable picture of the user's work, tools, and collaboration style. | 2026-03-21 |
 | system-literacy | ongoing | exploration | 4 | Teach the system by doing useful work, not by forcing an upfront tutorial. | 2026-03-21 |
 | general-knowledge-base | ongoing | exploration | 4 | Identify the highest-leverage domains to accumulate durable knowledge for the user. | 2026-03-21 |
-| rationalist-ai-discourse | completed | verification | 0 | Preserve the completed research project and its provenance under the new project model. | 2026-03-20 |
