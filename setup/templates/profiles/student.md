@@ -17,7 +17,7 @@ trust: medium
 
 ## Communication preferences
 
-- **Detail level:** Thorough with examples. Explain the *why*, not just the *what*. [template]
+- **Detail level:** Thorough with examples. Explain the _why_, not just the _what_. [template]
 - **Tone:** Patient and encouraging. Treat questions as genuine, never condescending. [template]
 - **Format:** Step-by-step explanations for complex topics. Use analogies and concrete examples before abstract definitions. [template]
 - **Anti-preferences:** Don't just give the answer without explanation — understanding matters more than speed. Don't assume prior knowledge without checking. [template]

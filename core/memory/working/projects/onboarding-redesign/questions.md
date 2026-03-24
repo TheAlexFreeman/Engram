@@ -9,13 +9,15 @@ next_question_id: 5
 
 # Open Questions
 
-## Q4. Should the researcher template include a `## Codebase context` section?
-
-The `software-developer` and `project-manager` templates have it; `researcher` does not. Intentional or oversight?
+_None._
 
 ---
 
 # Resolved Questions
+
+## Q4. Should the researcher template include a `## Codebase context` section?
+
+**Resolution:** No — intentionally omitted. Researcher, writer, student, educator, and designer templates omit `## Codebase context` because those roles typically don't work in code repositories. Only `software-developer` and `project-manager` include it.
 
 ## Q1. Should the warm start language explicitly adapt to user technical level?
 
