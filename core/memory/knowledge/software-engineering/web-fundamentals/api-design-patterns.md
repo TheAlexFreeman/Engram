@@ -70,7 +70,7 @@ POST   /api/orders/42/refund/
 }
 ```
 
-**Separate read and write shapes**: Read responses can include nested objects and computed fields. Write requests should accept flat IDs. DRF implements this with separate serializers (see [django-react-drf.md](../django/django-react-drf.md)).
+**Separate read and write shapes**: Read responses can include nested objects and computed fields. Write requests should accept flat IDs. DRF implements this with separate serializers (see django-react-drf.md).
 
 ## 2. Pagination Strategies
 

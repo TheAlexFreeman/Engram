@@ -167,10 +167,3 @@ where $\sigma_i$ are i.i.d. Rademacher variables. McDiarmid's inequality applied
 
 $$\sup_{f \in \mathcal{F}} |R(f) - \hat{R}(f)| \leq 2\hat{\mathfrak{R}}_n(\mathcal{F}) + 3\sqrt{\frac{\ln(2/\delta)}{2n}}$$
 
-## Connections
-
-- **Measure-theoretic foundations**: expectation, convergence theorems → `measure-theoretic-foundations.md`
-- **Martingales**: Azuma-Hoeffding, Doob martingale → `martingales-optional-stopping.md`
-- **PAC learning**: sample complexity proofs → `knowledge/mathematics/information-theory/pac-learning-sample-complexity.md`
-- **VC dimension**: uniform convergence via concentration → `knowledge/mathematics/information-theory/vc-dimension-fundamental-theorem.md`
-- **Bayesian inference**: posterior concentration rates → `bayesian-inference-priors-posteriors.md`

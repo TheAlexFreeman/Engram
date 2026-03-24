@@ -176,13 +176,3 @@ SOC and the edge-of-chaos thesis provide the mathematical framework for the clai
 
 This is the mathematical grounding for the intelligence-as-dynamical-regime thesis developed in the philosophy cluster.
 
-## Connections
-
-- **Dynamical systems fundamentals**: attractor landscapes → `dynamical-systems-fundamentals.md`
-- **Bifurcation theory**: phase transitions, critical slowing down → `bifurcation-theory-catastrophe.md`
-- **Chaos**: what happens beyond the edge of chaos → `chaos-lorenz-strange-attractors.md`
-- **Fractals**: power laws, scale-free structure, fractal dimension → `fractals-dimension-multiscale.md`
-- **Complex networks**: network topology and criticality → `complex-networks-small-world-scale-free.md`
-- **Ergodic theory**: statistical mechanics of critical states → `ergodic-theory-mixing.md`
-- **Intelligence as dynamical regime**: the philosophical thesis this grounds → `knowledge/philosophy/synthesis-intelligence-as-dynamical-regime.md`
-- **Free Energy Principle**: active inference at the edge of chaos → `knowledge/philosophy/free-energy-autopoiesis-cybernetics.md`

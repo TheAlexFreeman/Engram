@@ -163,10 +163,3 @@ Networks are the substrate on which dynamics unfold. The interaction between **n
 - **Diffusion and random walks**: The mixing time of a random walk on a graph depends on the spectral gap. Small-world shortcuts can dramatically accelerate mixing.
 - **Evolutionary dynamics**: Lieberman, Hauert, and Nowak (2005) showed that certain "amplifier" graph topologies can enhance selection, while "suppressor" topologies can suppress it, relative to well-mixed populations.
 
-## Connections
-
-- **Self-organized criticality**: avalanche dynamics on networks, network topology and criticality → `self-organized-criticality.md`
-- **Fractals**: fractal networks, box-covering dimension → `fractals-dimension-multiscale.md`
-- **Ergodic theory**: random walks on networks, mixing times → `ergodic-theory-mixing.md`
-- **Evolutionary game theory**: spatial/network structure and cooperation → `knowledge/mathematics/game-theory/evolutionary-game-theory.md`
-- **Evolution of cooperation**: network reciprocity → `knowledge/mathematics/game-theory/evolution-of-cooperation.md`

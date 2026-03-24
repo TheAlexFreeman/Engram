@@ -114,7 +114,7 @@ In continuous time, this generalises to the **Doob-Meyer decomposition**, which 
 
 ### Online Learning and Regret Analysis
 
-In online convex optimisation, the learner's regret often decomposes as a martingale difference sequence plus a predictable drift. Azuma-Hoeffding's inequality (a martingale concentration bound — see [concentration-inequalities.md](concentration-inequalities.md)) gives high-probability regret bounds. The Doob martingale construction converts "average case" guarantees to "individual sequence" guarantees via a martingale-to-stopping-time reduction.
+In online convex optimisation, the learner's regret often decomposes as a martingale difference sequence plus a predictable drift. Azuma-Hoeffding's inequality (a martingale concentration bound — see concentration-inequalities.md) gives high-probability regret bounds. The Doob martingale construction converts "average case" guarantees to "individual sequence" guarantees via a martingale-to-stopping-time reduction.
 
 ### Gambling and the Kelly Criterion
 
@@ -130,15 +130,13 @@ Wald's **sequential probability ratio test** (SPRT) uses the log-likelihood rati
 
 ### Foundations of Stochastic Integration
 
-The Itô integral $\int_0^t H_s \, dW_s$ is defined so that it is a (local) martingale. The martingale representation theorem states that every martingale with respect to the Brownian filtration can be written as such an integral. This is the core of stochastic calculus and the mathematical basis of derivative pricing (Black-Scholes) — see [stochastic-processes-brownian-sde.md](stochastic-processes-brownian-sde.md).
+The Itô integral $\int_0^t H_s \, dW_s$ is defined so that it is a (local) martingale. The martingale representation theorem states that every martingale with respect to the Brownian filtration can be written as such an integral. This is the core of stochastic calculus and the mathematical basis of derivative pricing (Black-Scholes) — see stochastic-processes-brownian-sde.md.
 
 ---
 
 ## Connections
 
-- **Concentration inequalities**: The Azuma-Hoeffding result is a martingale concentration inequality; exponential martingales drive Chernoff bounds — see [concentration-inequalities.md](concentration-inequalities.md)
 - **Measure-theoretic probability**: Martingales require the full measure-theoretic conditional expectation — see [measure-theoretic-foundations.md](measure-theoretic-foundations.md)
 - **Bayesian inference**: Posterior probabilities form a Doob martingale; the optional stopping theorem implies that Bayesian updating cannot be gamed — see [bayesian-inference-priors-posteriors.md](bayesian-inference-priors-posteriors.md)
-- **Stochastic calculus**: The Itô integral and Doob-Meyer decomposition extend martingale theory to continuous time — see [stochastic-processes-brownian-sde.md](stochastic-processes-brownian-sde.md)
 - **Ergodic theory**: The Birkhoff ergodic theorem and the martingale convergence theorem are structurally parallel results about long-run averages — see [ergodic-theory-mixing.md](../dynamical-systems/ergodic-theory-mixing.md)
 - **Information theory**: The Kelly criterion connects optimal gambling to channel capacity; log-wealth growth rate equals mutual information (Cover & Thomas)

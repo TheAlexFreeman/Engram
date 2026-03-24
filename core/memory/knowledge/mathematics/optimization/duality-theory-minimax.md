@@ -134,5 +134,4 @@ is a minimax problem. When the discriminator family is rich enough and training 
 - **Gradient descent**: Primal-dual methods and convergence — see [gradient-descent-convergence](gradient-descent-convergence.md)
 - **Online learning**: No-regret learning connects to minimax through game theory — see [online-learning-regret-bounds](online-learning-regret-bounds.md)
 - **Game theory**: Minimax is the foundation of zero-sum game theory — see [../game-theory/normal-form-games-nash-equilibrium.md](../game-theory/normal-form-games-nash-equilibrium.md)
-- **Statistical mechanics**: Free energy minimisation is a dual of entropy maximisation — see [../statistical-mechanics/partition-function-free-energy.md](../statistical-mechanics/partition-function-free-energy.md)
 - **Information theory**: Rate-distortion theory involves Lagrangian duality — see [../information-theory/entropy-source-coding-theorem.md](../information-theory/entropy-source-coding-theorem.md)

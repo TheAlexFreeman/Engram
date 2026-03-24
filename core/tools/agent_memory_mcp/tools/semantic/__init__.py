@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from . import (
     _session,
+    graph_tools,
     knowledge_tools,
     plan_tools,
     session_tools,
@@ -26,12 +27,14 @@ def register(mcp, get_repo, get_root):
     tools.update(user_tools.register_tools(mcp, get_repo, session_state))
     tools.update(skill_tools.register_tools(mcp, get_repo))
     tools.update(session_tools.register_tools(mcp, get_repo, get_root))
+    tools.update(graph_tools.register_tools(mcp, get_repo, get_root))
     return tools
 
 
 __all__ = [
     "register",
     "_session",
+    "graph_tools",
     "plan_tools",
     "knowledge_tools",
     "user_tools",

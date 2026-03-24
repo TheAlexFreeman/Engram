@@ -145,16 +145,11 @@ This landscape metaphor extends to deep learning loss surfaces, where SGD naviga
 
 ### Simulated Annealing
 
-Kirkpatrick et al. (1983) applied the Boltzmann machine's stochastic dynamics to combinatorial optimisation: start at high $T$ (explore broadly), slowly cool to $T \to 0$ (converge to the global minimum). The cooling schedule determines whether the system gets trapped in local minima or finds the global optimum — a direct application of the mixing time theory (see [markov-chains-mixing-times.md](../probability/markov-chains-mixing-times.md)).
+Kirkpatrick et al. (1983) applied the Boltzmann machine's stochastic dynamics to combinatorial optimisation: start at high $T$ (explore broadly), slowly cool to $T \to 0$ (converge to the global minimum). The cooling schedule determines whether the system gets trapped in local minima or finds the global optimum — a direct application of the mixing time theory (see markov-chains-mixing-times.md).
 
 ---
 
 ## Connections
 
-- **Ising model**: Hopfield networks are Ising models with learned couplings; RBMs are bipartite Ising models — see [ising-model-phase-transitions.md](ising-model-phase-transitions.md)
 - **Partition function**: The normalisation constant $Z$ in Boltzmann machines is the partition function; learning requires estimating its gradient — see [partition-function-free-energy.md](partition-function-free-energy.md)
-- **Statistical mechanics of learning**: Gardner's capacity analysis gives the rigorous storage limit for Hopfield networks — see [statistical-mechanics-of-learning.md](statistical-mechanics-of-learning.md)
-- **Spin glasses**: Beyond capacity limits, Hopfield networks become spin glasses with frustration and RSB — see [spin-glasses-replica-method.md](spin-glasses-replica-method.md)
-- **MCMC and mixing**: Training Boltzmann machines requires sampling; mixing times determine training efficiency — see [markov-chains-mixing-times.md](../probability/markov-chains-mixing-times.md)
-- **Dynamical systems**: Pattern retrieval is relaxation to an attractor; the energy function defines the flow — see [dynamical-systems-fundamentals.md](../dynamical-systems/dynamical-systems-fundamentals.md)
 - **Transformers**: Modern Hopfield networks show that attention is energy-based associative memory with exponential capacity

@@ -9,6 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="engram-shared.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" integrity="sha384-zh0CIslj3dQfr5GQttW75N5yzjaqaXzaosFOBb3a6qYWDMPFimSGKIgSLwBPYPgw" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js" integrity="sha384-Rma6DA2IPUxQ1OahHGGVKMB9YnAiMEfjNTmECIK1JuzLCAb7DQPAfGMilDJ74Nfm" crossorigin="anonymous"></script>
 <style>
 /* ── Layout ──────────────────────────────────────────── */
 .skills-header {
@@ -644,71 +646,9 @@ button:active { transform: scale(0.97); }
 
     // Content
     document.getElementById('content-header').textContent = skill.fileName;
-    document.getElementById('content-body').innerHTML = renderMarkdown(skill.body || '');
-  }
-
-  /* ── Simple Markdown renderer ────────────────────── */
-  function renderMarkdown(md) {
-    if (!md) return '';
-    var html = escapeHtml(md);
-
-    // Horizontal rules
-    html = html.replace(/^---$/gm, '<hr>');
-
-    // Headers
-    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-
-    // Bold and italic
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-
-    // Inline code
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-    // Links
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-
-    // Blockquotes
-    html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-
-    // Tables
-    html = html.replace(/((?:^\|.+\|$\n?)+)/gm, function (block) {
-      var rows = block.trim().split('\n');
-      if (rows.length < 2) return block;
-      var headers = rows[0].split('|').map(function (c) { return c.trim(); }).filter(Boolean);
-      var thtml = '<table><thead><tr>';
-      for (var h = 0; h < headers.length; h++) thtml += '<th>' + headers[h] + '</th>';
-      thtml += '</tr></thead><tbody>';
-      for (var r = 2; r < rows.length; r++) {
-        var cells = rows[r].split('|').map(function (c) { return c.trim(); }).filter(Boolean);
-        thtml += '<tr>';
-        for (var c = 0; c < cells.length; c++) thtml += '<td>' + cells[c] + '</td>';
-        thtml += '</tr>';
-      }
-      thtml += '</tbody></table>';
-      return thtml;
-    });
-
-    // List items
-    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-
-    // Wrap consecutive <li> in <ul>
-    html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
-
-    // Numbered list items
-    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-
-    // Paragraphs
-    html = html.split(/\n\n+/).map(function (block) {
-      block = block.trim();
-      if (!block) return '';
-      if (block.match(/^<(?:h[1-6]|ul|ol|li|blockquote|hr|pre|div|table)/)) return block;
-      return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
-    }).join('\n');
-
-    return html;
+    var contentBody = document.getElementById('content-body');
+    contentBody.textContent = '';
+    Engram.renderMarkdown(skill.body || '', contentBody);
   }
 
   /* ── Helpers ─────────────────────────────────────── */

@@ -165,8 +165,6 @@ When RSB occurs on random graphs (e.g., in random $k$-SAT near the threshold), o
 
 - **Ising model**: The clean (non-disordered) base case; spin glasses add quenched randomness — see [ising-model-phase-transitions.md](ising-model-phase-transitions.md)
 - **Hopfield networks**: Beyond capacity, Hopfield networks become spin glasses with spurious states — see [hopfield-boltzmann-machines.md](hopfield-boltzmann-machines.md)
-- **Statistical mechanics of learning**: Gardner's analysis uses the replica method to compute the capacity of perceptrons — see [statistical-mechanics-of-learning.md](statistical-mechanics-of-learning.md)
 - **Partition function**: The replica trick computes the quenched free energy by analytic continuation — see [partition-function-free-energy.md](partition-function-free-energy.md)
-- **Dynamical systems**: The energy landscape with exponentially many attractors is a high-dimensional attractor network — see [dynamical-systems-fundamentals.md](../dynamical-systems/dynamical-systems-fundamentals.md)
 - **Concentration inequalities**: Talagrand's proof of the Parisi formula uses sophisticated concentration techniques — see [concentration-inequalities.md](../probability/concentration-inequalities.md)
 - **Chaos and strange attractors**: Chaos in spin glasses (sensitivity to parameter changes) is a different but related form of unpredictability — see [chaos-lorenz-strange-attractors.md](../dynamical-systems/chaos-lorenz-strange-attractors.md)

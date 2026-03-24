@@ -137,12 +137,3 @@ The marginal likelihood automatically implements **Occam's razor**: a complex mo
 
 The Bayesian marginal likelihood and the **Minimum Description Length** (MDL) principle are asymptotically equivalent: both penalize model complexity and reward data fit, and both select the model that compresses the data most efficiently. The MDL code length equals $-\log p(\mathbf{x} | \mathcal{M})$ plus lower-order terms (Rissanen's stochastic complexity).
 
-## Connections
-
-- **Measure-theoretic foundations**: probability spaces, conditional expectation → `measure-theoretic-foundations.md`
-- **Concentration inequalities**: posterior concentration rates → `concentration-inequalities.md`
-- **Gaussian processes**: Bayesian nonparametric inference → `gaussian-processes-bayesian-nonparametrics.md`
-- **MDL principle**: information-theoretic model selection → `knowledge/mathematics/information-theory/mdl-minimum-description-length.md`
-- **KL divergence**: posterior as information projection → `knowledge/mathematics/information-theory/kl-divergence-cross-entropy.md`
-- **Free Energy Principle**: variational Bayesian inference → `knowledge/philosophy/free-energy-autopoiesis-cybernetics.md`
-- **PAC learning**: frequentist vs. Bayesian learning theory → `knowledge/mathematics/information-theory/pac-learning-sample-complexity.md`

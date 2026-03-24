@@ -182,10 +182,3 @@ There is a direct analogy between mixing of Markov chains and mixing in ergodic 
 | Decay of correlations | Spectral gap, mixing time |
 | Birkhoff ergodic theorem | Law of large numbers for Markov chains |
 
-## Connections
-
-- **Measure-theoretic foundations**: probability spaces, convergence → `measure-theoretic-foundations.md`
-- **Ergodic theory**: invariant measures, mixing, Birkhoff's theorem → `knowledge/mathematics/dynamical-systems/ergodic-theory-mixing.md`
-- **Bayesian inference**: MCMC for posterior sampling → `bayesian-inference-priors-posteriors.md`
-- **Martingales**: Doob's theorem and stopping times for Markov chains → `martingales-optional-stopping.md`
-- **Statistical mechanics**: Metropolis algorithm origins, Ising model sampling → future `ising-model-phase-transitions.md`

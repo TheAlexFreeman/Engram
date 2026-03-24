@@ -151,10 +151,3 @@ Observable signatures:
 
 These statistical signatures have been detected before transitions in climate systems, ecosystems, financial markets, and epileptic seizures. They are the practical consequence of bifurcation theory — a way to detect impending regime shifts from data alone.
 
-## Connections
-
-- **Dynamical systems fundamentals**: fixed points, stability, linearization → `dynamical-systems-fundamentals.md`
-- **Chaos**: period-doubling route to chaos, Feigenbaum universality → `chaos-lorenz-strange-attractors.md`
-- **Self-organized criticality**: systems that self-tune to bifurcation points → `self-organized-criticality.md`
-- **Phase transitions in learning**: double descent as a bifurcation phenomenon → `knowledge/mathematics/information-theory/double-descent-benign-overfitting.md`
-- **Free Energy Principle**: variational free energy as Lyapunov function near critical transitions → `knowledge/philosophy/free-energy-autopoiesis-cybernetics.md`

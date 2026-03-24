@@ -138,9 +138,5 @@ This variational structure is exactly the form used in Friston's free energy pri
 
 ## Connections
 
-- **Information theory**: Shannon entropy and Gibbs entropy have the same form; the source coding theorem operationalises Shannon's definition — see [entropy-source-coding-theorem.md](../information-theory/entropy-source-coding-theorem.md)
-- **KL divergence**: Free energy = equilibrium free energy + KL divergence; variational inference minimises the same functional — see [kl-divergence-cross-entropy.md](../information-theory/kl-divergence-cross-entropy.md)
-- **Partition function and free energy**: The Boltzmann distribution and partition function emerge from MaxEnt as the normalising structure — see [partition-function-free-energy.md](partition-function-free-energy.md)
-- **Bayesian inference**: MaxEnt is a special case of Bayesian reasoning; Jaynes saw Bayesian probability and MaxEnt as two sides of the same coin — see [bayesian-inference-priors-posteriors.md](../probability/bayesian-inference-priors-posteriors.md)
 - **Ergodic theory**: The second law relies on ergodic assumptions for time averages to match ensemble averages — see [ergodic-theory-mixing.md](../dynamical-systems/ergodic-theory-mixing.md)
 - **Kolmogorov complexity**: Algorithmic entropy provides a single-object (non-probabilistic) notion of randomness that connects to thermodynamic entropy via the coding theorem — see the information-theory files

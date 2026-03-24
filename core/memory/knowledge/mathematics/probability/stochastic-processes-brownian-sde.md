@@ -165,10 +165,6 @@ The probability flow ODE (a deterministic version of the reverse SDE) connects d
 
 ## Connections
 
-- **Martingale theory**: The Itô integral is a martingale; the Doob-Meyer decomposition generalises to continuous time — see [martingales-optional-stopping.md](martingales-optional-stopping.md)
-- **Gaussian processes**: Brownian motion is a GP with covariance $\min(s,t)$; the Ornstein-Uhlenbeck process is a GP with Matérn-1/2 kernel — see [gaussian-processes-bayesian-nonparametrics.md](gaussian-processes-bayesian-nonparametrics.md)
-- **Markov chains**: Langevin MCMC and HMC are discretisations of continuous-time SDEs used for sampling — see [markov-chains-mixing-times.md](markov-chains-mixing-times.md)
 - **Measure-theoretic foundations**: SDE solutions are defined as random variables on probability spaces; the Girsanov theorem changes the drift by changing the measure — see [measure-theoretic-foundations.md](measure-theoretic-foundations.md)
 - **Ergodic theory**: The long-time behaviour of SDEs (mixing times, convergence to stationary distributions) is governed by ergodic properties — see [ergodic-theory-mixing.md](../dynamical-systems/ergodic-theory-mixing.md)
-- **Fractals**: Brownian paths have Hausdorff dimension 2 — see [fractals-dimension-multiscale.md](../dynamical-systems/fractals-dimension-multiscale.md)
 - **Dynamical systems**: SDEs are noisy dynamical systems; the Fokker-Planck equation describes the evolution of densities on phase space — see [dynamical-systems-fundamentals.md](../dynamical-systems/dynamical-systems-fundamentals.md)

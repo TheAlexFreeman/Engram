@@ -157,11 +157,3 @@ A dynamical system is **structurally stable** if small perturbations to $\mathbf
 
 Poincaré (1880s–1912) founded the qualitative theory of dynamical systems while studying the three-body problem, introducing phase portraits, fixed-point classification, limit cycles, and the Poincaré section. Birkhoff (1920s–1940s) developed ergodic theory. Smale (1960s) introduced hyperbolic dynamics and the horseshoe map. The field became central to theoretical biology (Waddington's epigenetic landscape, 1940s), neuroscience (Hopfield networks, 1982), and the study of intelligence as a dynamical phenomenon.
 
-## Connections
-
-- **Bifurcation theory**: what happens when structural stability fails → `bifurcation-theory-catastrophe.md`
-- **Chaos**: strange attractors, sensitive dependence → `chaos-lorenz-strange-attractors.md`
-- **Self-organized criticality**: systems that self-tune to bifurcation points → `self-organized-criticality.md`
-- **Ergodic theory**: statistical properties of long-time dynamics → `ergodic-theory-mixing.md`
-- **Free Energy Principle**: Lyapunov function interpretation → `knowledge/philosophy/free-energy-autopoiesis-cybernetics.md`
-- **Hopfield networks**: energy landscapes as attractor dynamics → future `hopfield-boltzmann-machines.md`

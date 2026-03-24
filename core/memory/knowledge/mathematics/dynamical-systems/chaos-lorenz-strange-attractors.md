@@ -165,11 +165,3 @@ A chaotic trajectory of length $T$ requires $\sim h_{KS} \cdot T$ bits to descri
 - **Discrete maps**: Chaos is possible in $n = 1$ dimension (logistic map).
 - **Poincaré section**: A chaotic flow in $n$ dimensions yields a chaotic map in $n - 1$ dimensions, consistent with the above.
 
-## Connections
-
-- **Dynamical systems fundamentals**: flows, fixed points, attractors → `dynamical-systems-fundamentals.md`
-- **Bifurcation theory**: routes to chaos (period-doubling, intermittency, quasiperiodicity) → `bifurcation-theory-catastrophe.md`
-- **Fractals**: fractal dimension, self-similarity of strange attractors → `fractals-dimension-multiscale.md`
-- **Self-organized criticality**: edge of chaos as organizing principle → `self-organized-criticality.md`
-- **Kolmogorov complexity**: algorithmic randomness of chaotic trajectories → `knowledge/mathematics/logic-foundations/kolmogorov-complexity-ait.md`
-- **Ergodic theory**: statistical description of chaotic dynamics → `ergodic-theory-mixing.md`

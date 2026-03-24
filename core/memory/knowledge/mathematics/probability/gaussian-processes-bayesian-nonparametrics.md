@@ -144,6 +144,5 @@ This sidesteps the usual train-validate-select loop. The marginal likelihood int
 - **Information theory**: The GP marginal likelihood can be interpreted as a coding length, connecting to the minimum description length (MDL) principle — see [bayesian-inference-priors-posteriors.md](bayesian-inference-priors-posteriors.md)
 - **Concentration inequalities**: PAC-Bayes bounds give frequentist guarantees for Bayesian predictors, including GPs — see [concentration-inequalities.md](concentration-inequalities.md)
 - **Free energy principle**: Variational inference for GPs and DP mixtures minimises a variational free energy — the same functional form as in Friston's FEP
-- **Complex networks**: The CRP's "rich get richer" dynamics are the discrete analogue of preferential attachment in scale-free networks — see [complex-networks-small-world-scale-free.md](../dynamical-systems/complex-networks-small-world-scale-free.md)
 - **RKHS and regularisation**: GPs provide the probabilistic interpretation of kernel methods, unifying regularisation theory and Bayesian learning
 - **Neural networks**: The GP-neural network correspondence (Neal 1996 → NTK) provides a lens for understanding deep learning through infinite-width limits

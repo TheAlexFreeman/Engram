@@ -162,9 +162,7 @@ When $P(Y | \text{do}(X))$ is not point-identified, it may still be **partially 
 
 ## Connections
 
-- **Pearl's causal hierarchy**: The do-calculus is the formal engine for moving from rung 1 to rung 2 — see [pearls-causal-hierarchy.md](pearls-causal-hierarchy.md)
 - **Structural causal models**: The DAG and SCM provide the necessary structure for applying the do-calculus — see [structural-causal-models-dags.md](structural-causal-models-dags.md)
-- **Counterfactuals**: Rung 3 questions require the full SCM beyond what the do-calculus handles — see [counterfactuals-rubin-potential-outcomes.md](counterfactuals-rubin-potential-outcomes.md)
 - **Causal discovery**: The do-calculus assumes the graph is known; causal discovery aims to learn it — see [causal-discovery-algorithms.md](causal-discovery-algorithms.md)
 - **Bayesian inference**: Bayesian approaches to causal inference place priors over the graph space — see [bayesian-inference-priors-posteriors.md](../probability/bayesian-inference-priors-posteriors.md)
 - **Mechanism design**: Designing incentive-compatible mechanisms requires reasoning about interventions on agent strategies — see [mechanism-design-revelation-principle.md](../game-theory/mechanism-design-revelation-principle.md)

@@ -145,11 +145,6 @@ Neural scaling laws (Kaplan et al., 2020) observe power-law relationships betwee
 
 ## Connections
 
-- **Spin glasses**: The replica method was imported directly from spin glass theory; Gardner's calculation is a replica computation on the weight space — see [spin-glasses-replica-method.md](spin-glasses-replica-method.md)
-- **Ising model**: Symmetry-breaking in student-teacher learning is the ferromagnetic transition — see [ising-model-phase-transitions.md](ising-model-phase-transitions.md)
 - **Partition function**: The volume of weight space is a partition function; free energy controls generalisation — see [partition-function-free-energy.md](partition-function-free-energy.md)
-- **VC dimension**: Gardner's $\alpha_c = 2$ matches the VC dimension result for perceptrons — see [vc-dimension-fundamental-theorem.md](../information-theory/vc-dimension-fundamental-theorem.md)
-- **Double descent**: The interpolation threshold divergence has a precise statistical mechanics characterisation — see [double-descent-benign-overfitting.md](../information-theory/double-descent-benign-overfitting.md)
 - **Concentration inequalities**: The typicality arguments (why the quenched and annealed free energies agree in some regimes) rely on concentration — see [concentration-inequalities.md](../probability/concentration-inequalities.md)
-- **Gaussian processes**: The kernel regime of neural networks is exactly a GP; statistical mechanics analyses the transition out of it — see [gaussian-processes-bayesian-nonparametrics.md](../probability/gaussian-processes-bayesian-nonparametrics.md)
 - **Hopfield networks**: Gardner's capacity bound is the rigorous version of Hopfield's storage capacity — see [hopfield-boltzmann-machines.md](hopfield-boltzmann-machines.md)

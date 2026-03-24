@@ -148,9 +148,6 @@ This is why phase transitions are mathematically precise only in infinite system
 ## Connections
 
 - **Thermodynamic entropy**: The Boltzmann distribution and $Z$ emerge from MaxEnt — see [thermodynamics-entropy-unification.md](thermodynamics-entropy-unification.md)
-- **Ising model**: The paradigmatic laboratory for computing $Z$ and studying phase transitions — see [ising-model-phase-transitions.md](ising-model-phase-transitions.md)
-- **Variational inference**: The ELBO is the negative variational free energy with $T=1$ — see [bayesian-inference-priors-posteriors.md](../probability/bayesian-inference-priors-posteriors.md)
 - **KL divergence**: $F[q] = F_{\text{eq}} + k_B T \cdot D_\text{KL}(q \| p)$ — see [kl-divergence-cross-entropy.md](../information-theory/kl-divergence-cross-entropy.md)
-- **Concentration of measure**: Ensemble equivalence follows from energy concentration in the thermodynamic limit — see [concentration-inequalities.md](../probability/concentration-inequalities.md)
 - **Hopfield and Boltzmann machines**: Energy-based models directly implement the $p \propto e^{-E}$ structure — see [hopfield-boltzmann-machines.md](hopfield-boltzmann-machines.md)
 - **SDEs and Langevin dynamics**: The Boltzmann distribution is the stationary distribution of Langevin SDEs — see [stochastic-processes-brownian-sde.md](../probability/stochastic-processes-brownian-sde.md)

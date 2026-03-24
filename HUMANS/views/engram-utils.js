@@ -6,7 +6,8 @@
  *   readFile, listDir,
  *   parseFrontmatter, parseFlatYaml, parseMarkdownTable,
  *   openDB, loadSavedHandle, saveHandle, clearSavedHandle,
- *   DB_NAME, STORE, HANDLE_KEY
+ *   DB_NAME, STORE, HANDLE_KEY,
+ *   renderMarkdown
  */
 (function () {
   'use strict';
@@ -158,6 +159,280 @@
     } catch (_) {}
   }
 
+  /* ── Markdown renderer ──────────────────────────────── */
+
+  /**
+   * Lightweight markdown-to-DOM renderer.
+   * Produces real DOM nodes (no innerHTML). Supports: headings, bold, italic,
+   * inline code, links, lists (nested UL/OL), blockquotes, horizontal rules,
+   * fenced code blocks, tables, and KaTeX math (when loaded).
+   *
+   * @param {string} text   Markdown source.
+   * @param {Element} container  Target DOM element (will be appended to, NOT cleared).
+   * @param {Object} [opts]
+   * @param {function(string):void} [opts.onXrefClick]  Called when user clicks an
+   *        internal .md cross-reference link. Receives the raw href string.
+   */
+  function renderMarkdown(text, container, opts) {
+    var lines = text.split(/\r?\n/);
+    var i = 0;
+
+    while (i < lines.length) {
+      var line = lines[i];
+
+      // Blank line — skip
+      if (!line.trim()) { i++; continue; }
+
+      // Display math block ($$...$$)
+      if (line.match(/^\$\$/)) {
+        var mathLines = [];
+        if (line.trim() !== '$$') mathLines.push(line.replace(/^\$\$/, ''));
+        i++;
+        while (i < lines.length && !lines[i].match(/\$\$\s*$/)) {
+          mathLines.push(lines[i]); i++;
+        }
+        if (i < lines.length) {
+          var last = lines[i].replace(/\$\$\s*$/, '');
+          if (last.trim()) mathLines.push(last);
+          i++;
+        }
+        var mathDiv = document.createElement('div');
+        mathDiv.className = 'math-display';
+        if (typeof katex !== 'undefined') {
+          try {
+            katex.render(mathLines.join('\n'), mathDiv, { displayMode: true, throwOnError: false });
+          } catch (_) {
+            mathDiv.textContent = mathLines.join('\n');
+          }
+        } else {
+          mathDiv.textContent = mathLines.join('\n');
+        }
+        container.appendChild(mathDiv);
+        continue;
+      }
+
+      // Fenced code block
+      if (line.match(/^```/)) {
+        var codeLines = [];
+        i++;
+        while (i < lines.length && !lines[i].match(/^```/)) {
+          codeLines.push(lines[i]); i++;
+        }
+        i++;
+        var pre = document.createElement('pre');
+        var code = document.createElement('code');
+        code.textContent = codeLines.join('\n');
+        pre.appendChild(code);
+        container.appendChild(pre);
+        continue;
+      }
+
+      // Horizontal rule
+      if (line.match(/^\s*(-{3,}|\*{3,}|_{3,})\s*$/)) {
+        container.appendChild(document.createElement('hr'));
+        i++; continue;
+      }
+
+      // Heading
+      var hm = line.match(/^(#{1,4})\s+(.+)/);
+      if (hm) {
+        var h = document.createElement('h' + hm[1].length);
+        _appendInline(h, hm[2], opts);
+        container.appendChild(h);
+        i++; continue;
+      }
+
+      // Table (line contains | and next line is separator)
+      if (line.indexOf('|') >= 0 && i + 1 < lines.length && lines[i + 1].match(/^[\s|:-]+$/)) {
+        i = _renderTable(lines, i, container, opts);
+        continue;
+      }
+
+      // Blockquote
+      if (line.match(/^>\s?/)) {
+        var bq = document.createElement('blockquote');
+        var bqLines = [];
+        while (i < lines.length && lines[i].match(/^>\s?/)) {
+          bqLines.push(lines[i].replace(/^>\s?/, ''));
+          i++;
+        }
+        renderMarkdown(bqLines.join('\n'), bq, opts);
+        container.appendChild(bq);
+        continue;
+      }
+
+      // Unordered list
+      if (line.match(/^\s*[-*+]\s/)) {
+        i = _renderList(lines, i, container, 'ul', opts);
+        continue;
+      }
+
+      // Ordered list
+      if (line.match(/^\s*\d+\.\s/)) {
+        i = _renderList(lines, i, container, 'ol', opts);
+        continue;
+      }
+
+      // Paragraph
+      var paraLines = [];
+      while (i < lines.length && lines[i].trim() &&
+             !lines[i].match(/^(#{1,4}\s|```|>\s?|\s*[-*+]\s|\s*\d+\.\s|\s*(-{3,}|\*{3,}|_{3,})\s*$)/) &&
+             !(lines[i].indexOf('|') >= 0 && i + 1 < lines.length && lines[i + 1] && lines[i + 1].match(/^[\s|:-]+$/))) {
+        paraLines.push(lines[i]); i++;
+      }
+      var p = document.createElement('p');
+      _appendInline(p, paraLines.join(' '), opts);
+      container.appendChild(p);
+    }
+  }
+
+  function _renderTable(lines, i, container, opts) {
+    var headerLine = lines[i];
+    var headers = headerLine.split('|').map(function (c) { return c.trim(); }).filter(Boolean);
+    i += 2;
+
+    var table = document.createElement('table');
+    var thead = document.createElement('thead');
+    var headRow = document.createElement('tr');
+    for (var h = 0; h < headers.length; h++) {
+      var th = document.createElement('th');
+      _appendInline(th, headers[h], opts);
+      headRow.appendChild(th);
+    }
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    while (i < lines.length && lines[i].indexOf('|') >= 0 && lines[i].trim()) {
+      var cells = lines[i].split('|').map(function (c) { return c.trim(); }).filter(Boolean);
+      var tr = document.createElement('tr');
+      for (var c = 0; c < headers.length; c++) {
+        var td = document.createElement('td');
+        _appendInline(td, cells[c] || '', opts);
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+      i++;
+    }
+    table.appendChild(tbody);
+    container.appendChild(table);
+    return i;
+  }
+
+  function _renderList(lines, i, container, tag, opts) {
+    var list = document.createElement(tag);
+    var pattern = tag === 'ul' ? /^(\s*)[-*+]\s(.*)/ : /^(\s*)\d+\.\s(.*)/;
+    var baseIndent = (lines[i].match(/^(\s*)/) || ['', ''])[1].length;
+
+    while (i < lines.length) {
+      var m = lines[i].match(pattern);
+      if (!m) break;
+      var indent = m[1].length;
+      if (indent < baseIndent) break;
+
+      if (indent > baseIndent) {
+        var lastLi = list.lastElementChild;
+        if (lastLi) {
+          i = _renderList(lines, i, lastLi, tag, opts);
+        } else {
+          i++;
+        }
+        continue;
+      }
+
+      var li = document.createElement('li');
+      _appendInline(li, m[2], opts);
+      list.appendChild(li);
+      i++;
+
+      while (i < lines.length && lines[i].trim() && !lines[i].match(pattern) &&
+             !lines[i].match(/^\s*(#{1,4}\s|```|>\s?|\s*(-{3,}|\*{3,}|_{3,})\s*$)/) &&
+             (lines[i].match(/^\s/) || false)) {
+        var contIndent = (lines[i].match(/^(\s*)/) || ['', ''])[1].length;
+        if (contIndent <= baseIndent) break;
+        li.appendChild(document.createTextNode(' ' + lines[i].trim()));
+        i++;
+      }
+    }
+    container.appendChild(list);
+    return i;
+  }
+
+  function _appendInline(parent, text, opts) {
+    if (!text) return;
+    var rx = /(\$\$[^$]+\$\$|\$[^$\n]+\$)|(`[^`]+`)|\*\*(.+?)\*\*|\*(.+?)\*|\[([^\]]+)\]\(([^)]+)\)/g;
+    var last = 0;
+    var match;
+    var onXref = opts && opts.onXrefClick;
+    while ((match = rx.exec(text)) !== null) {
+      if (match.index > last) {
+        parent.appendChild(document.createTextNode(text.substring(last, match.index)));
+      }
+      if (match[1]) {
+        // Inline or display math
+        var mathSrc = match[1];
+        var isDisplay = mathSrc.startsWith('$$');
+        var tex = isDisplay ? mathSrc.slice(2, -2) : mathSrc.slice(1, -1);
+        var mathEl = document.createElement('span');
+        if (typeof katex !== 'undefined') {
+          try {
+            katex.render(tex, mathEl, { displayMode: isDisplay, throwOnError: false });
+          } catch (_) {
+            mathEl.textContent = tex;
+          }
+        } else {
+          mathEl.textContent = tex;
+        }
+        parent.appendChild(mathEl);
+      } else if (match[2]) {
+        var codeText = match[2].slice(1, -1);
+        if (codeText.match(/\.md$/i) && onXref) {
+          var xa = document.createElement('a');
+          xa.className = 'knowledge-xref';
+          xa.textContent = codeText.replace(/\.md$/, '').split('/').pop();
+          xa.title = codeText;
+          (function (ref) { xa.addEventListener('click', function () { onXref(ref); }); })(codeText);
+          parent.appendChild(xa);
+        } else {
+          var codeEl = document.createElement('code');
+          codeEl.textContent = codeText;
+          parent.appendChild(codeEl);
+        }
+      } else if (match[3]) {
+        var strong = document.createElement('strong');
+        strong.textContent = match[3];
+        parent.appendChild(strong);
+      } else if (match[4]) {
+        var em = document.createElement('em');
+        em.textContent = match[4];
+        parent.appendChild(em);
+      } else if (match[5] && match[6]) {
+        var href = match[6];
+        if (href.match(/\.md$/i) && !href.match(/^https?:\/\//i) && onXref) {
+          var xlink = document.createElement('a');
+          xlink.className = 'knowledge-xref';
+          xlink.textContent = match[5];
+          xlink.title = href;
+          (function (ref) { xlink.addEventListener('click', function () { onXref(ref); }); })(href);
+          parent.appendChild(xlink);
+        } else if (href.match(/^(https?:\/\/|[a-zA-Z0-9]|\.\/)/) && !href.match(/^javascript:/i)) {
+          var a = document.createElement('a');
+          a.textContent = match[5];
+          a.href = href;
+          a.rel = 'noopener noreferrer';
+          a.target = '_blank';
+          parent.appendChild(a);
+        } else {
+          parent.appendChild(document.createTextNode(match[0]));
+        }
+      }
+      last = match.index + match[0].length;
+    }
+    if (last < text.length) {
+      parent.appendChild(document.createTextNode(text.substring(last)));
+    }
+  }
+
   /* ── public API ────────────────────────────────────── */
 
   window.Engram = {
@@ -175,6 +450,7 @@
     clearSavedHandle: clearSavedHandle,
     DB_NAME: DB_NAME,
     STORE: STORE,
-    HANDLE_KEY: HANDLE_KEY
+    HANDLE_KEY: HANDLE_KEY,
+    renderMarkdown: renderMarkdown
   };
 })();

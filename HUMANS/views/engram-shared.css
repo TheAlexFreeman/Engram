@@ -206,6 +206,9 @@ pre code { background: none; padding: 0; font-size: inherit; }
 }
 .error-banner.visible { display: block; }
 
+/* ── KaTeX math ──────────────────────────────────────── */
+.math-display { margin: 1em 0; text-align: center; overflow-x: auto; }
+
 /* ── Reduced motion ──────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

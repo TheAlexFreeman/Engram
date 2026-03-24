@@ -9,6 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="engram-shared.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" integrity="sha384-zh0CIslj3dQfr5GQttW75N5yzjaqaXzaosFOBb3a6qYWDMPFimSGKIgSLwBPYPgw" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js" integrity="sha384-Rma6DA2IPUxQ1OahHGGVKMB9YnAiMEfjNTmECIK1JuzLCAb7DQPAfGMilDJ74Nfm" crossorigin="anonymous"></script>
 <style>
 /* ── Layout ──────────────────────────────────────────── */
 .users-header {
@@ -600,7 +602,11 @@ button:active { transform: scale(0.97); }
     if (!text) {
       document.getElementById('content-header').textContent = fileName;
       document.getElementById('content-meta').style.display = 'none';
-      document.getElementById('content-body').innerHTML = '<p style="color:var(--color-text-muted)">Could not read file.</p>';
+      document.getElementById('content-body').textContent = '';
+      var errP = document.createElement('p');
+      errP.style.color = 'var(--color-text-muted)';
+      errP.textContent = 'Could not read file.';
+      document.getElementById('content-body').appendChild(errP);
       return;
     }
 
@@ -637,51 +643,9 @@ button:active { transform: scale(0.97); }
     metaEl.style.display = hasMeta ? '' : 'none';
 
     // Render body
-    document.getElementById('content-body').innerHTML = renderMarkdown(parsed.body);
-  }
-
-  /* ── Simple Markdown renderer ────────────────────── */
-  function renderMarkdown(md) {
-    if (!md) return '';
-    var html = escapeHtml(md);
-
-    // Horizontal rules
-    html = html.replace(/^---$/gm, '<hr>');
-
-    // Headers
-    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-
-    // Bold and italic
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-
-    // Inline code
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-    // Links: [text](url)
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-
-    // Blockquotes
-    html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-
-    // List items
-    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-
-    // Wrap consecutive <li> in <ul>
-    html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
-
-    // Paragraphs: wrap remaining non-tag lines
-    html = html.split(/\n\n+/).map(function (block) {
-      block = block.trim();
-      if (!block) return '';
-      if (block.match(/^<(?:h[1-6]|ul|ol|li|blockquote|hr|pre|div)/)) return block;
-      // Don't wrap if already a block element
-      return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
-    }).join('\n');
-
-    return html;
+    var contentBody = document.getElementById('content-body');
+    contentBody.textContent = '';
+    Engram.renderMarkdown(parsed.body, contentBody);
   }
 
   /* ── Helpers ─────────────────────────────────────── */

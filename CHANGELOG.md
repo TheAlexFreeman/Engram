@@ -18,6 +18,14 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-24] Shared markdown renderer and views consolidation
+
+**Changed:** Extracted the markdown renderer from knowledge.html into a shared `Engram.renderMarkdown()` function in `engram-utils.js`. The shared renderer is DOM-safe (no innerHTML), supports headings, bold, italic, inline code, links, fenced code blocks, tables, nested lists, blockquotes, horizontal rules, and KaTeX math (display blocks and inline). It accepts an optional `onXrefClick` callback for cross-reference navigation. Replaced the 4 separate markdown renderers (knowledge.html, projects.html, skills.html, users.html) with calls to the shared version. Eliminated the unsafe innerHTML-based regex renderers in skills.html and users.html. Added KaTeX CDN (v0.16.21 with SRI integrity) to all HTML `<head>` sections (previously only knowledge.html). Moved `.math-display` CSS to `engram-shared.css`. Updated HUMANS/README.md to document skills.html, users.html, graph overlay, and KaTeX. Updated QUICKSTART.md to list all five browser views.
+
+**Reasoning:** The four independent markdown renderers had diverged in quality and feature coverage — knowledge.html had full math support and DOM-safe construction, projects.html lacked math, and skills/users.html used regex+innerHTML which is an XSS risk even with escapeHtml pre-processing. Consolidating to a single shared renderer ensures consistent rendering quality, eliminates the innerHTML security concern for markdown content, and enables KaTeX math rendering across all views.
+
+**Approved by:** agent (pending review)
+
 ## [2026-03-23] Views styling polish, design tokens, and documentation
 
 **Changed:** Introduced CSS custom properties (`:root` design tokens) in `engram-shared.css` for the full color palette, border radii, shadow tokens, and monospace font stack — replacing ~60 hardcoded hex values scattered across four HTML files. Added subtle box-shadows to all card/panel components (`--shadow-card` resting, `--shadow-hover` on interactive lift). Fixed inconsistent inline-code styling: removed the pink `color: #e11d48` in knowledge.html, unified code background to `--color-code-bg` across all pages, added shared `code` rule with monospace font stack. Added 🧠 SVG favicon to all four HTML pages. Added "View all →" link to the Knowledge Base panel header in dashboard.html (was missing — projects panel already had one). Expanded `HUMANS/README.md` from a 2-line stub to a full file inventory, architecture overview, and navigation diagram for the views. Updated `HUMANS/docs/QUICKSTART.md` to mention knowledge and project viewers.

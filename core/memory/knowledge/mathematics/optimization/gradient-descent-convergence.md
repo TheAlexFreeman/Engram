@@ -130,7 +130,6 @@ This connects to the generalisation puzzle in deep learning — see [nonconvex-l
 
 - **Convex analysis**: Convergence theory depends on convexity and smoothness properties — see [convex-analysis-separation](convex-analysis-separation.md)
 - **Duality**: Primal-dual gradient methods — see [duality-theory-minimax](duality-theory-minimax.md)
-- **Non-convex landscapes**: SGD in deep learning — see [nonconvex-landscapes-saddle-points](nonconvex-landscapes-saddle-points.md)
 - **Online learning**: SGD as online convex optimisation — see [online-learning-regret-bounds](online-learning-regret-bounds.md)
 - **Dynamical systems**: Continuous-time limits of optimisation algorithms are ODEs — see [../dynamical-systems/dynamical-systems-fundamentals.md](../dynamical-systems/dynamical-systems-fundamentals.md)
 - **Stochastic processes**: SGD noise ≈ Brownian motion — see [../probability/stochastic-processes-brownian-sde.md](../probability/stochastic-processes-brownian-sde.md)

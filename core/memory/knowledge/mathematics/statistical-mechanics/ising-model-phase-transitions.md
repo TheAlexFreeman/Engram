@@ -82,7 +82,7 @@ Landau (1937) approximated the free energy as a polynomial in the order paramete
 
 $$F(m) = F_0 + a(T - T_c) m^2 + b m^4 + \cdots$$
 
-The phase transition occurs when the coefficient of $m^2$ changes sign. This is equivalent to mean-field theory and to catastrophe theory's cusp catastrophe (see [bifurcation-theory-catastrophe.md](../dynamical-systems/bifurcation-theory-catastrophe.md)). Landau theory correctly captures the qualitative structure of continuous phase transitions but misses critical fluctuations.
+The phase transition occurs when the coefficient of $m^2$ changes sign. This is equivalent to mean-field theory and to catastrophe theory's cusp catastrophe (see bifurcation-theory-catastrophe.md). Landau theory correctly captures the qualitative structure of continuous phase transitions but misses critical fluctuations.
 
 ---
 
@@ -156,10 +156,5 @@ Voter models, opinion dynamics, and cultural diffusion can be formulated as Isin
 
 ## Connections
 
-- **Partition function and free energy**: The Ising $Z$ is the paradigmatic case for studying how thermodynamic quantities emerge from state sums — see [partition-function-free-energy.md](partition-function-free-energy.md)
 - **Thermodynamic entropy**: The Ising model illustrates the Boltzmann-Gibbs entropy framework and the energy-entropy competition — see [thermodynamics-entropy-unification.md](thermodynamics-entropy-unification.md)
-- **Bifurcation theory**: The mean-field transition is a pitchfork bifurcation; Landau theory is catastrophe theory applied to thermodynamics — see [bifurcation-theory-catastrophe.md](../dynamical-systems/bifurcation-theory-catastrophe.md)
-- **Self-organized criticality**: Why systems sit at criticality without tuning — see [self-organized-criticality.md](../dynamical-systems/self-organized-criticality.md)
-- **Hopfield and Boltzmann machines**: The Ising model with learned couplings — see [hopfield-boltzmann-machines.md](hopfield-boltzmann-machines.md)
-- **Spin glasses**: Disordered Ising models with frustration — see [spin-glasses-replica-method.md](spin-glasses-replica-method.md)
 - **MCMC**: The Metropolis algorithm was originally developed to simulate the Ising model — see [markov-chains-mixing-times.md](../probability/markov-chains-mixing-times.md)

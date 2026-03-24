@@ -41,8 +41,10 @@ Open `setup.html` in any browser. It redirects to the local starter-file generat
 After setup, additional browser views are available in `HUMANS/views/` (Chrome, Edge, Brave, or Arc required):
 
 - **`dashboard.html`** — read-only overview of your memory repo: system health, projects, knowledge, activity, scratchpad, and skills.
-- **`knowledge.html`** — browse knowledge files by domain with cross-reference navigation.
+- **`knowledge.html`** — browse knowledge files by domain with cross-reference navigation, graph visualization, and KaTeX math rendering.
 - **`projects.html`** — browse projects with questions, plan timelines, and notes.
+- **`skills.html`** — browse the skill library (active and archived) with trust badges and metadata.
+- **`users.html`** — browse user profiles and per-user files with metadata display.
 
 ---
 

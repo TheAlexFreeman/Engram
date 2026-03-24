@@ -150,7 +150,7 @@ The following files contain the primary source material for this synthesis, in p
 | [retrieval-memory/rag-architecture.md](frontier/retrieval-memory/rag-architecture.md) | Chunking problem; retrieval pollution; HyDE; lost-in-the-middle |
 | [alignment/rlhf-reward-models.md](frontier/alignment/rlhf-reward-models.md) | Goodhart's Law; sycophancy; why `trust: low` is the right default |
 | [interpretability/llm-representation-confabulation.md](frontier/interpretability/llm-representation-confabulation.md) | Hallucination taxonomy; calibration; world model status |
-| [multi-agent/multi-agent-coordination.md](frontier/multi-agent/multi-agent-coordination.md) | Prompt injection; git as coordination; tool conflict |
+| multi-agent/multi-agent-coordination.md | Prompt injection; git as coordination; tool conflict |
 | [multi-agent/human-in-the-loop.md](frontier/multi-agent/human-in-the-loop.md) | Approval gate design; reversibility; MCP elicitation |
 | [multi-agent/agent-architecture-patterns.md](frontier/multi-agent/agent-architecture-patterns.md) | ReAct vs. plan-and-execute; MCP tool interface; context window as working memory |
 | [alignment/frontier-alignment-research.md](frontier/alignment/frontier-alignment-research.md) | Scalable oversight; constitutional AI values problem |

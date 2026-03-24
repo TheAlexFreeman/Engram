@@ -173,7 +173,5 @@ The principle of independent mechanisms assumes that changing one equation does 
 
 - **Pearl's causal hierarchy**: The SCM is the formal model underlying all three rungs — see [pearls-causal-hierarchy.md](pearls-causal-hierarchy.md)
 - **do-calculus**: Graphical rules for deriving interventional distributions from the DAG — see [do-calculus-identification.md](do-calculus-identification.md)
-- **Causal discovery**: Algorithms that learn the DAG (or its equivalence class) from data — see [causal-discovery-algorithms.md](causal-discovery-algorithms.md)
 - **Counterfactuals**: The three-step abduction-action-prediction procedure requires the full SCM — see [counterfactuals-rubin-potential-outcomes.md](counterfactuals-rubin-potential-outcomes.md)
 - **Bayesian networks**: The DAG + Markov factorisation is a Bayesian network; the causal interpretation adds interventional semantics — see [bayesian-inference-priors-posteriors.md](../probability/bayesian-inference-priors-posteriors.md)
-- **Dynamical systems**: The SCM's acyclicity assumption breaks down for systems with feedback — see [dynamical-systems-fundamentals.md](../dynamical-systems/dynamical-systems-fundamentals.md)

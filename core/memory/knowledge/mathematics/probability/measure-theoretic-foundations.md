@@ -174,11 +174,3 @@ If $A_n$ are **independent** and $\sum_n P(A_n) = \infty$, then $P(A_n \text{ i.
 
 These lemmas are the fundamental zero-one tools for determining whether rare events happen finitely or infinitely often — critical in the study of random series, random walks, and the rate of convergence of estimators.
 
-## Connections
-
-- **Bayesian inference**: priors, posteriors, conditional expectation → `bayesian-inference-priors-posteriors.md`
-- **Concentration inequalities**: finite-sample bounds beyond CLT → `concentration-inequalities.md`
-- **Martingales**: conditional expectation, filtrations, convergence → `martingales-optional-stopping.md`
-- **Stochastic processes**: Brownian motion, SDEs, Itô calculus → `stochastic-processes-brownian-sde.md`
-- **Ergodic theory**: Birkhoff theorem as generalization of SLLN → `knowledge/mathematics/dynamical-systems/ergodic-theory-mixing.md`
-- **Information theory**: Shannon entropy, KL divergence via Jensen → `knowledge/mathematics/information-theory/entropy-source-coding-theorem.md`

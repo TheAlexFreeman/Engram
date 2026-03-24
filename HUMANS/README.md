@@ -10,14 +10,17 @@ A collection of standalone HTML pages for browsing a local Engram memory repo in
 |------|---------|
 | `setup.html` | **Entry point.** Three-step onboarding wizard: personal context, starter profile, platform instructions. |
 | `dashboard.html` | **Hub.** Seven-panel overview: User Portrait, System Health, Active Projects, Recent Activity, Knowledge Base, Scratchpad, and Skills. Links to all other views. |
-| `knowledge.html` | Knowledge base explorer with domain picker, file sidebar, frontmatter metadata, markdown rendering, and cross-reference navigation between knowledge files. |
+| `knowledge.html` | Knowledge base explorer with domain picker, file sidebar, frontmatter metadata, markdown rendering (with KaTeX math), and cross-reference navigation. Includes a canvas-based graph overlay (`graph.js`/`graph.css`) for visualizing link structure. |
 | `projects.html` | Project viewer with card-based list and detail view: metadata, focus callout, collapsible questions, YAML plan timeline with phase indicators, inline note viewer. |
+| `skills.html` | Skill library browser. Lists skills from `core/memory/skills/` (active and archived) with trust badges, detail view with frontmatter metadata, and full markdown rendering. |
+| `users.html` | User profile browser. Lists user directories from `core/memory/users/` with avatar cards, per-user file sidebar, detail view with frontmatter metadata, and full markdown rendering. |
 
 ### Architecture
 
-- **`engram-shared.css`** — CSS custom properties (`:root` design tokens for colors, radius, shadows, font stacks) plus shared component styles (badges, nav-links, domain cards, placeholders, error banners).
-- **`engram-utils.js`** — `window.Engram` namespace with shared utilities: File System Access helpers (`readFile`, `listDir`), IndexedDB handle persistence (`loadSavedHandle`, `saveHandle`), frontmatter/YAML/markdown-table parsers, DOM helpers.
-- Each HTML page imports both shared files plus its own inline `<style>` and `<script>` blocks.
+- **`engram-shared.css`** — CSS custom properties (`:root` design tokens for colors, radius, shadows, font stacks) plus shared component styles (badges, nav-links, domain cards, placeholders, error banners, KaTeX math display).
+- **`engram-utils.js`** — `window.Engram` namespace with shared utilities: File System Access helpers (`readFile`, `listDir`), IndexedDB handle persistence (`loadSavedHandle`, `saveHandle`), frontmatter/YAML/markdown-table parsers, DOM helpers, and a shared DOM-safe markdown renderer (`renderMarkdown`) with KaTeX math support.
+- **`graph.js` / `graph.css`** — Knowledge graph overlay for `knowledge.html`. Canvas-based force-directed graph with domain coloring, node preview, zoom, search, and network analysis tools.
+- Each HTML page imports the shared files, **KaTeX** (CDN), plus its own inline `<style>` and `<script>` blocks.
 - **IndexedDB** stores the directory handle so users only pick their repo folder once (on the dashboard). All viewer pages read the same saved handle.
 
 ### Navigation
@@ -25,5 +28,7 @@ A collection of standalone HTML pages for browsing a local Engram memory repo in
 ```
 setup.html  →  dashboard.html  ─→  knowledge.html
                      │              projects.html
+                     │              skills.html
+                     │              users.html
                      └──────────→  setup.html
 ```

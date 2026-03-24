@@ -162,9 +162,6 @@ This connects to the dynamical systems view of intelligence: agents at higher ru
 
 ## Connections
 
-- **Structural causal models**: The DAG and structural equations that underpin all three rungs — see [structural-causal-models-dags.md](structural-causal-models-dags.md)
-- **do-calculus**: The formal rules for computing interventional distributions from observational data — see [do-calculus-identification.md](do-calculus-identification.md)
-- **Potential outcomes**: Rubin's framework and its relationship to Pearl's — see [counterfactuals-rubin-potential-outcomes.md](counterfactuals-rubin-potential-outcomes.md)
 - **Bayesian inference**: Bayes' theorem operates at rung 1; Bayesian causal inference extends to rung 2 — see [bayesian-inference-priors-posteriors.md](../probability/bayesian-inference-priors-posteriors.md)
 - **Mechanism design**: Designing systems that incentivise truthful revelation uses interventional reasoning — see [mechanism-design-revelation-principle.md](../game-theory/mechanism-design-revelation-principle.md)
 - **Game theory**: Strategic interaction involves reasoning about counterfactual actions — see [normal-form-games-nash-equilibrium.md](../game-theory/normal-form-games-nash-equilibrium.md)

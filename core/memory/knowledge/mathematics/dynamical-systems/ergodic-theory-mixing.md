@@ -160,11 +160,3 @@ Friston's Free Energy Principle invokes ergodicity explicitly: a system that exi
 
 This connects ergodic theory directly to the questions of self-organization, autopoiesis, and the dynamical foundations of identity.
 
-## Connections
-
-- **Dynamical systems fundamentals**: invariant sets, attractors, Lyapunov stability → `dynamical-systems-fundamentals.md`
-- **Chaos**: Lyapunov exponents, KS entropy, SRB measures → `chaos-lorenz-strange-attractors.md`
-- **Self-organized criticality**: critical dynamics and statistical description → `self-organized-criticality.md`
-- **Free Energy Principle**: ergodicity and existence → `knowledge/philosophy/free-energy-autopoiesis-cybernetics.md`
-- **Entropy**: Boltzmann-Gibbs-Shannon entropy triangle → future `thermodynamics-entropy-unification.md`
-- **Markov chains**: mixing times as ergodic convergence rates → future `markov-chains-mixing-times.md`

@@ -166,11 +166,3 @@ The **Mandelbrot set** $\mathcal{M}$ is the set of complex parameters $c$ for wh
 
 The Mandelbrot set is the parameter-space analogue of Julia sets: for each $c$, the **Julia set** $J_c$ is the boundary between bounded and unbounded orbits in the $z$-plane. $J_c$ is connected iff $c \in \mathcal{M}$ (the fundamental dichotomy theorem).
 
-## Connections
-
-- **Chaos**: strange attractors are fractals; Kaplan-Yorke dimension → `chaos-lorenz-strange-attractors.md`
-- **Self-organized criticality**: power-law distributions, scale-free structure → `self-organized-criticality.md`
-- **Complex networks**: fractal networks, box-covering dimension → `complex-networks-small-world-scale-free.md`
-- **Kolmogorov complexity**: fractal dimension and algorithmic compressibility → `knowledge/mathematics/logic-foundations/kolmogorov-complexity-ait.md`
-- **Information theory**: Rényi entropy and generalized dimensions → `knowledge/mathematics/information-theory/entropy-source-coding-theorem.md`
-- **Dynamical systems fundamentals**: phase portraits, attractors → `dynamical-systems-fundamentals.md`

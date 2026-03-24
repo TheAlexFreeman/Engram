@@ -118,7 +118,5 @@ This seeks parameters that have low loss in a neighbourhood — a direct operati
 - **Convex analysis**: Non-convexity breaks the guarantees of classical convex optimisation — see [convex-analysis-separation](convex-analysis-separation.md)
 - **Gradient descent**: Convergence theory in the convex case vs the non-convex reality — see [gradient-descent-convergence](gradient-descent-convergence.md)
 - **Duality**: GANs have non-convex-non-concave minimax structure — see [duality-theory-minimax](duality-theory-minimax.md)
-- **Statistical mechanics of learning**: Double descent, phase transitions, teacher-student models — see [../statistical-mechanics/statistical-mechanics-of-learning.md](../statistical-mechanics/statistical-mechanics-of-learning.md)
 - **Spin glasses**: Loss landscapes have spin-glass-like structure — see [../statistical-mechanics/spin-glasses-replica-method.md](../statistical-mechanics/spin-glasses-replica-method.md)
-- **Dynamical systems**: Edge of stability as self-organised criticality — see [../dynamical-systems/self-organized-criticality.md](../dynamical-systems/self-organized-criticality.md)
 - **Hopfield-Boltzmann**: Energy landscapes in associative memory — see [../statistical-mechanics/hopfield-boltzmann-machines.md](../statistical-mechanics/hopfield-boltzmann-machines.md)

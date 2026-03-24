@@ -127,7 +127,7 @@ In each case, the empirical instantiation is simpler, more tractable, and less t
 
 3. **Demographic narrowness**: The community skews young, male, white, from elite educational backgrounds. This affects which problems are prioritised, which solutions are considered, and who is included in governance.
 
-4. **Doom fixation**: The p(doom) discourse has sometimes prioritised worst-case scenarios to the exclusion of more likely dangers (bias, misuse, economic disruption, surveillance). This is partly by design — the community focuses on existential risk specifically — but it can produce misallocation of effort. See [post-llm-adaptation/doom-discourse-and-p-doom](../post-llm-adaptation/doom-discourse-and-p-doom.md).
+4. **Doom fixation**: The p(doom) discourse has sometimes prioritised worst-case scenarios to the exclusion of more likely dangers (bias, misuse, economic disruption, surveillance). This is partly by design — the community focuses on existential risk specifically — but it can produce misallocation of effort. See post-llm-adaptation/doom-discourse-and-p-doom.
 
 5. **Theory-practice gap**: The most theoretically sophisticated ideas (agent foundations, logical uncertainty, decision theory) have had the least practical impact. The most impactful contributions (Goodhart framing, RLHF, empirical alignment) are conceptually simpler.
 
@@ -172,14 +172,3 @@ The rationalist AI discourse was **more right than its critics acknowledged and 
 
 **Going forward**: The discourse is at a transition point. The theoretical foundations are being replaced by empirical methods. The informal community is being absorbed into professional institutions. The provocative outsiders are becoming insider experts. Whether this transition preserves the community's best qualities (willingness to consider extreme scenarios, epistemic humility about predictions, long-term orientation) while shedding its worst (paradigm anchoring, monoculture, theory-practice gap) will determine the discourse's next chapter.
 
----
-
-## Connections
-
-This file synthesises analysis from across the collection:
-
-- **Canonical ideas assessed**: [canonical-ideas/](../canonical-ideas/) (7 files)
-- **Prediction failures**: [prediction-failures/](../prediction-failures/) (3 files)
-- **Industry influence**: [industry-influence/](../industry-influence/) (3 files)
-- **Post-LLM adaptation**: [post-llm-adaptation/](../post-llm-adaptation/) (3 files)
-- **Broader context**: The rationalist community's AI discourse is one dimension of a larger intellectual project — see [../../](../../) for coverage of epistemics, institutions, and cultural dynamics.

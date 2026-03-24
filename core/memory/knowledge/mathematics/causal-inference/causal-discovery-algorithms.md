@@ -169,8 +169,6 @@ Many modern methods combine CI testing with scoring:
 
 ## Connections
 
-- **Structural causal models**: Causal discovery aims to learn the DAG that the SCM assumes is given — see [structural-causal-models-dags.md](structural-causal-models-dags.md)
-- **d-separation**: Constraint-based methods directly test the conditional independencies implied by d-separation — see [structural-causal-models-dags.md](structural-causal-models-dags.md)
 - **do-calculus**: Once the graph is discovered, the do-calculus can be applied for identification — see [do-calculus-identification.md](do-calculus-identification.md)
 - **Bayesian inference**: Bayesian structure learning places priors over DAGs and integrates over uncertainty — see [bayesian-inference-priors-posteriors.md](../probability/bayesian-inference-priors-posteriors.md)
 - **MDL/BIC**: Score-based methods use information-theoretic model selection criteria — see the information-theory files

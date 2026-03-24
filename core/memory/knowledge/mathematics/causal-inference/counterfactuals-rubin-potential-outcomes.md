@@ -178,9 +178,7 @@ The assumptions are formally equivalent but differ in transparency: Pearl's grap
 
 ## Connections
 
-- **Pearl's causal hierarchy**: Potential outcomes are rung 3 objects; their expectations under intervention are rung 2 — see [pearls-causal-hierarchy.md](pearls-causal-hierarchy.md)
 - **Structural causal models**: SCMs provide the generative model from which potential outcomes are derived — see [structural-causal-models-dags.md](structural-causal-models-dags.md)
-- **do-calculus**: The graphical rules that achieve what design-based identification does in the Rubin framework — see [do-calculus-identification.md](do-calculus-identification.md)
 - **Bayesian inference**: Bayesian causal inference places priors on potential outcome distributions and treatment effects — see [bayesian-inference-priors-posteriors.md](../probability/bayesian-inference-priors-posteriors.md)
 - **Concentration inequalities**: Finite-sample guarantees for treatment effect estimators use Hoeffding/Bernstein bounds — see [concentration-inequalities.md](../probability/concentration-inequalities.md)
 - **Mechanism design**: The designer's problem is: what treatment (mechanism) maximises the social welfare, accounting for strategic responses? — see [mechanism-design-revelation-principle.md](../game-theory/mechanism-design-revelation-principle.md)
