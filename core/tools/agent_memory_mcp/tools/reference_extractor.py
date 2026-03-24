@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import re
+import statistics
+from dataclasses import dataclass, field
+from datetime import date, datetime
 from pathlib import Path
 from posixpath import relpath as posix_relpath
 from typing import Any, cast
@@ -893,3 +896,362 @@ def suggest_structure(
         "suggestions": suggestions,
         "total": len(suggestions),
     }
+
+
+# ------------------------------------------------------------------
+# Connectivity graph & unlinked-file surfacing
+# ------------------------------------------------------------------
+
+_CATEGORY_PRIORITY = {"isolated": 0, "sink": 1, "source": 2, "low_connectivity": 3}
+_VALID_CATEGORIES = frozenset(_CATEGORY_PRIORITY)
+
+_STEM_STOP_WORDS = frozenset(
+    {
+        "the",
+        "and",
+        "for",
+        "with",
+        "from",
+        "that",
+        "this",
+        "into",
+        "over",
+        "synthesis",
+        "overview",
+        "summary",
+    }
+)
+
+
+@dataclass
+class ConnectivityGraph:
+    """Lightweight directed graph of cross-references between governed files."""
+
+    files: list[str]
+    outgoing: dict[str, set[str]] = field(default_factory=dict)
+    incoming: dict[str, set[str]] = field(default_factory=dict)
+    scope: str = ""
+
+
+def _extract_outgoing_refs(
+    rel_path: str, root: Path
+) -> set[str]:
+    """Return resolved canonical paths of all outgoing refs from a file."""
+    abs_path = root / rel_path
+    try:
+        frontmatter, body = read_with_frontmatter(abs_path)
+    except OSError:
+        return set()
+
+    targets: set[str] = set()
+
+    for link_match in _MARKDOWN_LINK_RE.finditer(body):
+        raw_target = link_match.group(2)
+        resolved = _resolve_reference(rel_path, raw_target, root)
+        if resolved is not None:
+            targets.add(resolved)
+
+    for _key_path, raw_value in _iter_frontmatter_refs(frontmatter):
+        # Handle comma-separated values (e.g. related: a.md, b.md)
+        parts = [p.strip() for p in raw_value.split(",")]
+        for part in parts:
+            if not part:
+                continue
+            resolved = _resolve_reference(rel_path, part, root)
+            if resolved is not None:
+                targets.add(resolved)
+
+    targets.discard(rel_path)
+    return targets
+
+
+def build_connectivity_graph(root: Path, scope: str = "") -> ConnectivityGraph:
+    """Build an in-degree/out-degree connectivity graph for governed markdown."""
+    all_files = _iter_governed_markdown_files_in_scope(root, scope)
+    all_files_set = set(all_files)
+
+    outgoing: dict[str, set[str]] = {}
+    incoming: dict[str, set[str]] = {f: set() for f in all_files}
+
+    for rel_path in all_files:
+        refs = _extract_outgoing_refs(rel_path, root)
+        # Only count edges to files within scope
+        scoped_refs = refs & all_files_set
+        outgoing[rel_path] = scoped_refs
+        for target in scoped_refs:
+            incoming.setdefault(target, set()).add(rel_path)
+
+    return ConnectivityGraph(
+        files=all_files,
+        outgoing=outgoing,
+        incoming=incoming,
+        scope=_normalize_repo_path(scope) or ".",
+    )
+
+
+def _classify_file(in_deg: int, out_deg: int, threshold: int) -> str | None:
+    """Return category string or None if the file is well-connected."""
+    if in_deg == 0 and out_deg == 0:
+        return "isolated"
+    if in_deg > 0 and out_deg == 0:
+        return "sink"
+    if in_deg == 0 and out_deg > 0:
+        return "source"
+    if (in_deg + out_deg) <= threshold:
+        return "low_connectivity"
+    return None
+
+
+def _file_age_days(frontmatter: dict[str, Any]) -> int | None:
+    """Return days since last_verified or created, or None."""
+    for key in ("last_verified", "created"):
+        value = frontmatter.get(key)
+        if value is None:
+            continue
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return (date.today() - value).days
+        if isinstance(value, datetime):
+            return (datetime.now() - value).days
+        if isinstance(value, str):
+            for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S"):
+                try:
+                    parsed = datetime.strptime(value, fmt)
+                    return (datetime.now() - parsed).days
+                except ValueError:
+                    continue
+    return None
+
+
+def _extract_candidate_context(
+    rel_path: str, root: Path
+) -> dict[str, Any]:
+    """Extract lightweight context for a candidate file."""
+    abs_path = root / rel_path
+    try:
+        frontmatter, body = read_with_frontmatter(abs_path)
+    except OSError:
+        return {"extract": "", "headings": [], "existing_related": []}
+
+    # First 3 non-blank body lines
+    lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
+    extract = "\n".join(lines[:3])
+
+    # H1/H2 headings
+    headings: list[str] = []
+    for match in _HEADING_RE.finditer(body):
+        full = match.group(0).strip()
+        if full.startswith("# ") or full.startswith("## "):
+            headings.append(full)
+            if len(headings) >= 6:
+                break
+
+    # Existing related: frontmatter
+    related_raw = frontmatter.get("related", [])
+    if isinstance(related_raw, str):
+        existing_related = [r.strip() for r in related_raw.split(",") if r.strip()]
+    elif isinstance(related_raw, list):
+        existing_related = [str(r).strip() for r in related_raw if str(r).strip()]
+    else:
+        existing_related = []
+
+    return {
+        "extract": extract[:500],
+        "headings": headings,
+        "existing_related": existing_related,
+        "trust": str(frontmatter.get("trust", "")),
+        "age_days": _file_age_days(frontmatter),
+    }
+
+
+def _tokenize_stem(filename: str) -> set[str]:
+    """Split a filename stem into keyword tokens."""
+    stem = Path(filename).stem
+    tokens = set(re.split(r"[-_.]", stem.lower()))
+    return tokens - _STEM_STOP_WORDS - {""}
+
+
+def _suggest_link_candidates(
+    rel_path: str,
+    graph: ConnectivityGraph,
+    root: Path,
+    max_suggestions: int = 5,
+) -> list[dict[str, str]]:
+    """Find potential cross-reference targets using structural heuristics."""
+    path_tokens = _tokenize_stem(rel_path)
+    path_parts = Path(rel_path).parts
+    # Domain = first directory under memory/knowledge/ (e.g., "ai", "philosophy")
+    domain = path_parts[2] if len(path_parts) > 2 else ""
+    subdir = Path(rel_path).parent.as_posix()
+
+    # Build inverse incoming index for shared-referrer heuristic
+    my_referrers = graph.incoming.get(rel_path, set())
+
+    scored: list[tuple[float, str, str]] = []
+
+    for candidate in graph.files:
+        if candidate == rel_path:
+            continue
+        cand_parts = Path(candidate).parts
+        cand_tokens = _tokenize_stem(candidate)
+        cand_subdir = Path(candidate).parent.as_posix()
+        cand_domain = cand_parts[2] if len(cand_parts) > 2 else ""
+
+        score = 0.0
+        reasons: list[str] = []
+
+        # Filename stem overlap
+        overlap = path_tokens & cand_tokens
+        if len(overlap) >= 2:
+            score += len(overlap) * 2.0
+            reasons.append(f"shared stems: {', '.join(sorted(overlap))}")
+        elif len(overlap) == 1 and len(path_tokens) <= 3:
+            score += 1.0
+            reasons.append(f"shared stem: {next(iter(overlap))}")
+
+        # Same subdirectory
+        if cand_subdir == subdir:
+            score += 3.0
+            reasons.append("same directory")
+        elif cand_domain == domain and domain:
+            score += 1.0
+            reasons.append("same domain")
+
+        # Shared incoming references
+        cand_referrers = graph.incoming.get(candidate, set())
+        shared = my_referrers & cand_referrers
+        if shared:
+            score += min(len(shared), 3) * 1.5
+            reasons.append(f"{len(shared)} shared referrer(s)")
+
+        if score > 0 and reasons:
+            scored.append((score, candidate, "; ".join(reasons)))
+
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [
+        {"target": target, "reason": reason}
+        for _, target, reason in scored[:max_suggestions]
+    ]
+
+
+def _domain_peers(rel_path: str, root: Path, max_peers: int = 8) -> list[str]:
+    """Return sibling .md files in the same directory."""
+    parent = (root / rel_path).parent
+    if not parent.is_dir():
+        return []
+    return [
+        f.name
+        for f in sorted(parent.iterdir())
+        if f.is_file()
+        and f.suffix.lower() == ".md"
+        and f.name != Path(rel_path).name
+        and f.name != "SUMMARY.md"
+    ][:max_peers]
+
+
+def find_unlinked_files(
+    root: Path,
+    scope: str = "",
+    threshold: int = 2,
+    category_filter: str = "",
+    max_results: int = 25,
+    include_suggestions: bool = True,
+) -> dict[str, Any]:
+    """Build connectivity graph and surface files with low cross-reference connectivity.
+
+    After review, the agent can add ``related:`` entries via
+    ``memory_update_frontmatter_bulk`` to increase cross-reference coverage.
+
+    Args:
+        root: Repository root path.
+        scope: Repo-relative scope to scan (default: all governed files).
+        threshold: Max total degree to count as ``low_connectivity``.
+        category_filter: Restrict to a single bucket (isolated/sink/source/low_connectivity).
+        max_results: Maximum candidates to return.
+        include_suggestions: Whether to compute link suggestions per candidate.
+
+    Returns:
+        Dict with graph_stats, candidates list, and budget metadata.
+    """
+    graph = build_connectivity_graph(root, scope)
+
+    # Compute per-file degrees and classify
+    candidates: list[dict[str, Any]] = []
+    bucket_counts = {"isolated": 0, "sink": 0, "source": 0, "low_connectivity": 0}
+    degrees: list[int] = []
+
+    for rel_path in graph.files:
+        in_deg = len(graph.incoming.get(rel_path, set()))
+        out_deg = len(graph.outgoing.get(rel_path, set()))
+        total = in_deg + out_deg
+        degrees.append(total)
+
+        category = _classify_file(in_deg, out_deg, threshold)
+        if category is None:
+            continue
+        bucket_counts[category] += 1
+
+        if category_filter and category != category_filter:
+            continue
+
+        parts = Path(rel_path).parts
+        ctx = _extract_candidate_context(rel_path, root)
+        candidates.append(
+            {
+                "path": rel_path,
+                "category": category,
+                "in_degree": in_deg,
+                "out_degree": out_deg,
+                "total_degree": total,
+                "domain": parts[2] if len(parts) > 2 else "",
+                "subdirectory": Path(rel_path).parent.as_posix(),
+                "age_days": ctx["age_days"],
+                "trust": ctx["trust"],
+                "extract": ctx["extract"],
+                "headings": ctx["headings"],
+                "existing_related": ctx["existing_related"],
+                "domain_peers": _domain_peers(rel_path, root),
+            }
+        )
+
+    # Sort: isolated first, then by age (oldest first), then path
+    candidates.sort(
+        key=lambda c: (
+            _CATEGORY_PRIORITY.get(c["category"], 99),
+            -(c["age_days"] or 0),
+            c["path"],
+        )
+    )
+
+    total_candidates = len(candidates)
+    candidates = candidates[:max_results]
+
+    # Suggestions are computed only for the returned candidates
+    if include_suggestions:
+        for c in candidates:
+            c["suggested_links"] = _suggest_link_candidates(
+                c["path"], graph, root
+            )
+
+    total_edges = sum(len(refs) for refs in graph.outgoing.values())
+    graph_stats: dict[str, Any] = {
+        "total_files": len(graph.files),
+        "total_edges": total_edges,
+        "mean_degree": round(statistics.mean(degrees), 1) if degrees else 0,
+        "median_degree": round(statistics.median(degrees), 1) if degrees else 0,
+        "isolated_count": bucket_counts["isolated"],
+        "sink_count": bucket_counts["sink"],
+        "source_count": bucket_counts["source"],
+        "low_connectivity_count": bucket_counts["low_connectivity"],
+    }
+
+    result: dict[str, Any] = {
+        "scope": graph.scope,
+        "graph_stats": graph_stats,
+        "candidates": candidates,
+        "budget": {
+            "returned": len(candidates),
+            "total": total_candidates,
+            "truncated": total_candidates > max_results,
+        },
+    }
+    return result

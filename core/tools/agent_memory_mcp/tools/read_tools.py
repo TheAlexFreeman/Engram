@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING, Any, cast
 from ..path_policy import KNOWN_COMMIT_PREFIXES  # noqa: F401 — re-exported for callers
 from .reference_extractor import (
     find_references,
+    find_unlinked_files,
     preview_reorganization,
     suggest_structure,
     validate_links,
@@ -3645,6 +3646,90 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         return json.dumps(result, indent=2)
 
     # ------------------------------------------------------------------
+    # memory_surface_unlinked
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_surface_unlinked",
+        annotations=_tool_annotations(
+            title="Surface Unlinked Files",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_surface_unlinked(
+        scope: str = "memory/knowledge",
+        max_results: int = 25,
+        include_suggestions: bool = True,
+        threshold: int = 2,
+        category: str = "",
+    ) -> str:
+        """Surface knowledge files with zero or low cross-reference connectivity.
+
+        Builds a lightweight in-degree/out-degree connectivity graph of the
+        governed Markdown files in the requested scope, identifies files that
+        are isolated, sinks, sources, or have low total connectivity, and
+        returns a prioritised review queue with enough context for an agent to
+        decide what links to add.
+
+        Use this tool to discover files that would benefit from additional
+        cross-references. After reviewing the results, use the existing
+        write tools (e.g. memory_update_frontmatter) to add ``related:``
+        entries or inline Markdown links.
+
+        Args:
+            scope: Repo-relative folder to scan (default: 'memory/knowledge').
+            max_results: Maximum candidates to return (default: 25, max: 100).
+            include_suggestions: Include heuristic link suggestions per candidate.
+            threshold: Total-degree ceiling for 'low_connectivity' bucket (default: 2).
+            category: Filter to a single category: 'isolated', 'sink', 'source',
+                      'low_connectivity', or '' for all.
+
+        Returns:
+            Structured JSON with graph statistics, prioritised candidate list,
+            and optional link suggestions per candidate.
+        """
+        from ..errors import ValidationError
+
+        root = get_root()
+        requested_scope = scope.strip().replace("\\", "/")
+        if not requested_scope:
+            requested_scope = "memory/knowledge"
+
+        scope_path = (root / requested_scope).resolve()
+        try:
+            scope_path.relative_to(root)
+        except ValueError as exc:
+            raise ValidationError("scope must stay within the repository root") from exc
+        if not scope_path.exists():
+            return f"Error: Path not found: {scope}"
+
+        max_results = max(1, min(max_results, 100))
+        if threshold < 0:
+            raise ValidationError("threshold must be non-negative")
+
+        valid_categories = {"", "isolated", "sink", "source", "low_connectivity"}
+        if category not in valid_categories:
+            raise ValidationError(
+                f"category must be one of {sorted(valid_categories - {''})!r} or '' for all"
+            )
+
+        try:
+            payload = find_unlinked_files(
+                root=root,
+                scope=requested_scope,
+                threshold=threshold,
+                category_filter=category,
+                max_results=max_results,
+                include_suggestions=include_suggestions,
+            )
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+
+        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
     # memory_generate_summary
     # ------------------------------------------------------------------
     @mcp.tool(
@@ -5749,6 +5834,7 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         "memory_reorganize_preview": memory_reorganize_preview,
         "memory_suggest_structure": memory_suggest_structure,
         "memory_check_cross_references": memory_check_cross_references,
+        "memory_surface_unlinked": memory_surface_unlinked,
         "memory_generate_summary": memory_generate_summary,
         "memory_access_analytics": memory_access_analytics,
         "memory_diff_branch": memory_diff_branch,
