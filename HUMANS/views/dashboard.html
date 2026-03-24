@@ -264,11 +264,13 @@ button:active { transform: scale(0.97); }
 <noscript><p style="text-align:center;margin-top:3rem;color:#f87171;">JavaScript is required for the dashboard.</p></noscript>
 
 <script src="engram-utils.js"></script>
+<script src="dashboard-utils.js"></script>
 <script>
 (function () {
   'use strict';
 
   var E = window.Engram;
+  var D = window.EngramDashboard;
   var el = E.el;
   var showError = E.showError;
   var hideError = E.hideError;
@@ -281,6 +283,9 @@ button:active { transform: scale(0.97); }
   var saveHandle = E.saveHandle;
   var clearSavedHandle = E.clearSavedHandle;
   var makeActivatable = E.makeActivatable;
+  var parseJsonl = D.parseJsonl;
+  var extractSections = D.extractSections;
+  var parseCurrentStage = D.parseCurrentStage;
 
   function setStatus(connected, text) {
     E.setStatus(document.getElementById('status-bar'), connected, text);
@@ -306,35 +311,6 @@ button:active { transform: scale(0.97); }
       else n += await countRecursive(entry);
     }
     return n;
-  }
-
-  /** Parse JSONL text into array of objects. */
-  function parseJsonl(text) {
-    if (!text) return [];
-    var lines = text.split(/\r?\n/).filter(function (l) { return l.trim(); });
-    var results = [];
-    for (var i = 0; i < lines.length; i++) {
-      try { results.push(JSON.parse(lines[i])); }
-      catch (_) { /* skip malformed lines */ }
-    }
-    return results;
-  }
-
-  /** Extract markdown sections (## heading) from body text. */
-  function extractSections(body) {
-    var sections = {};
-    var current = null;
-    var lines = body.split(/\r?\n/);
-    for (var i = 0; i < lines.length; i++) {
-      var hm = lines[i].match(/^##\s+(.+)/);
-      if (hm) {
-        current = hm[1].trim();
-        sections[current] = '';
-      } else if (current !== null) {
-        sections[current] += lines[i] + '\n';
-      }
-    }
-    return sections;
   }
 
   /* ── state ─────────────────────────────────────────── */
@@ -502,12 +478,8 @@ button:active { transform: scale(0.97); }
       if (raw) totalAccess += parseJsonl(raw).length;
     }
 
-    // Maturity stage (try to read system-maturity.md)
-    var maturity = await readFile(rootHandle, 'core/governance/system-maturity.md');
-    var stage = 'Unknown';
-    if (sessionCount < 20) stage = 'Exploration';
-    else if (sessionCount < 80) stage = 'Calibration';
-    else stage = 'Maturity';
+    var initConfig = await readFile(rootHandle, 'core/INIT.md');
+    var stage = parseCurrentStage(initConfig);
 
     var frag = document.createDocumentFragment();
 
