@@ -41,6 +41,10 @@
   --color-warn: #e0b94e;
   --color-danger: #d35f4a;
 
+  /* ── Buttons ────────────────────────────────────────── */
+  --color-btn-primary: #4a6b52;
+  --color-btn-primary-hover: #5a7d62;
+
   /* ── Shape ─────────────────────────────────────────── */
   --radius-card: 12px;
   --radius-button: 8px;
@@ -87,6 +91,13 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* ── Scrollbars ──────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,245,230,0.10); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,245,230,0.18); }
+* { scrollbar-width: thin; scrollbar-color: rgba(255,245,230,0.10) transparent; }
 
 /* ── Page title ──────────────────────────────────────── */
 h1 {
