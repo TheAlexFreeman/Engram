@@ -18,6 +18,22 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-23] Views styling polish, design tokens, and documentation
+
+**Changed:** Introduced CSS custom properties (`:root` design tokens) in `engram-shared.css` for the full color palette, border radii, shadow tokens, and monospace font stack — replacing ~60 hardcoded hex values scattered across four HTML files. Added subtle box-shadows to all card/panel components (`--shadow-card` resting, `--shadow-hover` on interactive lift). Fixed inconsistent inline-code styling: removed the pink `color: #e11d48` in knowledge.html, unified code background to `--color-code-bg` across all pages, added shared `code` rule with monospace font stack. Added 🧠 SVG favicon to all four HTML pages. Added "View all →" link to the Knowledge Base panel header in dashboard.html (was missing — projects panel already had one). Expanded `HUMANS/README.md` from a 2-line stub to a full file inventory, architecture overview, and navigation diagram for the views. Updated `HUMANS/docs/QUICKSTART.md` to mention knowledge and project viewers.
+
+**Reasoning:** The four viewer pages had diverged in styling conventions — hardcoded colors, inconsistent code block treatment (knowledge used pink text, projects used a different background, dashboard had yet another), and no shared shadow/depth system. CSS custom properties establish a single source of truth that makes future theming (e.g. dark mode) trivial. The documentation gap meant neither humans nor agents knew the views existed or how they related to each other.
+
+**Approved by:** agent (pending review)
+
+## [2026-03-23] Projects dashboard and knowledge cross-reference navigation
+
+**Changed:** Added `HUMANS/views/projects.html` — standalone project viewer with card-based list and full detail view (metadata bar, focus callout, collapsible question cards, YAML plan timeline with phase indicators, inline notes viewer). Added click-through navigation from the dashboard projects panel to projects.html. Added cross-reference navigation to knowledge.html: clickable `related:` frontmatter entries, inline markdown links to other knowledge files, and backtick file references. Updated dashboard.html with "View all →" link in the projects panel header and clickable project rows.
+
+**Reasoning:** The dashboard provided a summary of projects and knowledge but no way to drill into detail. The projects viewer enables browsing the full project tree (questions, plans, notes) without needing an agent session. Cross-reference navigation in the knowledge viewer surfaces connections between knowledge files that were previously invisible to users.
+
+**Approved by:** agent (pending review)
+
 ## [2026-03-23] Browser dashboard for memory repo
 
 **Changed:** Added `HUMANS/views/dashboard.html` — a read-only browser-based dashboard that uses the File System Access API to display the state of a local memory repository. Panels: User Portrait, System Health (session/knowledge/skill/project counts, ACCESS entry stats, maturity stage), Active Projects, Recent Activity, Knowledge Base domain map, Scratchpad, and Skills. Also added a dashboard link to the setup wizard's output step so users discover it after onboarding.

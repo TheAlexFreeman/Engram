@@ -38,6 +38,12 @@ bash setup.sh
 
 Open `setup.html` in any browser. It redirects to the local starter-file generator in `HUMANS/views/setup.html`: optional personal context, starter profile, and platform instructions. Git remote setup stays manual. Nothing is uploaded — everything runs locally.
 
+After setup, additional browser views are available in `HUMANS/views/` (Chrome, Edge, Brave, or Arc required):
+
+- **`dashboard.html`** — read-only overview of your memory repo: system health, projects, knowledge, activity, scratchpad, and skills.
+- **`knowledge.html`** — browse knowledge files by domain with cross-reference navigation.
+- **`projects.html`** — browse projects with questions, plan timelines, and notes.
+
 ---
 
 `setup.sh` can:
