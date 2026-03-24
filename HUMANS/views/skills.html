@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Engram &#8212; Users</title>
+<title>Engram &#8212; Skills</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,16 +11,16 @@
 <link rel="stylesheet" href="engram-shared.css">
 <style>
 /* ── Layout ──────────────────────────────────────────── */
-.users-header {
+.skills-header {
   background: var(--dark-bg); color: var(--dark-text);
   padding: var(--space-lg) var(--space-lg) var(--space-md);
 }
-.users-header h1 { color: #fff; }
-.users-header .subtitle { color: var(--dark-text-muted); }
-.users-header .nav-link { color: var(--dark-text-muted); }
-.users-header .nav-link:hover { color: #fff; }
+.skills-header h1 { color: #fff; }
+.skills-header .subtitle { color: var(--dark-text-muted); }
+.skills-header .nav-link { color: var(--dark-text-muted); }
+.skills-header .nav-link:hover { color: #fff; }
 
-.users-body {
+.skills-body {
   max-width: 1020px; margin: 0 auto;
   padding: var(--space-lg);
 }
@@ -51,13 +51,13 @@ button:active { transform: scale(0.97); }
 .btn-secondary { background: rgba(255,255,255,0.1); color: var(--dark-text); border: 1px solid var(--dark-border); }
 .btn-secondary:hover { background: rgba(255,255,255,0.15); }
 
-/* ── User list cards ─────────────────────────────────── */
-.user-cards {
+/* ── Skill list cards ────────────────────────────────── */
+.skill-cards {
   display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);
 }
-@media (max-width: 700px) { .user-cards { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .skill-cards { grid-template-columns: 1fr; } }
 
-.user-card {
+.skill-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-card);
@@ -66,37 +66,51 @@ button:active { transform: scale(0.97); }
   box-shadow: var(--shadow-card);
   transition: box-shadow var(--duration) var(--ease), transform var(--duration) var(--ease);
 }
-.user-card:hover {
+.skill-card:hover {
   box-shadow: var(--shadow-hover);
   transform: translateY(-2px);
 }
-.user-card .card-top {
+.skill-card .card-top {
   display: flex; align-items: center; gap: 0.5rem;
   margin-bottom: 0.35rem;
 }
-.user-card .card-avatar {
-  width: 36px; height: 36px; border-radius: 50%;
-  background: var(--color-hover-bg); border: 2px solid var(--color-border);
+.skill-card .card-icon {
+  width: 32px; height: 32px; border-radius: var(--radius-button);
+  background: var(--color-hover-bg); border: 1px solid var(--color-border);
   display: flex; align-items: center; justify-content: center;
   font-size: 1rem; flex-shrink: 0;
 }
-.user-card .card-name {
-  font-weight: 600; font-size: var(--text-base);
+.skill-card .card-name {
+  font-weight: 600; font-size: var(--text-base); flex: 1;
 }
-.user-card .card-role {
+.skill-card .card-desc {
   font-size: var(--text-sm); color: var(--color-text-secondary); line-height: 1.5;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.user-card .card-footer {
+.skill-card .card-footer {
   display: flex; align-items: center; gap: 0.5rem;
   margin-top: 0.6rem; font-size: var(--text-xs); color: var(--color-text-muted);
   flex-wrap: wrap;
 }
-.user-card .card-footer .tag {
+.skill-card .card-footer .tag {
   display: inline-block; padding: 0.1rem 0.4rem;
   border-radius: var(--radius-pill); font-size: var(--text-xs);
   background: rgba(255,245,230,0.06); border: 1px solid var(--color-border);
+}
+.skill-card.archived {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+/* ── Archive section ─────────────────────────────────── */
+.archive-section {
+  margin-top: var(--space-lg);
+}
+.archive-section h3 {
+  font-size: var(--text-sm); color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  margin-bottom: var(--space-sm);
 }
 
 /* ── Breadcrumb ──────────────────────────────────────── */
@@ -112,22 +126,43 @@ button:active { transform: scale(0.97); }
 .detail-breadcrumb .sep { color: var(--color-text-faint); }
 .detail-breadcrumb .current { font-weight: 600; color: var(--color-text); }
 
-/* ── User detail ─────────────────────────────────────── */
-.user-detail-header {
+/* ── Skill detail header ─────────────────────────────── */
+.skill-detail-header {
   display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap;
   margin-bottom: var(--space-sm);
 }
-.user-detail-header .avatar-lg {
-  width: 48px; height: 48px; border-radius: 50%;
-  background: var(--color-hover-bg); border: 2px solid var(--color-border);
+.skill-detail-header .icon-lg {
+  width: 44px; height: 44px; border-radius: var(--radius-button);
+  background: var(--color-hover-bg); border: 1px solid var(--color-border);
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.5rem; flex-shrink: 0;
+  font-size: 1.3rem; flex-shrink: 0;
 }
-.user-detail-header h2 {
+.skill-detail-header h2 {
   font-size: var(--text-xl); margin: 0; font-weight: 700; letter-spacing: -0.01em;
 }
 
-.user-summary {
+/* ── Meta grid ───────────────────────────────────────── */
+.skill-meta {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--space-sm) var(--space-md);
+  font-size: var(--text-sm); color: var(--color-text-secondary);
+  margin-bottom: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+.skill-meta .meta-item {
+  display: flex; flex-direction: column; gap: 0.15rem;
+}
+.skill-meta .meta-label {
+  font-weight: 600; color: var(--color-text-muted);
+  font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+/* ── Trigger box ─────────────────────────────────────── */
+.skill-trigger {
   font-size: var(--text-base); color: var(--color-text-secondary);
   padding: 0.6rem 0.85rem;
   background: var(--color-hover-bg);
@@ -135,49 +170,6 @@ button:active { transform: scale(0.97); }
   border-radius: 0 var(--radius-button) var(--radius-button) 0;
   margin-bottom: var(--space-lg);
   line-height: 1.65;
-}
-
-/* ── Detail grid (sidebar + content) ─────────────────── */
-.detail-grid {
-  display: grid; grid-template-columns: 260px 1fr; gap: 1.5rem;
-  min-height: 400px;
-}
-@media (max-width: 700px) { .detail-grid { grid-template-columns: 1fr; } }
-
-/* ── Sidebar ─────────────────────────────────────────── */
-.detail-sidebar {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-card);
-  overflow: hidden; box-shadow: var(--shadow-card);
-}
-.detail-sidebar .sidebar-header {
-  padding: 0.65rem 0.9rem;
-  border-bottom: 1px solid var(--color-border-light);
-  font-size: var(--text-sm); font-weight: 600;
-}
-.detail-sidebar .sidebar-body {
-  padding: 0; max-height: 500px; overflow-y: auto;
-}
-.detail-sidebar .sidebar-body ul {
-  list-style: none; padding: 0; margin: 0;
-}
-.detail-sidebar .sidebar-body li {
-  font-size: var(--text-sm); cursor: pointer;
-  padding: 0.45rem 0.9rem;
-  border-bottom: 1px solid var(--color-border-fine);
-  transition: background var(--duration) var(--ease);
-  display: flex; align-items: center; gap: 0.4rem;
-}
-.detail-sidebar .sidebar-body li:hover { background: var(--color-bg); }
-.detail-sidebar .sidebar-body li.active {
-  background: var(--color-active-bg);
-  border-left: 3px solid var(--color-primary);
-  font-weight: 600;
-}
-.detail-sidebar .sidebar-body li .icon { font-size: 0.85rem; flex-shrink: 0; }
-.detail-sidebar .sidebar-body li .file-trust {
-  margin-left: auto; flex-shrink: 0;
 }
 
 /* ── Content panel ───────────────────────────────────── */
@@ -193,22 +185,9 @@ button:active { transform: scale(0.97); }
   font-size: var(--text-sm); font-weight: 600;
   display: flex; align-items: center; gap: 0.5rem;
 }
-.detail-content .content-meta {
-  padding: 0.55rem 0.9rem;
-  border-bottom: 1px solid var(--color-border-fine);
-  display: flex; gap: 0.75rem; flex-wrap: wrap;
-  font-size: var(--text-xs); color: var(--color-text-secondary);
-}
-.detail-content .content-meta .meta-item {
-  display: flex; align-items: center; gap: 0.25rem;
-}
-.detail-content .content-meta .meta-label {
-  font-weight: 600; color: var(--color-text-muted);
-  text-transform: uppercase; letter-spacing: 0.04em;
-}
 .detail-content .content-body {
   padding: 1.15rem 1.25rem;
-  max-height: 560px; overflow-y: auto;
+  max-height: 600px; overflow-y: auto;
   font-size: var(--text-base); line-height: 1.75;
 }
 .detail-content .content-body h1,
@@ -257,6 +236,18 @@ button:active { transform: scale(0.97); }
 .detail-content .content-body a:hover {
   color: var(--color-primary-hover); text-decoration: underline;
 }
+.detail-content .content-body table {
+  width: 100%; border-collapse: collapse; margin-bottom: 0.85rem;
+}
+.detail-content .content-body th,
+.detail-content .content-body td {
+  text-align: left; padding: 0.45rem 0.6rem;
+  font-size: var(--text-sm); border-bottom: 1px solid var(--color-border-fine);
+}
+.detail-content .content-body th {
+  font-weight: 600; color: var(--color-text-muted);
+  font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em;
+}
 
 /* ── Placeholder ─────────────────────────────────────── */
 .placeholder {
@@ -269,15 +260,15 @@ button:active { transform: scale(0.97); }
 </head>
 <body>
 
-<div class="users-header">
+<div class="skills-header">
   <div style="max-width:1020px;margin:0 auto;">
-    <h1>&#128100; Users</h1>
-    <p class="subtitle">People known to Engram &#8212; profiles, interests, and working patterns.</p>
+    <h1>&#128295; Skills</h1>
+    <p class="subtitle">Procedural knowledge &#8212; how the agent performs specific tasks.</p>
     <div class="toolbar">
       <a href="dashboard.html" class="nav-link">&#8592; Dashboard</a>
       <a href="knowledge.html" class="nav-link" style="margin-left:0.5rem">Knowledge</a>
       <a href="projects.html" class="nav-link" style="margin-left:0.5rem">Projects</a>
-      <a href="skills.html" class="nav-link" style="margin-left:0.5rem">Skills</a>
+      <a href="users.html" class="nav-link" style="margin-left:0.5rem">Users</a>
       <button class="btn-primary" id="open-btn" onclick="openFolder()">Open Memory Repo</button>
       <button class="btn-secondary" id="refresh-btn" onclick="refresh()" style="display:none">Refresh</button>
       <span class="status" id="status-bar">
@@ -287,13 +278,13 @@ button:active { transform: scale(0.97); }
   </div>
 </div>
 
-<div class="users-body">
+<div class="skills-body">
 
 <div class="error-banner" id="error-banner"></div>
 
 <!-- placeholder before folder is loaded -->
 <div class="placeholder" id="placeholder">
-  <div class="icon">&#128100;</div>
+  <div class="icon">&#128295;</div>
   <p>Click <strong>Open Memory Repo</strong> to load your Engram folder.<br>
   The viewer reads files locally using your browser &#8212; nothing leaves your machine.</p>
   <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--color-text-faint)">Requires a Chromium-based browser (Chrome, Edge, Brave, Arc).</p>
@@ -301,30 +292,26 @@ button:active { transform: scale(0.97); }
 
 <!-- list view -->
 <div id="list-view" style="display:none">
-  <div class="user-cards" id="user-cards"></div>
+  <div class="skill-cards" id="skill-cards"></div>
+  <div class="archive-section" id="archive-section" style="display:none">
+    <h3>&#128451; Archived</h3>
+    <div class="skill-cards" id="archive-cards"></div>
+  </div>
 </div>
 
 <!-- detail view -->
 <div id="detail-view" style="display:none">
   <div class="detail-breadcrumb" id="breadcrumb"></div>
-  <div class="user-detail-header" id="detail-header"></div>
-  <div class="user-summary" id="detail-summary" style="display:none"></div>
-  <div class="detail-grid">
-    <div class="detail-sidebar">
-      <div class="sidebar-header">&#128196; User Files</div>
-      <div class="sidebar-body"><ul id="sidebar-list"></ul></div>
-    </div>
-    <div class="detail-content">
-      <div class="content-header" id="content-header">Select a file</div>
-      <div class="content-meta" id="content-meta" style="display:none"></div>
-      <div class="content-body" id="content-body">
-        <p style="color:var(--color-text-muted)">Choose a file from the sidebar to view its contents.</p>
-      </div>
-    </div>
+  <div class="skill-detail-header" id="detail-header"></div>
+  <div class="skill-meta" id="detail-meta" style="display:none"></div>
+  <div class="skill-trigger" id="detail-trigger" style="display:none"></div>
+  <div class="detail-content">
+    <div class="content-header" id="content-header">Skill Details</div>
+    <div class="content-body" id="content-body"></div>
   </div>
 </div>
 
-</div><!-- /users-body -->
+</div><!-- /skills-body -->
 
 <noscript><p style="text-align:center;margin-top:3rem;color:#f87171;">JavaScript is required for this page.</p></noscript>
 
@@ -347,9 +334,21 @@ button:active { transform: scale(0.97); }
   var rootHandle = null;
 
   /* ── State ───────────────────────────────────────── */
-  var usersData = [];       // [{name, dir, files, summaryLine}]
-  var currentUser = null;   // selected user object
-  var currentFile = null;   // selected filename
+  var skillsData = [];      // [{name, fileName, desc, meta, archived}]
+  var currentSkill = null;  // selected skill object
+
+  /* ── Icon map by skill name ──────────────────────── */
+  var iconMap = {
+    'onboarding': '&#128075;',
+    'session-start': '&#9654;',
+    'session-sync': '&#128260;',
+    'session-wrapup': '&#127937;',
+    'codebase-survey': '&#128269;'
+  };
+
+  function getIcon(name) {
+    return iconMap[name] || '&#128295;';
+  }
 
   /* ── Status bar ──────────────────────────────────── */
   function setStatus(connected, text) {
@@ -391,7 +390,7 @@ button:active { transform: scale(0.97); }
         rootHandle = saved;
         await loadData();
       }
-    } catch (_) { /* permission denied or handle expired */ }
+    } catch (_) {}
   }
 
   /* ── Main data loader ────────────────────────────── */
@@ -402,124 +401,180 @@ button:active { transform: scale(0.97); }
     document.getElementById('refresh-btn').style.display = '';
 
     try {
-      await discoverUsers();
-      if (currentUser) {
-        showDetailView(currentUser.name);
+      await discoverSkills();
+      if (currentSkill) {
+        showDetailView(currentSkill.fileName, currentSkill.archived);
       } else {
         showListView();
       }
     } catch (err) {
-      showError('Error loading users: ' + err.message);
+      showError('Error loading skills: ' + err.message);
     }
   }
 
-  /* ── Discover users from core/memory/users/ ──────── */
-  async function discoverUsers() {
-    var listing = await listDir(rootHandle, 'core/memory/users');
-    var summaryText = await readFile(rootHandle, 'core/memory/users/SUMMARY.md') || '';
+  /* ── Discover skills from core/memory/skills/ ────── */
+  async function discoverSkills() {
+    var listing = await listDir(rootHandle, 'core/memory/skills');
+    var archiveListing = await listDir(rootHandle, 'core/memory/skills/_archive');
 
-    usersData = [];
-    for (var i = 0; i < listing.dirs.length; i++) {
-      var dirName = listing.dirs[i];
-      if (dirName.startsWith('_')) continue;
+    // Read SUMMARY.md for descriptions
+    var summaryText = await readFile(rootHandle, 'core/memory/skills/SUMMARY.md') || '';
+    var summaryDescs = parseSummaryDescriptions(summaryText);
 
-      var userFiles = await listDir(rootHandle, 'core/memory/users/' + dirName);
-      var mdFiles = userFiles.files.filter(function (f) { return f.endsWith('.md'); });
+    skillsData = [];
 
-      // Extract one-line summary from SUMMARY.md
-      var summaryLine = '';
-      var lines = summaryText.split(/\r?\n/);
-      for (var j = 0; j < lines.length; j++) {
-        if (lines[j].indexOf(dirName) >= 0 && lines[j].match(/^\d+\.|^-|^###/)) {
-          // Grab the meaningful description line
-          var cleaned = lines[j].replace(/^[\d.]+\s*/, '').replace(/^-\s*/, '').replace(/^###\s*/, '').trim();
-          if (cleaned.length > 10) { summaryLine = cleaned; break; }
-        }
-      }
+    // Active skills
+    var mdFiles = listing.files.filter(function (f) {
+      return f.endsWith('.md') && f !== 'SUMMARY.md';
+    });
 
-      // Try to get a richer summary from profile.md frontmatter and first paragraph
-      var profileText = await readFile(rootHandle, 'core/memory/users/' + dirName + '/profile.md');
-      var profileSnippet = '';
-      var profileMeta = {};
-      if (profileText) {
-        var parsed = parseFrontmatter(profileText);
-        if (parsed.frontmatter) profileMeta = parseFlatYaml(parsed.frontmatter);
-        // Grab first non-heading, non-empty paragraph
-        var bodyLines = parsed.body.split(/\r?\n/);
-        for (var k = 0; k < bodyLines.length; k++) {
-          var line = bodyLines[k].trim();
-          if (line && !line.startsWith('#') && !line.startsWith('---') && line.length > 15) {
-            profileSnippet = line.replace(/^-\s*/, '').replace(/\[.*?\]/g, '');
-            break;
-          }
-        }
-      }
+    for (var i = 0; i < mdFiles.length; i++) {
+      var fileName = mdFiles[i];
+      var text = await readFile(rootHandle, 'core/memory/skills/' + fileName);
+      var parsed = parseFrontmatter(text || '');
+      var meta = parsed.frontmatter ? parseFlatYaml(parsed.frontmatter) : {};
+      var baseName = fileName.replace(/\.md$/, '');
 
-      usersData.push({
-        name: dirName,
-        files: mdFiles,
-        summaryLine: summaryLine,
-        profileSnippet: profileSnippet,
-        profileMeta: profileMeta
+      // Extract trigger / "When to use" section
+      var trigger = extractTrigger(parsed.body);
+      var desc = summaryDescs[baseName] || trigger || '';
+
+      skillsData.push({
+        name: baseName,
+        fileName: fileName,
+        desc: desc,
+        trigger: trigger,
+        meta: meta,
+        body: parsed.body,
+        archived: false
+      });
+    }
+
+    // Archived skills
+    var archiveFiles = archiveListing.files.filter(function (f) { return f.endsWith('.md'); });
+    for (var j = 0; j < archiveFiles.length; j++) {
+      var aFileName = archiveFiles[j];
+      var aText = await readFile(rootHandle, 'core/memory/skills/_archive/' + aFileName);
+      var aParsed = parseFrontmatter(aText || '');
+      var aMeta = aParsed.frontmatter ? parseFlatYaml(aParsed.frontmatter) : {};
+      var aBaseName = aFileName.replace(/\.md$/, '');
+
+      skillsData.push({
+        name: aBaseName,
+        fileName: aFileName,
+        desc: aMeta.superseded_by ? 'Superseded by ' + aMeta.superseded_by.split('/').pop() : '',
+        trigger: extractTrigger(aParsed.body),
+        meta: aMeta,
+        body: aParsed.body,
+        archived: true
       });
     }
   }
 
+  /* ── Parse SUMMARY.md for skill descriptions ─────── */
+  function parseSummaryDescriptions(text) {
+    var descs = {};
+    var lines = text.split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      // Match: - **[name.md](name.md)** — description
+      var m = lines[i].match(/\*\*\[([^\]]+)\]\([^)]+\)\*\*\s*[—–-]\s*(.+)/);
+      if (m) {
+        var key = m[1].replace(/\.md$/, '');
+        descs[key] = m[2].trim();
+      }
+    }
+    return descs;
+  }
+
+  /* ── Extract "When to use" trigger from body ─────── */
+  function extractTrigger(body) {
+    if (!body) return '';
+    var m = body.match(/## When to use[^\n]*\n\n([\s\S]*?)(?=\n## |\n---|\n$)/);
+    if (m) {
+      // Get first meaningful paragraph
+      var lines = m[1].trim().split(/\n\n/);
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (line && !line.startsWith('#') && line.length > 15) {
+          return line.replace(/\n/g, ' ').substring(0, 200);
+        }
+      }
+    }
+    return '';
+  }
+
   /* ── List view ───────────────────────────────────── */
   function showListView() {
-    currentUser = null;
-    currentFile = null;
+    currentSkill = null;
     document.getElementById('placeholder').style.display = 'none';
     document.getElementById('list-view').style.display = '';
     document.getElementById('detail-view').style.display = 'none';
 
-    var container = document.getElementById('user-cards');
+    var container = document.getElementById('skill-cards');
+    var archiveContainer = document.getElementById('archive-cards');
     container.innerHTML = '';
+    archiveContainer.innerHTML = '';
 
-    if (usersData.length === 0) {
-      container.innerHTML = '<div class="placeholder"><div class="icon">&#128100;</div><p>No user profiles found in <code>core/memory/users/</code>.</p></div>';
+    var active = skillsData.filter(function (s) { return !s.archived; });
+    var archived = skillsData.filter(function (s) { return s.archived; });
+
+    if (active.length === 0 && archived.length === 0) {
+      container.innerHTML = '<div class="placeholder"><div class="icon">&#128295;</div><p>No skills found in <code>core/memory/skills/</code>.</p></div>';
       return;
     }
 
-    for (var i = 0; i < usersData.length; i++) {
-      var u = usersData[i];
-      var card = document.createElement('div');
-      card.className = 'user-card';
-      card.setAttribute('data-user', u.name);
+    for (var i = 0; i < active.length; i++) {
+      container.appendChild(buildCard(active[i]));
+    }
 
-      var initial = u.name.charAt(0).toUpperCase();
-      var trust = u.profileMeta.trust || '';
-      var trustClass = trust === 'high' ? 'badge-high' : trust === 'medium' ? 'badge-medium' : '';
-
-      card.innerHTML =
-        '<div class="card-top">' +
-          '<div class="card-avatar">' + initial + '</div>' +
-          '<span class="card-name">' + escapeHtml(u.name) + '</span>' +
-          (trustClass ? '<span class="badge ' + trustClass + '">' + escapeHtml(trust) + '</span>' : '') +
-        '</div>' +
-        '<div class="card-role">' + escapeHtml(u.profileSnippet || u.summaryLine || 'No description available.') + '</div>' +
-        '<div class="card-footer">' +
-          '<span>&#128196; ' + u.files.length + ' file' + (u.files.length !== 1 ? 's' : '') + '</span>' +
-          (u.profileMeta.created ? '<span class="tag">since ' + escapeHtml(u.profileMeta.created) + '</span>' : '') +
-        '</div>';
-
-      card.addEventListener('click', (function (name) {
-        return function () { showDetailView(name); };
-      })(u.name));
-
-      container.appendChild(card);
+    if (archived.length > 0) {
+      document.getElementById('archive-section').style.display = '';
+      for (var j = 0; j < archived.length; j++) {
+        archiveContainer.appendChild(buildCard(archived[j]));
+      }
+    } else {
+      document.getElementById('archive-section').style.display = 'none';
     }
   }
 
-  /* ── Detail view ─────────────────────────────────── */
-  function showDetailView(userName) {
-    var user = null;
-    for (var i = 0; i < usersData.length; i++) {
-      if (usersData[i].name === userName) { user = usersData[i]; break; }
-    }
-    if (!user) return;
+  function buildCard(skill) {
+    var card = document.createElement('div');
+    card.className = 'skill-card' + (skill.archived ? ' archived' : '');
 
-    currentUser = user;
+    var trust = skill.meta.trust || '';
+    var trustClass = trust === 'high' ? 'badge-high' : trust === 'medium' ? 'badge-medium' : trust === 'low' ? 'badge-low' : '';
+
+    card.innerHTML =
+      '<div class="card-top">' +
+        '<div class="card-icon">' + getIcon(skill.name) + '</div>' +
+        '<span class="card-name">' + escapeHtml(formatName(skill.name)) + '</span>' +
+        (trustClass ? '<span class="badge ' + trustClass + '">' + escapeHtml(trust) + '</span>' : '') +
+      '</div>' +
+      '<div class="card-desc">' + escapeHtml(skill.desc || 'No description available.') + '</div>' +
+      '<div class="card-footer">' +
+        (skill.meta.source ? '<span class="tag">' + escapeHtml(skill.meta.source) + '</span>' : '') +
+        (skill.meta.created ? '<span class="tag">created ' + escapeHtml(skill.meta.created) + '</span>' : '') +
+        (skill.archived ? '<span class="tag">archived</span>' : '') +
+      '</div>';
+
+    card.addEventListener('click', (function (s) {
+      return function () { showDetailView(s.fileName, s.archived); };
+    })(skill));
+
+    return card;
+  }
+
+  /* ── Detail view ─────────────────────────────────── */
+  function showDetailView(fileName, isArchived) {
+    var skill = null;
+    for (var i = 0; i < skillsData.length; i++) {
+      if (skillsData[i].fileName === fileName && skillsData[i].archived === isArchived) {
+        skill = skillsData[i]; break;
+      }
+    }
+    if (!skill) return;
+
+    currentSkill = skill;
     document.getElementById('placeholder').style.display = 'none';
     document.getElementById('list-view').style.display = 'none';
     document.getElementById('detail-view').style.display = '';
@@ -527,117 +582,69 @@ button:active { transform: scale(0.97); }
     // Breadcrumb
     var bc = document.getElementById('breadcrumb');
     bc.innerHTML = '';
-    var usersLink = document.createElement('a');
-    usersLink.textContent = 'Users';
-    usersLink.addEventListener('click', function () { showListView(); });
-    bc.appendChild(usersLink);
+    var skillsLink = document.createElement('a');
+    skillsLink.textContent = 'Skills';
+    skillsLink.addEventListener('click', function () { showListView(); });
+    bc.appendChild(skillsLink);
     bc.appendChild(el('span', ' / ', 'sep'));
-    bc.appendChild(el('span', user.name, 'current'));
+    bc.appendChild(el('span', formatName(skill.name), 'current'));
 
     // Header
     var header = document.getElementById('detail-header');
-    var initial = user.name.charAt(0).toUpperCase();
     header.innerHTML =
-      '<div class="avatar-lg">' + initial + '</div>' +
-      '<h2>' + escapeHtml(user.name) + '</h2>';
+      '<div class="icon-lg">' + getIcon(skill.name) + '</div>' +
+      '<h2>' + escapeHtml(formatName(skill.name)) + '</h2>';
 
-    // Summary
-    var summaryEl = document.getElementById('detail-summary');
-    if (user.summaryLine) {
-      summaryEl.textContent = user.summaryLine;
-      summaryEl.style.display = '';
-    } else {
-      summaryEl.style.display = 'none';
-    }
-
-    // Sidebar file list
-    var sidebar = document.getElementById('sidebar-list');
-    sidebar.innerHTML = '';
-    for (var j = 0; j < user.files.length; j++) {
-      var li = document.createElement('li');
-      li.setAttribute('data-file', user.files[j]);
-      li.innerHTML = '<span class="icon">&#128196;</span> ' + escapeHtml(formatFileName(user.files[j]));
-      li.addEventListener('click', (function (fileName) {
-        return function () { loadFile(fileName); };
-      })(user.files[j]));
-      sidebar.appendChild(li);
-    }
-
-    // Auto-select profile.md or the first file
-    var defaultFile = user.files.indexOf('profile.md') >= 0 ? 'profile.md' : user.files[0];
-    if (defaultFile) loadFile(defaultFile);
-  }
-
-  /* ── Load & render a file ────────────────────────── */
-  async function loadFile(fileName) {
-    if (!currentUser) return;
-    currentFile = fileName;
-
-    // Update sidebar active state
-    var items = document.querySelectorAll('#sidebar-list li');
-    for (var i = 0; i < items.length; i++) {
-      items[i].classList.toggle('active', items[i].getAttribute('data-file') === fileName);
-    }
-
-    // Update breadcrumb
-    var bc = document.getElementById('breadcrumb');
-    bc.innerHTML = '';
-    var usersLink = document.createElement('a');
-    usersLink.textContent = 'Users';
-    usersLink.addEventListener('click', function () { showListView(); });
-    bc.appendChild(usersLink);
-    bc.appendChild(el('span', ' / ', 'sep'));
-    var userLink = document.createElement('a');
-    userLink.textContent = currentUser.name;
-    userLink.addEventListener('click', function () { showDetailView(currentUser.name); });
-    bc.appendChild(userLink);
-    bc.appendChild(el('span', ' / ', 'sep'));
-    bc.appendChild(el('span', formatFileName(fileName), 'current'));
-
-    // Read file
-    var path = 'core/memory/users/' + currentUser.name + '/' + fileName;
-    var text = await readFile(rootHandle, path);
-    if (!text) {
-      document.getElementById('content-header').textContent = fileName;
-      document.getElementById('content-meta').style.display = 'none';
-      document.getElementById('content-body').innerHTML = '<p style="color:var(--color-text-muted)">Could not read file.</p>';
-      return;
-    }
-
-    var parsed = parseFrontmatter(text);
-    var meta = parsed.frontmatter ? parseFlatYaml(parsed.frontmatter) : {};
-
-    // Content header
-    document.getElementById('content-header').textContent = formatFileName(fileName);
-
-    // Meta bar
-    var metaEl = document.getElementById('content-meta');
+    // Meta grid
+    var metaEl = document.getElementById('detail-meta');
     metaEl.innerHTML = '';
-    var metaKeys = ['source', 'trust', 'created', 'last_verified'];
+    var metaKeys = [
+      ['source', 'Source'],
+      ['trust', 'Trust'],
+      ['created', 'Created'],
+      ['last_verified', 'Last Verified'],
+      ['status', 'Status'],
+      ['superseded_by', 'Superseded By']
+    ];
     var hasMeta = false;
     for (var k = 0; k < metaKeys.length; k++) {
-      var key = metaKeys[k];
-      if (meta[key]) {
-        hasMeta = true;
-        var item = document.createElement('span');
-        item.className = 'meta-item';
-        var label = document.createElement('span');
-        label.className = 'meta-label';
-        label.textContent = key.replace(/_/g, ' ') + ':';
-        var val = document.createElement('span');
-        if (key === 'trust') {
-          val.className = 'badge ' + (meta[key] === 'high' ? 'badge-high' : meta[key] === 'medium' ? 'badge-medium' : 'badge-low');
-        }
-        val.textContent = ' ' + meta[key];
-        item.appendChild(label);
-        item.appendChild(val);
-        metaEl.appendChild(item);
+      var key = metaKeys[k][0];
+      var label = metaKeys[k][1];
+      var val = skill.meta[key];
+      if (!val) continue;
+      hasMeta = true;
+      var item = document.createElement('div');
+      item.className = 'meta-item';
+      var labelEl = document.createElement('div');
+      labelEl.className = 'meta-label';
+      labelEl.textContent = label;
+      var valEl = document.createElement('div');
+      if (key === 'trust') {
+        valEl.className = 'badge ' + (val === 'high' ? 'badge-high' : val === 'medium' ? 'badge-medium' : 'badge-low');
       }
+      if (key === 'superseded_by') {
+        valEl.textContent = val.split('/').pop().replace(/\.md$/, '');
+      } else {
+        valEl.textContent = val;
+      }
+      item.appendChild(labelEl);
+      item.appendChild(valEl);
+      metaEl.appendChild(item);
     }
     metaEl.style.display = hasMeta ? '' : 'none';
 
-    // Render body
-    document.getElementById('content-body').innerHTML = renderMarkdown(parsed.body);
+    // Trigger
+    var triggerEl = document.getElementById('detail-trigger');
+    if (skill.trigger) {
+      triggerEl.textContent = skill.trigger;
+      triggerEl.style.display = '';
+    } else {
+      triggerEl.style.display = 'none';
+    }
+
+    // Content
+    document.getElementById('content-header').textContent = skill.fileName;
+    document.getElementById('content-body').innerHTML = renderMarkdown(skill.body || '');
   }
 
   /* ── Simple Markdown renderer ────────────────────── */
@@ -660,11 +667,29 @@ button:active { transform: scale(0.97); }
     // Inline code
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-    // Links: [text](url)
+    // Links
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
 
     // Blockquotes
     html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+    // Tables
+    html = html.replace(/((?:^\|.+\|$\n?)+)/gm, function (block) {
+      var rows = block.trim().split('\n');
+      if (rows.length < 2) return block;
+      var headers = rows[0].split('|').map(function (c) { return c.trim(); }).filter(Boolean);
+      var thtml = '<table><thead><tr>';
+      for (var h = 0; h < headers.length; h++) thtml += '<th>' + headers[h] + '</th>';
+      thtml += '</tr></thead><tbody>';
+      for (var r = 2; r < rows.length; r++) {
+        var cells = rows[r].split('|').map(function (c) { return c.trim(); }).filter(Boolean);
+        thtml += '<tr>';
+        for (var c = 0; c < cells.length; c++) thtml += '<td>' + cells[c] + '</td>';
+        thtml += '</tr>';
+      }
+      thtml += '</tbody></table>';
+      return thtml;
+    });
 
     // List items
     html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
@@ -672,12 +697,14 @@ button:active { transform: scale(0.97); }
     // Wrap consecutive <li> in <ul>
     html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
 
-    // Paragraphs: wrap remaining non-tag lines
+    // Numbered list items
+    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+    // Paragraphs
     html = html.split(/\n\n+/).map(function (block) {
       block = block.trim();
       if (!block) return '';
-      if (block.match(/^<(?:h[1-6]|ul|ol|li|blockquote|hr|pre|div)/)) return block;
-      // Don't wrap if already a block element
+      if (block.match(/^<(?:h[1-6]|ul|ol|li|blockquote|hr|pre|div|table)/)) return block;
       return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
     }).join('\n');
 
@@ -691,8 +718,8 @@ button:active { transform: scale(0.97); }
     return div.innerHTML;
   }
 
-  function formatFileName(name) {
-    return name.replace(/\.md$/, '').replace(/-/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  function formatName(name) {
+    return name.replace(/-/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   }
 
   /* ── Boot ────────────────────────────────────────── */
