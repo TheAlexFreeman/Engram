@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Engram &#8212; Users</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="engram-shared.css">
+<style>
+/* ── Layout ──────────────────────────────────────────── */
+.users-header {
+  background: var(--dark-bg); color: var(--dark-text);
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+}
+.users-header h1 { color: #fff; }
+.users-header .subtitle { color: var(--dark-text-muted); }
+.users-header .nav-link { color: var(--dark-text-muted); }
+.users-header .nav-link:hover { color: #fff; }
+
+.users-body {
+  max-width: 1020px; margin: 0 auto;
+  padding: var(--space-lg);
+}
+
+/* ── Toolbar ─────────────────────────────────────────── */
+.toolbar {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+}
+.toolbar .status {
+  font-size: var(--text-sm); color: var(--dark-text-muted); margin-left: auto;
+}
+.toolbar .status .dot {
+  display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; margin-right: 4px; vertical-align: middle;
+}
+.toolbar .status .dot.connected { background: var(--color-ok); }
+.toolbar .status .dot.disconnected { background: var(--color-warn); }
+
+/* ── Buttons ─────────────────────────────────────────── */
+button {
+  padding: 0.5rem 1.25rem; border: none; border-radius: var(--radius-button);
+  font-size: var(--text-base); font-family: inherit; cursor: pointer;
+  transition: background var(--duration) var(--ease), transform var(--duration) var(--ease);
+}
+button:active { transform: scale(0.97); }
+.btn-primary { background: var(--color-primary); color: #fff; }
+.btn-primary:hover { background: var(--color-primary-hover); }
+.btn-secondary { background: rgba(255,255,255,0.1); color: var(--dark-text); border: 1px solid var(--dark-border); }
+.btn-secondary:hover { background: rgba(255,255,255,0.15); }
+
+/* ── User list cards ─────────────────────────────────── */
+.user-cards {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);
+}
+@media (max-width: 700px) { .user-cards { grid-template-columns: 1fr; } }
+
+.user-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  padding: var(--space-md) calc(var(--space-md) * 1.1);
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--duration) var(--ease), transform var(--duration) var(--ease);
+}
+.user-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+.user-card .card-top {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+.user-card .card-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--color-hover-bg); border: 2px solid var(--color-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; flex-shrink: 0;
+}
+.user-card .card-name {
+  font-weight: 600; font-size: var(--text-base);
+}
+.user-card .card-role {
+  font-size: var(--text-sm); color: var(--color-text-secondary); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.user-card .card-footer {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-top: 0.6rem; font-size: var(--text-xs); color: var(--color-text-muted);
+  flex-wrap: wrap;
+}
+.user-card .card-footer .tag {
+  display: inline-block; padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-pill); font-size: var(--text-xs);
+  background: rgba(255,245,230,0.06); border: 1px solid var(--color-border);
+}
+
+/* ── Breadcrumb ──────────────────────────────────────── */
+.detail-breadcrumb {
+  display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+  font-size: var(--text-sm); margin-bottom: var(--space-md);
+}
+.detail-breadcrumb a {
+  color: var(--color-primary); text-decoration: none; cursor: pointer;
+  font-weight: 500;
+}
+.detail-breadcrumb a:hover { color: var(--color-primary-hover); }
+.detail-breadcrumb .sep { color: var(--color-text-faint); }
+.detail-breadcrumb .current { font-weight: 600; color: var(--color-text); }
+
+/* ── User detail ─────────────────────────────────────── */
+.user-detail-header {
+  display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
+}
+.user-detail-header .avatar-lg {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--color-hover-bg); border: 2px solid var(--color-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; flex-shrink: 0;
+}
+.user-detail-header h2 {
+  font-size: var(--text-xl); margin: 0; font-weight: 700; letter-spacing: -0.01em;
+}
+
+.user-summary {
+  font-size: var(--text-base); color: var(--color-text-secondary);
+  padding: 0.6rem 0.85rem;
+  background: var(--color-hover-bg);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 0 var(--radius-button) var(--radius-button) 0;
+  margin-bottom: var(--space-lg);
+  line-height: 1.65;
+}
+
+/* ── Detail grid (sidebar + content) ─────────────────── */
+.detail-grid {
+  display: grid; grid-template-columns: 260px 1fr; gap: 1.5rem;
+  min-height: 400px;
+}
+@media (max-width: 700px) { .detail-grid { grid-template-columns: 1fr; } }
+
+/* ── Sidebar ─────────────────────────────────────────── */
+.detail-sidebar {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  overflow: hidden; box-shadow: var(--shadow-card);
+}
+.detail-sidebar .sidebar-header {
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: var(--text-sm); font-weight: 600;
+}
+.detail-sidebar .sidebar-body {
+  padding: 0; max-height: 500px; overflow-y: auto;
+}
+.detail-sidebar .sidebar-body ul {
+  list-style: none; padding: 0; margin: 0;
+}
+.detail-sidebar .sidebar-body li {
+  font-size: var(--text-sm); cursor: pointer;
+  padding: 0.45rem 0.9rem;
+  border-bottom: 1px solid var(--color-border-fine);
+  transition: background var(--duration) var(--ease);
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.detail-sidebar .sidebar-body li:hover { background: var(--color-bg); }
+.detail-sidebar .sidebar-body li.active {
+  background: var(--color-active-bg);
+  border-left: 3px solid var(--color-primary);
+  font-weight: 600;
+}
+.detail-sidebar .sidebar-body li .icon { font-size: 0.85rem; flex-shrink: 0; }
+.detail-sidebar .sidebar-body li .file-trust {
+  margin-left: auto; flex-shrink: 0;
+}
+
+/* ── Content panel ───────────────────────────────────── */
+.detail-content {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  overflow: hidden; box-shadow: var(--shadow-card);
+}
+.detail-content .content-header {
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: var(--text-sm); font-weight: 600;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.detail-content .content-meta {
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--color-border-fine);
+  display: flex; gap: 0.75rem; flex-wrap: wrap;
+  font-size: var(--text-xs); color: var(--color-text-secondary);
+}
+.detail-content .content-meta .meta-item {
+  display: flex; align-items: center; gap: 0.25rem;
+}
+.detail-content .content-meta .meta-label {
+  font-weight: 600; color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.detail-content .content-body {
+  padding: 1.15rem 1.25rem;
+  max-height: 560px; overflow-y: auto;
+  font-size: var(--text-base); line-height: 1.75;
+}
+.detail-content .content-body h1,
+.detail-content .content-body h2,
+.detail-content .content-body h3 {
+  margin-top: 1.5rem; margin-bottom: 0.5rem;
+  font-weight: 700; letter-spacing: -0.01em;
+}
+.detail-content .content-body h1 { font-size: var(--text-xl); }
+.detail-content .content-body h2 { font-size: var(--text-lg); border-bottom: 1px solid var(--color-border-fine); padding-bottom: 0.25rem; }
+.detail-content .content-body h3 { font-size: var(--text-base); color: var(--color-text-secondary); }
+.detail-content .content-body p { margin-bottom: 0.85rem; }
+.detail-content .content-body ul,
+.detail-content .content-body ol {
+  margin-bottom: 0.85rem; padding-left: 1.25rem;
+}
+.detail-content .content-body li { margin-bottom: 0.3rem; }
+.detail-content .content-body blockquote {
+  margin: 0.75rem 0; padding: 0.5rem 0.85rem;
+  border-left: 3px solid var(--color-primary);
+  background: var(--color-hover-bg);
+  border-radius: 0 var(--radius-small) var(--radius-small) 0;
+  color: var(--color-text-secondary);
+}
+.detail-content .content-body code {
+  font-family: var(--font-mono); font-size: 0.88em;
+  background: var(--color-code-bg); padding: 0.1em 0.35em;
+  border-radius: var(--radius-small);
+}
+.detail-content .content-body pre {
+  background: #0d1117; color: #e6edf3;
+  padding: 0.85rem 1rem; border-radius: var(--radius-button);
+  overflow-x: auto; margin-bottom: 0.85rem;
+  font-size: var(--text-sm); line-height: 1.6;
+}
+.detail-content .content-body pre code {
+  background: none; padding: 0;
+}
+.detail-content .content-body hr {
+  border: none; border-top: 1px solid var(--color-border-fine);
+  margin: 1.25rem 0;
+}
+.detail-content .content-body a {
+  color: var(--color-primary); text-decoration: none;
+}
+.detail-content .content-body a:hover {
+  color: var(--color-primary-hover); text-decoration: underline;
+}
+
+/* ── Placeholder ─────────────────────────────────────── */
+.placeholder {
+  text-align: center; padding: var(--space-xl) var(--space-lg);
+  color: var(--color-text-muted);
+}
+.placeholder .icon { font-size: 3rem; margin-bottom: var(--space-sm); }
+.placeholder p { max-width: 420px; margin: 0 auto; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<div class="users-header">
+  <div style="max-width:1020px;margin:0 auto;">
+    <h1>&#128100; Users</h1>
+    <p class="subtitle">People known to Engram &#8212; profiles, interests, and working patterns.</p>
+    <div class="toolbar">
+      <a href="dashboard.html" class="nav-link">&#8592; Dashboard</a>
+      <a href="knowledge.html" class="nav-link" style="margin-left:0.5rem">Knowledge</a>
+      <a href="projects.html" class="nav-link" style="margin-left:0.5rem">Projects</a>
+      <button class="btn-primary" id="open-btn" onclick="openFolder()">Open Memory Repo</button>
+      <button class="btn-secondary" id="refresh-btn" onclick="refresh()" style="display:none">Refresh</button>
+      <span class="status" id="status-bar">
+        <span class="dot disconnected"></span> No folder loaded
+      </span>
+    </div>
+  </div>
+</div>
+
+<div class="users-body">
+
+<div class="error-banner" id="error-banner"></div>
+
+<!-- placeholder before folder is loaded -->
+<div class="placeholder" id="placeholder">
+  <div class="icon">&#128100;</div>
+  <p>Click <strong>Open Memory Repo</strong> to load your Engram folder.<br>
+  The viewer reads files locally using your browser &#8212; nothing leaves your machine.</p>
+  <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--color-text-faint)">Requires a Chromium-based browser (Chrome, Edge, Brave, Arc).</p>
+</div>
+
+<!-- list view -->
+<div id="list-view" style="display:none">
+  <div class="user-cards" id="user-cards"></div>
+</div>
+
+<!-- detail view -->
+<div id="detail-view" style="display:none">
+  <div class="detail-breadcrumb" id="breadcrumb"></div>
+  <div class="user-detail-header" id="detail-header"></div>
+  <div class="user-summary" id="detail-summary" style="display:none"></div>
+  <div class="detail-grid">
+    <div class="detail-sidebar">
+      <div class="sidebar-header">&#128196; User Files</div>
+      <div class="sidebar-body"><ul id="sidebar-list"></ul></div>
+    </div>
+    <div class="detail-content">
+      <div class="content-header" id="content-header">Select a file</div>
+      <div class="content-meta" id="content-meta" style="display:none"></div>
+      <div class="content-body" id="content-body">
+        <p style="color:var(--color-text-muted)">Choose a file from the sidebar to view its contents.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /users-body -->
+
+<noscript><p style="text-align:center;margin-top:3rem;color:#f87171;">JavaScript is required for this page.</p></noscript>
+
+<script src="engram-utils.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var E = window.Engram;
+  var el = E.el;
+  var showError = E.showError;
+  var hideError = E.hideError;
+  var readFile = E.readFile;
+  var listDir = E.listDir;
+  var parseFrontmatter = E.parseFrontmatter;
+  var parseFlatYaml = E.parseFlatYaml;
+  var loadSavedHandle = E.loadSavedHandle;
+  var saveHandle = E.saveHandle;
+
+  var rootHandle = null;
+
+  /* ── State ───────────────────────────────────────── */
+  var usersData = [];       // [{name, dir, files, summaryLine}]
+  var currentUser = null;   // selected user object
+  var currentFile = null;   // selected filename
+
+  /* ── Status bar ──────────────────────────────────── */
+  function setStatus(connected, text) {
+    var bar = document.getElementById('status-bar');
+    bar.innerHTML = '';
+    var dot = el('span', '', 'dot ' + (connected ? 'connected' : 'disconnected'));
+    bar.appendChild(dot);
+    bar.appendChild(document.createTextNode(' ' + text));
+  }
+
+  /* ── Folder picker ───────────────────────────────── */
+  window.openFolder = async function () {
+    try {
+      rootHandle = await window.showDirectoryPicker({ mode: 'read' });
+      await saveHandle(rootHandle);
+      await loadData();
+    } catch (err) {
+      if (err.name !== 'AbortError') showError('Could not open folder: ' + err.message);
+    }
+  };
+
+  window.refresh = async function () {
+    if (rootHandle) await loadData();
+  };
+
+  /* ── Auto-connect ────────────────────────────────── */
+  async function tryAutoConnect() {
+    var saved = await loadSavedHandle();
+    if (!saved) return;
+    try {
+      var perm = await saved.queryPermission({ mode: 'read' });
+      if (perm === 'granted') {
+        rootHandle = saved;
+        await loadData();
+        return;
+      }
+      perm = await saved.requestPermission({ mode: 'read' });
+      if (perm === 'granted') {
+        rootHandle = saved;
+        await loadData();
+      }
+    } catch (_) { /* permission denied or handle expired */ }
+  }
+
+  /* ── Main data loader ────────────────────────────── */
+  async function loadData() {
+    hideError();
+    setStatus(true, rootHandle.name);
+    document.getElementById('open-btn').textContent = 'Change Folder';
+    document.getElementById('refresh-btn').style.display = '';
+
+    try {
+      await discoverUsers();
+      if (currentUser) {
+        showDetailView(currentUser.name);
+      } else {
+        showListView();
+      }
+    } catch (err) {
+      showError('Error loading users: ' + err.message);
+    }
+  }
+
+  /* ── Discover users from core/memory/users/ ──────── */
+  async function discoverUsers() {
+    var listing = await listDir(rootHandle, 'core/memory/users');
+    var summaryText = await readFile(rootHandle, 'core/memory/users/SUMMARY.md') || '';
+
+    usersData = [];
+    for (var i = 0; i < listing.dirs.length; i++) {
+      var dirName = listing.dirs[i];
+      if (dirName.startsWith('_')) continue;
+
+      var userFiles = await listDir(rootHandle, 'core/memory/users/' + dirName);
+      var mdFiles = userFiles.files.filter(function (f) { return f.endsWith('.md'); });
+
+      // Extract one-line summary from SUMMARY.md
+      var summaryLine = '';
+      var lines = summaryText.split(/\r?\n/);
+      for (var j = 0; j < lines.length; j++) {
+        if (lines[j].indexOf(dirName) >= 0 && lines[j].match(/^\d+\.|^-|^###/)) {
+          // Grab the meaningful description line
+          var cleaned = lines[j].replace(/^[\d.]+\s*/, '').replace(/^-\s*/, '').replace(/^###\s*/, '').trim();
+          if (cleaned.length > 10) { summaryLine = cleaned; break; }
+        }
+      }
+
+      // Try to get a richer summary from profile.md frontmatter and first paragraph
+      var profileText = await readFile(rootHandle, 'core/memory/users/' + dirName + '/profile.md');
+      var profileSnippet = '';
+      var profileMeta = {};
+      if (profileText) {
+        var parsed = parseFrontmatter(profileText);
+        if (parsed.frontmatter) profileMeta = parseFlatYaml(parsed.frontmatter);
+        // Grab first non-heading, non-empty paragraph
+        var bodyLines = parsed.body.split(/\r?\n/);
+        for (var k = 0; k < bodyLines.length; k++) {
+          var line = bodyLines[k].trim();
+          if (line && !line.startsWith('#') && !line.startsWith('---') && line.length > 15) {
+            profileSnippet = line.replace(/^-\s*/, '').replace(/\[.*?\]/g, '');
+            break;
+          }
+        }
+      }
+
+      usersData.push({
+        name: dirName,
+        files: mdFiles,
+        summaryLine: summaryLine,
+        profileSnippet: profileSnippet,
+        profileMeta: profileMeta
+      });
+    }
+  }
+
+  /* ── List view ───────────────────────────────────── */
+  function showListView() {
+    currentUser = null;
+    currentFile = null;
+    document.getElementById('placeholder').style.display = 'none';
+    document.getElementById('list-view').style.display = '';
+    document.getElementById('detail-view').style.display = 'none';
+
+    var container = document.getElementById('user-cards');
+    container.innerHTML = '';
+
+    if (usersData.length === 0) {
+      container.innerHTML = '<div class="placeholder"><div class="icon">&#128100;</div><p>No user profiles found in <code>core/memory/users/</code>.</p></div>';
+      return;
+    }
+
+    for (var i = 0; i < usersData.length; i++) {
+      var u = usersData[i];
+      var card = document.createElement('div');
+      card.className = 'user-card';
+      card.setAttribute('data-user', u.name);
+
+      var initial = u.name.charAt(0).toUpperCase();
+      var trust = u.profileMeta.trust || '';
+      var trustClass = trust === 'high' ? 'badge-high' : trust === 'medium' ? 'badge-medium' : '';
+
+      card.innerHTML =
+        '<div class="card-top">' +
+          '<div class="card-avatar">' + initial + '</div>' +
+          '<span class="card-name">' + escapeHtml(u.name) + '</span>' +
+          (trustClass ? '<span class="badge ' + trustClass + '">' + escapeHtml(trust) + '</span>' : '') +
+        '</div>' +
+        '<div class="card-role">' + escapeHtml(u.profileSnippet || u.summaryLine || 'No description available.') + '</div>' +
+        '<div class="card-footer">' +
+          '<span>&#128196; ' + u.files.length + ' file' + (u.files.length !== 1 ? 's' : '') + '</span>' +
+          (u.profileMeta.created ? '<span class="tag">since ' + escapeHtml(u.profileMeta.created) + '</span>' : '') +
+        '</div>';
+
+      card.addEventListener('click', (function (name) {
+        return function () { showDetailView(name); };
+      })(u.name));
+
+      container.appendChild(card);
+    }
+  }
+
+  /* ── Detail view ─────────────────────────────────── */
+  function showDetailView(userName) {
+    var user = null;
+    for (var i = 0; i < usersData.length; i++) {
+      if (usersData[i].name === userName) { user = usersData[i]; break; }
+    }
+    if (!user) return;
+
+    currentUser = user;
+    document.getElementById('placeholder').style.display = 'none';
+    document.getElementById('list-view').style.display = 'none';
+    document.getElementById('detail-view').style.display = '';
+
+    // Breadcrumb
+    var bc = document.getElementById('breadcrumb');
+    bc.innerHTML = '';
+    var usersLink = document.createElement('a');
+    usersLink.textContent = 'Users';
+    usersLink.addEventListener('click', function () { showListView(); });
+    bc.appendChild(usersLink);
+    bc.appendChild(el('span', ' / ', 'sep'));
+    bc.appendChild(el('span', user.name, 'current'));
+
+    // Header
+    var header = document.getElementById('detail-header');
+    var initial = user.name.charAt(0).toUpperCase();
+    header.innerHTML =
+      '<div class="avatar-lg">' + initial + '</div>' +
+      '<h2>' + escapeHtml(user.name) + '</h2>';
+
+    // Summary
+    var summaryEl = document.getElementById('detail-summary');
+    if (user.summaryLine) {
+      summaryEl.textContent = user.summaryLine;
+      summaryEl.style.display = '';
+    } else {
+      summaryEl.style.display = 'none';
+    }
+
+    // Sidebar file list
+    var sidebar = document.getElementById('sidebar-list');
+    sidebar.innerHTML = '';
+    for (var j = 0; j < user.files.length; j++) {
+      var li = document.createElement('li');
+      li.setAttribute('data-file', user.files[j]);
+      li.innerHTML = '<span class="icon">&#128196;</span> ' + escapeHtml(formatFileName(user.files[j]));
+      li.addEventListener('click', (function (fileName) {
+        return function () { loadFile(fileName); };
+      })(user.files[j]));
+      sidebar.appendChild(li);
+    }
+
+    // Auto-select profile.md or the first file
+    var defaultFile = user.files.indexOf('profile.md') >= 0 ? 'profile.md' : user.files[0];
+    if (defaultFile) loadFile(defaultFile);
+  }
+
+  /* ── Load & render a file ────────────────────────── */
+  async function loadFile(fileName) {
+    if (!currentUser) return;
+    currentFile = fileName;
+
+    // Update sidebar active state
+    var items = document.querySelectorAll('#sidebar-list li');
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.toggle('active', items[i].getAttribute('data-file') === fileName);
+    }
+
+    // Update breadcrumb
+    var bc = document.getElementById('breadcrumb');
+    bc.innerHTML = '';
+    var usersLink = document.createElement('a');
+    usersLink.textContent = 'Users';
+    usersLink.addEventListener('click', function () { showListView(); });
+    bc.appendChild(usersLink);
+    bc.appendChild(el('span', ' / ', 'sep'));
+    var userLink = document.createElement('a');
+    userLink.textContent = currentUser.name;
+    userLink.addEventListener('click', function () { showDetailView(currentUser.name); });
+    bc.appendChild(userLink);
+    bc.appendChild(el('span', ' / ', 'sep'));
+    bc.appendChild(el('span', formatFileName(fileName), 'current'));
+
+    // Read file
+    var path = 'core/memory/users/' + currentUser.name + '/' + fileName;
+    var text = await readFile(rootHandle, path);
+    if (!text) {
+      document.getElementById('content-header').textContent = fileName;
+      document.getElementById('content-meta').style.display = 'none';
+      document.getElementById('content-body').innerHTML = '<p style="color:var(--color-text-muted)">Could not read file.</p>';
+      return;
+    }
+
+    var parsed = parseFrontmatter(text);
+    var meta = parsed.frontmatter ? parseFlatYaml(parsed.frontmatter) : {};
+
+    // Content header
+    document.getElementById('content-header').textContent = formatFileName(fileName);
+
+    // Meta bar
+    var metaEl = document.getElementById('content-meta');
+    metaEl.innerHTML = '';
+    var metaKeys = ['source', 'trust', 'created', 'last_verified'];
+    var hasMeta = false;
+    for (var k = 0; k < metaKeys.length; k++) {
+      var key = metaKeys[k];
+      if (meta[key]) {
+        hasMeta = true;
+        var item = document.createElement('span');
+        item.className = 'meta-item';
+        var label = document.createElement('span');
+        label.className = 'meta-label';
+        label.textContent = key.replace(/_/g, ' ') + ':';
+        var val = document.createElement('span');
+        if (key === 'trust') {
+          val.className = 'badge ' + (meta[key] === 'high' ? 'badge-high' : meta[key] === 'medium' ? 'badge-medium' : 'badge-low');
+        }
+        val.textContent = ' ' + meta[key];
+        item.appendChild(label);
+        item.appendChild(val);
+        metaEl.appendChild(item);
+      }
+    }
+    metaEl.style.display = hasMeta ? '' : 'none';
+
+    // Render body
+    document.getElementById('content-body').innerHTML = renderMarkdown(parsed.body);
+  }
+
+  /* ── Simple Markdown renderer ────────────────────── */
+  function renderMarkdown(md) {
+    if (!md) return '';
+    var html = escapeHtml(md);
+
+    // Horizontal rules
+    html = html.replace(/^---$/gm, '<hr>');
+
+    // Headers
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+    // Bold and italic
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Links: [text](url)
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+
+    // Blockquotes
+    html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+    // List items
+    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+
+    // Wrap consecutive <li> in <ul>
+    html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+
+    // Paragraphs: wrap remaining non-tag lines
+    html = html.split(/\n\n+/).map(function (block) {
+      block = block.trim();
+      if (!block) return '';
+      if (block.match(/^<(?:h[1-6]|ul|ol|li|blockquote|hr|pre|div)/)) return block;
+      // Don't wrap if already a block element
+      return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
+    }).join('\n');
+
+    return html;
+  }
+
+  /* ── Helpers ─────────────────────────────────────── */
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function formatFileName(name) {
+    return name.replace(/\.md$/, '').replace(/-/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  }
+
+  /* ── Boot ────────────────────────────────────────── */
+  tryAutoConnect();
+})();
+</script>
+</body>
+</html>
