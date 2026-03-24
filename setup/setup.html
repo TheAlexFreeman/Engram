@@ -206,6 +206,30 @@ button {
       <h3>Project Manager</h3>
       <p>Concise, actionable, stakeholder-ready. Optimized for coordination.</p>
     </div>
+    <div class="card" tabindex="0" data-profile="writer"
+         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+      <div class="icon">&#9997;&#65039;</div>
+      <h3>Writer</h3>
+      <p>Narrative-first, tone-conscious, revision-oriented. Optimized for drafting and editing.</p>
+    </div>
+    <div class="card" tabindex="0" data-profile="student"
+         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+      <div class="icon">&#127891;</div>
+      <h3>Student</h3>
+      <p>Curious, explanation-seeking, building foundations. Optimized for learning.</p>
+    </div>
+    <div class="card" tabindex="0" data-profile="educator"
+         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+      <div class="icon">&#128218;</div>
+      <h3>Educator</h3>
+      <p>Clear, scaffolded, student-centered. Optimized for teaching and materials.</p>
+    </div>
+    <div class="card" tabindex="0" data-profile="designer"
+         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+      <div class="icon">&#127912;</div>
+      <h3>Designer</h3>
+      <p>Iterative, feedback-driven, concrete over abstract. Optimized for creative work.</p>
+    </div>
   </div>
   <span class="skip-link" tabindex="0"
         onclick="selectProfile(null)" onkeydown="if(event.key==='Enter')selectProfile(null)">
@@ -398,6 +422,134 @@ button {
         '- **Communication:** _[To be filled \u2014 e.g., Slack, Teams, email]_',
         '- **Documentation:** _[To be filled \u2014 e.g., Confluence, Google Docs, Notion]_',
         '- **Domain:** _[To be filled \u2014 e.g., software development, marketing, operations]_',
+        '',
+        '## Customize me',
+        '',
+        'The traits above are starting points. During onboarding, the agent will walk through each section and ask what fits, what doesn\u2019t, and what\u2019s missing. Blank fields will be filled from the conversation.'
+      ].join('\n')
+    },
+    'writer': {
+      label: 'Writer',
+      body: [
+        '# User Profile \u2014 Writer (Template)',
+        '',
+        '> This is a starter template. Traits marked `[template]` are common defaults \u2014 confirm, adjust, or remove them during onboarding. Once confirmed by the user, change tags to `[observed]` and update `trust: high` in the frontmatter.',
+        '',
+        '## Role and context',
+        '',
+        '- **Primary role:** Writer \u2014 drafts, revises, and publishes written work across one or more formats. [template]',
+        '- **Work style:** Iterative. Moves through outlines, rough drafts, and revision passes rather than producing finished work in one shot. [template]',
+        '- **Collaboration:** Primarily solo with occasional editorial feedback or co-authoring. [template]',
+        '',
+        '## Communication preferences',
+        '',
+        '- **Detail level:** Moderate. Enough context to make informed choices, but don\u2019t over-explain the obvious. [template]',
+        '- **Tone:** Conversational and direct. Match the energy of a trusted writing partner, not a textbook. [template]',
+        '- **Format:** Prose over bullet points when the content calls for it. Use structure (headings, short paragraphs) to aid scanning. [template]',
+        '- **Anti-preferences:** Don\u2019t produce generic filler. Don\u2019t rewrite the user\u2019s voice out of their drafts \u2014 suggest changes, don\u2019t overwrite. [template]',
+        '',
+        '## Tools and environment',
+        '',
+        '- **Genre/medium:** _[To be filled during onboarding \u2014 e.g., fiction, blog posts, technical writing, copywriting, journalism]_',
+        '- **Writing tools:** _[To be filled \u2014 e.g., Google Docs, Scrivener, Obsidian, Word]_',
+        '- **Publishing platform:** _[To be filled \u2014 e.g., Substack, Medium, self-hosted, print]_',
+        '- **Target audiences:** _[To be filled \u2014 e.g., general readers, developers, B2B marketing]_',
+        '',
+        '## Customize me',
+        '',
+        'The traits above are starting points. During onboarding, the agent will walk through each section and ask what fits, what doesn\u2019t, and what\u2019s missing. Blank fields will be filled from the conversation.'
+      ].join('\n')
+    },
+    'student': {
+      label: 'Student',
+      body: [
+        '# User Profile \u2014 Student (Template)',
+        '',
+        '> This is a starter template. Traits marked `[template]` are common defaults \u2014 confirm, adjust, or remove them during onboarding. Once confirmed by the user, change tags to `[observed]` and update `trust: high` in the frontmatter.',
+        '',
+        '## Role and context',
+        '',
+        '- **Primary role:** Student \u2014 learning, completing coursework, and building foundational knowledge. [template]',
+        '- **Work style:** Exploration-oriented. Balances structured assignments with self-directed study. [template]',
+        '- **Collaboration:** Mix of solo study and group projects. May share work with instructors or peers for feedback. [template]',
+        '',
+        '## Communication preferences',
+        '',
+        '- **Detail level:** Thorough with examples. Explain the *why*, not just the *what*. [template]',
+        '- **Tone:** Patient and encouraging. Treat questions as genuine, never condescending. [template]',
+        '- **Format:** Step-by-step explanations for complex topics. Use analogies and concrete examples before abstract definitions. [template]',
+        '- **Anti-preferences:** Don\u2019t just give the answer without explanation \u2014 understanding matters more than speed. Don\u2019t assume prior knowledge without checking. [template]',
+        '',
+        '## Tools and environment',
+        '',
+        '- **Field of study:** _[To be filled during onboarding \u2014 e.g., computer science, history, biology, business]_',
+        '- **Level:** _[To be filled \u2014 e.g., high school, undergraduate, graduate, self-directed]_',
+        '- **Study tools:** _[To be filled \u2014 e.g., Notion, Anki, Google Docs, Overleaf]_',
+        '- **Current courses/projects:** _[To be filled \u2014 e.g., algorithms class, thesis research, capstone project]_',
+        '',
+        '## Customize me',
+        '',
+        'The traits above are starting points. During onboarding, the agent will walk through each section and ask what fits, what doesn\u2019t, and what\u2019s missing. Blank fields will be filled from the conversation.'
+      ].join('\n')
+    },
+    'educator': {
+      label: 'Educator',
+      body: [
+        '# User Profile \u2014 Educator (Template)',
+        '',
+        '> This is a starter template. Traits marked `[template]` are common defaults \u2014 confirm, adjust, or remove them during onboarding. Once confirmed by the user, change tags to `[observed]` and update `trust: high` in the frontmatter.',
+        '',
+        '## Role and context',
+        '',
+        '- **Primary role:** Educator \u2014 designs learning experiences, creates materials, and supports student understanding. [template]',
+        '- **Work style:** Scaffolded and intentional. Builds complexity gradually, checks for comprehension, adjusts based on feedback. [template]',
+        '- **Collaboration:** Works with students directly; may coordinate with other instructors, department staff, or curriculum designers. [template]',
+        '',
+        '## Communication preferences',
+        '',
+        '- **Detail level:** Clear and well-structured. Enough depth to be useful as teaching material, not so dense that it loses the audience. [template]',
+        '- **Tone:** Warm and accessible. Suitable for sharing with students or adapting into classroom materials. [template]',
+        '- **Format:** Explanations with examples first, then definitions. Use headings, numbered steps, and visual structure to support scanning and re-reading. [template]',
+        '- **Anti-preferences:** Don\u2019t produce walls of text without structure. Don\u2019t use unnecessarily advanced vocabulary when simpler language would teach better. [template]',
+        '',
+        '## Tools and environment',
+        '',
+        '- **Subject domain:** _[To be filled during onboarding \u2014 e.g., mathematics, writing, computer science, history]_',
+        '- **Student level:** _[To be filled \u2014 e.g., K-12, undergraduate, adult/professional]_',
+        '- **Teaching tools:** _[To be filled \u2014 e.g., Google Classroom, Canvas, Moodle, PowerPoint]_',
+        '- **Content types:** _[To be filled \u2014 e.g., lesson plans, worksheets, rubrics, lecture slides, assessment items]_',
+        '',
+        '## Customize me',
+        '',
+        'The traits above are starting points. During onboarding, the agent will walk through each section and ask what fits, what doesn\u2019t, and what\u2019s missing. Blank fields will be filled from the conversation.'
+      ].join('\n')
+    },
+    'designer': {
+      label: 'Designer',
+      body: [
+        '# User Profile \u2014 Designer (Template)',
+        '',
+        '> This is a starter template. Traits marked `[template]` are common defaults \u2014 confirm, adjust, or remove them during onboarding. Once confirmed by the user, change tags to `[observed]` and update `trust: high` in the frontmatter.',
+        '',
+        '## Role and context',
+        '',
+        '- **Primary role:** Designer \u2014 creates and iterates on visual or experiential solutions to defined problems. [template]',
+        '- **Work style:** Iterative and feedback-driven. Works in cycles of exploration, critique, and refinement rather than linear completion. [template]',
+        '- **Collaboration:** Often works with stakeholders, developers, or clients. Shares work-in-progress for feedback at multiple stages. [template]',
+        '',
+        '## Communication preferences',
+        '',
+        '- **Detail level:** Moderate. Provide enough rationale to evaluate a direction, but don\u2019t over-explain aesthetic choices. [template]',
+        '- **Tone:** Direct and constructive. Think trusted design partner, not committee review. [template]',
+        '- **Format:** Concrete examples and comparisons over abstract principles. When describing visual concepts, use specific references rather than vague adjectives. [template]',
+        '- **Anti-preferences:** Don\u2019t give generic "it depends" feedback without a recommendation. Don\u2019t produce content that ignores the target audience or context of use. [template]',
+        '',
+        '## Tools and environment',
+        '',
+        '- **Design domain:** _[To be filled during onboarding \u2014 e.g., UX/product, graphic, brand, web, interior, industrial]_',
+        '- **Design tools:** _[To be filled \u2014 e.g., Figma, Sketch, Adobe Creative Suite, Canva, Framer]_',
+        '- **Deliverable formats:** _[To be filled \u2014 e.g., wireframes, mockups, design systems, presentations, print layouts]_',
+        '- **Working context:** _[To be filled \u2014 e.g., in-house team, freelance/client work, agency, personal projects]_',
         '',
         '## Customize me',
         '',
@@ -944,6 +1096,30 @@ button {
       <div class="icon">&#128203;</div>
       <h3>Project Manager</h3>
       <p>Concise, actionable, stakeholder-ready. Optimized for coordination.</p>
+    </div>
+    <div class="card" tabindex="0" data-profile="writer"
+         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+      <div class="icon">&#9997;&#65039;</div>
+      <h3>Writer</h3>
+      <p>Narrative-first, tone-conscious, revision-oriented. Optimized for drafting and editing.</p>
+    </div>
+    <div class="card" tabindex="0" data-profile="student"
+         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+      <div class="icon">&#127891;</div>
+      <h3>Student</h3>
+      <p>Curious, explanation-seeking, building foundations. Optimized for learning.</p>
+    </div>
+    <div class="card" tabindex="0" data-profile="educator"
+         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+      <div class="icon">&#128218;</div>
+      <h3>Educator</h3>
+      <p>Clear, scaffolded, student-centered. Optimized for teaching and materials.</p>
+    </div>
+    <div class="card" tabindex="0" data-profile="designer"
+         onclick="selectProfile(this)" onkeydown="cardKey(event,this)">
+      <div class="icon">&#127912;</div>
+      <h3>Designer</h3>
+      <p>Iterative, feedback-driven, concrete over abstract. Optimized for creative work.</p>
     </div>
   </div>
   <span class="skip-link" tabindex="0"

@@ -7,6 +7,10 @@ These templates are installed by `setup/setup.sh --profile <name>` or by the `se
 - `software-developer.md` — Code-first, concise, technical.
 - `researcher.md` — Thorough, rigorous, citation-aware.
 - `project-manager.md` — Concise, actionable, stakeholder-ready.
+- `writer.md` — Narrative-first, tone-conscious, revision-oriented.
+- `student.md` — Curious, explanation-seeking, building foundations.
+- `educator.md` — Clear, scaffolded, student-centered.
+- `designer.md` — Iterative, feedback-driven, concrete over abstract.
 
 ## Creating a new template
 

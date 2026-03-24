@@ -26,7 +26,8 @@ usage() {
     echo "  --non-interactive    Skip prompts, use defaults"
     echo "  --remote <url>       Set the git remote origin"
     echo "  --platform <name>    AI platform: codex, claude-code, cursor, chatgpt, generic"
-    echo "  --profile <name>     Starter profile: software-developer, researcher, project-manager"
+    echo "  --profile <name>     Starter profile: software-developer, researcher, project-manager,"
+    echo "                         writer, student, educator, designer"
     echo "  --user-name <name>   Optional name for template-backed starter summaries"
     echo "  --user-context <text> Optional AI-use context for template-backed starter summaries"
     echo "  --codex-portable     Use portable Codex config (relative paths) instead of absolute"
@@ -82,8 +83,8 @@ if [[ -n "$PLATFORM" ]]; then
 fi
 if [[ -n "$PROFILE" ]]; then
     case "$PROFILE" in
-        software-developer|researcher|project-manager) ;;
-        *) echo "Error: unknown profile '$PROFILE'. Valid options: software-developer researcher project-manager"
+        software-developer|researcher|project-manager|writer|student|educator|designer) ;;
+        *) echo "Error: unknown profile '$PROFILE'. Valid options: software-developer researcher project-manager writer student educator designer"
            exit 1 ;;
     esac
 fi
@@ -344,14 +345,22 @@ elif [[ "$INTERACTIVE" == true ]]; then
     echo "  1) Software Developer"
     echo "  2) Researcher"
     echo "  3) Project Manager"
-    echo "  4) Blank — I'll build from scratch during onboarding"
+    echo "  4) Writer"
+    echo "  5) Student"
+    echo "  6) Educator"
+    echo "  7) Designer"
+    echo "  8) Blank — I'll build from scratch during onboarding"
     echo ""
-    read -rp "Choose [1-4, default: 4]: " PROFILE_CHOICE
-    case "${PROFILE_CHOICE:-4}" in
+    read -rp "Choose [1-8, default: 8]: " PROFILE_CHOICE
+    case "${PROFILE_CHOICE:-8}" in
         1) install_profile "software-developer" ;;
         2) install_profile "researcher" ;;
         3) install_profile "project-manager" ;;
-        4) echo "[skip] No starter profile — onboarding will start from scratch" ;;
+        4) install_profile "writer" ;;
+        5) install_profile "student" ;;
+        6) install_profile "educator" ;;
+        7) install_profile "designer" ;;
+        8) echo "[skip] No starter profile — onboarding will start from scratch" ;;
         *) echo "[skip] Invalid choice — no starter profile" ;;
     esac
 fi

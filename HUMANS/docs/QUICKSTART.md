@@ -44,7 +44,7 @@ Open `setup.html` in any browser. It redirects to the local starter-file generat
 
 1. **About you** — optional name and AI-use context for template-backed starter files.
 2. **Git remote** — optionally configure where to push your memory repo.
-3. **Starter profile** — pick Software Developer, Researcher, or Project Manager to pre-fill common preferences, or start blank.
+3. **Starter profile** — pick Software Developer, Researcher, Project Manager, Writer, Student, Educator, or Designer to pre-fill common preferences, or start blank.
 4. **AI platform** — generate or point you to the right startup instructions.
 
 `setup.html` covers:
