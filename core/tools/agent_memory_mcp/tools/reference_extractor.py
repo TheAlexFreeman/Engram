@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import posixpath
 import re
 import statistics
 from dataclasses import dataclass, field
@@ -85,6 +86,25 @@ def _resolve_legacy_relative_target(from_path: str, cleaned: str, root: Path) ->
     return None
 
 
+def _resolve_ref_posix(from_path: str, cleaned: str) -> str | None:
+    """Resolve a cleaned target relative to from_path using pure POSIX logic.
+
+    Returns a normalized repo-relative posix path, or None if the result
+    escapes the repository root.
+    """
+    if cleaned.startswith(("./", "../")):
+        from_dir = posixpath.dirname(from_path)
+        result = posixpath.normpath(posixpath.join(from_dir, cleaned))
+    elif any(cleaned.startswith(f"{prefix}/") for prefix in _GOVERNED_REFERENCE_ROOTS):
+        result = posixpath.normpath(cleaned)
+    else:
+        from_dir = posixpath.dirname(from_path)
+        result = posixpath.normpath(posixpath.join(from_dir, cleaned))
+    if result.startswith("..") or result.startswith("/"):
+        return None
+    return result
+
+
 def _resolve_reference(from_path: str, target: str, root: Path) -> str | None:
     cleaned = _strip_markdown_target(target)
     if not cleaned or _is_external_target(cleaned):
@@ -92,20 +112,15 @@ def _resolve_reference(from_path: str, target: str, root: Path) -> str | None:
     if cleaned.startswith("/"):
         cleaned = cleaned.lstrip("/")
 
-    base = root / from_path
     if cleaned.startswith(("./", "../")):
         resolved = _resolve_legacy_relative_target(from_path, cleaned, root)
-        if resolved is None:
-            resolved = (base.parent / cleaned).resolve()
-    elif any(cleaned.startswith(f"{prefix}/") for prefix in _GOVERNED_REFERENCE_ROOTS):
-        resolved = (root / cleaned).resolve()
-    else:
-        resolved = (base.parent / cleaned).resolve()
+        if resolved is not None:
+            try:
+                return resolved.relative_to(root).as_posix()
+            except ValueError:
+                return None
 
-    try:
-        return resolved.relative_to(root).as_posix()
-    except ValueError:
-        return None
+    return _resolve_ref_posix(from_path, cleaned)
 
 
 def _resolve_target_path(
@@ -119,19 +134,18 @@ def _resolve_target_path(
     if _is_external_or_anchor_target(target):
         return None, anchor, None
     cleaned = raw_path.lstrip("/") if raw_path.startswith("/") else raw_path
-    base = root / from_path
+
     if cleaned.startswith(("./", "../")):
         resolved = _resolve_legacy_relative_target(from_path, cleaned, root)
-        if resolved is None:
-            resolved = (base.parent / cleaned).resolve()
-    elif any(cleaned.startswith(f"{prefix}/") for prefix in _GOVERNED_REFERENCE_ROOTS):
-        resolved = (root / cleaned).resolve()
-    else:
-        resolved = (base.parent / cleaned).resolve()
+        if resolved is not None:
+            try:
+                rel_path = resolved.relative_to(root).as_posix()
+            except ValueError:
+                return None, anchor, "target escapes repository root"
+            return rel_path, anchor, None
 
-    try:
-        rel_path = resolved.relative_to(root).as_posix()
-    except ValueError:
+    rel_path = _resolve_ref_posix(from_path, cleaned)
+    if rel_path is None:
         return None, anchor, "target escapes repository root"
     return rel_path, anchor, None
 
