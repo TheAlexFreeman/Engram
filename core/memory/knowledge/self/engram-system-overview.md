@@ -192,8 +192,8 @@ The bootstrap is designed for minimal context cost. Two entry points:
 
 **Compact returning** (~3,000–7,000 tokens): the default for day-to-day sessions. Loads:
 `core/INIT.md` → `core/memory/users/SUMMARY.md` → `core/memory/activity/SUMMARY.md` →
-`core/memory/working/projects/SUMMARY.md` → `core/memory/working/scratchpad/USER.md` →
-`core/memory/working/scratchpad/CURRENT.md` (all skipped if empty or only placeholder text).
+`core/memory/working/projects/SUMMARY.md` → `core/memory/working/USER.md` →
+`core/memory/working/CURRENT.md` (all skipped if empty or only placeholder text).
 
 **Full bootstrap** (~18,000–25,000 tokens): for fresh instantiation on a returning system or
 periodic governance reviews. Adds `README.md`, `CHANGELOG.md`, `core/governance/curation-policy.md`,

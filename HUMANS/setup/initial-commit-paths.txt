@@ -539,8 +539,8 @@ core/memory/working/projects/getting-to-know-you/questions.md
 core/memory/working/projects/system-literacy/SUMMARY.md
 core/memory/working/projects/system-literacy/notes/project-plans-roadmap.md
 core/memory/working/projects/system-literacy/questions.md
-core/memory/working/scratchpad/CURRENT.md
-core/memory/working/scratchpad/USER.md
+core/memory/working/CURRENT.md
+core/memory/working/USER.md
 core/tools/__init__.py
 core/tools/agent_memory_mcp/__init__.py
 core/tools/agent_memory_mcp/core/__init__.py

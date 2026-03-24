@@ -127,7 +127,7 @@ The fundamental amplification: persistent memory converts session-bounded threat
 
 **Amplification paths:**
 
-1. **Write amplification (feedback loop):** Adversarial content influences reasoning → agent writes drifted files → next session loads those files → drift compounds. High-influence targets: `core/memory/working/projects/SUMMARY.md`, `core/memory/activity/SUMMARY.md`, `core/memory/working/scratchpad/CURRENT.md` (loaded every session).
+1. **Write amplification (feedback loop):** Adversarial content influences reasoning → agent writes drifted files → next session loads those files → drift compounds. High-influence targets: `core/memory/working/projects/SUMMARY.md`, `core/memory/activity/SUMMARY.md`, `core/memory/working/CURRENT.md` (loaded every session).
 
 2. **Trust escalation:** Plausible `_unverified/` file accumulates citations → user promotes in batch review → file gains `knowledge/` authority.
 

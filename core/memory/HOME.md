@@ -10,8 +10,8 @@ Load in this order. Skip files marked _(skip if placeholder)_ when they contain 
 
 1. `core/memory/users/SUMMARY.md` — user portrait and working style
 2. `core/memory/activity/SUMMARY.md` _(skip if placeholder)_ — recent session continuity
-3. `core/memory/working/scratchpad/USER.md` _(skip if placeholder)_ — user-authored current priorities
-4. `core/memory/working/scratchpad/CURRENT.md` _(skip if placeholder)_ — agent working notes
+3. `core/memory/working/USER.md` _(skip if placeholder)_ — user-authored current priorities
+4. `core/memory/working/CURRENT.md` _(skip if placeholder)_ — agent working notes
 
 Then load task-driven drill-downs only when the current task makes them relevant:
 

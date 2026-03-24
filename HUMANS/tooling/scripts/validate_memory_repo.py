@@ -114,8 +114,8 @@ EXPECTED_RETURNING_STEP_PATHS = (
     "core/memory/HOME.md",
     "core/memory/users/SUMMARY.md",
     "core/memory/activity/SUMMARY.md",
-    "core/memory/working/scratchpad/USER.md",
-    "core/memory/working/scratchpad/CURRENT.md",
+    "core/memory/working/USER.md",
+    "core/memory/working/CURRENT.md",
 )
 EXPECTED_FIRST_RUN_STEP_PATHS = (
     "README.md",
@@ -128,8 +128,8 @@ EXPECTED_FULL_BOOTSTRAP_STEP_PATHS = (
     "core/memory/HOME.md",
     "core/memory/users/SUMMARY.md",
     "core/memory/activity/SUMMARY.md",
-    "core/memory/working/scratchpad/USER.md",
-    "core/memory/working/scratchpad/CURRENT.md",
+    "core/memory/working/USER.md",
+    "core/memory/working/CURRENT.md",
     "CHANGELOG.md",
     "core/governance/curation-policy.md",
     "core/governance/update-guidelines.md",
@@ -150,8 +150,8 @@ DEPLOYED_WORKTREE_PERIODIC_REVIEW_STEP_PATHS = tuple(
 EXPECTED_AUTOMATION_STEP_PATHS = (
     "core/INIT.md",
     "core/memory/HOME.md",
-    "core/memory/working/scratchpad/USER.md",
-    "core/memory/working/scratchpad/CURRENT.md",
+    "core/memory/working/USER.md",
+    "core/memory/working/CURRENT.md",
     "core/memory/working/projects/SUMMARY.md",
 )
 EXPECTED_MODE_STEP_PATHS = {
@@ -181,8 +181,8 @@ EXPECTED_OPTIONAL_STEP_SKIP_RULES = {
     "core/memory/HOME.md": "placeholder_or_empty",
     "core/memory/working/projects/SUMMARY.md": "placeholder_or_empty",
     "core/memory/activity/SUMMARY.md": "placeholder_or_empty",
-    "core/memory/working/scratchpad/USER.md": "placeholder_or_empty",
-    "core/memory/working/scratchpad/CURRENT.md": "placeholder_or_empty",
+    "core/memory/working/USER.md": "placeholder_or_empty",
+    "core/memory/working/CURRENT.md": "placeholder_or_empty",
 }
 COMPACT_RETURNING_BUDGET = EXPECTED_BOOTSTRAP_TOKEN_BUDGETS["returning"]
 COMPACT_RETURNING_TARGETS = {
@@ -190,8 +190,8 @@ COMPACT_RETURNING_TARGETS = {
     "core/memory/HOME.md": 500,
     "core/memory/users/SUMMARY.md": 450,
     "core/memory/activity/SUMMARY.md": 750,
-    "core/memory/working/scratchpad/USER.md": 400,
-    "core/memory/working/scratchpad/CURRENT.md": 650,
+    "core/memory/working/USER.md": 400,
+    "core/memory/working/CURRENT.md": 650,
 }
 COMPACT_RETURNING_HEADROOM = 1000
 TASK_READINESS_MANIFEST_PATH = Path("HUMANS/tooling/agent-task-readiness.toml")
@@ -1008,8 +1008,8 @@ def iter_compact_startup_measurements(
 
         if rel_path in {
             "core/memory/activity/SUMMARY.md",
-            "core/memory/working/scratchpad/USER.md",
-            "core/memory/working/scratchpad/CURRENT.md",
+            "core/memory/working/USER.md",
+            "core/memory/working/CURRENT.md",
         }:
             if is_placeholder_or_empty_text(text):
                 continue
@@ -1123,7 +1123,7 @@ def validate_scratchpad_current_shape(
         root,
         (
             "core/memory/working/projects/",
-            "core/memory/working/scratchpad/",
+            "core/memory/working/notes/",
             "core/memory/knowledge/",
             "core/governance/",
             "core/memory/activity/",
@@ -1163,7 +1163,7 @@ def validate_compact_startup_contract(root: Path, result: ValidationResult) -> N
         path = root / rel_path
         if rel_path == "core/memory/activity/SUMMARY.md":
             validate_chats_summary_shape(path, text, root, result)
-        elif rel_path == "core/memory/working/scratchpad/CURRENT.md":
+        elif rel_path == "core/memory/working/CURRENT.md":
             validate_scratchpad_current_shape(path, text, root, result)
 
 
@@ -1563,8 +1563,8 @@ def validate_quick_reference(root: Path, result: ValidationResult) -> None:
         "core/memory/users/SUMMARY.md",
         "core/memory/activity/SUMMARY.md",
         "core/memory/working/projects/SUMMARY.md",
-        "core/memory/working/scratchpad/USER.md",
-        "core/memory/working/scratchpad/CURRENT.md",
+        "core/memory/working/USER.md",
+        "core/memory/working/CURRENT.md",
         "core/memory/knowledge/SUMMARY.md",
         "core/memory/skills/SUMMARY.md",
     )

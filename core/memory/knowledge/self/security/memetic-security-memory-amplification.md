@@ -50,7 +50,7 @@ Session N+1: memory loading pulls in files from Session N
 ```
 
 **What makes this specific to Engram:**
-- The compact returning manifest loads `core/memory/working/projects/SUMMARY.md`, `core/memory/activity/SUMMARY.md`, and `core/memory/working/scratchpad/CURRENT.md` at every session start
+- The compact returning manifest loads `core/memory/working/projects/SUMMARY.md`, `core/memory/activity/SUMMARY.md`, and `core/memory/working/CURRENT.md` at every session start
 - If any of these files carries drifted framing from a prior session, it infects every subsequent session's reasoning from the first turn
 - The knowledge flooding alarm (5 files/day) limits write *volume* but not write *influence* — a single well-placed file in `core/memory/working/projects/SUMMARY.md` has more amplification potential than five files in `_unverified/`
 
@@ -127,7 +127,7 @@ Session N+1: agent reads core/memory/activity/SUMMARY.md and infers session cont
 | `knowledge/` (promoted) | On-demand, higher authority | Same, with increased weight |
 | `core/memory/working/projects/SUMMARY.md` | Every session | All future sessions until plan completes or is retired |
 | `core/memory/activity/SUMMARY.md` | Every session | All future sessions until entry is compacted out |
-| `core/memory/working/scratchpad/CURRENT.md` | Every session | All future sessions until replaced |
+| `core/memory/working/CURRENT.md` | Every session | All future sessions until replaced |
 | `core/INIT.md` | Every session, first file read | All future sessions — maximum influence |
 | `core/memory/users/SUMMARY.md` | Every session | All future sessions — identity-defining |
 

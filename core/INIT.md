@@ -27,7 +27,7 @@ Load files in the listed order. Skip files marked _(skip if empty)_ when they co
 | Session type | Files to load |
 |---|---|
 | **First run** | this file → `core/governance/first-run.md` (which directs: `CHANGELOG.md`, `core/governance/update-guidelines.md` §§ Change categories + Read-only operation, `core/memory/skills/SUMMARY.md`, `core/memory/skills/onboarding.md`) |
-| **Compact returning** | this file → `core/memory/HOME.md` _(skip if empty or still placeholder; then load `core/memory/users/SUMMARY.md`, `core/memory/activity/SUMMARY.md`, `core/memory/working/scratchpad/USER.md`, and `core/memory/working/scratchpad/CURRENT.md`; load task-relevant `core/memory/working/projects/SUMMARY.md` and/or `core/memory/knowledge/SUMMARY.md` and/or `core/memory/skills/SUMMARY.md` only as needed)_ |
+| **Compact returning** | this file → `core/memory/HOME.md` _(skip if empty or still placeholder; then load `core/memory/users/SUMMARY.md`, `core/memory/activity/SUMMARY.md`, `core/memory/working/USER.md`, and `core/memory/working/CURRENT.md`; load task-relevant `core/memory/working/projects/SUMMARY.md` and/or `core/memory/knowledge/SUMMARY.md` and/or `core/memory/skills/SUMMARY.md` only as needed)_ |
 | **Full bootstrap** | this file → Compact returning files + `CHANGELOG.md`, `core/governance/curation-policy.md`, `core/governance/update-guidelines.md` |
 | **Periodic review** | Full bootstrap files + `core/governance/system-maturity.md`, `core/governance/belief-diff-log.md`, `core/governance/review-queue.md`, `core/governance/session-checklists.md` § "Periodic integrity audit", `core/governance/security-signals.md` |
 | **Automation** | this file → `core/memory/HOME.md` _(load only project and scratchpad sections)_ |
@@ -65,8 +65,8 @@ Compact startup files are live-state surfaces, not archives. They should answer 
 | `core/memory/HOME.md` | Context loading order, top-of-mind items, maintenance probes | Detailed rationale, full namespace rules | ~500 tokens |
 | `core/memory/users/SUMMARY.md` | User portrait, working style, active durable goal | Detailed profile evidence | ~450 tokens |
 | `core/memory/activity/SUMMARY.md` | Live themes, recent continuity, retrieval guidance | Chat-by-chat narrative | ~750 tokens |
-| `core/memory/working/scratchpad/USER.md` | User-authored current constraints | Historical notes that no longer affect current work | ~400 tokens |
-| `core/memory/working/scratchpad/CURRENT.md` | Active threads, immediate next actions, open questions, drill-down refs | Extended analysis and large tables | ~650 tokens |
+| `core/memory/working/USER.md` | User-authored current constraints | Historical notes that no longer affect current work | ~400 tokens |
+| `core/memory/working/CURRENT.md` | Active threads, immediate next actions, open questions, drill-down refs | Extended analysis and large tables | ~650 tokens |
 
 These targets intentionally leave reserve headroom inside the 7k returning-session ceiling. If a startup file needs sustained depth beyond its target, move that depth into a plan, dated scratchpad, or dated chat summary and link to it from the compact surface.
 
@@ -74,7 +74,7 @@ These targets intentionally leave reserve headroom inside the 7k returning-sessi
 
 - `core/memory/working/projects/SUMMARY.md` remains the primary project navigator.
 - `core/memory/activity/SUMMARY.md` stays metadata-first and points to dated chat summaries.
-- `core/memory/working/scratchpad/CURRENT.md` keeps active threads and drill-down refs compact.
+- `core/memory/working/CURRENT.md` keeps active threads and drill-down refs compact.
 
 ## Current active stage: Exploration
 

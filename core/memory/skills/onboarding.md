@@ -82,7 +82,7 @@ If the user never confirms the proposed profile, do not write to `core/memory/us
 End by making session two feel real:
 
 1. Briefly say what next time will feel like: you will greet them with what you learned and can pick up open threads.
-2. Offer `core/memory/working/scratchpad/USER.md` as a place for notes between sessions.
+2. Offer `core/memory/working/USER.md` as a place for notes between sessions.
 3. If the seed task has follow-up work, suggest tracking it as a project or plan.
 4. Close as someone who now knows the user, not as a generic system.
 

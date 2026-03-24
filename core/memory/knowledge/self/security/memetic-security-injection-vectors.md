@@ -20,7 +20,7 @@ This document maps every path through which foreign or uncontrolled content ente
 - `core/memory/users/SUMMARY.md` (user portrait, working style)
 - `core/memory/activity/SUMMARY.md` (episodic continuity)
 - `core/memory/working/projects/SUMMARY.md` (active work and priorities)
-- `core/memory/working/scratchpad/USER.md` and `core/memory/working/scratchpad/CURRENT.md` (working state)
+- `core/memory/working/USER.md` and `core/memory/working/CURRENT.md` (working state)
 - Mode-dependent extras: `CHANGELOG.md`, `core/governance/curation-policy.md`, etc.
 
 **Control model:** These files are committed to git (audit trail) but any agent with write access can modify them between sessions. The bootstrap router (`agent-bootstrap.toml`) defines five modes with different loading manifests, but mode selection itself is not externally validated — it's inferred from repo state.

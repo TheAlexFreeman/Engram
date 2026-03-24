@@ -704,9 +704,9 @@ button:active { transform: scale(0.97); }
     var body = document.getElementById('scratchpad-body');
     body.innerHTML = '';
 
-    var content = await readFile(rootHandle, 'core/memory/working/scratchpad/CURRENT.md');
+    var content = await readFile(rootHandle, 'core/memory/working/CURRENT.md');
     if (!content) {
-      body.appendChild(el('p', 'No scratchpad/CURRENT.md found.', 'placeholder'));
+      body.appendChild(el('p', 'No working/CURRENT.md found.', 'placeholder'));
       return;
     }
 

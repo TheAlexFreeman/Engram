@@ -649,23 +649,23 @@ def _archive_target_for_access_file(access_file: str, entries: list[dict[str, An
 
 def _resolve_scratchpad_target(target: str) -> str:
     target_map = {
-        "user": "memory/working/scratchpad/USER.md",
-        "current": "memory/working/scratchpad/CURRENT.md",
+        "user": "memory/working/USER.md",
+        "current": "memory/working/CURRENT.md",
     }
     if target in target_map:
         return target_map[target]
     if (
         isinstance(target, str)
-        and target.startswith("memory/working/scratchpad/")
+        and target.startswith("memory/working/notes/")
         and target.endswith(".md")
     ):
-        slug = target[len("memory/working/scratchpad/") : -len(".md")]
+        slug = target[len("memory/working/notes/") : -len(".md")]
         validate_slug(slug, field_name="target")
-        return f"memory/working/scratchpad/{slug}.md"
+        return f"memory/working/notes/{slug}.md"
     from ...errors import ValidationError
 
     raise ValidationError(
-        "target must be 'user', 'current', or 'memory/working/scratchpad/{slug}.md' with a bare kebab-case slug"
+        "target must be 'user', 'current', or 'memory/working/notes/{slug}.md' with a bare kebab-case slug"
     )
 
 

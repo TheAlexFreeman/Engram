@@ -98,20 +98,20 @@ def build_repo(
 
     if placeholder_scratchpad:
         write(
-            root / "core" / "memory" / "working" / "scratchpad" / "USER.md",
+            root / "core" / "memory" / "working" / "USER.md",
             "# User notes\n\n_Nothing here yet. Add any context you'd like the agent to pick up at session start._\n",
         )
         write(
-            root / "core" / "memory" / "working" / "scratchpad" / "CURRENT.md",
+            root / "core" / "memory" / "working" / "CURRENT.md",
             "# Agent working notes\n\n_No current notes._\n",
         )
     else:
         write(
-            root / "core" / "memory" / "working" / "scratchpad" / "USER.md",
+            root / "core" / "memory" / "working" / "USER.md",
             "# User notes\n\nImportant note.\n",
         )
         write(
-            root / "core" / "memory" / "working" / "scratchpad" / "CURRENT.md",
+            root / "core" / "memory" / "working" / "CURRENT.md",
             "# Agent working notes\n\nWorking note.\n",
         )
 
@@ -209,8 +209,8 @@ class BootstrapResolverTests(unittest.TestCase):
             write(
                 root / "agent-bootstrap.toml",
                 BOOTSTRAP_MANIFEST.replace(
-                    '[[modes.returning.steps]]\npath = "core/memory/working/scratchpad/USER.md"\nrole = "scratchpad-user"\nrequired = false\nskip_if = "placeholder_or_empty"\ncost = "light"',
-                    '[[modes.returning.steps]]\npath = "core/memory/working/projects/SUMMARY.md"\nrole = "project-summary"\nrequired = false\nskip_if = "no_active_projects"\ncost = "light"\n\n[[modes.returning.steps]]\npath = "core/memory/working/scratchpad/USER.md"\nrole = "scratchpad-user"\nrequired = false\nskip_if = "placeholder_or_empty"\ncost = "light"',
+                    '[[modes.returning.steps]]\npath = "core/memory/working/USER.md"\nrole = "scratchpad-user"\nrequired = false\nskip_if = "placeholder_or_empty"\ncost = "light"',
+                    '[[modes.returning.steps]]\npath = "core/memory/working/projects/SUMMARY.md"\nrole = "project-summary"\nrequired = false\nskip_if = "no_active_projects"\ncost = "light"\n\n[[modes.returning.steps]]\npath = "core/memory/working/USER.md"\nrole = "scratchpad-user"\nrequired = false\nskip_if = "placeholder_or_empty"\ncost = "light"',
                     1,
                 ),
             )
@@ -231,17 +231,17 @@ class BootstrapResolverTests(unittest.TestCase):
                 "no_active_projects",
             )
             self.assertEqual(
-                trace_by_path["core/memory/working/scratchpad/USER.md"].status, "skipped"
+                trace_by_path["core/memory/working/USER.md"].status, "skipped"
             )
             self.assertEqual(
-                trace_by_path["core/memory/working/scratchpad/USER.md"].reason,
+                trace_by_path["core/memory/working/USER.md"].reason,
                 "placeholder_or_empty",
             )
             self.assertEqual(
-                trace_by_path["core/memory/working/scratchpad/CURRENT.md"].status, "skipped"
+                trace_by_path["core/memory/working/CURRENT.md"].status, "skipped"
             )
             self.assertEqual(
-                trace_by_path["core/memory/working/scratchpad/CURRENT.md"].reason,
+                trace_by_path["core/memory/working/CURRENT.md"].reason,
                 "placeholder_or_empty",
             )
 

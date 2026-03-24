@@ -928,9 +928,9 @@ change_class = "automatic"
 commit_model = "auto_commit"
 commit_category_hint = "scratchpad"
 writes = [
-  "memory/working/scratchpad/USER.md",
-  "memory/working/scratchpad/CURRENT.md",
-  "memory/working/scratchpad/{slug}.md",
+  "memory/working/USER.md",
+  "memory/working/CURRENT.md",
+  "memory/working/notes/{slug}.md",
 ]
 owns_frontmatter = []
 owns_summaries = []

@@ -1099,7 +1099,9 @@ def _visible_top_level_category(path: str) -> str:
         return "skills"
     if normalized.startswith("memory/activity/"):
         return "chats"
-    if normalized.startswith("memory/working/scratchpad/"):
+    if normalized.startswith("memory/working/") and normalized.split("/")[2] in ("USER.md", "CURRENT.md"):
+        return "scratchpad"
+    if normalized.startswith("memory/working/notes/"):
         return "scratchpad"
     if normalized.startswith(("governance/", "meta/", "HUMANS/")):
         return "meta"
@@ -4229,7 +4231,7 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 category = "skills"
             elif visible_path.startswith("memory/activity/"):
                 category = "chats"
-            elif visible_path.startswith("memory/working/scratchpad/"):
+            elif visible_path in ("memory/working/USER.md", "memory/working/CURRENT.md") or visible_path.startswith("memory/working/notes/"):
                 category = "scratchpad"
             elif visible_path.startswith(("governance/", "meta/", "HUMANS/")):
                 category = "meta"

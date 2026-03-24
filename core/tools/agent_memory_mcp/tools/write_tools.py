@@ -147,7 +147,7 @@ def register(
         governance/, memory/activity/, memory/skills/) are blocked. Use the
         appropriate Tier 1 semantic tool instead (e.g. memory_update_user_trait,
         memory_record_chat_summary). Allowed targets: memory/knowledge/,
-        memory/working/, memory/working/scratchpad/.
+        memory/working/, memory/working/notes/.
 
         Args:
             path:          Repo-relative path (e.g. 'memory/knowledge/_unverified/django/foo.md').
@@ -298,7 +298,7 @@ def register(
     ) -> str:
         """Delete a file and stage the removal (no auto-commit).
 
-        ALLOWED PATHS ONLY: memory/knowledge/, memory/working/, memory/working/scratchpad/.
+        ALLOWED PATHS ONLY: memory/knowledge/, memory/working/, memory/working/notes/.
         Attempts to delete files under memory/users/, governance/, memory/activity/,
         or memory/skills/ raise PermissionError immediately, before any filesystem
         access.
@@ -310,7 +310,7 @@ def register(
         Args:
             path:          Repo-relative path to delete. Must be under
                            memory/knowledge/, memory/working/, or
-                           memory/working/scratchpad/.
+                           memory/working/notes/.
             version_token: Optional — checked before deletion.
 
         Returns:

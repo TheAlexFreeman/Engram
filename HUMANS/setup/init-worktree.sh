@@ -344,7 +344,7 @@ write_memory_stubs() {
         "$worktree_root/core/memory/users" \
         "$worktree_root/core/memory/knowledge/_unverified" \
         "$worktree_root/core/memory/working/projects/OUT" \
-        "$worktree_root/core/memory/working/scratchpad"
+        "$worktree_root/core/memory/working/notes"
 
     write_empty_file "$worktree_root/core/memory/activity/ACCESS.jsonl"
     write_empty_file "$worktree_root/core/memory/users/ACCESS.jsonl"
@@ -375,10 +375,10 @@ _No active or ongoing projects._"
     write_text_file "$worktree_root/core/memory/working/projects/OUT/SUMMARY.md" "# Project Outbox
 
 _No shipped artifacts yet._"
-    write_text_file "$worktree_root/core/memory/working/scratchpad/CURRENT.md" "# Agent working notes
+    write_text_file "$worktree_root/core/memory/working/CURRENT.md" "# Agent working notes
 
 _No current notes._"
-    write_text_file "$worktree_root/core/memory/working/scratchpad/USER.md" "# User Scratchpad
+    write_text_file "$worktree_root/core/memory/working/USER.md" "# User Scratchpad
 
 User-authored constraints and reminders for this codebase belong here."
 }
@@ -394,7 +394,7 @@ core/memory/users/
 core/memory/knowledge/
 core/governance/
 core/memory/working/projects/
-core/memory/working/scratchpad/
+core/memory/working/notes/
 core/memory/skills/"
 
     write_text_file "$worktree_root/.editorconfig" "root = true

@@ -89,14 +89,14 @@ skip_if = "placeholder_or_empty"
 cost = "light"
 
 [[modes.returning.steps]]
-path = "core/memory/working/scratchpad/USER.md"
+path = "core/memory/working/USER.md"
 role = "scratchpad-user"
 required = false
 skip_if = "placeholder_or_empty"
 cost = "light"
 
 [[modes.returning.steps]]
-path = "core/memory/working/scratchpad/CURRENT.md"
+path = "core/memory/working/CURRENT.md"
 role = "scratchpad-current"
 required = false
 skip_if = "placeholder_or_empty"
@@ -148,14 +148,14 @@ skip_if = "placeholder_or_empty"
 cost = "light"
 
 [[modes.full_bootstrap.steps]]
-path = "core/memory/working/scratchpad/USER.md"
+path = "core/memory/working/USER.md"
 role = "scratchpad-user"
 required = false
 skip_if = "placeholder_or_empty"
 cost = "light"
 
 [[modes.full_bootstrap.steps]]
-path = "core/memory/working/scratchpad/CURRENT.md"
+path = "core/memory/working/CURRENT.md"
 role = "scratchpad-current"
 required = false
 skip_if = "placeholder_or_empty"
@@ -225,14 +225,14 @@ skip_if = "placeholder_or_empty"
 cost = "light"
 
 [[modes.periodic_review.steps]]
-path = "core/memory/working/scratchpad/USER.md"
+path = "core/memory/working/USER.md"
 role = "scratchpad-user"
 required = false
 skip_if = "placeholder_or_empty"
 cost = "light"
 
 [[modes.periodic_review.steps]]
-path = "core/memory/working/scratchpad/CURRENT.md"
+path = "core/memory/working/CURRENT.md"
 role = "scratchpad-current"
 required = false
 skip_if = "placeholder_or_empty"
@@ -313,14 +313,14 @@ skip_if = "placeholder_or_empty"
 cost = "light"
 
 [[modes.automation.steps]]
-path = "core/memory/working/scratchpad/USER.md"
+path = "core/memory/working/USER.md"
 role = "scratchpad-user"
 required = false
 skip_if = "placeholder_or_empty"
 cost = "light"
 
 [[modes.automation.steps]]
-path = "core/memory/working/scratchpad/CURRENT.md"
+path = "core/memory/working/CURRENT.md"
 role = "scratchpad-current"
 required = false
 skip_if = "placeholder_or_empty"

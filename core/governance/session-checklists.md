@@ -13,7 +13,7 @@ Follow `core/governance/first-run.md` instead.
 1. Follow `core/INIT.md` → `core/memory/HOME.md` for the context loading order.
 2. Check write access. If read-only, note for deferred actions at session end.
 3. Run metadata-first maintenance checks (review-queue entries, ACCESS.jsonl aggregation triggers).
-4. Weave `core/memory/working/scratchpad/USER.md` content into greeting naturally.
+4. Weave `core/memory/working/USER.md` content into greeting naturally.
 5. Greet with continuity — reference what the user was working on. 2–3 sentences, then let the user speak.
 
 Detail: `core/memory/skills/session-start.md`

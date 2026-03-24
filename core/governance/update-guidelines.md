@@ -172,7 +172,7 @@ Categories and their change-control tiers:
 | `[identity]` | `core/memory/users/` | Proposed |
 | `[knowledge]` | `core/memory/knowledge/` | Automatic (`_unverified/`) or Proposed (verified) |
 | `[plan]` | `core/memory/working/projects/` | Automatic (progress) or Proposed (create/archive/scope) |
-| `[scratchpad]` | `core/memory/working/scratchpad/` | Automatic |
+| `[scratchpad]` | `core/memory/working/` (USER.md, CURRENT.md) and `core/memory/working/notes/` | Automatic |
 | `[skill]` | `core/memory/skills/` | Protected |
 | `[system]` | `core/governance/`, `README.md`, `CHANGELOG.md` | Protected |
 

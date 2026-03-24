@@ -492,7 +492,7 @@ Philosophy of mind studies consciousness intentionality and representation.
         self.assertIn("D\tcore/memory/working/projects/delete-me.md", staged)
 
     def test_memory_delete_blocks_when_permission_hook_rejects(self) -> None:
-        repo_root = self._init_repo_with_file("memory/working/scratchpad/delete-me.md")
+        repo_root = self._init_repo_with_file("memory/working/notes/delete-me.md")
 
         def hook(path: str) -> None:
             raise RuntimeError(f"blocked {path}")
@@ -504,9 +504,9 @@ Philosophy of mind studies consciousness intentionality and representation.
         )
 
         with self.assertRaises(self.errors.MemoryPermissionError):
-            asyncio.run(tools["memory_delete"](path="memory/working/scratchpad/delete-me.md"))
+            asyncio.run(tools["memory_delete"](path="memory/working/notes/delete-me.md"))
 
-        self.assertTrue((repo_root / "memory" / "working" / "scratchpad" / "delete-me.md").exists())
+        self.assertTrue((repo_root / "memory" / "working" / "notes" / "delete-me.md").exists())
 
     def test_memory_plan_execute_completes_phase_and_updates_navigation(self) -> None:
         repo_root = self._init_repo(
@@ -3118,13 +3118,13 @@ Secondary body.
             )
 
     def test_memory_move_rejects_protected_skills_destination(self) -> None:
-        repo_root = self._init_repo_with_file("memory/working/scratchpad/note.md")
+        repo_root = self._init_repo_with_file("memory/working/notes/note.md")
         tools = self._create_tools(repo_root, enable_raw_write_tools=True)
 
         with self.assertRaises(self.errors.MemoryPermissionError):
             asyncio.run(
                 tools["memory_move"](
-                    source="memory/working/scratchpad/note.md",
+                    source="memory/working/notes/note.md",
                     dest="memory/skills/note.md",
                 )
             )
@@ -3659,12 +3659,12 @@ Direct and concise.
         self.assertEqual(log_count, "2")
 
     def test_memory_append_scratchpad_accepts_dated_slug_and_creates_file(self) -> None:
-        repo_root = self._init_repo({"memory/working/scratchpad/CURRENT.md": "# Current\n"})
+        repo_root = self._init_repo({"memory/working/CURRENT.md": "# Current\n"})
         tools = self._create_tools(repo_root)
 
         raw = asyncio.run(
             tools["memory_append_scratchpad"](
-                target="memory/working/scratchpad/2026-03-20-worklog.md",
+                target="memory/working/notes/2026-03-20-worklog.md",
                 content="Initial note",
                 section="Findings",
             )
@@ -3672,22 +3672,22 @@ Direct and concise.
         payload = json.loads(raw)
 
         scratchpad = (
-            repo_root / "memory" / "working" / "scratchpad" / "2026-03-20-worklog.md"
+            repo_root / "memory" / "working" / "notes" / "2026-03-20-worklog.md"
         ).read_text(encoding="utf-8")
         self.assertEqual(
             payload["new_state"]["target"],
-            "memory/working/scratchpad/2026-03-20-worklog.md",
+            "memory/working/notes/2026-03-20-worklog.md",
         )
         self.assertIn("## Findings\n\nInitial note\n", scratchpad)
 
     def test_memory_append_scratchpad_rejects_invalid_target_format(self) -> None:
-        repo_root = self._init_repo({"memory/working/scratchpad/CURRENT.md": "# Current\n"})
+        repo_root = self._init_repo({"memory/working/CURRENT.md": "# Current\n"})
         tools = self._create_tools(repo_root)
 
         with self.assertRaises(self.errors.ValidationError):
             asyncio.run(
                 tools["memory_append_scratchpad"](
-                    target="memory/working/scratchpad/not valid.md",
+                    target="memory/working/notes/not valid.md",
                     content="Invalid",
                 )
             )
@@ -5551,13 +5551,13 @@ current_focus: Example project.
         self.assertNotIn("Updated", restored)
 
     def test_memory_log_access_rejects_untracked_root(self) -> None:
-        repo_root = self._init_repo({"memory/working/scratchpad/CURRENT.md": "# Scratch\n"})
+        repo_root = self._init_repo({"memory/working/CURRENT.md": "# Scratch\n"})
         tools = self._create_tools(repo_root)
 
         with self.assertRaises(self.errors.ValidationError):
             asyncio.run(
                 tools["memory_log_access"](
-                    file="memory/working/scratchpad/CURRENT.md",
+                    file="memory/working/CURRENT.md",
                     task="test",
                     helpfulness=0.5,
                     note="scratchpad is not access-tracked",

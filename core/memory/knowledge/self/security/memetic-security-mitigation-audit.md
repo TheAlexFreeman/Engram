@@ -117,7 +117,7 @@ This document audits each of Engram's existing security mitigations against the 
 
 ### What Does NOT Protect Them
 
-**`CLAUDE.md` and `AGENTS.md` are NOT in protected directories.** They are top-level files. No MCP tool exists to modify them (the MCP tool surface covers `core/memory/users/`, `core/governance/`, `core/memory/knowledge/`, `core/memory/working/projects/`, `core/memory/working/scratchpad/`, `core/memory/activity/`, `core/memory/skills/`), but they can be modified through direct file system access outside the MCP layer.
+**`CLAUDE.md` and `AGENTS.md` are NOT in protected directories.** They are top-level files. No MCP tool exists to modify them (the MCP tool surface covers `core/memory/users/`, `core/governance/`, `core/memory/knowledge/`, `core/memory/working/projects/`, `core/memory/working/notes/`, `core/memory/activity/`, `core/memory/skills/`), but they can be modified through direct file system access outside the MCP layer.
 
 **No integrity check at load time.** When `core/INIT.md` loads at session start, there is no verification that it matches a known-good baseline. If the file was modified between sessions (by any agent, through any path), the modified version loads silently.
 

@@ -1,8 +1,8 @@
 # Scratchpad Guidelines
 
-> **Load:** On-demand — when you need to write to `core/memory/working/scratchpad/` or when reviewing scratchpad lifecycle during session end. The compact read/write steps for normal sessions are in `core/governance/session-checklists.md`. You do not need to load this file just to read `core/memory/working/scratchpad/USER.md` or `core/memory/working/scratchpad/CURRENT.md`.
+> **Load:** On-demand — when you need to write to `core/memory/working/USER.md`, `core/memory/working/CURRENT.md`, or `core/memory/working/notes/`, or when reviewing scratchpad lifecycle during session end. The compact read/write steps for normal sessions are in `core/governance/session-checklists.md`. You do not need to load this file just to read `core/memory/working/USER.md` or `core/memory/working/CURRENT.md`.
 
-The `core/memory/working/scratchpad/` folder is a staging area that sits between ephemeral session context (which disappears) and formal memory (which requires governance overhead). It operates below the governance layer: no frontmatter, no approval requirements, no CHANGELOG entries. Content here is either promoted to formal memory when it earns it, or cleared when it doesn't.
+The `core/memory/working/notes/` folder is a staging area that sits between ephemeral session context (which disappears) and formal memory (which requires governance overhead). It operates below the governance layer: no frontmatter, no approval requirements, no CHANGELOG entries. Content here is either promoted to formal memory when it earns it, or cleared when it doesn't.
 
 ---
 
@@ -10,7 +10,7 @@ The `core/memory/working/scratchpad/` folder is a staging area that sits between
 
 ### USER.md
 
-`core/memory/working/scratchpad/USER.md` belongs to the user. It is their channel to the agent — a place to inject current priorities, temporary constraints, and session context without going through the formal memory system.
+`core/memory/working/USER.md` belongs to the user. It is their channel to the agent — a place to inject current priorities, temporary constraints, and session context without going through the formal memory system.
 
 - **Trust:** `high`. Treat its contents as direct user instruction.
 - **Author:** User only. Do not modify this file unless explicitly asked to.
@@ -20,7 +20,7 @@ The `core/memory/working/scratchpad/` folder is a staging area that sits between
 
 ### CURRENT.md
 
-`core/memory/working/scratchpad/CURRENT.md` is the agent's working notes file — a place to track provisional observations, draft abstractions, and cross-session hypotheses that aren't yet ready for formal memory.
+`core/memory/working/CURRENT.md` is the agent's working notes file — a place to track provisional observations, draft abstractions, and cross-session hypotheses that aren't yet ready for formal memory.
 
 - **Trust:** `medium`. Treat its contents as agent-inferred and provisional until confirmed.
 - **Author:** Agent only.
@@ -40,9 +40,9 @@ The `core/memory/working/scratchpad/` folder is a staging area that sits between
 | Confirmed skill or repeatable workflow | `core/memory/skills/` — propose, protected-tier |
 | Multi-session roadmap or investigation plan | project plans under `core/memory/working/projects/` — progress updates automatic; create/archive/scope changes proposed |
 | Governance or process change | `core/governance/review-queue.md` |
-| Temporary user context (hours to days) | `core/memory/working/scratchpad/USER.md` |
-| Unconfirmed observation worth tracking across sessions | `core/memory/working/scratchpad/CURRENT.md` |
-| Draft abstraction awaiting more evidence | `core/memory/working/scratchpad/CURRENT.md` or a dated file in `core/memory/working/scratchpad/` |
+| Temporary user context (hours to days) | `core/memory/working/USER.md` |
+| Unconfirmed observation worth tracking across sessions | `core/memory/working/CURRENT.md` |
+| Draft abstraction awaiting more evidence | `core/memory/working/CURRENT.md` or a dated file in `core/memory/working/notes/` |
 | One-session context with no follow-up needed | Nowhere — let it go |
 
 **Deciding between scratchpad and formal memory:** Ask "Would this still matter in three sessions?" If yes, it belongs in formal memory (propose it). If unsure, scratchpad. If no, don't write it anywhere. Scratchpad is a staging area for things with genuine cross-session value that haven't yet met the evidence bar for formal memory — not a dumping ground for uncertainty.
@@ -56,7 +56,7 @@ The `core/memory/working/scratchpad/` folder is a staging area that sits between
 - **Keep entries short** — one to three sentences pointing at the observation, not a full argument. If an observation requires extensive reasoning to make sense, it probably needs to be a formal proposal or a dated working file.
 - **One observation per entry.** Don't bundle multiple unrelated observations into one block.
 
-For longer working content — draft knowledge files, partial skill definitions, extended hypotheses — create a separate dated file: `core/memory/working/scratchpad/YYYY-MM-DD-brief-topic.md`. Reference it from CURRENT.md so it's discoverable. CURRENT.md is the index; dated files hold the detail.
+For longer working content — draft knowledge files, partial skill definitions, extended hypotheses — create a separate dated file: `core/memory/working/notes/YYYY-MM-DD-brief-topic.md`. Reference it from CURRENT.md so it's discoverable. CURRENT.md is the index; dated files hold the detail.
 
 ---
 
@@ -72,7 +72,7 @@ During session end, review CURRENT.md before writing your reflection:
 
 **Three-session rule:** Any entry whose session link has not been updated for three or more sessions should be cleared during the next session-end review. Three sessions without renewal means the observation wasn't strong enough to act on. Promote it or drop it.
 
-Dated working files (`core/memory/working/scratchpad/YYYY-MM-DD-topic.md`) follow the same logic. During aggregation, check whether any dated files older than the active low-trust retirement threshold are no longer referenced from CURRENT.md — if so, move them to `core/memory/working/scratchpad/_archive/`.
+Dated working files (`core/memory/working/notes/YYYY-MM-DD-topic.md`) follow the same logic. During aggregation, check whether any dated files older than the active low-trust retirement threshold are no longer referenced from CURRENT.md — if so, move them to `core/memory/working/notes/_archive/`.
 
 ---
 
