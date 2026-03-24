@@ -1,0 +1,73 @@
+id: survey-plan
+project: codebase-survey
+created: 2026-03-23
+origin_session: manual
+status: active
+purpose:
+  summary: Engram codebase survey and durable knowledge seeding.
+  context: |
+    Build a compact, maintainable knowledge base for Engram so future
+    sessions can answer architecture, data-model, operational, and historical
+    questions without re-reading the entire host repository.
+
+    This plan seeds the initial codebase-survey project. Each phase should
+    replace low-trust template material with verified notes grounded in the host
+    repository at core/tools/ and HUMANS/.
+  questions: []
+work:
+  phases:
+    - id: entry-point-mapping
+      title: Identify the application entry points, boot sequence, and top-level package boundaries.
+      status: pending
+      commit: null
+      blockers: []
+      changes:
+        - path: memory/working/projects/codebase-survey/IN/knowledge/codebase/architecture.md
+          action: update
+          description: Replace the architecture template with the initial system map and boot sequence.
+    - id: subsystem-survey
+      title: Trace major modules, services, and feature areas.
+      status: pending
+      commit: null
+      blockers: []
+      changes:
+        - path: memory/working/projects/codebase-survey/IN/knowledge/codebase/architecture.md
+          action: update
+          description: Expand the architecture note with module boundaries and cross-references.
+    - id: data-model-and-apis
+      title: Document core entities, persistence layers, and API boundaries.
+      status: pending
+      commit: null
+      blockers: []
+      changes:
+        - path: memory/working/projects/codebase-survey/IN/knowledge/codebase/data-model.md
+          action: update
+          description: Replace the data-model template with verified entity and interface notes.
+    - id: operations-and-delivery
+      title: Capture run, test, deploy, debug, and observability workflows.
+      status: pending
+      commit: null
+      blockers: []
+      changes:
+        - path: memory/working/projects/codebase-survey/IN/knowledge/codebase/operations.md
+          action: update
+          description: Replace the operations template with verified local and delivery procedures.
+    - id: decisions-and-history
+      title: Record ADRs, conventions, and historically relevant implementation decisions.
+      status: pending
+      commit: null
+      blockers: []
+      changes:
+        - path: memory/working/projects/codebase-survey/IN/knowledge/codebase/decisions.md
+          action: update
+          description: Replace the decisions template with durable historical context and rationale.
+    - id: freshness-loop
+      title: Add source grounding and update summary maintenance guidance.
+      status: pending
+      commit: null
+      blockers: []
+      changes:
+        - path: memory/working/projects/codebase-survey/IN/knowledge/codebase/SUMMARY.md
+          action: update
+          description: Record survey coverage, related source paths, and a re-verification cadence.
+review: null

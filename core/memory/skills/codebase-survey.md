@@ -10,7 +10,7 @@ trust: medium
 
 ## When to use this skill
 
-Use this skill when a worktree-backed memory store has just been initialized for a host repository, when `projects/codebase-survey/SUMMARY.md` is active, or when the files under `knowledge/codebase/` still contain template placeholders.
+Use this skill when a worktree-backed memory store has just been initialized for a host repository, when `projects/codebase-survey/SUMMARY.md` is active, or when the files under `projects/codebase-survey/IN/knowledge/codebase/` still contain template placeholders.
 
 ## Steps
 
@@ -28,7 +28,7 @@ Use this skill when a worktree-backed memory store has just been initialized for
 
 ### 3. Write durable notes, not transcripts
 
-- Promote stable findings into `knowledge/codebase/*.md`.
+- Promote stable findings into `projects/codebase-survey/IN/knowledge/codebase/*.md` (move to `knowledge/codebase/` via OUT/ once verified).
 - Keep temporary uncertainty, partial hypotheses, or oversized source dumps in `scratchpad/` until verified.
 - Replace template placeholders with concise, factual notes tied to concrete source paths.
 
@@ -52,7 +52,7 @@ Use this skill when a worktree-backed memory store has just been initialized for
 
 ## Example
 
-Good result: the survey session maps the Django app entry points, updates `knowledge/codebase/architecture.md` with the boot sequence and major apps, adds `related` source paths, and leaves deeper subsystem questions in `scratchpad/` for the next pass.
+Good result: the survey session maps the app entry points, updates `projects/codebase-survey/IN/knowledge/codebase/architecture.md` with the boot sequence and major modules, adds `related` source paths, and leaves deeper subsystem questions in `scratchpad/` for the next pass.
 
 ## Anti-patterns
 
