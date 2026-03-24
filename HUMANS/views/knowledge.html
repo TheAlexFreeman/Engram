@@ -257,7 +257,12 @@
 }
 .graph-legend .legend-item {
   display: flex; align-items: center; gap: 0.4rem; margin: 0.2rem 0;
+  cursor: pointer; padding: 0.1rem 0.25rem; border-radius: 3px;
+  transition: background 0.15s;
 }
+.graph-legend .legend-item:hover { background: rgba(130,130,130,0.15); }
+.graph-legend .legend-item.active { background: rgba(130,130,130,0.25); font-weight: 600; }
+.graph-legend .legend-item.dimmed { opacity: 0.4; }
 .graph-legend .legend-dot {
   width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
 }
@@ -1176,7 +1181,7 @@
     resize();
     window.addEventListener('resize', resize);
 
-    // Build legend
+    // Build legend (clickable domain filter)
     legend.textContent = '';
     var ltitle = el('div', 'Domains', 'legend-title');
     legend.appendChild(ltitle);
@@ -1184,12 +1189,32 @@
     for (var i = 0; i < graph.nodes.length; i++) {
       domainsSeen[graph.nodes[i].domain] = true;
     }
+    var selectedDomain = null;
+    var legendItems = {};
     for (var d in domainsSeen) {
       var item = el('div', '', 'legend-item');
       var dot = el('span', '', 'legend-dot');
       dot.style.background = DOMAIN_COLORS[d] || DOMAIN_DEFAULT_COLOR;
       item.appendChild(dot);
       item.appendChild(el('span', d));
+      item.dataset.domain = d;
+      legendItems[d] = item;
+      (function (domain, itemEl) {
+        itemEl.addEventListener('click', function () {
+          if (selectedDomain === domain) {
+            selectedDomain = null;  // toggle off
+          } else {
+            selectedDomain = domain;
+          }
+          // Update legend item styles
+          for (var key in legendItems) {
+            legendItems[key].classList.remove('active', 'dimmed');
+            if (selectedDomain) {
+              legendItems[key].classList.add(key === selectedDomain ? 'active' : 'dimmed');
+            }
+          }
+        });
+      })(d, item);
       legend.appendChild(item);
     }
 
@@ -1481,19 +1506,30 @@
       ctx.scale(cam.zoom, cam.zoom);
       ctx.translate(-cam.x, -cam.y);
 
-      // Highlighted neighbors
+      // Highlighted neighbors (hover takes priority, then domain filter)
       var highlightSet = {};
-      if (hoveredNode >= 0) {
+      var hoverActive = hoveredNode >= 0;
+      if (hoverActive) {
         highlightSet[hoveredNode] = true;
         var neighbors = adj[hoveredNode] || [];
         for (var h = 0; h < neighbors.length; h++) highlightSet[neighbors[h]] = true;
       }
-      var hasHighlight = hoveredNode >= 0;
+      // Domain filter: build set of indices matching selectedDomain
+      var domainSet = {};
+      var domainActive = selectedDomain !== null;
+      if (domainActive) {
+        for (var di = 0; di < nodes.length; di++) {
+          if (nodes[di].domain === selectedDomain) domainSet[di] = true;
+        }
+      }
+      var hasHighlight = hoverActive || domainActive;
 
       // Edges
       for (var e = 0; e < edgeIdx.length; e++) {
         var a = nodes[edgeIdx[e].s], b = nodes[edgeIdx[e].t];
-        var highlighted = hasHighlight && highlightSet[edgeIdx[e].s] && highlightSet[edgeIdx[e].t];
+        var edgeHover = hoverActive && highlightSet[edgeIdx[e].s] && highlightSet[edgeIdx[e].t];
+        var edgeDomain = !hoverActive && domainActive && (domainSet[edgeIdx[e].s] || domainSet[edgeIdx[e].t]);
+        var highlighted = edgeHover || edgeDomain;
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
@@ -1507,7 +1543,9 @@
         var node = nodes[i];
         var r = nodeRadius(node);
         var color = DOMAIN_COLORS[node.domain] || DOMAIN_DEFAULT_COLOR;
-        var dimmed = hasHighlight && !highlightSet[i];
+        var dimmedByHover = hoverActive && !highlightSet[i];
+        var dimmedByDomain = !hoverActive && domainActive && !domainSet[i];
+        var dimmed = dimmedByHover || dimmedByDomain;
         var isExternal = node.external;
 
         ctx.beginPath();
@@ -1533,14 +1571,16 @@
         }
       }
 
-      // Labels for hovered + neighbors, or for high-degree nodes when zoomed in
+      // Labels for hovered + neighbors, domain-selected, or high-degree nodes when zoomed in
       var labelThreshold = cam.zoom > 1.5 ? 3 : cam.zoom > 0.8 ? 6 : 999;
       ctx.font = Math.max(9, 11 / cam.zoom) + 'px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       for (var i = 0; i < nodes.length; i++) {
-        var show = (hasHighlight && highlightSet[i]) || (!hasHighlight && nodes[i].degree >= labelThreshold);
-        if (!show) continue;
+        var showByHover = hoverActive && highlightSet[i];
+        var showByDomain = !hoverActive && domainActive && domainSet[i];
+        var showByDegree = !hasHighlight && nodes[i].degree >= labelThreshold;
+        if (!showByHover && !showByDomain && !showByDegree) continue;
         var node = nodes[i];
         var r = nodeRadius(node);
         ctx.fillStyle = 'rgba(232,226,217,0.9)';
