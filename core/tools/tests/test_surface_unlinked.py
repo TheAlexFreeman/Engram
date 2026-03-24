@@ -238,9 +238,7 @@ class ConnectivityGraphTests(unittest.TestCase):
                 f"---\ntitle: File {i}\n---\nNo links.\n",
             )
 
-        result = find_unlinked_files(
-            self.root, scope="memory/knowledge", max_results=2
-        )
+        result = find_unlinked_files(self.root, scope="memory/knowledge", max_results=2)
 
         self.assertEqual(len(result["candidates"]), 2)
         self.assertTrue(result["budget"]["truncated"])
@@ -270,9 +268,7 @@ class ConnectivityGraphTests(unittest.TestCase):
             """,
         )
 
-        result = find_unlinked_files(
-            self.root, scope="memory/knowledge", include_suggestions=False
-        )
+        result = find_unlinked_files(self.root, scope="memory/knowledge", include_suggestions=False)
 
         for c in result["candidates"]:
             self.assertNotIn("suggested_links", c)

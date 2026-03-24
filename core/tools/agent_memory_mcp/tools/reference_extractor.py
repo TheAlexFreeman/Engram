@@ -933,9 +933,7 @@ class ConnectivityGraph:
     scope: str = ""
 
 
-def _extract_outgoing_refs(
-    rel_path: str, root: Path
-) -> set[str]:
+def _extract_outgoing_refs(rel_path: str, root: Path) -> set[str]:
     """Return resolved canonical paths of all outgoing refs from a file."""
     abs_path = root / rel_path
     try:
@@ -1022,9 +1020,7 @@ def _file_age_days(frontmatter: dict[str, Any]) -> int | None:
     return None
 
 
-def _extract_candidate_context(
-    rel_path: str, root: Path
-) -> dict[str, Any]:
+def _extract_candidate_context(rel_path: str, root: Path) -> dict[str, Any]:
     """Extract lightweight context for a candidate file."""
     abs_path = root / rel_path
     try:
@@ -1127,10 +1123,7 @@ def _suggest_link_candidates(
             scored.append((score, candidate, "; ".join(reasons)))
 
     scored.sort(key=lambda item: (-item[0], item[1]))
-    return [
-        {"target": target, "reason": reason}
-        for _, target, reason in scored[:max_suggestions]
-    ]
+    return [{"target": target, "reason": reason} for _, target, reason in scored[:max_suggestions]]
 
 
 def _domain_peers(rel_path: str, root: Path, max_peers: int = 8) -> list[str]:
@@ -1228,9 +1221,7 @@ def find_unlinked_files(
     # Suggestions are computed only for the returned candidates
     if include_suggestions:
         for c in candidates:
-            c["suggested_links"] = _suggest_link_candidates(
-                c["path"], graph, root
-            )
+            c["suggested_links"] = _suggest_link_candidates(c["path"], graph, root)
 
     total_edges = sum(len(refs) for refs in graph.outgoing.values())
     graph_stats: dict[str, Any] = {

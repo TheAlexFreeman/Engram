@@ -35,9 +35,7 @@ def _knowledge_domain(rel_path: str) -> str:
 # ── Graph construction ─────────────────────────────────────────────
 
 
-def build_knowledge_graph(
-    root: Path, scope: str = ""
-) -> dict[str, Any]:
+def build_knowledge_graph(root: Path, scope: str = "") -> dict[str, Any]:
     """Walk knowledge files and return ``{nodes, edges}`` adjacency data.
 
     *root* is the content root (``core/``).  *scope* can narrow to a
@@ -109,9 +107,7 @@ def _add_edge(
 # ── Graph metrics ──────────────────────────────────────────────────
 
 
-def analyze_graph(
-    nodes: list[dict[str, Any]], edges: list[dict[str, str]]
-) -> dict[str, Any]:
+def analyze_graph(nodes: list[dict[str, Any]], edges: list[dict[str, str]]) -> dict[str, Any]:
     """Compute structural metrics on a knowledge graph.
 
     Port of the browser-side ``analyzeGraph()`` in graph.js.
@@ -222,15 +218,17 @@ def analyze_graph(
             elif density > global_density * 2:
                 status = "dense"
 
-        domains.append({
-            "name": d,
-            "nodes": dn,
-            "internal_edges": internal,
-            "cross_edges": cross,
-            "density": round(density, 4),
-            "clustering": round(dom_clustering, 4),
-            "status": status,
-        })
+        domains.append(
+            {
+                "name": d,
+                "nodes": dn,
+                "internal_edges": internal,
+                "cross_edges": cross,
+                "density": round(density, 4),
+                "clustering": round(dom_clustering, 4),
+                "status": status,
+            }
+        )
     domains.sort(key=lambda x: x["nodes"], reverse=True)
 
     # Bridges: betweenness > 2× median
@@ -238,9 +236,13 @@ def analyze_graph(
     median_bw = sorted_bw[N // 2]
     bridge_threshold = max(median_bw * 2, 1.0)
     bridges = [
-        {"id": nodes[i]["id"], "domain": nodes[i]["domain"],
-         "betweenness": round(betweenness[i], 2)}
-        for i in range(N) if betweenness[i] > bridge_threshold
+        {
+            "id": nodes[i]["id"],
+            "domain": nodes[i]["domain"],
+            "betweenness": round(betweenness[i], 2),
+        }
+        for i in range(N)
+        if betweenness[i] > bridge_threshold
     ]
     bridges.sort(key=lambda x: x["betweenness"], reverse=True)
     bridges = bridges[:15]
@@ -255,7 +257,8 @@ def analyze_graph(
     # Orphans: degree ≤ 1
     orphans = [
         {"id": nodes[i]["id"], "domain": nodes[i]["domain"], "degree": degree[i]}
-        for i in range(N) if degree[i] <= 1
+        for i in range(N)
+        if degree[i] <= 1
     ]
 
     return {
@@ -274,9 +277,7 @@ def analyze_graph(
     }
 
 
-def _bfs(
-    adj: list[list[int]], N: int, src: int
-) -> tuple[list[int], list[int], list[int]]:
+def _bfs(adj: list[list[int]], N: int, src: int) -> tuple[list[int], list[int], list[int]]:
     dist = [-1] * N
     sigma = [0] * N
     dist[src] = 0
@@ -300,9 +301,7 @@ def _bfs(
 # ── Duplicate / redundant link detection & pruning ─────────────────
 
 
-def find_duplicate_links(
-    root: Path, scope: str = ""
-) -> list[dict[str, Any]]:
+def find_duplicate_links(root: Path, scope: str = "") -> list[dict[str, Any]]:
     """Scan knowledge files for duplicate link targets.
 
     Returns a list of per-file reports with duplicate targets and their
@@ -350,9 +349,7 @@ def find_duplicate_links(
     return results
 
 
-def prune_redundant_links(
-    root: Path, scope: str = "", *, dry_run: bool = True
-) -> dict[str, Any]:
+def prune_redundant_links(root: Path, scope: str = "", *, dry_run: bool = True) -> dict[str, Any]:
     """Remove redundant cross-references from knowledge files.
 
     Ported from the standalone ``prune_links.py`` script.

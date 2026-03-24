@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -22,13 +21,9 @@ def _load_engine():
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
     try:
-        return importlib.import_module(
-            "engram_mcp.agent_memory_mcp.tools.graph_analysis"
-        )
+        return importlib.import_module("engram_mcp.agent_memory_mcp.tools.graph_analysis")
     except ModuleNotFoundError as exc:
-        raise unittest.SkipTest(
-            f"graph_analysis dependencies unavailable: {exc.name}"
-        ) from exc
+        raise unittest.SkipTest(f"graph_analysis dependencies unavailable: {exc.name}") from exc
 
 
 def _load_server():
@@ -37,9 +32,7 @@ def _load_server():
     try:
         return importlib.import_module("engram_mcp.agent_memory_mcp.server")
     except ModuleNotFoundError as exc:
-        raise unittest.SkipTest(
-            f"agent_memory_mcp dependencies unavailable: {exc.name}"
-        ) from exc
+        raise unittest.SkipTest(f"agent_memory_mcp dependencies unavailable: {exc.name}") from exc
 
 
 # ── Fixtures ───────────────────────────────────────────────────────
@@ -130,7 +123,6 @@ class GraphAnalysisEngineTests(unittest.TestCase):
     def test_build_graph_scoped_to_domain(self) -> None:
         root = self._write_files(_SEED_FILES)
         graph = self.engine.build_knowledge_graph(root, scope="knowledge/math")
-        domains = {n["domain"] for n in graph["nodes"]}
 
         # All primary nodes should be in 'math'
         for n in graph["nodes"]:
@@ -229,16 +221,20 @@ class GraphToolsMCPTests(unittest.TestCase):
     def _init_repo(self, files: dict[str, str]) -> Path:
         temp_root = Path(self._tmpdir.name) / f"repo_{id(files)}"
         temp_root.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            ["git", "init"], cwd=temp_root, check=True, capture_output=True, text=True
-        )
+        subprocess.run(["git", "init"], cwd=temp_root, check=True, capture_output=True, text=True)
         subprocess.run(
             ["git", "config", "user.name", "Test User"],
-            cwd=temp_root, check=True, capture_output=True, text=True,
+            cwd=temp_root,
+            check=True,
+            capture_output=True,
+            text=True,
         )
         subprocess.run(
             ["git", "config", "user.email", "test@example.com"],
-            cwd=temp_root, check=True, capture_output=True, text=True,
+            cwd=temp_root,
+            check=True,
+            capture_output=True,
+            text=True,
         )
 
         for rel_path, content in files.items():
@@ -250,7 +246,10 @@ class GraphToolsMCPTests(unittest.TestCase):
         )
         subprocess.run(
             ["git", "commit", "-m", "seed"],
-            cwd=temp_root, check=True, capture_output=True, text=True,
+            cwd=temp_root,
+            check=True,
+            capture_output=True,
+            text=True,
         )
         return temp_root / "core"
 
