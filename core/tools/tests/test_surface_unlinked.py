@@ -18,7 +18,7 @@ class ConnectivityGraphTests(unittest.TestCase):
 
         self._original_roots = _GOVERNED_REFERENCE_ROOTS
         self.tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self.tmp.name)
+        self.root = Path(self.tmp.name).resolve()
         # Create a small knowledge tree under memory/knowledge/
         (self.root / "memory" / "knowledge" / "alpha").mkdir(parents=True)
         (self.root / "memory" / "knowledge" / "beta").mkdir(parents=True)
