@@ -5,42 +5,64 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Engram &#8212; Knowledge Base</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="engram-shared.css">
 <style>
-.knowledge-page { max-width: 960px; margin: 0 auto; }
+/* ── Layout ──────────────────────────────────────────── */
+.knowledge-header {
+  background: var(--dark-bg); color: var(--dark-text);
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+}
+.knowledge-header h1 { color: #fff; }
+.knowledge-header .subtitle { color: var(--dark-text-muted); }
+.knowledge-header .nav-link { color: var(--dark-text-muted); }
+.knowledge-header .nav-link:hover { color: #fff; }
 
-/* Domain cards override: bordered style for standalone page */
+.knowledge-body {
+  max-width: 1020px; margin: 0 auto;
+  padding: var(--space-lg);
+}
+
+/* ── Domain cards override ────────────────────────────── */
 .domain-card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-light);
   box-shadow: var(--shadow-card);
 }
 
-/* Knowledge detail view */
+/* ── Breadcrumb ──────────────────────────────────────── */
 .detail-breadcrumb {
   display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
-  font-size: 0.85rem; margin-bottom: 1rem;
+  font-size: var(--text-sm); margin-bottom: var(--space-md);
 }
 .detail-breadcrumb a {
   color: var(--color-primary); text-decoration: none; cursor: pointer;
+  font-weight: 500;
 }
-.detail-breadcrumb a:hover { text-decoration: underline; }
+.detail-breadcrumb a:hover { color: var(--color-primary-hover); }
 .detail-breadcrumb .sep { color: var(--color-text-faint); }
 .detail-breadcrumb .current { font-weight: 600; color: var(--color-text); }
 
+/* ── Detail grid ─────────────────────────────────────── */
 .detail-grid {
-  display: grid; grid-template-columns: 280px 1fr; gap: 1.25rem;
+  display: grid; grid-template-columns: 280px 1fr; gap: 1.5rem;
   min-height: 400px;
 }
 @media (max-width: 700px) { .detail-grid { grid-template-columns: 1fr; } }
 
+/* ── Sidebar ─────────────────────────────────────────── */
 .detail-sidebar {
-  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
   overflow: hidden; box-shadow: var(--shadow-card);
 }
 .detail-sidebar .sidebar-header {
-  padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--color-border-light);
-  background: var(--color-header); font-size: 0.8rem; font-weight: 600;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: var(--text-sm); font-weight: 600;
 }
 .detail-sidebar .sidebar-body {
   padding: 0; max-height: 500px; overflow-y: auto;
@@ -49,76 +71,93 @@
   list-style: none; padding: 0; margin: 0;
 }
 .detail-sidebar .sidebar-body li {
-  font-size: 0.8rem; cursor: pointer;
-  padding: 0.35rem 0.75rem;
-  border-bottom: 1px solid #f5f5f5;
-  transition: background 0.1s;
+  font-size: var(--text-sm); cursor: pointer;
+  padding: 0.45rem 0.9rem;
+  border-bottom: 1px solid var(--color-border-fine);
+  transition: background var(--duration) var(--ease);
   display: flex; align-items: center; gap: 0.4rem;
 }
-.detail-sidebar .sidebar-body li:hover { background: #f1f5f9; }
-.detail-sidebar .sidebar-body li.active { background: var(--color-active-bg); font-weight: 600; }
+.detail-sidebar .sidebar-body li:hover { background: var(--color-bg); }
+.detail-sidebar .sidebar-body li.active {
+  background: var(--color-active-bg);
+  border-left: 3px solid var(--color-primary);
+  font-weight: 600;
+}
 .detail-sidebar .sidebar-body li .icon { font-size: 0.85rem; flex-shrink: 0; }
 .detail-sidebar .sidebar-body li .file-trust {
   margin-left: auto; flex-shrink: 0;
 }
 
+/* ── Content panel ───────────────────────────────────── */
 .detail-content {
-  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
   overflow: hidden; box-shadow: var(--shadow-card);
 }
 .detail-content .content-header {
-  padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--color-border-light);
-  background: var(--color-header); font-size: 0.8rem; font-weight: 600;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: var(--text-sm); font-weight: 600;
   display: flex; align-items: center; gap: 0.5rem;
 }
 .detail-content .content-meta {
-  padding: 0.5rem 0.75rem; border-bottom: 1px solid #f0f0f0;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--color-border-fine);
   display: flex; gap: 0.75rem; flex-wrap: wrap;
-  font-size: 0.75rem; color: var(--color-text-secondary); background: var(--color-header);
+  font-size: var(--text-xs); color: var(--color-text-secondary);
 }
 .detail-content .content-meta .meta-item {
   display: flex; align-items: center; gap: 0.25rem;
 }
-.detail-content .content-meta .meta-label { font-weight: 600; color: var(--color-text-muted); }
-.detail-content .content-body {
-  padding: 0.75rem 1rem;
-  max-height: 520px; overflow-y: auto;
-  font-size: 0.84rem; line-height: 1.7;
+.detail-content .content-meta .meta-label {
+  font-weight: 600; color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
 }
+.detail-content .content-body {
+  padding: 1.15rem 1.25rem;
+  max-height: 560px; overflow-y: auto;
+  font-size: var(--text-base); line-height: 1.75;
+}
+
+/* ── Content typography ──────────────────────────────── */
 .detail-content .content-body h1,
 .detail-content .content-body h2,
 .detail-content .content-body h3,
 .detail-content .content-body h4 {
-  margin: 1.1em 0 0.4em; line-height: 1.3;
+  margin: 1.2em 0 0.4em; line-height: 1.3;
 }
-.detail-content .content-body h1 { font-size: 1.2rem; border-bottom: 1px solid var(--color-border-light); padding-bottom: 0.25rem; }
-.detail-content .content-body h2 { font-size: 1.05rem; border-bottom: 1px solid var(--color-border-fine); padding-bottom: 0.2rem; }
-.detail-content .content-body h3 { font-size: 0.95rem; }
-.detail-content .content-body h4 { font-size: 0.88rem; color: #444; }
-.detail-content .content-body p  { margin: 0.5em 0; }
+.detail-content .content-body h1 { font-size: 1.25rem; border-bottom: 1px solid var(--color-border-light); padding-bottom: 0.3rem; }
+.detail-content .content-body h2 { font-size: 1.1rem; border-bottom: 1px solid var(--color-border-fine); padding-bottom: 0.2rem; }
+.detail-content .content-body h3 { font-size: 0.98rem; }
+.detail-content .content-body h4 { font-size: 0.9rem; color: var(--color-text-secondary); }
+.detail-content .content-body p  { margin: 0.6em 0; }
 .detail-content .content-body ul,
 .detail-content .content-body ol {
-  margin: 0.4em 0; padding-left: 1.6em;
+  margin: 0.5em 0; padding-left: 1.6em;
 }
 
-/* Cross-reference links (knowledge file references) */
+/* Cross-reference links */
 .knowledge-xref {
   color: var(--color-primary); cursor: pointer; text-decoration: none;
-  border-bottom: 1px dashed #93b4f5;
+  border-bottom: 1px dashed var(--color-hover-border);
+  transition: border-color var(--duration) var(--ease);
 }
-.knowledge-xref:hover { border-bottom-style: solid; }
-.content-meta .knowledge-xref { font-size: 0.75rem; }
-.detail-content .content-body li { margin: 0.2em 0; }
+.knowledge-xref:hover { border-bottom-style: solid; border-color: var(--color-primary); }
+.content-meta .knowledge-xref { font-size: var(--text-xs); }
+
+.detail-content .content-body li { margin: 0.25em 0; }
 .detail-content .content-body li > ul,
 .detail-content .content-body li > ol { margin: 0.15em 0; }
 .detail-content .content-body hr {
-  border: none; border-top: 1px solid #e0e0e0;
-  margin: 1rem 0;
+  border: none; border-top: 1px solid var(--color-border-light);
+  margin: 1.25rem 0;
 }
 .detail-content .content-body blockquote {
-  margin: 0.5em 0; padding: 0.4em 0.75em;
-  border-left: 3px solid #c7d2fe; background: #f8f9ff;
-  color: #444; font-style: italic;
+  margin: 0.6em 0; padding: 0.5em 0.85em;
+  border-left: 3px solid var(--color-primary);
+  background: var(--color-hover-bg); color: var(--color-text-secondary);
+  border-radius: 0 var(--radius-small) var(--radius-small) 0;
 }
 .detail-content .content-body code {
   font-family: var(--font-mono);
@@ -126,27 +165,28 @@
   background: var(--color-code-bg); border-radius: 3px;
 }
 .detail-content .content-body pre {
-  margin: 0.6em 0; padding: 0.75em; overflow-x: auto;
-  background: #1e293b; color: #e2e8f0; border-radius: var(--radius-button);
+  margin: 0.6em 0; padding: 0.85em; overflow-x: auto;
+  background: #0d1117; color: #e2e8f0;
+  border-radius: var(--radius-button);
   font-family: var(--font-mono);
-  font-size: 0.78rem; line-height: 1.5;
+  font-size: 0.8rem; line-height: 1.55;
 }
 .detail-content .content-body pre code {
   background: none; padding: 0; color: inherit; font-size: inherit;
 }
 .detail-content .content-body table {
   width: 100%; border-collapse: collapse; margin: 0.6em 0;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 .detail-content .content-body th,
 .detail-content .content-body td {
-  text-align: left; padding: 0.35rem 0.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  text-align: left; padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--color-border-light);
 }
 .detail-content .content-body th {
-  font-weight: 600; font-size: 0.75rem; color: #555;
-  text-transform: uppercase; letter-spacing: 0.03em;
-  background: var(--color-header); border-bottom: 2px solid var(--color-border);
+  font-weight: 600; font-size: var(--text-xs); color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: 2px solid var(--color-border);
 }
 .detail-content .content-body tr:hover td { background: var(--color-bg); }
 .detail-content .content-body strong { font-weight: 600; }
@@ -161,10 +201,15 @@
 </style>
 </head>
 <body>
-<div class="knowledge-page">
 
-<h1>&#128218; Knowledge Base</h1>
-<p class="subtitle"><a href="dashboard.html" class="nav-link">&#8592; Dashboard</a></p>
+<div class="knowledge-header">
+  <div style="max-width:1020px;margin:0 auto;">
+    <h1>Knowledge Base</h1>
+    <p class="subtitle"><a href="dashboard.html" class="nav-link">&#8592; Dashboard</a></p>
+  </div>
+</div>
+
+<div class="knowledge-body">
 
 <div class="error-banner" id="error-banner"></div>
 
@@ -194,9 +239,9 @@
   </div>
 </div>
 
-</div><!-- /knowledge-page -->
+</div><!-- /knowledge-body -->
 
-<noscript><p style="text-align:center;margin-top:3rem;color:#b91c1c;">JavaScript is required for the knowledge viewer.</p></noscript>
+<noscript><p style="text-align:center;margin-top:3rem;color:#f87171;">JavaScript is required for the knowledge viewer.</p></noscript>
 
 <script src="engram-utils.js"></script>
 <script>

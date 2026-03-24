@@ -5,260 +5,314 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Engram &#8212; Projects</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="engram-shared.css">
 <style>
-.projects-page { max-width: 960px; margin: 0 auto; }
+/* ── Layout ──────────────────────────────────────────── */
+.projects-header {
+  background: var(--dark-bg); color: var(--dark-text);
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+}
+.projects-header h1 { color: #fff; }
+.projects-header .subtitle { color: var(--dark-text-muted); }
+.projects-header .nav-link { color: var(--dark-text-muted); }
+.projects-header .nav-link:hover { color: #fff; }
+
+.projects-body {
+  max-width: 1020px; margin: 0 auto;
+  padding: var(--space-lg);
+}
 
 /* ── Project list cards ──────────────────────────────── */
-
 .project-cards {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);
 }
 @media (max-width: 700px) { .project-cards { grid-template-columns: 1fr; } }
 
 .project-card {
-  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-card);
-  padding: 0.75rem 0.9rem; cursor: pointer;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  padding: var(--space-md) calc(var(--space-md) * 1.1);
+  cursor: pointer;
   box-shadow: var(--shadow-card);
-  transition: background 0.12s, border-color 0.12s, box-shadow 0.15s, transform 0.15s;
+  transition: box-shadow var(--duration) var(--ease), transform var(--duration) var(--ease);
 }
 .project-card:hover {
-  background: var(--color-hover-bg); border-color: var(--color-hover-border);
-  box-shadow: var(--shadow-hover); transform: translateY(-1px);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
 }
 .project-card .card-top {
   display: flex; align-items: center; gap: 0.4rem;
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.35rem;
 }
 .project-card .card-name {
-  font-weight: 600; font-size: 0.88rem; flex: 1;
+  font-weight: 600; font-size: var(--text-base); flex: 1;
 }
 .project-card .card-focus {
-  font-size: 0.78rem; color: var(--color-text-secondary); line-height: 1.45;
+  font-size: var(--text-sm); color: var(--color-text-secondary); line-height: 1.5;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
 }
 .project-card .card-footer {
   display: flex; align-items: center; gap: 0.5rem;
-  margin-top: 0.35rem; font-size: 0.72rem; color: var(--color-text-muted);
+  margin-top: 0.5rem; font-size: var(--text-xs); color: var(--color-text-muted);
 }
 
 /* Mode chip */
 .mode-chip {
-  display: inline-block; padding: 0.08rem 0.35rem;
-  border-radius: 3px; font-size: 0.65rem; font-weight: 600;
+  display: inline-block; padding: 0.12rem 0.45rem;
+  border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
 }
-.mode-exploration  { background: #eff6ff; color: #1d4ed8; }
-.mode-crystallization { background: #fef3c7; color: #92400e; }
-.mode-verification { background: #f0fdf4; color: #166534; }
+.mode-exploration  { background: rgba(194,180,154,0.15); color: #d4c9b0; }
+.mode-crystallization { background: rgba(217,119,6,0.15); color: #fbbf24; }
+.mode-verification { background: rgba(34,197,94,0.15); color: #4ade80; }
 
-/* ── Project detail view ─────────────────────────────── */
-
+/* ── Breadcrumb ──────────────────────────────────────── */
 .detail-breadcrumb {
   display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
-  font-size: 0.85rem; margin-bottom: 1rem;
+  font-size: var(--text-sm); margin-bottom: var(--space-md);
 }
 .detail-breadcrumb a {
   color: var(--color-primary); text-decoration: none; cursor: pointer;
+  font-weight: 500;
 }
-.detail-breadcrumb a:hover { text-decoration: underline; }
+.detail-breadcrumb a:hover { color: var(--color-primary-hover); }
 .detail-breadcrumb .sep { color: var(--color-text-faint); }
 .detail-breadcrumb .current { font-weight: 600; color: var(--color-text); }
 
+/* ── Project detail ──────────────────────────────────── */
 .project-header {
-  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
-  margin-bottom: 0.5rem;
+  display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
 }
-.project-header h2 { font-size: 1.15rem; margin: 0; }
+.project-header h2 { font-size: var(--text-xl); margin: 0; font-weight: 700; letter-spacing: -0.01em; }
 
+/* Elyon-style metadata block */
 .project-meta {
-  display: flex; gap: 0.75rem; flex-wrap: wrap;
-  font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 1rem;
-  padding: 0.4rem 0.6rem; background: var(--color-header);
-  border: 1px solid var(--color-border-light); border-radius: var(--radius-button);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-sm) var(--space-md);
+  font-size: var(--text-sm); color: var(--color-text-secondary);
+  margin-bottom: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 .project-meta .meta-item {
-  display: flex; align-items: center; gap: 0.25rem;
+  display: flex; flex-direction: column; gap: 0.15rem;
 }
-.project-meta .meta-label { font-weight: 600; color: var(--color-text-muted); }
+.project-meta .meta-label {
+  font-weight: 600; color: var(--color-text-muted);
+  font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em;
+}
 
 .project-focus {
-  font-size: 0.88rem; color: #333; font-style: italic;
-  padding: 0.5rem 0.7rem; background: #f0f4ff; border-left: 3px solid var(--color-accent);
-  border-radius: 0 6px 6px 0; margin-bottom: 1.25rem;
+  font-size: var(--text-base); color: var(--color-text-secondary);
+  padding: 0.6rem 0.85rem;
+  background: var(--color-hover-bg);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 0 var(--radius-button) var(--radius-button) 0;
+  margin-bottom: var(--space-lg);
 }
 
-/* Sections */
+/* ── Sections ────────────────────────────────────────── */
 .project-section {
-  margin-bottom: 1.25rem;
+  margin-bottom: var(--space-lg);
 }
 .project-section .section-title {
-  font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem;
-  padding-bottom: 0.25rem; border-bottom: 1px solid var(--color-border-light);
-  display: flex; align-items: center; gap: 0.35rem;
+  font-size: var(--text-lg); font-weight: 700;
+  margin-bottom: var(--space-sm);
+  padding-bottom: var(--space-xs);
+  border-bottom: 2px solid var(--color-border-light);
+  display: flex; align-items: center; gap: 0.4rem;
+  letter-spacing: -0.01em;
 }
 
-/* Description body */
+/* ── Section body typography ──────────────────────────── */
 .section-body {
-  font-size: 0.84rem; line-height: 1.7;
+  font-size: var(--text-base); line-height: 1.75;
 }
 .section-body h1, .section-body h2, .section-body h3, .section-body h4 {
-  margin: 1.1em 0 0.4em; line-height: 1.3;
+  margin: 1.2em 0 0.4em; line-height: 1.3;
 }
-.section-body h1 { font-size: 1.1rem; }
-.section-body h2 { font-size: 1rem; border-bottom: 1px solid var(--color-border-fine); padding-bottom: 0.15rem; }
-.section-body h3 { font-size: 0.92rem; }
-.section-body p  { margin: 0.5em 0; }
-.section-body ul, .section-body ol { margin: 0.4em 0; padding-left: 1.6em; }
-.section-body li { margin: 0.2em 0; }
-.section-body hr { border: none; border-top: 1px solid #e0e0e0; margin: 1rem 0; }
+.section-body h1 { font-size: 1.15rem; }
+.section-body h2 { font-size: 1.05rem; border-bottom: 1px solid var(--color-border-fine); padding-bottom: 0.15rem; }
+.section-body h3 { font-size: 0.95rem; }
+.section-body p  { margin: 0.6em 0; }
+.section-body ul, .section-body ol { margin: 0.5em 0; padding-left: 1.6em; }
+.section-body li { margin: 0.25em 0; }
+.section-body hr { border: none; border-top: 1px solid var(--color-border-light); margin: 1.25rem 0; }
 .section-body blockquote {
-  margin: 0.5em 0; padding: 0.4em 0.75em;
-  border-left: 3px solid var(--color-hover-border); background: #f8f9ff;
-  color: #444; font-style: italic;
+  margin: 0.6em 0; padding: 0.5em 0.85em;
+  border-left: 3px solid var(--color-primary);
+  background: var(--color-hover-bg); color: var(--color-text-secondary);
+  border-radius: 0 var(--radius-small) var(--radius-small) 0;
 }
 .section-body pre {
-  background: var(--color-code-bg); border: 1px solid #e1e4e8; border-radius: 5px;
-  padding: 0.6rem 0.8rem; overflow-x: auto; font-size: 0.8rem;
+  background: #0d1117; color: #e2e8f0;
+  border-radius: var(--radius-button);
+  padding: 0.75rem 0.9rem; overflow-x: auto; font-size: var(--text-sm);
 }
 .section-body code {
   background: var(--color-code-bg); padding: 0.1rem 0.3rem; border-radius: 3px;
   font-size: 0.82em;
 }
-.section-body pre code { background: none; padding: 0; }
+.section-body pre code { background: none; padding: 0; color: inherit; }
 .section-body table {
   width: 100%; border-collapse: collapse; margin: 0.5em 0;
 }
 .section-body th, .section-body td {
-  text-align: left; padding: 0.3rem 0.5rem; font-size: 0.8rem;
-  border-bottom: 1px solid #f0f0f0;
+  text-align: left; padding: 0.5rem 0.6rem; font-size: var(--text-sm);
+  border-bottom: 1px solid var(--color-border-fine);
 }
 .section-body th {
-  font-weight: 600; color: var(--color-text-secondary); font-size: 0.75rem;
-  text-transform: uppercase; letter-spacing: 0.03em;
+  font-weight: 600; color: var(--color-text-muted); font-size: var(--text-xs);
+  text-transform: uppercase; letter-spacing: 0.04em;
 }
 
-/* Question cards */
+/* ── Question cards ───────────────────────────────────── */
 .question-card {
-  background: var(--color-surface); border: 1px solid #e5e7eb; border-radius: var(--radius-button);
-  margin-bottom: 0.5rem; overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-button);
+  margin-bottom: var(--space-sm); overflow: hidden;
   box-shadow: var(--shadow-card);
+  transition: box-shadow var(--duration) var(--ease);
 }
+.question-card:hover { box-shadow: var(--shadow-hover); }
 .question-card .q-header {
-  padding: 0.45rem 0.65rem; cursor: pointer;
+  padding: 0.55rem 0.75rem; cursor: pointer;
   display: flex; align-items: flex-start; gap: 0.4rem;
-  font-size: 0.82rem; font-weight: 500;
-  transition: background 0.1s;
+  font-size: var(--text-sm); font-weight: 500;
+  transition: background var(--duration) var(--ease);
 }
-.question-card .q-header:hover { background: #f9fafb; }
+.question-card .q-header:hover { background: var(--color-bg); }
 .question-card .q-toggle {
-  flex-shrink: 0; color: var(--color-text-faint); transition: transform 0.15s;
-  font-size: 0.7rem; margin-top: 0.15rem;
+  flex-shrink: 0; color: var(--color-text-faint);
+  transition: transform var(--duration) var(--ease);
+  font-size: var(--text-xs); margin-top: 0.15rem;
 }
 .question-card.open .q-toggle { transform: rotate(90deg); }
 .question-card .q-body {
-  display: none; padding: 0 0.65rem 0.5rem;
-  font-size: 0.78rem; line-height: 1.6; color: #444;
+  display: none; padding: 0 0.75rem 0.6rem;
+  font-size: var(--text-sm); line-height: 1.65; color: var(--color-text-secondary);
 }
 .question-card.open .q-body { display: block; }
 .question-card .q-meta {
-  font-size: 0.72rem; color: var(--color-text-muted); margin-bottom: 0.3rem;
+  font-size: var(--text-xs); color: var(--color-text-muted); margin-bottom: 0.3rem;
 }
 .question-card .q-resolves {
-  display: inline-block; padding: 0.05rem 0.3rem;
-  border-radius: 3px; font-size: 0.65rem; font-weight: 600;
-  background: #f3f4f6; color: #555;
+  display: inline-block; padding: 0.08rem 0.35rem;
+  border-radius: var(--radius-pill); font-size: 0.62rem; font-weight: 600;
+  background: var(--color-bg); color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
 }
 
-/* Plan timeline */
+/* ── Plan timeline ────────────────────────────────────── */
 .plan-card {
-  background: var(--color-surface); border: 1px solid #e5e7eb; border-radius: var(--radius-button);
-  margin-bottom: 0.75rem; overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  margin-bottom: var(--space-md); overflow: hidden;
   box-shadow: var(--shadow-card);
 }
 .plan-card .plan-header {
-  padding: 0.5rem 0.65rem; background: var(--color-header);
+  padding: 0.6rem 0.75rem;
   border-bottom: 1px solid var(--color-border-light);
-  font-size: 0.82rem; font-weight: 600;
+  font-size: var(--text-sm); font-weight: 600;
   display: flex; align-items: center; gap: 0.4rem;
 }
 .plan-card .plan-purpose {
-  padding: 0.4rem 0.65rem; font-size: 0.78rem; color: var(--color-text-secondary);
+  padding: 0.5rem 0.75rem; font-size: var(--text-sm);
+  color: var(--color-text-secondary);
   border-bottom: 1px solid var(--color-border-fine);
 }
 
 .phase-item {
-  display: flex; gap: 0.5rem; padding: 0.45rem 0.65rem;
-  border-bottom: 1px solid #f5f5f5; font-size: 0.8rem;
-  align-items: flex-start;
+  display: flex; gap: 0.6rem; padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--color-border-fine);
+  font-size: var(--text-sm); align-items: flex-start;
 }
 .phase-item:last-child { border-bottom: none; }
 .phase-indicator {
-  flex-shrink: 0; width: 4px; min-height: 1.6rem;
-  border-radius: 2px; margin-top: 0.1rem;
+  flex-shrink: 0; width: 5px; min-height: 1.8rem;
+  border-radius: 3px; margin-top: 0.1rem;
 }
 .phase-completed .phase-indicator { background: var(--color-ok); }
 .phase-active .phase-indicator    { background: var(--color-active); }
-.phase-pending .phase-indicator   { background: #d1d5db; }
+.phase-pending .phase-indicator   { background: var(--color-border); }
 .phase-blocked .phase-indicator   { background: var(--color-danger); }
 .phase-content { flex: 1; }
-.phase-title { font-weight: 500; }
+.phase-title { font-weight: 600; }
 .phase-changes {
-  margin-top: 0.25rem; font-size: 0.72rem; color: #666;
+  margin-top: 0.3rem; font-size: var(--text-xs); color: var(--color-text-muted);
 }
 .phase-changes .change-item {
   display: flex; align-items: baseline; gap: 0.3rem;
   padding: 0.1rem 0;
 }
 .action-badge {
-  display: inline-block; padding: 0.02rem 0.25rem;
-  border-radius: 3px; font-size: 0.62rem; font-weight: 600;
-  text-transform: uppercase;
+  display: inline-block; padding: 0.06rem 0.3rem;
+  border-radius: var(--radius-pill); font-size: 0.6rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.03em;
 }
-.action-create  { background: #dcfce7; color: #166534; }
-.action-update  { background: #fef9c3; color: #854d0e; }
-.action-rewrite { background: #fee2e2; color: #991b1b; }
-.action-delete  { background: #fecaca; color: #7f1d1d; }
+.action-create  { background: var(--color-trust-high-bg); color: var(--color-trust-high); }
+.action-update  { background: var(--color-trust-med-bg); color: var(--color-trust-med); }
+.action-rewrite { background: var(--color-trust-low-bg); color: var(--color-trust-low); }
+.action-delete  { background: rgba(239,68,68,0.15); color: #f87171; }
 
-/* Notes file list */
+/* ── Notes ───────────────────────────────────────────── */
 .note-item {
   display: flex; align-items: center; gap: 0.4rem;
-  padding: 0.4rem 0.5rem; font-size: 0.8rem;
-  cursor: pointer; border-radius: 4px;
-  transition: background 0.1s;
+  padding: 0.5rem 0.6rem; font-size: var(--text-sm);
+  cursor: pointer; border-radius: var(--radius-button);
+  transition: background var(--duration) var(--ease);
 }
-.note-item:hover { background: #f1f5f9; }
+.note-item:hover { background: var(--color-bg); }
 .note-item .icon { font-size: 0.85rem; flex-shrink: 0; }
 
-/* Note content viewer (shown inline) */
 .note-viewer {
-  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-card);
-  margin-top: 0.5rem; overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  margin-top: var(--space-sm); overflow: hidden;
   box-shadow: var(--shadow-card);
 }
 .note-viewer .note-header {
-  padding: 0.4rem 0.65rem; background: var(--color-header);
-  border-bottom: 1px solid var(--color-border-light); font-size: 0.8rem; font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: var(--text-sm); font-weight: 600;
   display: flex; align-items: center; justify-content: space-between;
 }
 .note-viewer .note-close {
   cursor: pointer; color: var(--color-text-muted); font-size: 0.9rem;
+  transition: color var(--duration) var(--ease);
 }
-.note-viewer .note-close:hover { color: #333; }
+.note-viewer .note-close:hover { color: var(--color-text); }
 .note-viewer .note-body {
-  padding: 0.75rem 1rem; max-height: 400px; overflow-y: auto;
+  padding: 0.85rem 1.1rem; max-height: 400px; overflow-y: auto;
 }
 .section-empty {
-  font-size: 0.78rem; color: var(--color-text-faint); font-style: italic;
-  padding: 0.25rem 0;
+  font-size: var(--text-sm); color: var(--color-text-faint); font-style: italic;
+  padding: var(--space-xs) 0;
 }
 </style>
 </head>
 <body>
-<div class="projects-page">
 
-<h1>&#128230; Projects</h1>
-<p class="subtitle"><a href="dashboard.html" class="nav-link">&#8592; Dashboard</a></p>
+<div class="projects-header">
+  <div style="max-width:1020px;margin:0 auto;">
+    <h1>Projects</h1>
+    <p class="subtitle"><a href="dashboard.html" class="nav-link">&#8592; Dashboard</a></p>
+  </div>
+</div>
+
+<div class="projects-body">
 
 <div class="error-banner" id="error-banner"></div>
 
@@ -298,9 +352,9 @@
   </div>
 </div>
 
-</div><!-- /projects-page -->
+</div><!-- /projects-body -->
 
-<noscript><p style="text-align:center;margin-top:3rem;color:#b91c1c;">JavaScript is required for the projects viewer.</p></noscript>
+<noscript><p style="text-align:center;margin-top:3rem;color:#f87171;">JavaScript is required for the projects viewer.</p></noscript>
 
 <script src="engram-utils.js"></script>
 <script>
