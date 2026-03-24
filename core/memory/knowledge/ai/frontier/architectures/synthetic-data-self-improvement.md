@@ -7,6 +7,7 @@ topic: Synthetic data, distillation at scale, self-improvement loops, and the mo
   collapse problem
 trust: medium
 type: knowledge
+related: ../../../rationalist-community/ai-discourse/canonical-ideas/intelligence-explosion-foom-recursive-self-improvement.md, ../../../mathematics/dynamical-systems/self-organized-criticality.md, ../../../philosophy/self-organized-criticality.md
 ---
 
 # Synthetic Data and Self-Improvement

@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: compression-generalization-connection.md, double-descent-benign-overfitting.md, ../logic-foundations/kolmogorov-complexity-chaitin.md
 ---
 
 # The Minimum Description Length Principle

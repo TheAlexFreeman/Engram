@@ -127,11 +127,11 @@ This is not a critique but an application of the framework: epistemic virtue ana
 
 ## Related
 
-- [goldman-reliabilist-social-epistemology.md](knowledge/social-science/social-epistemology/goldman-reliabilist-social-epistemology.md) — Reliabilist framework for evaluating epistemic institutions
-- [extended-mind-distributed-cognition.md](knowledge/social-science/social-epistemology/extended-mind-distributed-cognition.md) — Cognitive structures enabling epistemic virtue; artifacts as cognitive scaffolding
-- [social-epistemology-synthesis.md](knowledge/social-science/social-epistemology/social-epistemology-synthesis.md) — Synthesis
-- [fricker-epistemic-injustice.md](knowledge/social-science/cultural-evolution/fricker-epistemic-injustice.md) — Testimonial and hermeneutical injustice as collective epistemic vices
-- [merton-scientific-norms.md](knowledge/social-science/sociology-of-knowledge/merton-scientific-norms.md) — CUDOS norms as institutional implementations of epistemic virtue
-- [group-polarization-groupthink.md](knowledge/social-science/social-psychology/group-polarization-groupthink.md) — Groupthink as collective epistemic vice; antecedents and symptoms
-- [surowiecki-wisdom-of-crowds.md](knowledge/social-science/network-diffusion/surowiecki-wisdom-of-crowds.md) — Diversity and independence as collective epistemic virtues
-- [behavioral-economics-rationality-synthesis.md](knowledge/social-science/behavioral-economics/behavioral-economics-rationality-synthesis.md) — Debiasing as epistemic virtue cultivation; rationality norms
+- [goldman-reliabilist-social-epistemology.md](goldman-reliabilist-social-epistemology.md) — Reliabilist framework for evaluating epistemic institutions
+- [extended-mind-distributed-cognition.md](extended-mind-distributed-cognition.md) — Cognitive structures enabling epistemic virtue; artifacts as cognitive scaffolding
+- [social-epistemology-synthesis.md](social-epistemology-synthesis.md) — Synthesis
+- [fricker-epistemic-injustice.md](../cultural-evolution/fricker-epistemic-injustice.md) — Testimonial and hermeneutical injustice as collective epistemic vices
+- [merton-scientific-norms.md](../sociology-of-knowledge/merton-scientific-norms.md) — CUDOS norms as institutional implementations of epistemic virtue
+- [group-polarization-groupthink.md](../social-psychology/group-polarization-groupthink.md) — Groupthink as collective epistemic vice; antecedents and symptoms
+- [surowiecki-wisdom-of-crowds.md](../network-diffusion/surowiecki-wisdom-of-crowds.md) — Diversity and independence as collective epistemic virtues
+- [behavioral-economics-rationality-synthesis.md](../behavioral-economics/behavioral-economics-rationality-synthesis.md) — Debiasing as epistemic virtue cultivation; rationality norms

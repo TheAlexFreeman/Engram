@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: conceptual-hygiene-interdisciplinary.md, gardenfors-conceptual-spaces.md, ../relevance-realization/representational-change-theory-ohlsson.md
 ---
 
 # Conceptual Change: Types and Mechanisms

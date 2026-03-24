@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: kl-divergence-cross-entropy.md, vc-dimension-fundamental-theorem.md, ../statistical-mechanics/thermodynamics-entropy-unification.md
 ---
 
 # Entropy and the Source Coding Theorem

@@ -120,11 +120,11 @@ Goldman's framework connects to the cultural evolution literature at several poi
 
 ## Related
 
-- [fricker-epistemic-injustice.md](knowledge/social-science/cultural-evolution/fricker-epistemic-injustice.md) — Testimonial injustice as a reliability-distorting mechanism; hermeneutical gaps
-- [extended-mind-distributed-cognition.md](knowledge/social-science/social-epistemology/extended-mind-distributed-cognition.md) — How cognitive processes extend beyond individuals into social-technical systems
-- [epistemic-virtues-vices-communities.md](knowledge/social-science/social-epistemology/epistemic-virtues-vices-communities.md) — Virtue epistemology applied to communities; collective epistemic vices
-- [social-epistemology-synthesis.md](knowledge/social-science/social-epistemology/social-epistemology-synthesis.md) — Synthesis connecting Goldman, extended cognition, and virtue epistemology
-- [merton-scientific-norms.md](knowledge/social-science/sociology-of-knowledge/merton-scientific-norms.md) — CUDOS norms as reliability-enhancing institutional structure
-- [surowiecki-wisdom-of-crowds.md](knowledge/social-science/network-diffusion/surowiecki-wisdom-of-crowds.md) — Conditions for collective epistemic success
-- [kahneman-tversky-heuristics-biases.md](knowledge/social-science/behavioral-economics/kahneman-tversky-heuristics-biases.md) — Individual reliability failures that social epistemology must address
-- [idea-fitness-vs-truth.md](knowledge/social-science/cultural-evolution/idea-fitness-vs-truth.md) — Decoupling of cultural fitness from truth; Goldman's normative counterpoint
+- [fricker-epistemic-injustice.md](../cultural-evolution/fricker-epistemic-injustice.md) — Testimonial injustice as a reliability-distorting mechanism; hermeneutical gaps
+- [extended-mind-distributed-cognition.md](extended-mind-distributed-cognition.md) — How cognitive processes extend beyond individuals into social-technical systems
+- [epistemic-virtues-vices-communities.md](epistemic-virtues-vices-communities.md) — Virtue epistemology applied to communities; collective epistemic vices
+- [social-epistemology-synthesis.md](social-epistemology-synthesis.md) — Synthesis connecting Goldman, extended cognition, and virtue epistemology
+- [merton-scientific-norms.md](../sociology-of-knowledge/merton-scientific-norms.md) — CUDOS norms as reliability-enhancing institutional structure
+- [surowiecki-wisdom-of-crowds.md](../network-diffusion/surowiecki-wisdom-of-crowds.md) — Conditions for collective epistemic success
+- [kahneman-tversky-heuristics-biases.md](../behavioral-economics/kahneman-tversky-heuristics-biases.md) — Individual reliability failures that social epistemology must address
+- [idea-fitness-vs-truth.md](../cultural-evolution/idea-fitness-vs-truth.md) — Decoupling of cultural fitness from truth; Goldman's normative counterpoint

@@ -10,6 +10,7 @@ domain: ai-history
 period: 1943–1969
 bottleneck_addressed: How to make a machine learn from examples at all
 next_bottleneck: Linear separability — single-layer networks could not represent non-linearly separable functions
+related: symbolic-ai-expert-systems-and-the-neural-winter.md, ../../../mathematics/logic-foundations/godels-first-incompleteness.md, ../../../mathematics/logic-foundations/propositional-first-order-logic.md
 ---
 
 # Cybernetics, Perceptrons, and the First Connectionist Wave (1943–1969)

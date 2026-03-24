@@ -5,6 +5,7 @@ created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
 reference_url: https://claude.ai/share/3c3a22b3-946e-4a24-96df-2d812f159367
+related: ../../philosophy/synthesis-intelligence-as-dynamical-regime.md, ../../ai/frontier/epistemology/llms-as-dynamical-systems.md, ../../mathematics/dynamical-systems/dynamical-systems-fundamentals.md
 ---
 
 # Sources of General Intelligence in Base Models — Conversation Notes

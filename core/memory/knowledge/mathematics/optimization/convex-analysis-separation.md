@@ -124,7 +124,7 @@ This framework provides a *unified* polynomial-time algorithm for all convex pro
 
 - **Duality theory**: Lagrange duality and minimax theorems extend convex analysis — see [duality-theory-minimax](duality-theory-minimax.md)
 - **Gradient descent**: Convergence analysis depends on convexity and smoothness — see [gradient-descent-convergence](gradient-descent-convergence.md)
-- **Game theory**: Nash equilibria as fixed points of best-response correspondences over convex strategy sets — see [../game-theory/mechanism-design-vcg-revelation.md](../game-theory/mechanism-design-vcg-revelation.md)
+- **Game theory**: Nash equilibria as fixed points of best-response correspondences over convex strategy sets — see [../game-theory/normal-form-games-nash-equilibrium.md](../game-theory/normal-form-games-nash-equilibrium.md)
 - **Information theory**: KL divergence is convex; MaxEnt is a convex program — see [../information-theory/entropy-source-coding-theorem.md](../information-theory/entropy-source-coding-theorem.md)
 - **Statistical mechanics**: Free energy minimisation is a convex problem in the variational formulation — see [../statistical-mechanics/partition-function-free-energy.md](../statistical-mechanics/partition-function-free-energy.md)
 - **Concentration inequalities**: Convexity appears in martingale and measure concentration results — see [../probability/concentration-inequalities.md](../probability/concentration-inequalities.md)

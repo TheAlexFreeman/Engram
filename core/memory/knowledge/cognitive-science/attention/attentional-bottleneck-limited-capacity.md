@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: ../../mathematics/information-theory/information-bottleneck-deep-learning.md, ../../mathematics/information-theory/mutual-information-channel-capacity.md, transformer-attention-vs-human-attention.md
 ---
 
 # The Attentional Bottleneck and Limited Capacity

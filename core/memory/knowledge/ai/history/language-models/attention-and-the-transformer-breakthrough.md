@@ -7,6 +7,7 @@ tags: [transformer, attention, self-attention, vaswani, bahdanau, bert, gpt, nlp
 trust: medium
 created: 2026-03-18
 last_verified: 2026-03-19
+related: ../../../cognitive-science/attention/transformer-attention-vs-human-attention.md, ../../../cognitive-science/attention/attention-synthesis-agent-implications.md, bert-gpt-and-the-scaling-laws-era.md
 ---
 
 # Attention and the Transformer Breakthrough

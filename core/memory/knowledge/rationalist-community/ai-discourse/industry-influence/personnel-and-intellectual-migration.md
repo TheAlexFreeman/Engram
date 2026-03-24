@@ -151,6 +151,6 @@ The rationalist community's distinctive contribution was not "safety" in general
 
 - **Concept migration**: How rationalist ideas (not just people) moved into industry — see [concept-migration-rlhf-constitutional-ai-evals](concept-migration-rlhf-constitutional-ai-evals.md)
 - **Policy and Overton shift**: How migration influenced governance — see [policy-and-overton-shift](policy-and-overton-shift.md)
-- **MIRI/CFAR**: The institutional origin of the pipeline — see [../../rationalist-community/institutions/miri-cfar-funding-influence.md](../institutions/miri-cfar-funding-influence.md)
+- **MIRI/CFAR**: The institutional origin of the pipeline — see [../../institutions/miri-cfar-and-institutional-rationality.md](../../institutions/miri-cfar-and-institutional-rationality.md)
 - **Rationalist-adjacent labs**: The organizations that resulted — see [../post-llm-adaptation/rationalist-adjacent-labs-and-organizations](../post-llm-adaptation/rationalist-adjacent-labs-and-organizations.md)
-- **LessWrong formation and norms**: The community culture that trained these researchers — see [../../rationalist-community/community/lesswrong-formation-norms.md](../community/lesswrong-formation-norms.md)
+- **LessWrong formation and norms**: The community culture that trained these researchers — see [../../community/lesswrong-community-formation-and-core-norms.md](../../community/lesswrong-community-formation-and-core-norms.md)

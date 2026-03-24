@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: entropy-source-coding-theorem.md, ../dynamical-systems/fractals-dimension-multiscale.md, rate-distortion-theory.md
 ---
 
 # VC Dimension and the Fundamental Theorem

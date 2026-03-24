@@ -102,7 +102,7 @@ Digital platforms are major choice architects:
 - **Social proof** ("1,243 people bought this") and ratings (social norm cues) shape purchasing and belief formation.
 - **Notification systems** create salience for platform-preferred behaviors.
 
-From a cultural evolution perspective, platform choice architecture shapes the *selection environment* for ideas and behaviors — which content is prominent, what engagement is easy, who is socially visible. See `prestige-cascades-llm-adoption.md` and `llms-as-cultural-evolution-mechanism.md`.
+From a cultural evolution perspective, platform choice architecture shapes the *selection environment* for ideas and behaviors — which content is prominent, what engagement is easy, who is socially visible. See `prestige-cascades-llm-adoption.md` and `llms-cultural-evolution-mechanism.md`.
 
 ---
 
@@ -120,9 +120,9 @@ From a cultural evolution perspective, platform choice architecture shapes the *
 
 ## Related
 
-- [kahneman-tversky-heuristics-biases.md](knowledge/social-science/behavioral-economics/kahneman-tversky-heuristics-biases.md) — Heuristics program that motivates nudge theory (availability, anchoring)
-- [prospect-theory-loss-aversion.md](knowledge/social-science/behavioral-economics/prospect-theory-loss-aversion.md) — Loss aversion, endowment effect, status quo bias as mechanisms for defaults
-- [bounded-rationality-simon.md](knowledge/social-science/behavioral-economics/bounded-rationality-simon.md) — Simon's satisficing as background to bounded rationality in nudge design
-- [ostrom-governing-the-commons.md](knowledge/social-science/collective-action/ostrom-governing-the-commons.md) — Institutional design parallels; commons governance vs choice architecture
-- [social-construction-of-scientific-knowledge.md](knowledge/social-science/sociology-of-knowledge/social-construction-of-scientific-knowledge.md) — How institutional arrangements shape knowledge production
-- [transmission-biases-cultural-evolution.md](knowledge/social-science/cultural-evolution/transmission-biases-cultural-evolution.md) — Social proof + conformity as transmission mechanisms
+- [kahneman-tversky-heuristics-biases.md](kahneman-tversky-heuristics-biases.md) — Heuristics program that motivates nudge theory (availability, anchoring)
+- [prospect-theory-loss-aversion.md](prospect-theory-loss-aversion.md) — Loss aversion, endowment effect, status quo bias as mechanisms for defaults
+- [bounded-rationality-simon.md](bounded-rationality-simon.md) — Simon's satisficing as background to bounded rationality in nudge design
+- [ostrom-governing-the-commons.md](../collective-action/ostrom-governing-the-commons.md) — Institutional design parallels; commons governance vs choice architecture
+- [social-construction-of-scientific-knowledge.md](../sociology-of-knowledge/social-construction-of-scientific-knowledge.md) — How institutional arrangements shape knowledge production
+- [transmission-biases-cognitive-attractors.md](../cultural-evolution/transmission-biases-cognitive-attractors.md) — Social proof + conformity as transmission mechanisms

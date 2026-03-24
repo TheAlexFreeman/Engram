@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: medium
+related: norms-punishment-cultural-group-selection.md, ../../ai/frontier/epistemology/llms-as-dynamical-systems.md, ../../mathematics/game-theory/evolution-of-cooperation.md
 ---
 
 # LLMs as a New Mechanism in Cultural Evolution

@@ -61,7 +61,7 @@ A community reliably produces knowledge when:
 
 A central tension runs through the entire social science expansion: **social processes that efficiently diffuse information are not the same processes that reliably produce true information.**
 
-- Cultural evolution's transmission biases (`transmission-biases-cultural-evolution.md`) make available, emotional, and conformity-validated content spread faster — not more accurate content.
+- Cultural evolution's transmission biases (`transmission-biases-cognitive-attractors.md`) make available, emotional, and conformity-validated content spread faster — not more accurate content.
 - Viral cascade dynamics (`watts-information-cascades.md`) select for low-threshold emotional content, not truth-tracking.
 - Prestige bias (`prestige-cascades-llm-adoption.md`) spreads the views of high-status individuals regardless of evidence.
 - Groupthink (`group-polarization-groupthink.md`) produces collective confidence in views that no individual, thinking independently, would endorse.
@@ -129,14 +129,14 @@ The Engram project is an attempt to instantiate a community of inquiry at the AI
 
 ## Related
 
-- [goldman-reliabilist-social-epistemology.md](knowledge/social-science/social-epistemology/goldman-reliabilist-social-epistemology.md) — Veritistic evaluation; expertise problem; testimonial norms
-- [extended-mind-distributed-cognition.md](knowledge/social-science/social-epistemology/extended-mind-distributed-cognition.md) — Cognitive architecture of knowledge systems; artifacts as cognitive components
-- [epistemic-virtues-vices-communities.md](knowledge/social-science/social-epistemology/epistemic-virtues-vices-communities.md) — Collective epistemic character; institutional virtue
-- [fricker-epistemic-injustice.md](knowledge/social-science/cultural-evolution/fricker-epistemic-injustice.md) — Testimonial and hermeneutical injustice; epistemic vice with structural causes
-- [merton-scientific-norms.md](knowledge/social-science/sociology-of-knowledge/merton-scientific-norms.md) — Scientific institutions as reliable knowledge-producing systems
-- [social-construction-of-scientific-knowledge.md](knowledge/social-science/sociology-of-knowledge/social-construction-of-scientific-knowledge.md) — Strong programme; constructivism and its limits
-- [surowiecki-wisdom-of-crowds.md](knowledge/social-science/network-diffusion/surowiecki-wisdom-of-crowds.md) — Conditions for collective intelligence; aggregation mechanisms
-- [network-diffusion-synthesis.md](knowledge/social-science/network-diffusion/network-diffusion-synthesis.md) — Diffusion vs wisdom tension; network conditions for epistemic reliability
-- [behavioral-economics-rationality-synthesis.md](knowledge/social-science/behavioral-economics/behavioral-economics-rationality-synthesis.md) — Individual biases as inputs to social knowledge processes; debiasing
-- [idea-fitness-vs-truth.md](knowledge/social-science/cultural-evolution/idea-fitness-vs-truth.md) — The core problem: fitness ≠ truth; social epistemology as normative counterproject
-- [collective-action-synthesis-ai-governance.md](knowledge/social-science/collective-action/collective-action-synthesis-ai-governance.md) — Epistemic common goods; governance of shared knowledge infrastructure
+- [goldman-reliabilist-social-epistemology.md](goldman-reliabilist-social-epistemology.md) — Veritistic evaluation; expertise problem; testimonial norms
+- [extended-mind-distributed-cognition.md](extended-mind-distributed-cognition.md) — Cognitive architecture of knowledge systems; artifacts as cognitive components
+- [epistemic-virtues-vices-communities.md](epistemic-virtues-vices-communities.md) — Collective epistemic character; institutional virtue
+- [fricker-epistemic-injustice.md](../cultural-evolution/fricker-epistemic-injustice.md) — Testimonial and hermeneutical injustice; epistemic vice with structural causes
+- [merton-scientific-norms.md](../sociology-of-knowledge/merton-scientific-norms.md) — Scientific institutions as reliable knowledge-producing systems
+- [social-construction-of-scientific-knowledge.md](../sociology-of-knowledge/social-construction-of-scientific-knowledge.md) — Strong programme; constructivism and its limits
+- [surowiecki-wisdom-of-crowds.md](../network-diffusion/surowiecki-wisdom-of-crowds.md) — Conditions for collective intelligence; aggregation mechanisms
+- [network-diffusion-synthesis.md](../network-diffusion/network-diffusion-synthesis.md) — Diffusion vs wisdom tension; network conditions for epistemic reliability
+- [behavioral-economics-rationality-synthesis.md](../behavioral-economics/behavioral-economics-rationality-synthesis.md) — Individual biases as inputs to social knowledge processes; debiasing
+- [idea-fitness-vs-truth.md](../cultural-evolution/idea-fitness-vs-truth.md) — The core problem: fitness ≠ truth; social epistemology as normative counterproject
+- [collective-action-synthesis-ai-governance.md](../collective-action/collective-action-synthesis-ai-governance.md) — Epistemic common goods; governance of shared knowledge infrastructure

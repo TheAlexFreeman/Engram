@@ -104,11 +104,11 @@ Granovetter's framework directly enriches the cultural evolution picture:
 
 ## Related
 
-- [rogers-diffusion-of-innovations.md](knowledge/social-science/network-diffusion/rogers-diffusion-of-innovations.md) — Diffusion across social structures; innovator/early adopter/majority typology
-- [watts-information-cascades.md](knowledge/social-science/network-diffusion/watts-information-cascades.md) — When cascades succeed and fail; network structure and threshold models
-- [surowiecki-wisdom-of-crowds.md](knowledge/social-science/network-diffusion/surowiecki-wisdom-of-crowds.md) — Conditions for collective intelligence; independence and diversity as requirements
-- [network-diffusion-synthesis.md](knowledge/social-science/network-diffusion/network-diffusion-synthesis.md) — Synthesis of network diffusion literature
-- [complex-networks-small-world-scale-free.md](knowledge/mathematics/dynamical-systems/complex-networks-small-world-scale-free.md) — Mathematical foundations: Watts-Strogatz small world, Barabási-Albert scale-free
-- [group-polarization-groupthink.md](knowledge/social-science/social-psychology/group-polarization-groupthink.md) — Group dynamics driving within-cluster amplification; echo chambers
-- [prestige-cascades-llm-adoption.md](knowledge/social-science/cultural-evolution/prestige-cascades-llm-adoption.md) — Prestige cascades operating through weak-tie networks at scale
-- [henrich-collective-brain.md](knowledge/social-science/cultural-evolution/henrich-collective-brain.md) — Network connectivity and collective brain; cumulative cultural evolution requires weak ties for diversity
+- [rogers-diffusion-of-innovations.md](rogers-diffusion-of-innovations.md) — Diffusion across social structures; innovator/early adopter/majority typology
+- [watts-information-cascades.md](watts-information-cascades.md) — When cascades succeed and fail; network structure and threshold models
+- [surowiecki-wisdom-of-crowds.md](surowiecki-wisdom-of-crowds.md) — Conditions for collective intelligence; independence and diversity as requirements
+- [network-diffusion-synthesis.md](network-diffusion-synthesis.md) — Synthesis of network diffusion literature
+- [complex-networks-small-world-scale-free.md](../../mathematics/dynamical-systems/complex-networks-small-world-scale-free.md) — Mathematical foundations: Watts-Strogatz small world, Barabási-Albert scale-free
+- [group-polarization-groupthink.md](../social-psychology/group-polarization-groupthink.md) — Group dynamics driving within-cluster amplification; echo chambers
+- [prestige-cascades-llm-adoption.md](../cultural-evolution/prestige-cascades-llm-adoption.md) — Prestige cascades operating through weak-tie networks at scale
+- [henrich-collective-brain.md](../cultural-evolution/henrich-collective-brain.md) — Network connectivity and collective brain; cumulative cultural evolution requires weak ties for diversity

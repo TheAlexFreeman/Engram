@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: medium
+related: ../network-diffusion/watts-information-cascades.md, ../../cognitive-science/human-llm-cognitive-complementarity.md, ../../philosophy/llm-vs-human-mind-comparative-analysis.md
 ---
 
 # Prestige Dynamics, Information Cascades, and LLM Adoption

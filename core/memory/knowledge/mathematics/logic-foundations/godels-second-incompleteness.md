@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: godels-first-incompleteness.md, compactness-lowenheim-skolem.md, turing-undecidability-halting.md
 ---
 
 # Gödel's Second Incompleteness Theorem

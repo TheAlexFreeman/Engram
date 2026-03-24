@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: information-bottleneck-deep-learning.md, ../../cognitive-science/attention/attentional-bottleneck-limited-capacity.md, ../../social-science/network-diffusion/watts-information-cascades.md
 ---
 
 # Mutual Information and Channel Capacity

@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: simple-type-theory-lambda-calculus.md, zfc-set-theory.md, ../probability/measure-theoretic-foundations.md
 ---
 
 # Category Theory as Alternative Foundation

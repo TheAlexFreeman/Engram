@@ -111,11 +111,11 @@ Cascade dynamics provide a mechanistic account of cultural transmission at scale
 
 ## Related
 
-- [granovetter-weak-ties-strength.md](knowledge/social-science/network-diffusion/granovetter-weak-ties-strength.md) — Weak ties as bridges enabling cascade spread across clusters
-- [rogers-diffusion-of-innovations.md](knowledge/social-science/network-diffusion/rogers-diffusion-of-innovations.md) — Diffusion curve; adopter categories as threshold heterogeneity
-- [surowiecki-wisdom-of-crowds.md](knowledge/social-science/network-diffusion/surowiecki-wisdom-of-crowds.md) — When aggregation produces collective intelligence vs herding
-- [network-diffusion-synthesis.md](knowledge/social-science/network-diffusion/network-diffusion-synthesis.md) — Synthesis
-- [group-polarization-groupthink.md](knowledge/social-science/social-psychology/group-polarization-groupthink.md) — Within-cluster cascade dynamics; echo chambers
-- [complex-networks-small-world-scale-free.md](knowledge/mathematics/dynamical-systems/complex-networks-small-world-scale-free.md) — Network structures underlying cascade behavior
-- [asch-conformity-experiments.md](knowledge/social-science/social-psychology/asch-conformity-experiments.md) — Experimental demonstration of threshold conformity effects
-- [transmission-biases-cultural-evolution.md](knowledge/social-science/cultural-evolution/transmission-biases-cultural-evolution.md) — Conformist bias as threshold models in cultural evolution
+- [granovetter-weak-ties-strength.md](granovetter-weak-ties-strength.md) — Weak ties as bridges enabling cascade spread across clusters
+- [rogers-diffusion-of-innovations.md](rogers-diffusion-of-innovations.md) — Diffusion curve; adopter categories as threshold heterogeneity
+- [surowiecki-wisdom-of-crowds.md](surowiecki-wisdom-of-crowds.md) — When aggregation produces collective intelligence vs herding
+- [network-diffusion-synthesis.md](network-diffusion-synthesis.md) — Synthesis
+- [group-polarization-groupthink.md](../social-psychology/group-polarization-groupthink.md) — Within-cluster cascade dynamics; echo chambers
+- [complex-networks-small-world-scale-free.md](../../mathematics/dynamical-systems/complex-networks-small-world-scale-free.md) — Network structures underlying cascade behavior
+- [asch-conformity-experiments.md](../social-psychology/asch-conformity-experiments.md) — Experimental demonstration of threshold conformity effects
+- [transmission-biases-cognitive-attractors.md](../cultural-evolution/transmission-biases-cognitive-attractors.md) — Conformist bias as threshold models in cultural evolution

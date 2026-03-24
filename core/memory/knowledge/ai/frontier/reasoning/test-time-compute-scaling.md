@@ -6,6 +6,7 @@ source: external-research
 topic: Scaling laws for test-time compute — optimal inference compute allocation
 trust: medium
 type: knowledge
+related: ../inference-time-compute.md, ../../history/frontier/multimodality-tool-use-and-reasoning-time-compute.md, ../../history/language-models/bert-gpt-and-the-scaling-laws-era.md
 ---
 
 # Scaling Laws for Test-Time Compute

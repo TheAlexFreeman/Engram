@@ -104,7 +104,7 @@ Extended mind and cultural evolution are deeply compatible frameworks:
 
 1. **Culture as cognitive scaffolding:** Cultural artifacts (language, writing, counting systems, maps, institutions) are Hutchins-style distributed cognitive systems operating across generations. Henrich's "collective brain" is the extended cognitive system of the entire social group.
 
-2. **Ratchet effect and artifact design:** Tomasello's cultural ratchet (`tomasello-cultural-ratchet.md`) depends on artifacts accumulating design improvements across generations — precisely because each generation inherits cognitive-process-embodying artifacts that encode the results of previous generations' problem-solving.
+2. **Ratchet effect and artifact design:** Tomasello's cultural ratchet (`tomasello-ratchet-shared-intentionality.md`) depends on artifacts accumulating design improvements across generations — precisely because each generation inherits cognitive-process-embodying artifacts that encode the results of previous generations' problem-solving.
 
 3. **LLMs as extended cognition:** LLMs are, from the extended mind perspective, cognitive prostheses at scale — augmenting the reasoning and memory of millions of simultaneous users. Their reliability (Goldman) and justice implications (Fricker) are social-epistemic questions about distributed cognitive systems.
 
@@ -124,11 +124,11 @@ Extended mind and cultural evolution are deeply compatible frameworks:
 
 ## Related
 
-- [goldman-reliabilist-social-epistemology.md](knowledge/social-science/social-epistemology/goldman-reliabilist-social-epistemology.md) — Reliability standard for evaluating extended cognitive systems
-- [epistemic-virtues-vices-communities.md](knowledge/social-science/social-epistemology/epistemic-virtues-vices-communities.md) — Epistemic virtues as cognitive practices enabling reliable thought
-- [social-epistemology-synthesis.md](knowledge/social-science/social-epistemology/social-epistemology-synthesis.md) — Synthesis
-- [fricker-epistemic-injustice.md](knowledge/social-science/cultural-evolution/fricker-epistemic-injustice.md) — Attacks on extended cognitive resources as epistemic injustice
-- [tomasello-cultural-ratchet.md](knowledge/social-science/cultural-evolution/tomasello-cultural-ratchet.md) — Cultural ratchet as accumulation of cognitively extended artifacts
-- [henrich-collective-brain.md](knowledge/social-science/cultural-evolution/henrich-collective-brain.md) — Collective brain as distributed cognitive system across generations
-- [llms-as-cultural-evolution-mechanism.md](knowledge/social-science/cultural-evolution/llms-as-cultural-evolution-mechanism.md) — LLMs as extended cognitive systems; reliability and justice questions
-- [bounded-rationality-simon.md](knowledge/social-science/behavioral-economics/bounded-rationality-simon.md) — Simon's view of artifacts and organizations as cognitive scaffolding; procedural rationality
+- [goldman-reliabilist-social-epistemology.md](goldman-reliabilist-social-epistemology.md) — Reliability standard for evaluating extended cognitive systems
+- [epistemic-virtues-vices-communities.md](epistemic-virtues-vices-communities.md) — Epistemic virtues as cognitive practices enabling reliable thought
+- [social-epistemology-synthesis.md](social-epistemology-synthesis.md) — Synthesis
+- [fricker-epistemic-injustice.md](../cultural-evolution/fricker-epistemic-injustice.md) — Attacks on extended cognitive resources as epistemic injustice
+- [tomasello-ratchet-shared-intentionality.md](../cultural-evolution/tomasello-ratchet-shared-intentionality.md) — Cultural ratchet as accumulation of cognitively extended artifacts
+- [henrich-collective-brain.md](../cultural-evolution/henrich-collective-brain.md) — Collective brain as distributed cognitive system across generations
+- [llms-cultural-evolution-mechanism.md](../cultural-evolution/llms-cultural-evolution-mechanism.md) — LLMs as extended cognitive systems; reliability and justice questions
+- [bounded-rationality-simon.md](../behavioral-economics/bounded-rationality-simon.md) — Simon's view of artifacts and organizations as cognitive scaffolding; procedural rationality

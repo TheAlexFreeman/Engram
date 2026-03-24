@@ -6,6 +6,7 @@ source: external-research
 topic: Instruction following, the instruction hierarchy, and prompt injection
 trust: medium
 type: knowledge
+related: ../../history/frontier/instruction-tuning-rlhf-and-the-chat-model-turn.md, frontier-alignment-research.md, rlhf-reward-models.md
 ---
 
 # Instruction Following and the Instruction Hierarchy

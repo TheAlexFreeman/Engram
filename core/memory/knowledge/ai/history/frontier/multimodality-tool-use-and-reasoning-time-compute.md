@@ -7,6 +7,7 @@ tags: [multimodal, tool-use, rag, reasoning, chain-of-thought, gpt-4, gemini, mi
 trust: medium
 created: 2026-03-18
 last_verified: 2026-03-19
+related: ../../frontier/reasoning/test-time-compute-scaling.md, ../../frontier/inference-time-compute.md, ../../frontier/reasoning/reasoning-models.md
 ---
 
 # Multimodality, Tool Use, and Reasoning-Time Compute

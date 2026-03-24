@@ -193,5 +193,5 @@ A middle ground has emerged: independent alignment research organizations (ARC, 
 - **Value alignment as ongoing process**: The reframing that empirical alignment embodies — see [../canonical-ideas/value-alignment-as-ongoing-process](../canonical-ideas/value-alignment-as-ongoing-process.md)
 - **Concept migration**: How theoretical concepts were operationalised in labs — see [../industry-influence/concept-migration-rlhf-constitutional-ai-evals](../industry-influence/concept-migration-rlhf-constitutional-ai-evals.md)
 - **Personnel migration**: The people who carried the shift — see [../industry-influence/personnel-and-intellectual-migration](../industry-influence/personnel-and-intellectual-migration.md)
-- **MIRI/CFAR**: The institution that housed the original theoretical program — see [../../rationalist-community/institutions/miri-cfar-funding-influence.md](../institutions/miri-cfar-funding-influence.md)
+- **MIRI/CFAR**: The institution that housed the original theoretical program — see [../../institutions/miri-cfar-and-institutional-rationality.md](../../institutions/miri-cfar-and-institutional-rationality.md)
 - **Language not search**: The paradigm surprise that forced the shift — see [../prediction-failures/language-not-search](../prediction-failures/language-not-search.md)

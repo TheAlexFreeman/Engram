@@ -26,7 +26,7 @@ People judge the probability of an event by how easily an example comes to mind.
 
 **Bias produced:** Availability bias — probability distorted toward memorable rather than actual base rates. Drives excessive insurance purchases after disasters, stock market overreaction to salient news.
 
-**Connection to cultural evolution:** Availability functions as a mechanism for *content bias* — salient, emotional, and easily memorable content spreads faster regardless of truth value. See `idea-fitness-vs-truth.md` and `transmission-biases-cultural-evolution.md`.
+**Connection to cultural evolution:** Availability functions as a mechanism for *content bias* — salient, emotional, and easily memorable content spreads faster regardless of truth value. See `idea-fitness-vs-truth.md` and `transmission-biases-cognitive-attractors.md`.
 
 ### 2. Representativeness Heuristic
 
@@ -97,9 +97,9 @@ Beyond the three heuristics, the program identified dozens of specific biases:
 
 The heuristics-and-biases program directly informs several recurring concerns in the Engram knowledge base:
 
-1. **Availability as content bias:** The cultural evolution literature describes *content biases* — preferential transmission of easily remembered, emotionally resonant content. The availability heuristic provides the cognitive mechanism: memorable content is judged more probable/important, so it spreads and gets repeated. See `transmission-biases-cultural-evolution.md`.
+1. **Availability as content bias:** The cultural evolution literature describes *content biases* — preferential transmission of easily remembered, emotionally resonant content. The availability heuristic provides the cognitive mechanism: memorable content is judged more probable/important, so it spreads and gets repeated. See `transmission-biases-cognitive-attractors.md`.
 
-2. **Representativeness and pattern-matching in AI reasoning:** LLMs engage in something like representativeness — generating outputs that *look like* good answers (fit the prototype of a correct response) without reliable calibration. This is relevant to `llms-as-cultural-evolution-mechanism.md`.
+2. **Representativeness and pattern-matching in AI reasoning:** LLMs engage in something like representativeness — generating outputs that *look like* good answers (fit the prototype of a correct response) without reliable calibration. This is relevant to `llms-cultural-evolution-mechanism.md`.
 
 3. **Anchoring in intellectual work:** When reading a new argument, the first framing encountered anchors subsequent evaluation. Engram's structured cross-referencing is partly a device to expose anchoring: presenting alternative frames before forming judgments.
 
@@ -111,10 +111,10 @@ The heuristics-and-biases program directly informs several recurring concerns in
 
 ## Related
 
-- [prospect-theory-loss-aversion.md](knowledge/social-science/behavioral-economics/prospect-theory-loss-aversion.md) — Kahneman & Tversky's formal theory of choice under risk
-- [bounded-rationality-simon.md](knowledge/social-science/behavioral-economics/bounded-rationality-simon.md) — Herbert Simon's earlier concept; contrast with K&T's bias framing
-- [thaler-sunstein-nudge-theory.md](knowledge/social-science/behavioral-economics/thaler-sunstein-nudge-theory.md) — Policy applications of heuristics/biases research
-- [behavioral-economics-rationality-synthesis.md](knowledge/social-science/behavioral-economics/behavioral-economics-rationality-synthesis.md) — Synthesis and rationality debate
-- [transmission-biases-cultural-evolution.md](knowledge/social-science/cultural-evolution/transmission-biases-cultural-evolution.md) — Conformist, content, and prestige biases in cultural transmission
-- [idea-fitness-vs-truth.md](knowledge/social-science/cultural-evolution/idea-fitness-vs-truth.md) — When ideas spread for fitness rather than truth
-- [social-psychology-transmission-biases-synthesis.md](knowledge/social-science/social-psychology/social-psychology-transmission-biases-synthesis.md) — Social psychology grounding for transmission biases
+- [prospect-theory-loss-aversion.md](prospect-theory-loss-aversion.md) — Kahneman & Tversky's formal theory of choice under risk
+- [bounded-rationality-simon.md](bounded-rationality-simon.md) — Herbert Simon's earlier concept; contrast with K&T's bias framing
+- [thaler-sunstein-nudge-theory.md](thaler-sunstein-nudge-theory.md) — Policy applications of heuristics/biases research
+- [behavioral-economics-rationality-synthesis.md](behavioral-economics-rationality-synthesis.md) — Synthesis and rationality debate
+- [transmission-biases-cognitive-attractors.md](../cultural-evolution/transmission-biases-cognitive-attractors.md) — Conformist, content, and prestige biases in cultural transmission
+- [idea-fitness-vs-truth.md](../cultural-evolution/idea-fitness-vs-truth.md) — When ideas spread for fitness rather than truth
+- [social-psychology-transmission-biases-synthesis.md](../social-psychology/social-psychology-transmission-biases-synthesis.md) — Social psychology grounding for transmission biases

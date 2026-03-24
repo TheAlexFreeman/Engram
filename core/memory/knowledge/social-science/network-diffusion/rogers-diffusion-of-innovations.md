@@ -70,7 +70,7 @@ Rogers distinguishes two types of communication channels:
 
 **Change agents** are professional diffusion promoters (extension agents, health workers, sales representatives) who link the change agency to the target social system. Change agents work through opinion leaders — identifying and mobilizing local influencers — rather than directly persuading laggards.
 
-**Prestige bias connection:** Opinion leaders are prestige recipients — others adopt because they observe the opinion leader adopting, not because they independently evaluate the innovation. See `transmission-biases-cultural-evolution.md` and `prestige-cascades-llm-adoption.md`.
+**Prestige bias connection:** Opinion leaders are prestige recipients — others adopt because they observe the opinion leader adopting, not because they independently evaluate the innovation. See `transmission-biases-cognitive-attractors.md` and `prestige-cascades-llm-adoption.md`.
 
 ---
 
@@ -112,10 +112,10 @@ Rogers' framework extends from products and technologies to ideas, norms, and cu
 
 ## Related
 
-- [granovetter-weak-ties-strength.md](knowledge/social-science/network-diffusion/granovetter-weak-ties-strength.md) — Network structure enabling diffusion; weak ties as bridges
-- [watts-information-cascades.md](knowledge/social-science/network-diffusion/watts-information-cascades.md) — Threshold models; when cascades succeed and fail
-- [surowiecki-wisdom-of-crowds.md](knowledge/social-science/network-diffusion/surowiecki-wisdom-of-crowds.md) — Conditions for collective intelligence
-- [network-diffusion-synthesis.md](knowledge/social-science/network-diffusion/network-diffusion-synthesis.md) — Synthesis connecting diffusion, cascades, and collective intelligence
-- [transmission-biases-cultural-evolution.md](knowledge/social-science/cultural-evolution/transmission-biases-cultural-evolution.md) — Prestige bias as a diffusion mechanism
-- [prestige-cascades-llm-adoption.md](knowledge/social-science/cultural-evolution/prestige-cascades-llm-adoption.md) — LLM adoption as a Rogers-style prestige cascade
-- [kuhn-paradigms-scientific-revolutions.md](knowledge/social-science/sociology-of-knowledge/kuhn-paradigms-scientific-revolutions.md) — Paradigm change as a diffusion-of-innovation process
+- [granovetter-weak-ties-strength.md](granovetter-weak-ties-strength.md) — Network structure enabling diffusion; weak ties as bridges
+- [watts-information-cascades.md](watts-information-cascades.md) — Threshold models; when cascades succeed and fail
+- [surowiecki-wisdom-of-crowds.md](surowiecki-wisdom-of-crowds.md) — Conditions for collective intelligence
+- [network-diffusion-synthesis.md](network-diffusion-synthesis.md) — Synthesis connecting diffusion, cascades, and collective intelligence
+- [transmission-biases-cognitive-attractors.md](../cultural-evolution/transmission-biases-cognitive-attractors.md) — Prestige bias as a diffusion mechanism
+- [prestige-cascades-llm-adoption.md](../cultural-evolution/prestige-cascades-llm-adoption.md) — LLM adoption as a Rogers-style prestige cascade
+- [kuhn-paradigms-scientific-revolutions.md](../sociology-of-knowledge/kuhn-paradigms-scientific-revolutions.md) — Paradigm change as a diffusion-of-innovation process

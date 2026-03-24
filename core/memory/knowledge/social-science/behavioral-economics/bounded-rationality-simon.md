@@ -113,9 +113,9 @@ Simon's bounded rationality preceded Kahneman and Tversky's heuristics-and-biase
 
 ## Related
 
-- [kahneman-tversky-heuristics-biases.md](knowledge/social-science/behavioral-economics/kahneman-tversky-heuristics-biases.md) — K&T's heuristics program; tension between substantive and procedural rationality
-- [prospect-theory-loss-aversion.md](knowledge/social-science/behavioral-economics/prospect-theory-loss-aversion.md) — Descriptive theory of choice under risk; contrast with Simon's satisficing
-- [thaler-sunstein-nudge-theory.md](knowledge/social-science/behavioral-economics/thaler-sunstein-nudge-theory.md) — Policy applications; attention and choice architecture
-- [behavioral-economics-rationality-synthesis.md](knowledge/social-science/behavioral-economics/behavioral-economics-rationality-synthesis.md) — Synthesis and rationality debate
-- [north-institutions-institutional-change.md](knowledge/social-science/collective-action/north-institutions-institutional-change.md) — Institutions as cognitive scaffolding reducing bounded rationality costs
-- [henrich-collective-brain.md](knowledge/social-science/cultural-evolution/henrich-collective-brain.md) — Collective intelligence as distributed bounded rationality; culture as cognitive prosthesis
+- [kahneman-tversky-heuristics-biases.md](kahneman-tversky-heuristics-biases.md) — K&T's heuristics program; tension between substantive and procedural rationality
+- [prospect-theory-loss-aversion.md](prospect-theory-loss-aversion.md) — Descriptive theory of choice under risk; contrast with Simon's satisficing
+- [thaler-sunstein-nudge-theory.md](thaler-sunstein-nudge-theory.md) — Policy applications; attention and choice architecture
+- [behavioral-economics-rationality-synthesis.md](behavioral-economics-rationality-synthesis.md) — Synthesis and rationality debate
+- [north-institutions-institutional-change.md](../collective-action/north-institutions-institutional-change.md) — Institutions as cognitive scaffolding reducing bounded rationality costs
+- [henrich-collective-brain.md](../cultural-evolution/henrich-collective-brain.md) — Collective intelligence as distributed bounded rationality; culture as cognitive prosthesis

@@ -7,6 +7,7 @@ topic: Emergence and phase transitions in LLMs — grokking, the emergence debat
   lesson
 trust: medium
 type: knowledge
+related: ../../../mathematics/statistical-mechanics/ising-model-phase-transitions.md, ../../../philosophy/emergence-consciousness-iit.md, mechanistic-interpretability.md
 ---
 
 # Emergence and Phase Transitions in LLMs

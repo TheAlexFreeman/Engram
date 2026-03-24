@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: godels-first-incompleteness.md, simple-type-theory-lambda-calculus.md, compactness-lowenheim-skolem.md
 ---
 
 # Turing, Undecidability, and the Halting Problem

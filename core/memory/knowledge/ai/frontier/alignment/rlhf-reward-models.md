@@ -6,6 +6,7 @@ source: external-research
 topic: RLHF, RLAIF, and the reward model problem
 trust: medium
 type: knowledge
+related: ../reasoning/reasoning-models.md, ../../history/frontier/instruction-tuning-rlhf-and-the-chat-model-turn.md, ../architectures/state-space-models.md
 ---
 
 # RLHF, RLAIF, and the Reward Model Problem

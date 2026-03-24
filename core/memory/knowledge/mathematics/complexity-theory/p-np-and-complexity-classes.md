@@ -115,6 +115,6 @@ Candidate natural NP-intermediate problems:
 - **NP-completeness**: Cook-Levin theorem and the web of reductions — see [np-completeness-cook-karp](np-completeness-cook-karp.md)
 - **Interactive proofs**: IP = PSPACE shows proof systems add surprising power — see [interactive-proofs-randomness](interactive-proofs-randomness.md)
 - **Circuit complexity**: Non-uniform computation and lower bound barriers — see [circuit-complexity-lower-bounds](circuit-complexity-lower-bounds.md)
-- **Game theory**: Computing Nash equilibria is PPAD-complete — see [../../game-theory/mechanism-design-vcg-revelation.md](../game-theory/mechanism-design-vcg-revelation.md)
+- **Game theory**: Computing Nash equilibria is PPAD-complete — see [../../game-theory/normal-form-games-nash-equilibrium.md](../game-theory/normal-form-games-nash-equilibrium.md)
 - **Optimisation**: P vs NP determines whether optimisation problems admit efficient exact solutions — see (forthcoming) optimization files
-- **Turing undecidability**: Complexity refines the decidable/undecidable dichotomy into a finer hierarchy — see [../logic-foundations/turings-undecidability-halting-problem.md](../logic-foundations/turings-undecidability-halting-problem.md)
+- **Turing undecidability**: Complexity refines the decidable/undecidable dichotomy into a finer hierarchy — see [../logic-foundations/turing-undecidability-halting.md](../logic-foundations/turing-undecidability-halting.md)

@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: ../memory/ebbinghaus-forgetting-spacing-effect.md, ../../social-science/social-psychology/bystander-effect-diffusion-responsibility.md, metacognition-synthesis-agent-implications.md
 ---
 
 # The Dunning-Kruger Effect

@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/19/chat-002
 source: agent-generated
 trust: medium
+related: ../origins/the-sequences-core-arguments.md, ../synthesis/rationalist-community-story-aims-and-tensions.md, meetups-workshops-hpmor-and-lived-rationality.md
 ---
 
 # LessWrong: Community Formation and Core Norms

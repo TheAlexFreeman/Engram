@@ -194,4 +194,4 @@ This evolution represents a productive maturation: the *concerns* identified by 
 - **Corrigibility**: The alternative alignment strategy that deceptive alignment undermines — see [corrigibility-shutdown-problem-value-loading](corrigibility-shutdown-problem-value-loading.md)
 - **Inner alignment reinterpretation**: How the concept is being updated — see [inner-alignment-as-behavioral-reliability](inner-alignment-as-behavioral-reliability.md)
 - **Agent foundations to empirical alignment**: The broader shift from theory to practice — see [../post-llm-adaptation/from-agent-foundations-to-empirical-alignment](../post-llm-adaptation/from-agent-foundations-to-empirical-alignment.md)
-- **MIRI/CFAR**: The institutional home of deceptive alignment research — see [../institutions/miri-cfar-funding-influence.md](../institutions/miri-cfar-funding-influence.md)
+- **MIRI/CFAR**: The institutional home of deceptive alignment research — see [../../institutions/miri-cfar-and-institutional-rationality.md](../../institutions/miri-cfar-and-institutional-rationality.md)

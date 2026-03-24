@@ -6,6 +6,7 @@ source: external-research
 topic: Agent architecture patterns — ReAct, Plan-and-execute, Reflexion, orchestrator-subagent
 trust: medium
 type: knowledge
+related: multi-agent-coordination.md, ../retrieval-memory/rag-architecture.md, ../../tools/mcp/mcp-server-design-patterns.md
 ---
 
 # Agent Architecture Patterns

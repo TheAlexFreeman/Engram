@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/19/chat-002
 source: agent-generated
 trust: medium
+related: gwern-and-the-rationalist-research-ethos.md, ../institutions/miri-cfar-and-institutional-rationality.md, ../origins/eliezer-yudkowsky-intellectual-biography.md
 ---
 
 # Scott Alexander and the Broadening of Rationalism

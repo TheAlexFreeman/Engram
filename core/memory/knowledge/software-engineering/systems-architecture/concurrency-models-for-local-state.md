@@ -7,6 +7,7 @@ tags: [concurrency, optimistic-locking, mvcc, actor-model, version-tokens, sqlit
 trust: medium
 created: 2026-03-19
 last_verified: 2026-03-19
+related: ../../ai/frontier/architectures/state-space-models.md, provenance-and-trust-models.md, ../../cognitive-science/attention/early-late-selection-models.md
 ---
 
 # Concurrency Models for Local State

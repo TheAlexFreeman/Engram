@@ -182,4 +182,4 @@ This file synthesises analysis from across the collection:
 - **Prediction failures**: [prediction-failures/](../prediction-failures/) (3 files)
 - **Industry influence**: [industry-influence/](../industry-influence/) (3 files)
 - **Post-LLM adaptation**: [post-llm-adaptation/](../post-llm-adaptation/) (3 files)
-- **Broader context**: The rationalist community's AI discourse is one dimension of a larger intellectual project — see [../../rationalist-community/](../../rationalist-community/) for coverage of epistemics, institutions, and cultural dynamics.
+- **Broader context**: The rationalist community's AI discourse is one dimension of a larger intellectual project — see [../../](../../) for coverage of epistemics, institutions, and cultural dynamics.

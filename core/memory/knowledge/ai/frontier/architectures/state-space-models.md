@@ -6,6 +6,7 @@ source: external-research
 topic: State space models — Mamba, S4, SSM theory, hybrid architectures
 trust: medium
 type: knowledge
+related: ../../../software-engineering/systems-architecture/concurrency-models-for-local-state.md, ../reasoning/reasoning-models.md, ../alignment/rlhf-reward-models.md
 ---
 
 # State Space Models: Mamba, S4, and SSM Theory

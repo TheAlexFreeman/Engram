@@ -6,6 +6,7 @@ source: external-research
 topic: Human-in-the-loop design — interruption, approval gates, reversibility, trust-building
 trust: medium
 type: knowledge
+related: ../../tools/agent-memory-in-ai-ecosystem.md, ../../../cognitive-science/human-llm-cognitive-complementarity.md, ../../../philosophy/llm-vs-human-mind-comparative-analysis.md
 ---
 
 # Human-in-the-Loop Design for Agent Systems

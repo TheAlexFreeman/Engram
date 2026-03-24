@@ -173,7 +173,7 @@ This is a social and political problem, not just an optimization problem, and th
 
 - **Orthogonality thesis**: The broader framework within which Goodhart concerns operate — see [orthogonality-thesis-instrumental-convergence](orthogonality-thesis-instrumental-convergence.md)
 - **Deceptive alignment**: The extreme case of proxy exploitation — see [deceptive-alignment-mesa-optimization](deceptive-alignment-mesa-optimization.md)
-- **RLHF and reward models**: Where Goodhart effects are empirically observed — see [../../../../ai/frontier/alignment/rlhf-reward-models.md](../../../../ai/frontier/alignment/rlhf-reward-models.md)
+- **RLHF and reward models**: Where Goodhart effects are empirically observed — see [../../../ai/frontier/alignment/rlhf-reward-models.md](../../../ai/frontier/alignment/rlhf-reward-models.md)
 - **Corrigibility**: An alternative frame for controlling Goodhart effects — see [corrigibility-shutdown-problem-value-loading](corrigibility-shutdown-problem-value-loading.md)
 - **Value alignment as ongoing process**: Iterative approaches to managing the proxy gap — see [../canonical-ideas/inner-alignment-as-behavioral-reliability.md](inner-alignment-as-behavioral-reliability.md)
-- **Eliezer Yudkowsky**: Earliest articulations of the alignment-as-optimization concern — see [../origins/eliezer-yudkowsky-intellectual-biography.md](../origins/eliezer-yudkowsky-intellectual-biography.md)
+- **Eliezer Yudkowsky**: Earliest articulations of the alignment-as-optimization concern — see [../../origins/eliezer-yudkowsky-intellectual-biography.md](../../origins/eliezer-yudkowsky-intellectual-biography.md)

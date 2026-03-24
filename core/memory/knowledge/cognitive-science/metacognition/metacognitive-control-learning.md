@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: metacognitive-monitoring-control.md, ../../mathematics/information-theory/pac-learning-sample-complexity.md, ../../ai/history/deep-learning/gpus-imagenet-and-the-deep-learning-turn.md
 ---
 
 # Metacognitive Control of Learning

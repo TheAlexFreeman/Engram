@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: godels-second-incompleteness.md, propositional-first-order-logic.md, ../../ai/history/origins/cybernetics-perceptrons-and-the-first-connectionist-wave.md
 ---
 
 # Gödel's First Incompleteness Theorem

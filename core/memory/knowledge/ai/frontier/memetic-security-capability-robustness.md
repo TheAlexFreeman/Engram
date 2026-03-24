@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: medium
+related: ../../self/security/memetic-security-comparative-analysis.md, ../../self/security/memetic-security-drift-vs-attack.md, ../../self/security/memetic-security-injection-vectors.md
 ---
 
 # Capability-Robustness Coupling in Language Models

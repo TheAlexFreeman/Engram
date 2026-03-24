@@ -5,6 +5,7 @@ created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
 tags: [django, testing, factory_boy, pytest, celery, freezegun]
+related: django-migrations-advanced.md, django-orm-postgres.md, django-6.0-whats-new.md
 ---
 
 # Django Test Data: factory_boy, freezegun, and Mocking Patterns

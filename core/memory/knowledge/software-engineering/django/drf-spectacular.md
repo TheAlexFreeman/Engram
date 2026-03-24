@@ -5,6 +5,7 @@ created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
 tags: [django, drf, openapi, schema, api]
+related: drf-testing-pytest-django-perf-rec.md, django-react-drf.md, django-storages.md
 ---
 
 # drf-spectacular: OpenAPI 3 Schema Generation for DRF

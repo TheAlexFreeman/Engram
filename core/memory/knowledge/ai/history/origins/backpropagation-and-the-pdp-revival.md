@@ -7,6 +7,7 @@ tags: [backpropagation, pdp, rumelhart, hinton, williams, neural-networks, hidde
 trust: medium
 created: 2026-03-18
 last_verified: 2026-03-19
+related: symbolic-ai-expert-systems-and-the-neural-winter.md, cybernetics-perceptrons-and-the-first-connectionist-wave.md, ../deep-learning/convnets-rnns-and-lstm-inductive-biases.md
 ---
 
 # Backpropagation and the PDP Revival

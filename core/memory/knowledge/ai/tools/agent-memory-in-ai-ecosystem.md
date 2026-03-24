@@ -76,5 +76,5 @@ The project is most valuable for users who run AI agents continuously across com
 ## Related files
 
 - [`ai-tools-landscape-2026.md`](ai-tools-landscape-2026.md) — survey of the tools this system integrates with
-- [`knowledge/systems-architecture/`](../systems-architecture/SUMMARY.md) — the storage and concurrency foundations underlying this design
+- [`software-engineering/systems-architecture/`](../../software-engineering/systems-architecture/SUMMARY.md) — the storage and concurrency foundations underlying this design
 - worktree-integration — the roadmap for deeper host-project integration (historical plan reference)

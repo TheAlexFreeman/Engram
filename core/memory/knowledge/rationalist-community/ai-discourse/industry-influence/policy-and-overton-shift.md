@@ -164,5 +164,5 @@ The rationalist community deserves substantial credit for building the intellect
 - **Concept migration**: How ideas moved into labs (upstream of policy) — see [concept-migration-rlhf-constitutional-ai-evals](concept-migration-rlhf-constitutional-ai-evals.md)
 - **Commercial deployment dynamics**: The market context policy must navigate — see [../prediction-failures/commercial-deployment-dynamics](../prediction-failures/commercial-deployment-dynamics.md)
 - **Doom discourse**: The extreme framing that both motivated and complicated policy engagement — see [../post-llm-adaptation/doom-discourse-and-p-doom](../post-llm-adaptation/doom-discourse-and-p-doom.md)
-- **MIRI/CFAR**: The institutions that built the pre-policy infrastructure — see [../../rationalist-community/institutions/miri-cfar-funding-influence.md](../institutions/miri-cfar-funding-influence.md)
-- **Rationalist community story**: The broader narrative into which policy influence fits — see [../../rationalist-community/synthesis/rationalist-community-story-aims-tensions.md](../synthesis/rationalist-community-story-aims-tensions.md)
+- **MIRI/CFAR**: The institutions that built the pre-policy infrastructure — see [../../institutions/miri-cfar-and-institutional-rationality.md](../../institutions/miri-cfar-and-institutional-rationality.md)
+- **Rationalist community story**: The broader narrative into which policy influence fits — see [../../synthesis/rationalist-community-story-aims-and-tensions.md](../../synthesis/rationalist-community-story-aims-and-tensions.md)

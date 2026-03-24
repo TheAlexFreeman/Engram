@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/18/chat-001
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
+related: ../mathematics/statistical-mechanics/partition-function-free-energy.md, ../mathematics/dynamical-systems/complex-networks-small-world-scale-free.md, ../ai/history/origins/cybernetics-perceptrons-and-the-first-connectionist-wave.md
 ---
 
 # Free Energy Principle, Autopoiesis, and Cybernetics

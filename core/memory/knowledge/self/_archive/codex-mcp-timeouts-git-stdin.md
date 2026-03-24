@@ -3,6 +3,7 @@ source: agent-generated
 origin_session: manual
 created: 2026-03-18
 trust: medium
+related: 2026-03-20-git-session-followup.md, ../../ai/tools/mcp/mcp-2026-roadmap-update.md, ../../ai/tools/mcp/mcp-ecosystem-survey.md
 ---
 
 # Codex Desktop MCP Timeouts Caused by Git Subprocess stdin Inheritance

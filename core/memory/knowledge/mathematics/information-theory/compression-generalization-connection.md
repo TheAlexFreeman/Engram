@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: ../../ai/frontier/epistemology/compression-and-intelligence.md, ../../philosophy/compression-intelligence-ait.md, minimum-description-length.md
 ---
 
 # The Compression-Generalization Connection

@@ -118,6 +118,6 @@ NP-complete problems are ubiquitous in practice and often *solved*:
 - **PCPs and interactive proofs**: The PCP theorem and zero-knowledge — see [interactive-proofs-randomness](interactive-proofs-randomness.md)
 - **Circuit lower bounds**: Why separation proofs are hard — see [circuit-complexity-lower-bounds](circuit-complexity-lower-bounds.md)
 - **Descriptive complexity**: Logical characterisations of NP — see [descriptive-complexity-logic](descriptive-complexity-logic.md)
-- **Game theory**: Computing Nash equilibria is PPAD-complete, not NP-complete — a subtler hardness — see [../game-theory/mechanism-design-vcg-revelation.md](../game-theory/mechanism-design-vcg-revelation.md)
+- **Game theory**: Computing Nash equilibria is PPAD-complete, not NP-complete — a subtler hardness — see [../game-theory/normal-form-games-nash-equilibrium.md](../game-theory/normal-form-games-nash-equilibrium.md)
 - **Statistical mechanics**: Phase transitions in random CSPs — see [../statistical-mechanics/spin-glasses-replica-method.md](../statistical-mechanics/spin-glasses-replica-method.md)
-- **Gödel and undecidability**: NP-completeness vs undecidability — finite vs infinite witnesses — see [../logic-foundations/turings-undecidability-halting-problem.md](../logic-foundations/turings-undecidability-halting-problem.md)
+- **Gödel and undecidability**: NP-completeness vs undecidability — finite vs infinite witnesses — see [../logic-foundations/turing-undecidability-halting.md](../logic-foundations/turing-undecidability-halting.md)

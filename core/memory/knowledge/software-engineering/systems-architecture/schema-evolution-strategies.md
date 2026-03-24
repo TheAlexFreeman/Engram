@@ -7,6 +7,7 @@ tags: [schema, versioning, protobuf, avro, json-schema, compatibility, migration
 trust: medium
 created: 2026-03-19
 last_verified: 2026-03-19
+related: ../testing/integration-testing-strategies.md, ../../self/_archive/2026-03-22-plan-schema-and-activity-logging-design.md, ../../mathematics/game-theory/evolution-of-cooperation.md
 ---
 
 # Schema Evolution Strategies and Contract Versioning

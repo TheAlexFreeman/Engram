@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: ../concepts/exemplar-theory-hybrid-models.md, ../../software-engineering/systems-architecture/concurrency-models-for-local-state.md, transformer-attention-vs-human-attention.md
 ---
 
 # Early, Late, and Attenuation Models of Attentional Selection

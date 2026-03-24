@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/18/chat-001
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
+related: ../ai/frontier/epistemology/compression-and-intelligence.md, blending-compression-coupling-construal.md, synthesis-intelligence-as-dynamical-regime.md
 ---
 
 # Compression, Intelligence, and Algorithmic Information Theory

@@ -16,6 +16,7 @@ tags:
 - vllm
 title: Inference-Time Compute Infrastructure
 trust: medium
+related: reasoning/test-time-compute-scaling.md, ../history/frontier/multimodality-tool-use-and-reasoning-time-compute.md, ../../mathematics/probability/bayesian-inference-priors-posteriors.md
 ---
 
 # Inference-Time Compute Infrastructure

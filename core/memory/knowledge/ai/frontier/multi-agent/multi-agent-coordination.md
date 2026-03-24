@@ -7,6 +7,7 @@ topic: Multi-agent coordination challenges — context sharing, tool conflict, t
   hierarchies, prompt injection
 trust: medium
 type: knowledge
+related: agent-architecture-patterns.md, ../../tools/agent-memory-in-ai-ecosystem.md, ../../../rationalist-community/ai-discourse/post-llm-adaptation/from-agent-foundations-to-empirical-alignment.md
 ---
 
 # Multi-Agent Coordination Challenges

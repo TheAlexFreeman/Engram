@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: medium
+related: ../../philosophy/llm-vs-human-mind-comparative-analysis.md, ../../self/security/memetic-security-drift-vs-attack.md, ../../cognitive-science/attention/transformer-attention-vs-human-attention.md
 ---
 
 # Idea Fitness vs. Truth: When Cultural Selection Misleads

@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: category-theory-foundations.md, zfc-set-theory.md, ../causal-inference/do-calculus-identification.md
 ---
 
 # Simple Type Theory and Lambda Calculus

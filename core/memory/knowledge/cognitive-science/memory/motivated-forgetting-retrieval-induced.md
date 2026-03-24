@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: ebbinghaus-forgetting-spacing-effect.md, ../../ai/frontier/retrieval-memory/colpali-visual-document-retrieval.md, ../../ai/frontier/retrieval-memory/reranking-two-stage-retrieval.md
 ---
 
 # Motivated Forgetting and Retrieval-Induced Forgetting

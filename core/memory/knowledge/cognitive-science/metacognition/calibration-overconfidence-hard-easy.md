@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: ../../rationalist-community/ai-discourse/prediction-failures/timeline-calibration-and-paradigm-surprise.md, calibrated-uncertainty-communication.md, metacognition-synthesis-agent-implications.md
 ---
 
 # Calibration, Overconfidence, and the Hard-Easy Effect

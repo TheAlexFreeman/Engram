@@ -16,6 +16,7 @@ tags:
 - chips
 title: AI Hardware and Efficiency Trends
 trust: medium
+related: inference-time-compute.md, foundation-model-governance.md, agentic-frameworks.md
 ---
 
 # AI Hardware and Efficiency Trends

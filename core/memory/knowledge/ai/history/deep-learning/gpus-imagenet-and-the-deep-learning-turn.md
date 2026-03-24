@@ -7,6 +7,7 @@ tags: [deep-learning, alexnet, imagenet, gpu, krizhevsky, hinton, lecun, relu, d
 trust: medium
 created: 2026-03-18
 last_verified: 2026-03-19
+related: ../../../mathematics/information-theory/information-bottleneck-deep-learning.md, ../frontier/instruction-tuning-rlhf-and-the-chat-model-turn.md, ../../../mathematics/information-theory/pac-learning-sample-complexity.md
 ---
 
 # GPUs, ImageNet, and the Deep Learning Turn

@@ -158,6 +158,6 @@ A more productive version of the doom discourse would:
 - **Intelligence explosion / FOOM**: The scenario that makes doom estimates highest — see [../canonical-ideas/intelligence-explosion-foom-recursive-self-improvement](../canonical-ideas/intelligence-explosion-foom-recursive-self-improvement.md)
 - **Timeline calibration**: How timeline beliefs feed into doom estimates — see [../prediction-failures/timeline-calibration-and-paradigm-surprise](../prediction-failures/timeline-calibration-and-paradigm-surprise.md)
 - **Policy and Overton shift**: How doom discourse shaped policy — see [../industry-influence/policy-and-overton-shift](../industry-influence/policy-and-overton-shift.md)
-- **Yudkowsky**: The primary architect of the doom frame — see [../origins/eliezer-yudkowsky-intellectual-biography.md](../origins/eliezer-yudkowsky-intellectual-biography.md)
-- **Heuristics, biases, and Bayesian reasoning**: The epistemology the community applies to doom estimation — see [../origins/heuristics-biases-probabilistic-reasoning.md](../origins/heuristics-biases-probabilistic-reasoning.md)
+- **Yudkowsky**: The primary architect of the doom frame — see [../../origins/eliezer-yudkowsky-intellectual-biography.md](../../origins/eliezer-yudkowsky-intellectual-biography.md)
+- **Heuristics, biases, and Bayesian reasoning**: The epistemology the community applies to doom estimation — see [../../origins/heuristics-biases-bayes-and-bounded-rationality.md](../../origins/heuristics-biases-bayes-and-bounded-rationality.md)
 - **Synthesis assessment**: The integrated evaluation of the discourse — see [../synthesis/rationalist-ai-discourse-assessment](../synthesis/rationalist-ai-discourse-assessment.md)

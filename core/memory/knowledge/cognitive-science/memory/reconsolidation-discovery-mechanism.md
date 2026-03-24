@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: reconsolidation-agent-design-implications.md, ../../mathematics/game-theory/mechanism-design-revelation-principle.md, ../../mathematics/causal-inference/causal-discovery-algorithms.md
 ---
 
 # Discovery and Mechanism of Memory Reconsolidation

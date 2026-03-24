@@ -7,6 +7,7 @@ topic: Benchmarking reasoning — what benchmarks measure, saturation, and the f
   gap
 trust: medium
 type: knowledge
+related: reasoning-models.md, ../../history/frontier/multimodality-tool-use-and-reasoning-time-compute.md, test-time-compute-scaling.md
 ---
 
 # Benchmarking Reasoning: What the Numbers Actually Mean

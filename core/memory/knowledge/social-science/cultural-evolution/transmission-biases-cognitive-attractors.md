@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: medium
+related: ../social-psychology/social-psychology-transmission-biases-synthesis.md, ../behavioral-economics/kahneman-tversky-heuristics-biases.md, ../../cognitive-science/attention/cognitive-load-theory-sweller.md
 ---
 
 # Transmission Biases and Cognitive Attractors

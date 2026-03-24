@@ -126,9 +126,9 @@ The question "what can you query in polynomial time?" is exactly the descriptive
 
 ## Connections
 
-- **Logic foundations**: Gödel's incompleteness and Turing's undecidability as predecessors — see [../logic-foundations/turings-undecidability-halting-problem.md](../logic-foundations/turings-undecidability-halting-problem.md)
+- **Logic foundations**: Gödel's incompleteness and Turing's undecidability as predecessors — see [../logic-foundations/turing-undecidability-halting.md](../logic-foundations/turing-undecidability-halting.md)
 - **P vs NP**: Fagin's theorem gives a logical characterisation of the P vs NP question — see [p-np-and-complexity-classes](p-np-and-complexity-classes.md)
 - **NP-completeness**: NP-complete problems as the hardest $\exists$SO-definable properties — see [np-completeness-cook-karp](np-completeness-cook-karp.md)
 - **Circuit complexity**: AC$^0$ = FO connects circuit and descriptive hierarchies — see [circuit-complexity-lower-bounds](circuit-complexity-lower-bounds.md)
-- **Category theory**: Functorial semantics and logical relations — see [../logic-foundations/category-theory-topoi-structural-foundations.md](../logic-foundations/category-theory-topoi-structural-foundations.md)
-- **Model theory**: Classical model theory meets finite constraints — see [../logic-foundations/model-theory-completeness-compactness.md](../logic-foundations/model-theory-completeness-compactness.md)
+- **Category theory**: Functorial semantics and logical relations — see [../logic-foundations/category-theory-foundations.md](../logic-foundations/category-theory-foundations.md)
+- **Model theory**: Classical model theory meets finite constraints — see [../logic-foundations/compactness-lowenheim-skolem.md](../logic-foundations/compactness-lowenheim-skolem.md)

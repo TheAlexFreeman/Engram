@@ -159,6 +159,6 @@ Several trends are reshaping the institutional landscape:
 - **Personnel migration**: The individual-level dynamics behind the institutional landscape — see [../industry-influence/personnel-and-intellectual-migration](../industry-influence/personnel-and-intellectual-migration.md)
 - **Agent foundations to empirical alignment**: The methodological shift reflected in institutional evolution — see [from-agent-foundations-to-empirical-alignment](from-agent-foundations-to-empirical-alignment.md)
 - **Policy and Overton shift**: How these organisations influenced governance — see [../industry-influence/policy-and-overton-shift](../industry-influence/policy-and-overton-shift.md)
-- **MIRI/CFAR**: The founding organisations of the ecosystem — see [../../rationalist-community/institutions/miri-cfar-funding-influence.md](../institutions/miri-cfar-funding-influence.md)
+- **MIRI/CFAR**: The founding organisations of the ecosystem — see [../../institutions/miri-cfar-and-institutional-rationality.md](../../institutions/miri-cfar-and-institutional-rationality.md)
 - **Doom discourse**: How organisational culture and doom discourse interact — see [doom-discourse-and-p-doom](doom-discourse-and-p-doom.md)
 - **Commercial deployment dynamics**: The market context these organisations navigate — see [../prediction-failures/commercial-deployment-dynamics](../prediction-failures/commercial-deployment-dynamics.md)

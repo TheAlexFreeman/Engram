@@ -6,6 +6,7 @@ last_verified: 2026-03-20
 trust: medium
 tags: [docker, docker-compose, django, celery, local-dev, postgres, redis]
 version_note: Docker Compose v2 (plugin, not standalone). Uses Compose spec features (depends_on conditions, develop.watch).
+related: docker-production-config.md, celery-multi-worker-docker.md, dev-workflow-tooling.md
 ---
 
 # Docker Compose — Local Development for the Full Django + Celery + React Stack

@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: ../../philosophy/history/contemporary/synthesis-open-questions.md, double-descent-benign-overfitting.md, vc-dimension-fundamental-theorem.md
 ---
 
 # Limits, Open Questions, and Unexplained Phenomena

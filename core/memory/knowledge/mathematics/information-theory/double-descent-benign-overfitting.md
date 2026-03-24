@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: ../optimization/gradient-descent-convergence.md, limits-open-questions.md, minimum-description-length.md
 ---
 
 # Double Descent and Benign Overfitting

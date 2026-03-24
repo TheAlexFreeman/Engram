@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: mind-wandering-default-mode.md, attention-synthesis-agent-implications.md, feature-integration-binding-problem.md
 ---
 
 # The Vigilance Decrement

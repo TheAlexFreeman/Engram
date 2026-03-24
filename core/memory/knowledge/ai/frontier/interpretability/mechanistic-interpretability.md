@@ -7,6 +7,7 @@ topic: Mechanistic interpretability — superposition, sparse autoencoders, circ
   analysis
 trust: medium
 type: knowledge
+related: emergence-phase-transitions.md, llm-representation-confabulation.md, ../multi-agent/agent-architecture-patterns.md
 ---
 
 # Mechanistic Interpretability

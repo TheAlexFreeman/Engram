@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: simple-type-theory-lambda-calculus.md, category-theory-foundations.md, ../dynamical-systems/bifurcation-theory-catastrophe.md
 ---
 
 # ZFC Set Theory

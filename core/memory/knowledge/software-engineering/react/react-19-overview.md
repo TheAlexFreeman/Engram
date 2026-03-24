@@ -4,6 +4,7 @@ origin_session: unknown
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
+related: chakra-ui-3-overview.md, react-hook-form-zod.md, chakra-ui-3-react-frontend-patterns.md
 ---
 
 # React 19 overview and upgrade notes

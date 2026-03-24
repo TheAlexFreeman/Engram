@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/19/chat-002
 source: agent-generated
 trust: medium
+related: eliezer-yudkowsky-intellectual-biography.md, the-sequences-core-arguments.md, academic-and-online-prehistory.md
 ---
 
 # Robin Hanson, Overcoming Bias, and the Founding Split

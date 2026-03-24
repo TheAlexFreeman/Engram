@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: sleep-memory-consolidation.md, hippocampus-memory-formation.md, working-memory-baddeley-model.md
 ---
 
 # Procedural Memory, Priming, and Conditioning

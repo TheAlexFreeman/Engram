@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: medium
+related: blackmore-meme-machine.md, ../../rationalist-community/ai-discourse/industry-influence/concept-migration-rlhf-constitutional-ai-evals.md, idea-fitness-vs-truth.md
 ---
 
 # Dawkins and the Meme Concept

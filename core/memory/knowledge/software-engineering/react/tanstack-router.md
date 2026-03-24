@@ -6,6 +6,7 @@ last_verified: 2026-03-20
 trust: medium
 tags: [react, routing, tanstack-router, typescript, spa]
 version_note: TanStack Router v1 (stable). Vite plugin is now @tanstack/router-plugin/vite.
+related: tanstack-query.md, react-error-boundaries-suspense.md, react-hook-form-zod.md
 ---
 
 # TanStack Router v1 — Type-Safe Routing for React SPAs

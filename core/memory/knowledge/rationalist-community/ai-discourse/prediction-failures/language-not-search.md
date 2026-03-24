@@ -185,4 +185,4 @@ The paradigm surprise suggests humility about predicting the *form* of future AI
 - **Commercial deployment dynamics**: The market forces that shaped the actual paradigm — see [commercial-deployment-dynamics](commercial-deployment-dynamics.md)
 - **Timeline calibration**: How predictions about AI timing and form fared — see [timeline-calibration-and-paradigm-surprise](timeline-calibration-and-paradigm-surprise.md)
 - **Agent foundations to empirical alignment**: The methodological shift forced by the paradigm surprise — see [../post-llm-adaptation/from-agent-foundations-to-empirical-alignment](../post-llm-adaptation/from-agent-foundations-to-empirical-alignment.md)
-- **Scaling laws and emergent capabilities**: The mechanism behind the actual paradigm — see [../../../../ai/frontier/interpretability/emergence-phase-transitions.md](../../../../ai/frontier/interpretability/emergence-phase-transitions.md)
+- **Scaling laws and emergent capabilities**: The mechanism behind the actual paradigm — see [../../../ai/frontier/interpretability/emergence-phase-transitions.md](../../../ai/frontier/interpretability/emergence-phase-transitions.md)

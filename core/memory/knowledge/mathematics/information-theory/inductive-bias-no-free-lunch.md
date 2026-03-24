@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: ../statistical-mechanics/partition-function-free-energy.md, ../dynamical-systems/complex-networks-small-world-scale-free.md, ../../ai/history/deep-learning/convnets-rnns-and-lstm-inductive-biases.md
 ---
 
 # Inductive Bias, No Free Lunch, and Why Scaling Works

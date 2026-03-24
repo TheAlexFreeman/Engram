@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: medium
+related: boyd-richerson-dual-inheritance.md, dawkins-meme-concept.md, llms-cultural-evolution-mechanism.md
 ---
 
 # Hull: The Replicator/Interactor Framework

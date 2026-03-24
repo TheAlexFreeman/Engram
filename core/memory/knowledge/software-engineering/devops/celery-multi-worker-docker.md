@@ -6,6 +6,7 @@ last_verified: 2026-03-20
 trust: medium
 tags: [docker, docker-compose, celery, workers, queues, redis]
 cross_references: knowledge/software-engineering/django/celery-worker-beat-ops.md
+related: ../django/celery-worker-beat-ops.md, celery-flower-monitoring.md, docker-compose-local-dev.md
 ---
 
 # Celery Multi-Worker Setup in Docker Compose

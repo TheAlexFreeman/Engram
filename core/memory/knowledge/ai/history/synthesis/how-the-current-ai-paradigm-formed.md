@@ -7,6 +7,7 @@ tags: [synthesis, paradigm, genealogy, deep-learning, transformers, scaling, ali
 trust: medium
 created: 2026-03-18
 last_verified: 2026-03-19
+related: ../../tools/agent-memory-in-ai-ecosystem.md, ../origins/symbolic-ai-expert-systems-and-the-neural-winter.md, ../../../rationalist-community/ai-discourse/prediction-failures/timeline-calibration-and-paradigm-surprise.md
 ---
 
 # How the Current AI Paradigm Formed

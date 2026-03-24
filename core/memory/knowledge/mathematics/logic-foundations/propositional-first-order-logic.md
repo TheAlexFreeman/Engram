@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: godels-first-incompleteness.md, ../complexity-theory/descriptive-complexity-logic.md, ../../ai/history/origins/cybernetics-perceptrons-and-the-first-connectionist-wave.md
 ---
 
 # Propositional and First-Order Logic

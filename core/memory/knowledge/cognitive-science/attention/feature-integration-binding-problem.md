@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: ../relevance-realization/frame-problem-minsky-dreyfus.md, ../../rationalist-community/ai-discourse/canonical-ideas/corrigibility-shutdown-problem-value-loading.md, ../../philosophy/phenomenology/grounding-problem-phenomenological.md
 ---
 
 # Feature Integration Theory and the Binding Problem

@@ -7,6 +7,7 @@ topic: What LLMs represent and confabulate — world models, hallucination taxon
   calibration
 trust: medium
 type: knowledge
+related: ../../../cognitive-science/human-llm-cognitive-complementarity.md, emergence-phase-transitions.md, ../../../philosophy/llm-vs-human-mind-comparative-analysis.md
 ---
 
 # What LLMs Represent and Confabulate

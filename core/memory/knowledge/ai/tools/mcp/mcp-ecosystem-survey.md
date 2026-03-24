@@ -5,6 +5,7 @@ last_verified: 2026-03-20
 trust: medium
 origin_session: core/memory/activity/2026/03/19/chat-002
 topic: mcp-protocol
+related: mcp-2026-roadmap-update.md, mcp-protocol-overview.md, mcp-server-design-patterns.md
 ---
 
 # MCP Ecosystem Survey — Clients, Servers, and Discovery (2026)

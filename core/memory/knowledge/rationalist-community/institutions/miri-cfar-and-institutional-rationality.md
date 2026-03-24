@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/19/chat-002
 source: agent-generated
 trust: medium
+related: ../community/meetups-workshops-hpmor-and-lived-rationality.md, ../origins/heuristics-biases-bayes-and-bounded-rationality.md, ../../social-science/behavioral-economics/behavioral-economics-rationality-synthesis.md
 ---
 
 # MIRI, CFAR, and Institutional Rationality

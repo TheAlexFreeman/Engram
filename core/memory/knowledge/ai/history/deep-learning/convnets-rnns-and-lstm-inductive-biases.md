@@ -7,6 +7,7 @@ tags: [convnets, cnn, rnn, lstm, gru, lenet, inductive-bias, spatial-structure, 
 trust: medium
 created: 2026-03-18
 last_verified: 2026-03-19
+related: ../../../mathematics/information-theory/inductive-bias-no-free-lunch.md, ../../../rationalist-community/origins/heuristics-biases-bayes-and-bounded-rationality.md, gpus-imagenet-and-the-deep-learning-turn.md
 ---
 
 # ConvNets, RNNs, and LSTM: The Case for Inductive Bias

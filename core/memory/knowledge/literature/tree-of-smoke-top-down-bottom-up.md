@@ -9,6 +9,7 @@ source: agent-generated
 status: in-progress
 tags: [literature, vietnam-war, epistemology, cognition, denis-johnson, american-fiction]
 trust: medium
+related: cs-lewis-abolition-of-man.md, sons-of-man-covenant.md, ../philosophy/history/contemporary/philosophy-of-science.md
 ---
 
 # Tree of Smoke: Top-Down vs. Bottom-Up Processing

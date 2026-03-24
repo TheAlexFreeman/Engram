@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: prototype-theory-rosch.md, theory-theory-knowledge-based-view.md, exemplar-theory-hybrid-models.md
 ---
 
 # The Classical Theory of Concepts and Its Failures

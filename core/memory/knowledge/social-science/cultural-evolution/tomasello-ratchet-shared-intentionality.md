@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: medium
+related: ../../philosophy/phenomenology/husserl-intentionality-epoche.md, henrich-collective-brain.md, prestige-cascades-llm-adoption.md
 ---
 
 # Tomasello: The Cultural Ratchet and Shared Intentionality

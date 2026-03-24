@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: ../complexity-theory/circuit-complexity-lower-bounds.md, ../complexity-theory/descriptive-complexity-logic.md, ../complexity-theory/p-np-and-complexity-classes.md
 ---
 
 # Kolmogorov Complexity and Chaitin Incompleteness

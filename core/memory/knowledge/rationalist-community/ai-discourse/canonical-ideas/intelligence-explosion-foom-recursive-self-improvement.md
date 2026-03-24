@@ -193,5 +193,5 @@ The intelligence explosion debate has evolved:
 - **Corrigibility**: Critical if an intelligence explosion occurs because correction becomes impossible after takeoff — see [corrigibility-shutdown-problem-value-loading](corrigibility-shutdown-problem-value-loading.md)
 - **Timeline calibration**: How rationalist timeline predictions fared against reality — see [../prediction-failures/timeline-calibration-and-paradigm-surprise](../prediction-failures/timeline-calibration-and-paradigm-surprise.md)
 - **Doom discourse and p(doom)**: How FOOM feeds into contemporary catastrophe estimates — see [../post-llm-adaptation/doom-discourse-and-p-doom](../post-llm-adaptation/doom-discourse-and-p-doom.md)
-- **Yudkowsky**: The primary architect of the FOOM argument — see [../origins/eliezer-yudkowsky-intellectual-biography.md](../origins/eliezer-yudkowsky-intellectual-biography.md)
-- **Scaling laws and emergent capabilities**: The actual mechanism of capability growth — see [../../../../ai/frontier/interpretability/emergence-phase-transitions.md](../../../../ai/frontier/interpretability/emergence-phase-transitions.md)
+- **Yudkowsky**: The primary architect of the FOOM argument — see [../../origins/eliezer-yudkowsky-intellectual-biography.md](../../origins/eliezer-yudkowsky-intellectual-biography.md)
+- **Scaling laws and emergent capabilities**: The actual mechanism of capability growth — see [../../../ai/frontier/interpretability/emergence-phase-transitions.md](../../../ai/frontier/interpretability/emergence-phase-transitions.md)

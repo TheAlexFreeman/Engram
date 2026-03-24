@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: hippocampus-memory-formation.md, sleep-memory-consolidation.md, working-memory-baddeley-model.md
 ---
 
 # False Memory and the Constructive Nature of Memory

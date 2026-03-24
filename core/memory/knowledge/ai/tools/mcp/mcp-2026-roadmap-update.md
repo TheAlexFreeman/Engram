@@ -8,6 +8,7 @@ topic: mcp-protocol
 type: knowledge
 domain: mcp
 tags: [mcp, roadmap, 2026, transport, enterprise, tasks, governance]
+related: mcp-ecosystem-survey.md, mcp-protocol-overview.md, mcp-server-design-patterns.md
 ---
 
 # MCP 2026 Roadmap Update

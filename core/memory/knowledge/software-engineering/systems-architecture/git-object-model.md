@@ -7,6 +7,7 @@ tags: [git, object-model, blobs, trees, commits, tags, index, refs, reflog, pack
 trust: medium
 created: 2026-03-19
 last_verified: 2026-03-19
+related: git-plumbing-and-automation.md, git-worktrees-and-hooks.md, ../testing/model-checking-abstract-interpretation.md
 ---
 
 # Git Object Model and Why It Matters Here

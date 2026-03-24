@@ -177,4 +177,4 @@ The productive integration recognizes:
 - **Inner alignment as behavioral reliability**: The companion reinterpretation — see [inner-alignment-as-behavioral-reliability](inner-alignment-as-behavioral-reliability.md)
 - **Agent foundations to empirical alignment**: The institutional and methodological shift — see [../post-llm-adaptation/from-agent-foundations-to-empirical-alignment](../post-llm-adaptation/from-agent-foundations-to-empirical-alignment.md)
 - **Concept migration**: How these ideas moved from rationalist theory into lab practice — see [../industry-influence/concept-migration-rlhf-constitutional-ai-evals](../industry-influence/concept-migration-rlhf-constitutional-ai-evals.md)
-- **Rationalist community overview**: The social context of the one-shot alignment paradigm — see [../community/lesswrong-formation-norms.md](../community/lesswrong-formation-norms.md)
+- **Rationalist community overview**: The social context of the one-shot alignment paradigm — see [../../community/lesswrong-community-formation-and-core-norms.md](../../community/lesswrong-community-formation-and-core-norms.md)

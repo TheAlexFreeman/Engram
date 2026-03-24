@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/19/chat-002
 source: agent-generated
 trust: medium
+related: ../synthesis/rationalist-community-story-aims-and-tensions.md, ../ai-discourse/post-llm-adaptation/rationalist-adjacent-labs-and-organizations.md, ../ai-discourse/synthesis/rationalist-ai-discourse-assessment.md
 ---
 
 # Gwern and the Rationalist Research Ethos

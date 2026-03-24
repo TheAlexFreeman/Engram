@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: standard-model-consolidation.md, hippocampus-memory-formation.md, procedural-memory-priming-conditioning.md
 ---
 
 # Tulving's Episodic/Semantic Distinction

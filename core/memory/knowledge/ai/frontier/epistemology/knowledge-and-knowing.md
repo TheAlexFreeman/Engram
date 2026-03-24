@@ -7,6 +7,7 @@ topic: What it means for a model to "know" something — dispositional knowledge
   Room, stochastic parrots, world models, grounding
 trust: medium
 type: knowledge
+related: ../../../social-science/sociology-of-knowledge/mannheim-sociology-of-knowledge.md, ../../../cognitive-science/concepts/knowledge-compilation-proceduralization.md, ../../../cognitive-science/concepts/theory-theory-knowledge-based-view.md
 ---
 
 # What Does It Mean for a Model to "Know" Something?

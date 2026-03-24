@@ -7,6 +7,7 @@ tags: [nlp, statistical-nlp, word-embeddings, word2vec, glove, seq2seq, encoder-
 trust: medium
 created: 2026-03-18
 last_verified: 2026-03-19
+related: ../../frontier/retrieval-memory/late-chunking-contextual-embeddings.md, ../../../mathematics/statistical-mechanics/statistical-mechanics-of-learning.md, attention-and-the-transformer-breakthrough.md
 ---
 
 # Statistical NLP, Word Embeddings, and Seq2Seq

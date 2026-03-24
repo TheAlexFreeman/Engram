@@ -6,6 +6,7 @@ source: external-research
 topic: RAG — retrieval-augmented generation architecture and failure modes
 trust: medium
 type: knowledge
+related: agentic-rag-patterns.md, long-context-architecture.md, ../multi-agent/agent-architecture-patterns.md
 ---
 
 # RAG Architecture: When It Works and When It Doesn't

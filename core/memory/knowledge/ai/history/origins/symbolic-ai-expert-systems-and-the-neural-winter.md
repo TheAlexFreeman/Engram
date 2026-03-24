@@ -10,6 +10,7 @@ domain: ai-history
 period: 1956–1986
 bottleneck_addressed: How to make machines reason and represent knowledge explicitly
 next_bottleneck: The knowledge acquisition bottleneck — encoding expertise was expensive, brittle, and impossible to scale
+related: ../../frontier/epistemology/llms-as-dynamical-systems.md, ../synthesis/how-the-current-ai-paradigm-formed.md, ../../tools/agent-memory-in-ai-ecosystem.md
 ---
 
 # Symbolic AI, Expert Systems, and the Neural Winter (1956–1986)

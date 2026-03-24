@@ -104,7 +104,7 @@ LLMs are high-degree nodes in the information network: they receive vast trainin
 - Homogeneous LLM outputs (all models trained on overlapping datasets) reduce effective diversity.
 - If users increasingly rely on LLMs for information, the independence condition for wisdom-of-crowds fails at scale.
 
-**Connection:** `llms-as-cultural-evolution-mechanism.md`, `prestige-cascades-llm-adoption.md`
+**Connection:** `llms-cultural-evolution-mechanism.md`, `prestige-cascades-llm-adoption.md`
 
 ### AI Governance as Collective Action
 
@@ -128,13 +128,13 @@ Cascade models clarify why AI governance is hard: the "cascade window" for safet
 
 ## Related
 
-- [granovetter-weak-ties-strength.md](knowledge/social-science/network-diffusion/granovetter-weak-ties-strength.md) — Weak ties as bridges; structural holes; homophily and polarization
-- [rogers-diffusion-of-innovations.md](knowledge/social-science/network-diffusion/rogers-diffusion-of-innovations.md) — Innovation attributes; adopter categories; opinion leaders; critical mass
-- [watts-information-cascades.md](knowledge/social-science/network-diffusion/watts-information-cascades.md) — Threshold models; cascade window; influencer problem; viral misinformation
-- [surowiecki-wisdom-of-crowds.md](knowledge/social-science/network-diffusion/surowiecki-wisdom-of-crowds.md) — Conditions for wisdom; diversity, independence, decentralization, aggregation
-- [henrich-collective-brain.md](knowledge/social-science/cultural-evolution/henrich-collective-brain.md) — Collective brain as network-size collective intelligence
-- [collective-action-synthesis-ai-governance.md](knowledge/social-science/collective-action/collective-action-synthesis-ai-governance.md) — AI governance as collective action; network structure of governance
-- [group-polarization-groupthink.md](knowledge/social-science/social-psychology/group-polarization-groupthink.md) — Within-cluster dynamics; echo chambers; groupthink
-- [social-psychology-transmission-biases-synthesis.md](knowledge/social-science/social-psychology/social-psychology-transmission-biases-synthesis.md) — Transmission bias synthesis; conformity as threshold behavior
-- [behavioral-economics-rationality-synthesis.md](knowledge/social-science/behavioral-economics/behavioral-economics-rationality-synthesis.md) — Rationality, debiasing, and collective epistemic norms
-- [complex-networks-small-world-scale-free.md](knowledge/mathematics/dynamical-systems/complex-networks-small-world-scale-free.md) — Mathematical foundations: small-world property enabling collective brain
+- [granovetter-weak-ties-strength.md](granovetter-weak-ties-strength.md) — Weak ties as bridges; structural holes; homophily and polarization
+- [rogers-diffusion-of-innovations.md](rogers-diffusion-of-innovations.md) — Innovation attributes; adopter categories; opinion leaders; critical mass
+- [watts-information-cascades.md](watts-information-cascades.md) — Threshold models; cascade window; influencer problem; viral misinformation
+- [surowiecki-wisdom-of-crowds.md](surowiecki-wisdom-of-crowds.md) — Conditions for wisdom; diversity, independence, decentralization, aggregation
+- [henrich-collective-brain.md](../cultural-evolution/henrich-collective-brain.md) — Collective brain as network-size collective intelligence
+- [collective-action-synthesis-ai-governance.md](../collective-action/collective-action-synthesis-ai-governance.md) — AI governance as collective action; network structure of governance
+- [group-polarization-groupthink.md](../social-psychology/group-polarization-groupthink.md) — Within-cluster dynamics; echo chambers; groupthink
+- [social-psychology-transmission-biases-synthesis.md](../social-psychology/social-psychology-transmission-biases-synthesis.md) — Transmission bias synthesis; conformity as threshold behavior
+- [behavioral-economics-rationality-synthesis.md](../behavioral-economics/behavioral-economics-rationality-synthesis.md) — Rationality, debiasing, and collective epistemic norms
+- [complex-networks-small-world-scale-free.md](../../mathematics/dynamical-systems/complex-networks-small-world-scale-free.md) — Mathematical foundations: small-world property enabling collective brain

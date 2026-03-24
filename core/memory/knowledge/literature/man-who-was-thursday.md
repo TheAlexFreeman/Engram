@@ -9,6 +9,7 @@ source: agent-generated
 status: in-progress
 tags: [literature, chesterton, edwardian, paradox, theology, anarchism, thriller, comedy, influence]
 trust: medium
+related: cs-lewis-abolition-of-man.md
 ---
 
 # The Man Who Was Thursday: A Nightmare — Research Notes

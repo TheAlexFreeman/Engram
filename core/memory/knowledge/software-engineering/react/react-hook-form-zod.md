@@ -6,6 +6,7 @@ last_verified: 2026-03-20
 trust: medium
 tags: [react, forms, react-hook-form, zod, validation, chakra-ui, drf]
 version_note: react-hook-form v7, @hookform/resolvers v5, zod v3 (zod v4 resolver in progress as of mid-2025)
+related: react-performance.md, react-19-overview.md, react-error-boundaries-suspense.md
 ---
 
 # react-hook-form + zod — Performant Type-Safe Forms

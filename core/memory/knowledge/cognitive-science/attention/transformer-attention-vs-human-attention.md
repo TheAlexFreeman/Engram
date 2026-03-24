@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: ../../ai/history/language-models/attention-and-the-transformer-breakthrough.md, ../../philosophy/llm-vs-human-mind-comparative-analysis.md, attention-synthesis-agent-implications.md
 ---
 
 # Transformer Self-Attention vs. Human Attention: A Comparative Analysis

@@ -7,6 +7,7 @@ tags: [gpt-3, bert, scaling-laws, in-context-learning, few-shot, chinchilla, pre
 trust: medium
 created: 2026-03-18
 last_verified: 2026-03-19
+related: ../../frontier/reasoning/test-time-compute-scaling.md, attention-and-the-transformer-breakthrough.md, ../../frontier/reasoning/reasoning-models.md
 ---
 
 # BERT, GPT-3, and the Scaling Laws Era

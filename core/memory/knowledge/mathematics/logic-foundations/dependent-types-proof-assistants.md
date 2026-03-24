@@ -4,6 +4,7 @@ last_verified: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: high
+related: curry-howard-isomorphism.md, ../../cognitive-science/concepts/conceptual-change-types.md, godels-second-incompleteness.md
 ---
 
 # Dependent Types and Proof Assistants

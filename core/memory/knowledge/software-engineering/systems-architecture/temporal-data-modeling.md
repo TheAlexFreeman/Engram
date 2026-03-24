@@ -7,6 +7,7 @@ tags: [temporal, bitemporal, last-verified, freshness, event-sourcing, history]
 trust: medium
 created: 2026-03-19
 last_verified: 2026-03-19
+related: ../django/django-test-data-factories.md, ../../self/_archive/2026-03-19-tmp-data-loss-incident.md, concurrency-models-for-local-state.md
 ---
 
 # Temporal Data Modeling for Trust and Freshness

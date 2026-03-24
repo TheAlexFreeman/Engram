@@ -109,11 +109,11 @@ The wisdom-of-crowds mechanism is the benign case of collective intelligence —
 
 ## Related
 
-- [granovetter-weak-ties-strength.md](knowledge/social-science/network-diffusion/granovetter-weak-ties-strength.md) — Network structure; independence requires diverse weak ties, not only strong-tie clusters
-- [rogers-diffusion-of-innovations.md](knowledge/social-science/network-diffusion/rogers-diffusion-of-innovations.md) — Diffusion as the spread of a single innovation; wisdom-of-crowds as a distributed, aggregated process
-- [watts-information-cascades.md](knowledge/social-science/network-diffusion/watts-information-cascades.md) — When independence fails and herding takes over
-- [network-diffusion-synthesis.md](knowledge/social-science/network-diffusion/network-diffusion-synthesis.md) — Synthesis
-- [merton-scientific-norms.md](knowledge/social-science/sociology-of-knowledge/merton-scientific-norms.md) — Science as a structured aggregation mechanism; CUDOS norms supporting independence
-- [henrich-collective-brain.md](knowledge/social-science/cultural-evolution/henrich-collective-brain.md) — Collective brain as a cultural evolution analogue to wisdom of crowds
-- [group-polarization-groupthink.md](knowledge/social-science/social-psychology/group-polarization-groupthink.md) — When group processes destroy independence and produce collective irrational belief
-- [kahneman-tversky-heuristics-biases.md](knowledge/social-science/behavioral-economics/kahneman-tversky-heuristics-biases.md) — Individual biases that undermine the independence assumption
+- [granovetter-weak-ties-strength.md](granovetter-weak-ties-strength.md) — Network structure; independence requires diverse weak ties, not only strong-tie clusters
+- [rogers-diffusion-of-innovations.md](rogers-diffusion-of-innovations.md) — Diffusion as the spread of a single innovation; wisdom-of-crowds as a distributed, aggregated process
+- [watts-information-cascades.md](watts-information-cascades.md) — When independence fails and herding takes over
+- [network-diffusion-synthesis.md](network-diffusion-synthesis.md) — Synthesis
+- [merton-scientific-norms.md](../sociology-of-knowledge/merton-scientific-norms.md) — Science as a structured aggregation mechanism; CUDOS norms supporting independence
+- [henrich-collective-brain.md](../cultural-evolution/henrich-collective-brain.md) — Collective brain as a cultural evolution analogue to wisdom of crowds
+- [group-polarization-groupthink.md](../social-psychology/group-polarization-groupthink.md) — When group processes destroy independence and produce collective irrational belief
+- [kahneman-tversky-heuristics-biases.md](../behavioral-economics/kahneman-tversky-heuristics-biases.md) — Individual biases that undermine the independence assumption

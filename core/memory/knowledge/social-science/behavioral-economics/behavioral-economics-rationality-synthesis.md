@@ -143,11 +143,11 @@ Behavioral economics and cultural evolution are deeply complementary:
 
 ## Related
 
-- [kahneman-tversky-heuristics-biases.md](knowledge/social-science/behavioral-economics/kahneman-tversky-heuristics-biases.md) — Foundational heuristics and biases program
-- [prospect-theory-loss-aversion.md](knowledge/social-science/behavioral-economics/prospect-theory-loss-aversion.md) — Loss aversion, reference dependence, probability weighting
-- [thaler-sunstein-nudge-theory.md](knowledge/social-science/behavioral-economics/thaler-sunstein-nudge-theory.md) — Choice architecture, defaults, debiasing via environment design
-- [bounded-rationality-simon.md](knowledge/social-science/behavioral-economics/bounded-rationality-simon.md) — Simon's foundational bounded rationality framework; satisficing
-- [transmission-biases-cultural-evolution.md](knowledge/social-science/cultural-evolution/transmission-biases-cultural-evolution.md) — How biases filter cultural transmission
-- [idea-fitness-vs-truth.md](knowledge/social-science/cultural-evolution/idea-fitness-vs-truth.md) — When biases make false ideas fitter
-- [social-psychology-transmission-biases-synthesis.md](knowledge/social-science/social-psychology/social-psychology-transmission-biases-synthesis.md) — Social psychology grounding for transmission bias theory
-- [fricker-epistemic-injustice.md](knowledge/social-science/cultural-evolution/fricker-epistemic-injustice.md) — Motivated reasoning and epistemic bias at the social level
+- [kahneman-tversky-heuristics-biases.md](kahneman-tversky-heuristics-biases.md) — Foundational heuristics and biases program
+- [prospect-theory-loss-aversion.md](prospect-theory-loss-aversion.md) — Loss aversion, reference dependence, probability weighting
+- [thaler-sunstein-nudge-theory.md](thaler-sunstein-nudge-theory.md) — Choice architecture, defaults, debiasing via environment design
+- [bounded-rationality-simon.md](bounded-rationality-simon.md) — Simon's foundational bounded rationality framework; satisficing
+- [transmission-biases-cognitive-attractors.md](../cultural-evolution/transmission-biases-cognitive-attractors.md) — How biases filter cultural transmission
+- [idea-fitness-vs-truth.md](../cultural-evolution/idea-fitness-vs-truth.md) — When biases make false ideas fitter
+- [social-psychology-transmission-biases-synthesis.md](../social-psychology/social-psychology-transmission-biases-synthesis.md) — Social psychology grounding for transmission bias theory
+- [fricker-epistemic-injustice.md](../cultural-evolution/fricker-epistemic-injustice.md) — Motivated reasoning and epistemic bias at the social level

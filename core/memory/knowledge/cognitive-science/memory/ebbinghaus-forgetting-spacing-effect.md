@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: motivated-forgetting-retrieval-induced.md, ../metacognition/dunning-kruger-effect.md, ../../social-science/social-psychology/bystander-effect-diffusion-responsibility.md
 ---
 
 # Ebbinghaus Forgetting Curves and the Spacing Effect

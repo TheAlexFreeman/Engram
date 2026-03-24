@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: classical-theory-failures.md, theory-theory-knowledge-based-view.md, exemplar-theory-hybrid-models.md
 ---
 
 # Prototype Theory and Basic Level Categories (Rosch)

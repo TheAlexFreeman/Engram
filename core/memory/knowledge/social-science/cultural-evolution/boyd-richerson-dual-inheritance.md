@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: medium
+related: ../../cognitive-science/attention/dual-process-system1-system2.md, fricker-epistemic-injustice.md, prestige-cascades-llm-adoption.md
 ---
 
 # Boyd & Richerson: Dual Inheritance Theory

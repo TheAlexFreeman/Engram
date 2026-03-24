@@ -138,7 +138,7 @@ This captures non-stationary environments — relevant for continual learning an
 - **Convex analysis**: OCO requires convexity of loss functions — see [convex-analysis-separation](convex-analysis-separation.md)
 - **Duality and minimax**: No-regret dynamics solve minimax problems — see [duality-theory-minimax](duality-theory-minimax.md)
 - **Non-convex landscapes**: Bandit optimisation of non-convex functions — see [nonconvex-landscapes-saddle-points](nonconvex-landscapes-saddle-points.md)
-- **Game theory**: No-regret dynamics converge to equilibria — see [../game-theory/mechanism-design-vcg-revelation.md](../game-theory/mechanism-design-vcg-revelation.md)
+- **Game theory**: No-regret dynamics converge to equilibria — see [../game-theory/normal-form-games-nash-equilibrium.md](../game-theory/normal-form-games-nash-equilibrium.md)
 - **PAC learning**: Online-to-batch conversion connects to sample complexity — see [../information-theory/pac-learning-sample-complexity.md](../information-theory/pac-learning-sample-complexity.md)
 - **Bayesian inference**: Thompson sampling connects bandit algorithms to posterior sampling — see [../probability/bayesian-inference-priors-posteriors.md](../probability/bayesian-inference-priors-posteriors.md)
 - **Concentration inequalities**: Regret bounds use martingale and Chernoff techniques — see [../probability/concentration-inequalities.md](../probability/concentration-inequalities.md)

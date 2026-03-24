@@ -7,6 +7,7 @@ tags: [rlhf, instruction-tuning, instructgpt, chatgpt, alignment, post-training,
 trust: medium
 created: 2026-03-18
 last_verified: 2026-03-19
+related: ../../frontier/alignment/rlhf-reward-models.md, ../../frontier/alignment/instruction-following.md, ../deep-learning/gpus-imagenet-and-the-deep-learning-turn.md
 ---
 
 # Instruction Tuning, RLHF, and the Chat Model Turn

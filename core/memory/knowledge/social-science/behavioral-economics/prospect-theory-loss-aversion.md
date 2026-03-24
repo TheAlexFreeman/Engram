@@ -116,9 +116,9 @@ Loss aversion is a deep feature of human motivation with direct implications for
 
 ## Related
 
-- [kahneman-tversky-heuristics-biases.md](knowledge/social-science/behavioral-economics/kahneman-tversky-heuristics-biases.md) — The broader heuristics-and-biases program; dual-process framework
-- [thaler-sunstein-nudge-theory.md](knowledge/social-science/behavioral-economics/thaler-sunstein-nudge-theory.md) — Policy applications: defaults, mental accounting, choice architecture
-- [bounded-rationality-simon.md](knowledge/social-science/behavioral-economics/bounded-rationality-simon.md) — Bounded rationality as earlier framing; satisficing vs loss aversion
-- [behavioral-economics-rationality-synthesis.md](knowledge/social-science/behavioral-economics/behavioral-economics-rationality-synthesis.md) — Rationality debate synthesis
-- [transmission-biases-cultural-evolution.md](knowledge/social-science/cultural-evolution/transmission-biases-cultural-evolution.md) — Content biases; loss-framed content spreads faster
-- [idea-fitness-vs-truth.md](knowledge/social-science/cultural-evolution/idea-fitness-vs-truth.md) — Why fitness-for-spread ≠ truth; loss aversion as a fitness-boosting content property
+- [kahneman-tversky-heuristics-biases.md](kahneman-tversky-heuristics-biases.md) — The broader heuristics-and-biases program; dual-process framework
+- [thaler-sunstein-nudge-theory.md](thaler-sunstein-nudge-theory.md) — Policy applications: defaults, mental accounting, choice architecture
+- [bounded-rationality-simon.md](bounded-rationality-simon.md) — Bounded rationality as earlier framing; satisficing vs loss aversion
+- [behavioral-economics-rationality-synthesis.md](behavioral-economics-rationality-synthesis.md) — Rationality debate synthesis
+- [transmission-biases-cognitive-attractors.md](../cultural-evolution/transmission-biases-cognitive-attractors.md) — Content biases; loss-framed content spreads faster
+- [idea-fitness-vs-truth.md](../cultural-evolution/idea-fitness-vs-truth.md) — Why fitness-for-spread ≠ truth; loss aversion as a fitness-boosting content property

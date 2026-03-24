@@ -188,4 +188,4 @@ The field has largely adopted the tool framing, which implies different safety a
 - **Deceptive alignment**: The worst case for corrigibility failure — see [deceptive-alignment-mesa-optimization](deceptive-alignment-mesa-optimization.md)
 - **Intelligence explosion / FOOM**: Why corrigibility may become critical at higher capability levels — see [intelligence-explosion-foom-recursive-self-improvement](intelligence-explosion-foom-recursive-self-improvement.md)
 - **Value alignment as ongoing process**: The alternative to one-shot value loading — see [value-alignment-as-ongoing-process](value-alignment-as-ongoing-process.md)
-- **MIRI/CFAR**: Where the corrigibility research program was centered — see [../institutions/miri-cfar-funding-influence.md](../institutions/miri-cfar-funding-influence.md)
+- **MIRI/CFAR**: Where the corrigibility research program was centered — see [../../institutions/miri-cfar-and-institutional-rationality.md](../../institutions/miri-cfar-and-institutional-rationality.md)
