@@ -205,14 +205,20 @@
 </head>
 <body>
 
-<div class="knowledge-header">
+<header class="knowledge-header">
   <div style="max-width:1020px;margin:0 auto;">
     <h1>Knowledge Base</h1>
-    <p class="subtitle"><a href="dashboard.html" class="nav-link">&#8592; Dashboard</a> <a href="users.html" class="nav-link" style="margin-left:0.5rem">Users</a> <a href="projects.html" class="nav-link" style="margin-left:0.5rem">Projects</a> <a href="skills.html" class="nav-link" style="margin-left:0.5rem">Skills</a><button class="graph-toggle" id="graph-open-btn" title="View cross-reference graph">&#128476; Graph</button></p>
+    <nav class="subtitle" aria-label="Knowledge navigation">
+      <a href="dashboard.html" class="nav-link">&#8592; Dashboard</a>
+      <a href="users.html" class="nav-link" style="margin-left:0.5rem">Users</a>
+      <a href="projects.html" class="nav-link" style="margin-left:0.5rem">Projects</a>
+      <a href="skills.html" class="nav-link" style="margin-left:0.5rem">Skills</a>
+      <button class="graph-toggle" id="graph-open-btn" title="View cross-reference graph">&#128476; Graph</button>
+    </nav>
   </div>
-</div>
+</header>
 
-<div class="knowledge-body">
+<main class="knowledge-body" id="main-content">
 
 <div class="error-banner" id="error-banner"></div>
 
@@ -242,7 +248,7 @@
   </div>
 </div>
 
-</div><!-- /knowledge-body -->
+</main><!-- /knowledge-body -->
 
 <!-- Graph overlay -->
 <div class="graph-overlay" id="graph-overlay" role="dialog" aria-modal="true" aria-labelledby="graph-overlay-title" aria-describedby="graph-accessible-summary" tabindex="-1">
@@ -303,6 +309,7 @@
   var parseFlatYaml = E.parseFlatYaml;
   var parseMarkdownTable = E.parseMarkdownTable;
   var loadSavedHandle = E.loadSavedHandle;
+  var makeActivatable = E.makeActivatable;
   var requestReadPermission = E.requestReadPermission;
 
   /* ── knowledge state ───────────────────────────────── */
@@ -350,7 +357,10 @@
             card.appendChild(scopeP);
           }
           (function (domainName) {
-            card.addEventListener('click', function () { openDomain(domainName); });
+            makeActivatable(card, function () { openDomain(domainName); }, {
+              role: 'button',
+              label: 'Open knowledge domain ' + domainName
+            });
           })(domain);
           grid.appendChild(card);
         }
@@ -367,7 +377,10 @@
       var card = el('div', '', 'domain-card');
       card.appendChild(el('div', listing.dirs[d], 'name'));
       (function (name) {
-        card.addEventListener('click', function () { openDomain(name); });
+        makeActivatable(card, function () { openDomain(name); }, {
+          role: 'button',
+          label: 'Open knowledge domain ' + name
+        });
       })(listing.dirs[d]);
       grid.appendChild(card);
     }
@@ -410,7 +423,7 @@
 
     // Knowledge root (back to domain picker)
     var root = el('a', 'Knowledge');
-    root.addEventListener('click', hideDetailView);
+    makeActivatable(root, hideDetailView, { role: 'link', label: 'Return to knowledge domain list' });
     bc.appendChild(root);
 
     // Path segments
@@ -419,13 +432,13 @@
       if (i < detailPath.length - 1) {
         var link = el('a', detailPath[i]);
         (function (idx) {
-          link.addEventListener('click', function () {
+          makeActivatable(link, function () {
             detailPath = detailPath.slice(0, idx + 1);
             activeFile = null;
             renderBreadcrumb();
             loadSidebar();
             clearContentPane();
-          });
+          }, { role: 'link', label: 'Open folder ' + detailPath[idx] });
         })(i);
         bc.appendChild(link);
       } else {
@@ -458,13 +471,13 @@
       li.appendChild(el('span', '\uD83D\uDCC1', 'icon'));
       li.appendChild(el('span', dirName + '/'));
       (function (name) {
-        li.addEventListener('click', function () {
+        makeActivatable(li, function () {
           detailPath.push(name);
           activeFile = null;
           renderBreadcrumb();
           loadSidebar();
           clearContentPane();
-        });
+        }, { role: 'button', label: 'Open folder ' + name });
       })(dirName);
       ul.appendChild(li);
     }
@@ -478,12 +491,12 @@
       var label = el('span', fileName.replace(/\.md$/, ''));
       li.appendChild(label);
       (function (name, liEl) {
-        liEl.addEventListener('click', function () {
+        makeActivatable(liEl, function () {
           var prev = ul.querySelector('li.active');
           if (prev) prev.classList.remove('active');
           liEl.classList.add('active');
           viewFile(name);
-        });
+        }, { role: 'button', label: 'Open file ' + name });
       })(fileName, li);
       ul.appendChild(li);
     }
@@ -597,7 +610,12 @@
               ra.className = 'knowledge-xref';
               ra.textContent = refPath.replace(/\.md$/, '').split('/').pop();
               ra.title = refPath;
-              (function(ref) { ra.addEventListener('click', function() { navigateToFile(ref); }); })(refPath);
+              (function(ref) {
+                makeActivatable(ra, function() { navigateToFile(ref); }, {
+                  role: 'link',
+                  label: 'Open related file ' + ref
+                });
+              })(refPath);
               item.appendChild(document.createTextNode(' '));
               item.appendChild(ra);
             } else {

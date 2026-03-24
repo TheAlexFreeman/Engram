@@ -307,14 +307,14 @@
 </head>
 <body>
 
-<div class="projects-header">
+<header class="projects-header">
   <div style="max-width:1020px;margin:0 auto;">
     <h1>Projects</h1>
-    <p class="subtitle"><a href="dashboard.html" class="nav-link">&#8592; Dashboard</a> <a href="users.html" class="nav-link" style="margin-left:0.5rem">Users</a> <a href="knowledge.html" class="nav-link" style="margin-left:0.5rem">Knowledge</a> <a href="skills.html" class="nav-link" style="margin-left:0.5rem">Skills</a></p>
+    <nav class="subtitle" aria-label="Projects navigation"><a href="dashboard.html" class="nav-link">&#8592; Dashboard</a> <a href="users.html" class="nav-link" style="margin-left:0.5rem">Users</a> <a href="knowledge.html" class="nav-link" style="margin-left:0.5rem">Knowledge</a> <a href="skills.html" class="nav-link" style="margin-left:0.5rem">Skills</a></nav>
   </div>
-</div>
+</header>
 
-<div class="projects-body">
+<main class="projects-body" id="main-content">
 
 <div class="error-banner" id="error-banner"></div>
 
@@ -354,7 +354,7 @@
   </div>
 </div>
 
-</div><!-- /projects-body -->
+</main><!-- /projects-body -->
 
 <noscript><p style="text-align:center;margin-top:3rem;color:#f87171;">JavaScript is required for the projects viewer.</p></noscript>
 
@@ -372,6 +372,7 @@
   var parseFlatYaml = E.parseFlatYaml;
   var parseMarkdownTable = E.parseMarkdownTable;
   var loadSavedHandle = E.loadSavedHandle;
+  var makeActivatable = E.makeActivatable;
   var requestReadPermission = E.requestReadPermission;
 
   var PROJECTS_ROOT = 'core/memory/working/projects';
@@ -430,7 +431,10 @@
           card.appendChild(footer);
 
           (function (slug) {
-            card.addEventListener('click', function () { openProject(slug); });
+            makeActivatable(card, function () { openProject(slug); }, {
+              role: 'button',
+              label: 'Open project ' + slug
+            });
           })(name);
           grid.appendChild(card);
         }
@@ -449,7 +453,10 @@
       top.appendChild(el('span', listing.dirs[d], 'card-name'));
       card.appendChild(top);
       (function (slug) {
-        card.addEventListener('click', function () { openProject(slug); });
+        makeActivatable(card, function () { openProject(slug); }, {
+          role: 'button',
+          label: 'Open project ' + slug
+        });
       })(listing.dirs[d]);
       grid.appendChild(card);
     }
@@ -482,7 +489,7 @@
     bc.appendChild(el('span', ' / ', 'sep'));
 
     var projects = el('a', 'Projects');
-    projects.addEventListener('click', hideDetail);
+    makeActivatable(projects, hideDetail, { role: 'link', label: 'Return to project list' });
     bc.appendChild(projects);
     bc.appendChild(el('span', ' / ', 'sep'));
 
@@ -690,9 +697,15 @@
     }
     card.appendChild(body);
 
-    header.addEventListener('click', function () {
-      card.classList.toggle('open');
+    makeActivatable(header, function () {
+      var isOpen = !card.classList.contains('open');
+      card.classList.toggle('open', isOpen);
+      header.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }, {
+      role: 'button',
+      label: 'Toggle question details for ' + q.title
     });
+    header.setAttribute('aria-expanded', startOpen ? 'true' : 'false');
 
     return card;
   }
@@ -869,9 +882,9 @@
       item.appendChild(el('span', '\uD83D\uDCC4', 'icon'));
       item.appendChild(el('span', mdFiles[i].replace(/\.md$/, '')));
       (function (filename, slug) {
-        item.addEventListener('click', function () {
+        makeActivatable(item, function () {
           viewNote(slug, filename);
-        });
+        }, { role: 'button', label: 'Open note ' + filename.replace(/\.md$/, '') });
       })(mdFiles[i], slug);
       container.appendChild(item);
     }
@@ -892,7 +905,7 @@
     var header = el('div', '', 'note-header');
     header.appendChild(el('span', filename));
     var close = el('span', '\u2715', 'note-close');
-    close.addEventListener('click', function () { viewer.remove(); });
+    makeActivatable(close, function () { viewer.remove(); }, { role: 'button', label: 'Close note viewer' });
     header.appendChild(close);
     viewer.appendChild(header);
 
