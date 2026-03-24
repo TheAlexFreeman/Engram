@@ -1,7 +1,7 @@
 ---
 type: projects-navigator
 generated: 2026-03-23 12:00
-project_count: 6
+project_count: 4
 ---
 
 # Projects

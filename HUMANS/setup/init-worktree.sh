@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-SEED_REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+SEED_REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 SEED_MANIFEST="$SCRIPT_DIR/init-worktree-paths.txt"
 
 INTERACTIVE=true
