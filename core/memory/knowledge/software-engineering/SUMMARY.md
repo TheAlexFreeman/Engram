@@ -10,6 +10,7 @@ Promoted 2026-03-20. Stack knowledge for Alex's primary development environment:
 | [react/](react/) | React 19, Chakra UI 3, TanStack, testing, build tooling | `react-19-overview.md`, `chakra-ui-3-overview.md` |
 | [devops/](devops/) | Docker Compose, production config, CI/CD, monitoring | `docker-production-config.md`, `celery-multi-worker-docker.md` |
 | [testing/](testing/) | Unit, integration, system, performance, formal verification, ML evaluation | `testing-foundations-epistemology.md`, `unit-testing-principles.md` |
+| [web-fundamentals/](web-fundamentals/) | HTTP protocol, DNS/TLS/networking, CORS | `http-protocol-reference.md`, `cors-in-depth.md` |
 
 ## Cross-stack integration
 

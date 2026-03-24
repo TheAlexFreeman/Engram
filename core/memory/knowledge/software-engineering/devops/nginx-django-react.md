@@ -10,6 +10,8 @@ related:
   - docker-production-config.md
   - vite-react-build.md
   - django-gunicorn-uvicorn.md
+  - ../web-fundamentals/http-protocol-reference.md
+  - ../web-fundamentals/dns-tls-and-networking.md
 ---
 
 # Nginx as the Composition Layer: Django + React

@@ -6,7 +6,7 @@ last_verified: 2026-03-20
 trust: medium
 tags: [react, tanstack-query, data-fetching, drf, server-state]
 version_note: TanStack Query v5 (React 18 required). Several v4→v5 breaking changes are called out throughout.
-related: tanstack-router.md, ../../ai/frontier/retrieval-memory/hyde-query-expansion.md, react-error-boundaries-suspense.md
+related: tanstack-router.md, ../../ai/frontier/retrieval-memory/hyde-query-expansion.md, react-error-boundaries-suspense.md, ../web-fundamentals/api-design-patterns.md
 ---
 
 # TanStack Query v5 — Server State for DRF-backed React UIs

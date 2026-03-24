@@ -9,6 +9,7 @@ related:
   - tanstack-query.md
   - tanstack-router.md
   - react-19-overview.md
+  - ../web-fundamentals/cors-in-depth.md
 ---
 
 # React Authentication Patterns with Django/DRF
@@ -83,13 +84,13 @@ export function useAuth(): AuthContextValue {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = useCurrentUser();
-  
+
   const value: AuthContextValue = {
     user: user ?? null,
     isAuthenticated: !!user,
     isLoading,
   };
-  
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 ```
@@ -109,15 +110,15 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 export function useLogin() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  
+
   return useMutation({
     mutationFn: (credentials: { email: string; password: string }) =>
       apiClient.post("/api/auth/login/", credentials),
-    
+
     onSuccess: async () => {
       // Refetch the /me query to populate auth state
       await queryClient.invalidateQueries({ queryKey: ["me"] });
-      
+
       // Read redirect destination from URL (set by protected route guard)
       const from = router.state.location.search?.from ?? "/dashboard";
       navigate({ to: from });
@@ -133,17 +134,17 @@ export function useLogin() {
 export function useLogout() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  
+
   return useMutation({
     mutationFn: () => apiClient.post("/api/auth/logout/"),
-    
+
     onSettled: () => {
       // Clear ALL cached data — prevents stale user data leaking
       queryClient.clear();
-      
+
       // Notify other tabs (see BroadcastChannel below)
       authBroadcast.postMessage("logout");
-      
+
       navigate({ to: "/login" });
     },
   });
@@ -164,7 +165,7 @@ React.useEffect(() => {
       navigate({ to: "/login" });
     }
   };
-  
+
   authBroadcast.addEventListener("message", handler);
   return () => authBroadcast.removeEventListener("message", handler);
 }, []);
@@ -212,10 +213,10 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    
+
     if (error.response?.status === 401 && !originalRequest._retried) {
       originalRequest._retried = true;
-      
+
       try {
         // Attempt to get a new access token using the refresh cookie
         await axios.post("/api/auth/token/refresh/", {}, { withCredentials: true });
@@ -227,7 +228,7 @@ apiClient.interceptors.response.use(
         window.location.href = "/login";
       }
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -286,14 +287,14 @@ export const Route = createFileRoute("/dashboard")({
 export const Route = createFileRoute("/login")({
   // Validate the search params type
   validateSearch: z.object({ from: z.string().optional() }),
-  
+
   component: LoginPage,
 });
 
 function LoginPage() {
   const { from } = Route.useSearch();
   const login = useLogin();
-  
+
   const handleLogin = async (credentials) => {
     await login.mutateAsync(credentials);
     navigate({ to: from ?? "/dashboard" });
@@ -331,14 +332,14 @@ import Cookies from "js-cookie";
 // Add X-CSRFToken header to all state-changing requests
 apiClient.interceptors.request.use((config) => {
   const method = config.method?.toUpperCase();
-  
+
   if (["POST", "PUT", "PATCH", "DELETE"].includes(method ?? "")) {
     const csrfToken = Cookies.get("csrftoken");
     if (csrfToken) {
       config.headers["X-CSRFToken"] = csrfToken;
     }
   }
-  
+
   return config;
 });
 ```
@@ -373,15 +374,15 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401 && !isHandling401) {
       isHandling401 = true;
-      
+
       queryClient.clear();
-      
+
       // Replace history so the login page doesn't get a "back" entry pointing at 401
       window.location.replace("/login");
-      
+
       setTimeout(() => { isHandling401 = false; }, 1000);
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -416,13 +417,13 @@ export const Route = createFileRoute("/auth/callback")({
 function OAuthCallback() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  
+
   React.useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ["me"] }).then(() => {
       navigate({ to: "/dashboard" });
     });
   }, []);
-  
+
   return <Spinner />;
 }
 ```
@@ -442,7 +443,7 @@ export const authHandlers = [
     }
     return HttpResponse.json({ id: "1", email: "user@example.com", role: "user" });
   }),
-  
+
   http.post("/api/auth/login/", async ({ request }) => {
     const { email, password } = await request.json() as any;
     if (email === "user@example.com" && password === "password") {
@@ -451,7 +452,7 @@ export const authHandlers = [
     }
     return HttpResponse.json({ detail: "Invalid credentials" }, { status: 400 });
   }),
-  
+
   http.post("/api/auth/logout/", () => {
     isAuthenticated = false;
     return HttpResponse.json({ success: true });

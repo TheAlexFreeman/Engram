@@ -9,6 +9,7 @@ related:
   - react-19-overview.md
   - tanstack-query.md
   - vite-react-build.md
+  - ../web-fundamentals/browser-dom-events.md
 ---
 
 # React Performance

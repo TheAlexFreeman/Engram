@@ -4,6 +4,8 @@ origin_session: unknown
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
+related:
+  - ../web-fundamentals/css-layout-and-selectors.md
 ---
 
 # Chakra UI 3 styling system

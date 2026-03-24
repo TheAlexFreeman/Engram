@@ -11,6 +11,7 @@ related:
   - tanstack-router.md
   - react-performance.md
   - ../devops/sentry-fullstack-observability.md
+  - ../web-fundamentals/owasp-frontend-security.md
 ---
 
 # Error Boundaries and Suspense in React

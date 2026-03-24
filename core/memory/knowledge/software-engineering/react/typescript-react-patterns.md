@@ -10,6 +10,7 @@ related:
   - tanstack-query.md
   - react-hook-form-zod.md
   - tanstack-router.md
+  - ../web-fundamentals/javascript-core-patterns.md
 ---
 
 # TypeScript Patterns for React

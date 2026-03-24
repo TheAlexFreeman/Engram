@@ -9,6 +9,7 @@ related:
   - django-production-stack.md
   - django-6.0-whats-new.md
   - django-observability-structlog-sentry.md
+  - ../web-fundamentals/cors-in-depth.md
 origin_session: unknown
 ---
 
