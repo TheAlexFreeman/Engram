@@ -1127,6 +1127,25 @@
     var hoveredNode = -1;
     var dragNode = -1;
 
+    // Fit camera to show all nodes with padding
+    function fitToView() {
+      if (nodes.length === 0) return;
+      var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].x < minX) minX = nodes[i].x;
+        if (nodes[i].x > maxX) maxX = nodes[i].x;
+        if (nodes[i].y < minY) minY = nodes[i].y;
+        if (nodes[i].y > maxY) maxY = nodes[i].y;
+      }
+      var pad = 40;
+      var bw = (maxX - minX) + pad * 2;
+      var bh = (maxY - minY) + pad * 2;
+      cam.x = (minX + maxX) / 2;
+      cam.y = (minY + maxY) / 2;
+      cam.zoom = Math.min(canvas.width / bw, canvas.height / bh, 1);
+      cam.zoom = Math.max(0.1, cam.zoom);
+    }
+
     function screenToWorld(sx, sy) {
       return {
         x: (sx - canvas.width / 2) / cam.zoom + cam.x,
@@ -1352,9 +1371,13 @@
     }
 
     var running = true;
+    var frameCount = 0;
     function loop() {
       if (!running) return;
       step();
+      frameCount++;
+      // After warm-up, fit camera to show the full graph
+      if (frameCount === 80) fitToView();
       draw();
       requestAnimationFrame(loop);
     }
@@ -1362,13 +1385,13 @@
 
     // Reset button
     document.getElementById('graph-reset-btn').onclick = function () {
-      cam = { x: W / 2, y: H / 2, zoom: 1 };
       for (var i = 0; i < nodes.length; i++) {
         nodes[i].x = W / 2 + (Math.random() - 0.5) * W * 0.6;
         nodes[i].y = H / 2 + (Math.random() - 0.5) * H * 0.6;
         nodes[i].vx = 0;
         nodes[i].vy = 0;
       }
+      frameCount = 0;
     };
 
     // Return stop handle
