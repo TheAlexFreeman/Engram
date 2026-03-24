@@ -235,6 +235,15 @@
 .graph-stats {
   font-size: 0.72rem; color: var(--dark-text-muted);
 }
+.graph-scope {
+  font-size: 0.72rem; color: var(--dark-text-muted);
+  margin-left: 0.6rem; padding: 0.15rem 0.5rem;
+  background: rgba(255,255,255,0.06); border-radius: var(--radius-sm);
+}
+.graph-scope a {
+  color: var(--color-primary); text-decoration: none; font-size: 0.68rem;
+}
+.graph-scope a:hover { color: var(--color-primary-hover); text-decoration: underline; }
 
 .graph-legend {
   position: absolute; bottom: 1.25rem; left: 1.25rem;
@@ -322,6 +331,7 @@
   <div class="graph-toolbar">
     <h2>&#128476; Knowledge Graph</h2>
     <span class="graph-stats" id="graph-stats"></span>
+    <span class="graph-scope" id="graph-scope" style="display:none"></span>
     <span class="spacer"></span>
     <button id="graph-reset-btn" title="Reset zoom / re-layout">Reset</button>
     <button id="graph-close-btn">&#10005; Close</button>
@@ -998,15 +1008,32 @@
     return results;
   }
 
-  /** Build the full graph: {nodes: [{id, domain, label}], edges: [{source, target}]}. */
-  async function buildGraph(progressCb) {
-    var files = await collectFiles(rootHandle, knowledgeBase);
+  /**
+   * Build graph: {nodes: [{id, domain, label, external}], edges: [{source, target}]}.
+   * filterPrefix: optional directory prefix (e.g. 'philosophy/ethics') to scope the graph.
+   * When scoped, external nodes (referenced but outside scope) are included as dimmed nodes.
+   */
+  async function buildGraph(progressCb, filterPrefix) {
+    var scanRoot = knowledgeBase;
+    if (filterPrefix) scanRoot = knowledgeBase + '/' + filterPrefix;
+    var files = await collectFiles(rootHandle, scanRoot);
     if (progressCb) progressCb('Found ' + files.length + ' files, scanning\u2026');
+
+    // When scoped, file paths from collectFiles are relative to scanRoot.
+    // Remap them to be knowledge-root-relative so resolveGraphRef still works.
+    if (filterPrefix) {
+      for (var fi = 0; fi < files.length; fi++) {
+        files[fi].path = filterPrefix + '/' + files[fi].path;
+        // dirSegments = directory part of the knowledge-relative path
+        var pathParts = files[fi].path.split('/');
+        files[fi].dirSegments = pathParts.slice(0, pathParts.length - 1);
+      }
+    }
 
     var nodeMap = {};
     var edges = [];
 
-    // Create nodes
+    // Create nodes for in-scope files
     for (var i = 0; i < files.length; i++) {
       var fpath = files[i].path;
       var domain = files[i].dirSegments[0] || '_root';
@@ -1014,12 +1041,14 @@
         id: fpath,
         domain: domain,
         label: fpath.split('/').pop().replace(/\.md$/, ''),
-        refs: 0, refBy: 0
+        refs: 0, refBy: 0,
+        external: false
       };
     }
 
     // Scan for edges
     var batchSize = 20;
+    var pendingExternal = [];  // refs that point outside the scoped set
     for (var b = 0; b < files.length; b += batchSize) {
       var batch = files.slice(b, Math.min(b + batchSize, files.length));
       var reads = batch.map(function (f) {
@@ -1039,15 +1068,39 @@
             edges.push({ source: sourceId, target: targetId });
             nodeMap[sourceId].refs++;
             nodeMap[targetId].refBy++;
+          } else if (filterPrefix) {
+            // Track cross-scope reference for external node creation
+            pendingExternal.push({ source: sourceId, target: targetId });
           }
         }
       }
       if (progressCb) progressCb('Scanned ' + Math.min(b + batchSize, files.length) + ' / ' + files.length);
     }
 
+    // When scoped, add external nodes for cross-scope references
+    if (filterPrefix && pendingExternal.length > 0) {
+      for (var pe = 0; pe < pendingExternal.length; pe++) {
+        var tid = pendingExternal[pe].target;
+        if (!nodeMap[tid]) {
+          var tParts = tid.split('/');
+          var tDomain = tParts[0] || '_root';
+          nodeMap[tid] = {
+            id: tid,
+            domain: tDomain,
+            label: tParts[tParts.length - 1].replace(/\.md$/, ''),
+            refs: 0, refBy: 0,
+            external: true
+          };
+        }
+        edges.push({ source: pendingExternal[pe].source, target: tid });
+        nodeMap[pendingExternal[pe].source].refs++;
+        nodeMap[tid].refBy++;
+      }
+    }
+
     var nodes = [];
     for (var id in nodeMap) nodes.push(nodeMap[id]);
-    return { nodes: nodes, edges: edges };
+    return { nodes: nodes, edges: edges, scope: filterPrefix || null };
   }
 
   /* ── Force-directed layout + canvas renderer ────────── */
@@ -1340,13 +1393,25 @@
         var r = nodeRadius(node);
         var color = DOMAIN_COLORS[node.domain] || DOMAIN_DEFAULT_COLOR;
         var dimmed = hasHighlight && !highlightSet[i];
+        var isExternal = node.external;
 
         ctx.beginPath();
         ctx.arc(node.x, node.y, r / cam.zoom, 0, Math.PI * 2);
-        ctx.fillStyle = dimmed ? 'rgba(60,55,50,0.5)' : color;
-        ctx.fill();
+        if (isExternal) {
+          ctx.fillStyle = 'rgba(60,55,50,0.3)';
+          ctx.fill();
+          ctx.setLineDash([3 / cam.zoom, 3 / cam.zoom]);
+          ctx.strokeStyle = dimmed ? 'rgba(120,115,110,0.3)' : color;
+          ctx.lineWidth = 1.5 / cam.zoom;
+          ctx.stroke();
+          ctx.setLineDash([]);
+        } else {
+          ctx.fillStyle = dimmed ? 'rgba(60,55,50,0.5)' : color;
+          ctx.fill();
+        }
 
         if (i === hoveredNode) {
+          ctx.setLineDash([]);
           ctx.strokeStyle = '#fff';
           ctx.lineWidth = 2 / cam.zoom;
           ctx.stroke();
@@ -1403,14 +1468,27 @@
     };
   }
 
-  var graphCache = null;
+  var graphCache = {};  // keyed by scope prefix ('' = full)
 
-  async function openGraph() {
+  async function openGraph(scopeOverride) {
+    // Determine scope: explicit override, current detailPath, or full graph
+    var scope;
+    if (typeof scopeOverride === 'string') {
+      scope = scopeOverride;
+    } else if (detailPath.length > 0) {
+      scope = detailPath.join('/');
+    } else {
+      scope = '';
+    }
+
     var overlay = document.getElementById('graph-overlay');
     overlay.classList.add('visible');
 
-    if (graphCache) {
-      startGraph(graphCache);
+    // Update scope indicator
+    updateGraphScope(scope);
+
+    if (graphCache[scope]) {
+      startGraph(graphCache[scope]);
       return;
     }
 
@@ -1419,13 +1497,37 @@
     var progressText = document.getElementById('graph-progress-text');
 
     try {
-      var graph = await buildGraph(function (msg) { progressText.textContent = msg; });
-      graphCache = graph;
+      var graph = await buildGraph(
+        function (msg) { progressText.textContent = msg; },
+        scope || undefined
+      );
+      graphCache[scope] = graph;
       progress.style.display = 'none';
       startGraph(graph);
     } catch (err) {
       progress.style.display = 'none';
       showError('Graph build failed: ' + err.message);
+    }
+  }
+
+  /** Update the scope indicator in the graph toolbar. */
+  function updateGraphScope(scope) {
+    var indicator = document.getElementById('graph-scope');
+    if (!indicator) return;
+    if (scope) {
+      indicator.innerHTML = '';
+      indicator.appendChild(el('span', '\uD83D\uDCC1 ' + scope));
+      var allBtn = el('a', 'show all');
+      allBtn.style.marginLeft = '0.5rem';
+      allBtn.style.cursor = 'pointer';
+      allBtn.addEventListener('click', function () {
+        if (graphSim) { graphSim.stop(); graphSim = null; }
+        openGraph('');
+      });
+      indicator.appendChild(allBtn);
+      indicator.style.display = '';
+    } else {
+      indicator.style.display = 'none';
     }
   }
 
