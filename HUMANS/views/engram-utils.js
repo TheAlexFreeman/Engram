@@ -6,7 +6,7 @@
  *   readFile, listDir,
  *   parseFrontmatter, parseFlatYaml, parseMarkdownTable,
  *   openDB, loadSavedHandle, saveHandle, clearSavedHandle,
- *   requestReadPermission, readTextWithFallback,
+ *   requestReadPermission, restoreSavedHandle, readTextWithFallback,
  *   DB_NAME, STORE, HANDLE_KEY,
  *   renderMarkdown
  */
@@ -228,6 +228,25 @@
     }
 
     return 'prompt';
+  }
+
+  async function restoreSavedHandle(opts) {
+    opts = opts || {};
+    var loadHandle = opts.loadSavedHandle || loadSavedHandle;
+    var handle = opts.handle || await loadHandle();
+    if (!handle) {
+      return { status: 'missing', handle: null };
+    }
+
+    var permission = await requestReadPermission(handle, {
+      mode: opts.mode || 'read',
+      prompt: opts.prompt !== false
+    });
+    if (permission !== 'granted') {
+      return { status: permission || 'denied', handle: null };
+    }
+
+    return { status: 'granted', handle: handle };
   }
 
   async function readTextWithFallback(dirHandle, path, fallbackUrl) {
@@ -539,6 +558,7 @@
     loadSavedHandle: loadSavedHandle,
     clearSavedHandle: clearSavedHandle,
     requestReadPermission: requestReadPermission,
+    restoreSavedHandle: restoreSavedHandle,
     readTextWithFallback: readTextWithFallback,
     DB_NAME: DB_NAME,
     STORE: STORE,

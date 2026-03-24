@@ -330,12 +330,10 @@ button:active { transform: scale(0.97); }
   var listDir = E.listDir;
   var parseFrontmatter = E.parseFrontmatter;
   var parseFlatYaml = E.parseFlatYaml;
-  var loadSavedHandle = E.loadSavedHandle;
+  var restoreSavedHandle = E.restoreSavedHandle;
   var saveHandle = E.saveHandle;
   var clearNode = E.clearNode;
-  var escapeHtml = E.escapeHtml;
   var makeActivatable = E.makeActivatable;
-  var requestReadPermission = E.requestReadPermission;
 
   var rootHandle = null;
 
@@ -378,11 +376,9 @@ button:active { transform: scale(0.97); }
 
   /* ── Auto-connect ────────────────────────────────── */
   async function tryAutoConnect() {
-    var saved = await loadSavedHandle();
-    if (!saved) return;
-    var perm = await requestReadPermission(saved, { prompt: true });
-    if (perm !== 'granted') return;
-    rootHandle = saved;
+    var restored = await restoreSavedHandle({ prompt: true });
+    if (restored.status !== 'granted') return;
+    rootHandle = restored.handle;
     await loadData();
   }
 

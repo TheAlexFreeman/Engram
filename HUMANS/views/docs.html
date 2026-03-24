@@ -272,9 +272,9 @@
   var E = window.Engram;
   var clearNode = E.clearNode;
   var makeActivatable = E.makeActivatable;
+  var restoreSavedHandle = E.restoreSavedHandle;
   var showError = E.showError;
   var hideError = E.hideError;
-  var requestReadPermission = E.requestReadPermission;
   var rootHandle = null;
   var currentDoc = null;
 
@@ -509,23 +509,22 @@
       return;
     }
 
-    var saved = await E.loadSavedHandle();
-    if (!saved) {
+    var restored = await restoreSavedHandle({ prompt: true });
+    if (restored.status === 'missing') {
       setStatus(false, 'No folder loaded');
       openBtn.style.display = '';
       route();
       return;
     }
 
-    var perm = await requestReadPermission(saved, { prompt: true });
-    if (perm !== 'granted') {
+    if (restored.status !== 'granted') {
       setStatus(false, 'Permission denied');
       openBtn.style.display = '';
       route();
       return;
     }
 
-    rootHandle = saved;
+    rootHandle = restored.handle;
     setStatus(true, rootHandle.name);
     route();
   })();

@@ -308,9 +308,8 @@
   var parseFrontmatter = E.parseFrontmatter;
   var parseFlatYaml = E.parseFlatYaml;
   var parseMarkdownTable = E.parseMarkdownTable;
-  var loadSavedHandle = E.loadSavedHandle;
+  var restoreSavedHandle = E.restoreSavedHandle;
   var makeActivatable = E.makeActivatable;
-  var requestReadPermission = E.requestReadPermission;
 
   /* ── knowledge state ───────────────────────────────── */
 
@@ -672,19 +671,18 @@
       return;
     }
 
-    var saved = await loadSavedHandle();
-    if (!saved) {
+    var restored = await restoreSavedHandle({ prompt: true });
+    if (restored.status === 'missing') {
       showError('No memory repo loaded. Please open the dashboard first and load your repo folder.');
       return;
     }
 
-    var perm = await requestReadPermission(saved, { prompt: true });
-    if (perm !== 'granted') {
+    if (restored.status !== 'granted') {
       showError('Permission denied. Please open the dashboard and re-open your repo folder.');
       return;
     }
 
-    rootHandle = saved;
+    rootHandle = restored.handle;
 
     // Check for ?domain= query parameter
     var params = new URLSearchParams(window.location.search);

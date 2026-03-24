@@ -100,6 +100,42 @@ test('requestReadPermission does not prompt when prompting is disabled', async f
   assert.equal(requested, false);
 });
 
+test('restoreSavedHandle returns missing when no saved handle exists', async function () {
+  const restored = await utils.restoreSavedHandle({
+    prompt: true,
+    loadSavedHandle: async function () {
+      return null;
+    }
+  });
+
+  assert.deepEqual(restored, { status: 'missing', handle: null });
+});
+
+test('restoreSavedHandle returns granted handle when permission is available', async function () {
+  const handle = {
+    async queryPermission() {
+      return 'granted';
+    }
+  };
+
+  const restored = await utils.restoreSavedHandle({ handle: handle, prompt: true });
+
+  assert.equal(restored.status, 'granted');
+  assert.equal(restored.handle, handle);
+});
+
+test('restoreSavedHandle returns denied when permission is not granted', async function () {
+  const handle = {
+    async queryPermission() {
+      return 'denied';
+    }
+  };
+
+  const restored = await utils.restoreSavedHandle({ handle: handle, prompt: false });
+
+  assert.deepEqual(restored, { status: 'denied', handle: null });
+});
+
 test('makeActivatable wires click and keyboard activation semantics', function () {
   const listeners = {};
   const attrs = {};
