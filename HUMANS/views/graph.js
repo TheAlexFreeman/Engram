@@ -91,6 +91,27 @@
     };
   }
 
+  function appendTableHead(table, headers) {
+    var thead = document.createElement('thead');
+    var row = document.createElement('tr');
+    for (var i = 0; i < headers.length; i++) {
+      var th = document.createElement('th');
+      th.textContent = headers[i];
+      row.appendChild(th);
+    }
+    thead.appendChild(row);
+    table.appendChild(thead);
+  }
+
+  function makeBadgeCell(text, className) {
+    var td = document.createElement('td');
+    var badge = document.createElement('span');
+    badge.className = className;
+    badge.textContent = text;
+    td.appendChild(badge);
+    return td;
+  }
+
   /* ── Network analysis engine ─────────────────────────── */
 
   function analyzeGraph(nodes, edges) {
@@ -1159,21 +1180,29 @@
       domSection.appendChild(domH);
       var table = document.createElement('table');
       table.className = 'analysis-table';
-      var thead = '<thead><tr><th>Domain</th><th>Nodes</th><th>Density</th><th>Cross-Links</th><th>Clustering</th><th>Status</th></tr></thead>';
-      table.innerHTML = thead;
+      appendTableHead(table, ['Domain', 'Nodes', 'Density', 'Cross-Links', 'Clustering', 'Status']);
       var tbody = document.createElement('tbody');
       for (var d = 0; d < result.domains.length; d++) {
         var dom = result.domains[d];
         var tr = document.createElement('tr');
         tr.className = 'clickable';
-        var colorDot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' +
-          (DOMAIN_COLORS[dom.name] || DOMAIN_DEFAULT_COLOR) + ';margin-right:0.4rem;vertical-align:middle;"></span>';
-        tr.innerHTML = '<td>' + colorDot + dom.name + '</td>' +
-          '<td>' + dom.nodes + '</td>' +
-          '<td>' + fmt(dom.density, 4) + '</td>' +
-          '<td>' + dom.crossEdges + '</td>' +
-          '<td>' + fmt(dom.clustering, 3) + '</td>' +
-          '<td><span class="badge-' + dom.status + '">' + dom.status + '</span></td>';
+        var nameCell = document.createElement('td');
+        var colorDot = document.createElement('span');
+        colorDot.style.display = 'inline-block';
+        colorDot.style.width = '8px';
+        colorDot.style.height = '8px';
+        colorDot.style.borderRadius = '50%';
+        colorDot.style.background = DOMAIN_COLORS[dom.name] || DOMAIN_DEFAULT_COLOR;
+        colorDot.style.marginRight = '0.4rem';
+        colorDot.style.verticalAlign = 'middle';
+        nameCell.appendChild(colorDot);
+        nameCell.appendChild(document.createTextNode(dom.name));
+        tr.appendChild(nameCell);
+        tr.appendChild(el('td', String(dom.nodes)));
+        tr.appendChild(el('td', fmt(dom.density, 4)));
+        tr.appendChild(el('td', String(dom.crossEdges)));
+        tr.appendChild(el('td', fmt(dom.clustering, 3)));
+        tr.appendChild(makeBadgeCell(dom.status, 'badge-' + dom.status));
         (function (domName) {
           tr.addEventListener('mouseenter', function () {
             analysisHighlight.domain = domName;
@@ -1213,7 +1242,7 @@
         bridgeSection.appendChild(bToggle);
         var bTable = document.createElement('table');
         bTable.className = 'analysis-table';
-        bTable.innerHTML = '<thead><tr><th>Node</th><th>Domain</th><th>Betweenness</th></tr></thead>';
+        appendTableHead(bTable, ['Node', 'Domain', 'Betweenness']);
         var bTbody = document.createElement('tbody');
         for (var b = 0; b < result.bridges.length; b++) {
           var br = result.bridges[b];
@@ -1232,8 +1261,8 @@
           })(br.index);
           td1.appendChild(link);
           btr.appendChild(td1);
-          btr.innerHTML += '<td><span class="badge-bridge">' + br.domain + '</span></td>' +
-            '<td>' + fmt(br.betweenness, 1) + '</td>';
+          btr.appendChild(makeBadgeCell(br.domain, 'badge-bridge'));
+          btr.appendChild(el('td', fmt(br.betweenness, 1)));
           bTbody.appendChild(btr);
         }
         bTable.appendChild(bTbody);
@@ -1259,7 +1288,7 @@
         hubSection.appendChild(hToggle);
         var hTable = document.createElement('table');
         hTable.className = 'analysis-table';
-        hTable.innerHTML = '<thead><tr><th>Node</th><th>Domain</th><th>Degree</th></tr></thead>';
+        appendTableHead(hTable, ['Node', 'Domain', 'Degree']);
         var hTbody = document.createElement('tbody');
         for (var h = 0; h < result.hubs.length; h++) {
           var hub = result.hubs[h];
@@ -1278,8 +1307,8 @@
           })(hub.index);
           htd1.appendChild(hlink);
           htr.appendChild(htd1);
-          htr.innerHTML += '<td><span class="badge-hub">' + hub.domain + '</span></td>' +
-            '<td>' + hub.degree + '</td>';
+          htr.appendChild(makeBadgeCell(hub.domain, 'badge-hub'));
+          htr.appendChild(el('td', String(hub.degree)));
           hTbody.appendChild(htr);
         }
         hTable.appendChild(hTbody);
@@ -1427,6 +1456,10 @@
     init: function (config) {
       deps = config;
 
+      if (typeof document === 'undefined') {
+        return;
+      }
+
       // Wire up open/close buttons
       document.getElementById('graph-open-btn').addEventListener('click', function () {
         if (!deps.getRootHandle()) {
@@ -1456,7 +1489,9 @@
     /** Export pure helpers for unit tests. */
     _test: {
       analyzeGraph: analyzeGraph,
-      summarizeGraph: summarizeGraph
+      summarizeGraph: summarizeGraph,
+      resolveGraphRef: resolveGraphRef,
+      extractRefs: extractRefs
     }
   };
 

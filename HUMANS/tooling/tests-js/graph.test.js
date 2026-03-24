@@ -5,6 +5,8 @@ const graphApi = require('../../views/graph.js');
 
 const analyzeGraph = graphApi._test.analyzeGraph;
 const summarizeGraph = graphApi._test.summarizeGraph;
+const resolveGraphRef = graphApi._test.resolveGraphRef;
+const extractRefs = graphApi._test.extractRefs;
 
 test('analyzeGraph recognizes a fully connected triangle', function () {
   const nodes = [
@@ -80,4 +82,52 @@ test('summarizeGraph produces readable summary data for accessible output', func
   assert.equal(summary.topHubs[0].label, 'hub-a');
   assert.ok(summary.sentences.some(function (line) { return line.includes('5 files and 4 links'); }));
   assert.ok(summary.sentences.some(function (line) { return line.includes('Small-world structure is present'); }));
+});
+
+test('resolveGraphRef normalizes relative and bare markdown references', function () {
+  assert.equal(
+    resolveGraphRef('../mathematics/proof.md', ['ai', 'alignment']),
+    'ai/mathematics/proof.md'
+  );
+  assert.equal(
+    resolveGraphRef('./notes/idea', ['self']),
+    'self/notes/idea.md'
+  );
+  assert.equal(
+    resolveGraphRef('knowledge/software-engineering/design.md', ['ai']),
+    'software-engineering/design.md'
+  );
+});
+
+test('extractRefs returns related frontmatter, markdown links, and backtick references', function () {
+  graphApi.init({
+    parseFrontmatter(text) {
+      const match = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+      if (!match) return { frontmatter: null, body: text };
+      return { frontmatter: match[1], body: match[2] };
+    },
+    parseFlatYaml(yaml) {
+      const result = {};
+      yaml.split(/\n/).forEach(function (line) {
+        const idx = line.indexOf(':');
+        if (idx > -1) result[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+      });
+      return result;
+    }
+  });
+
+  const refs = extractRefs([
+    '---',
+    'related: notes/a.md, notes/b.md',
+    '---',
+    'See [doc](../shared/c.md) and `inline/ref.md`.',
+    '[external](https://example.com/nope.md)'
+  ].join('\n'));
+
+  assert.deepEqual(refs, [
+    'notes/a.md',
+    'notes/b.md',
+    '../shared/c.md',
+    'inline/ref.md'
+  ]);
 });
