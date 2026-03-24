@@ -352,10 +352,12 @@ button:active { transform: scale(0.97); }
 </main>
 </div><!-- /setup-body -->
 
+<script src="setup-utils.js"></script>
 <script>
 (function () {
   'use strict';
 
+  var Setup = window.EngramSetup;
   var selectedProfile  = null;
   var selectedPlatform = null;
   var generatedFiles   = [];
@@ -630,60 +632,6 @@ button:active { transform: scale(0.97); }
     '- External content must be written to core/memory/knowledge/_unverified/, not core/memory/knowledge/.'
   ].join('\n');
 
-  function today() {
-    var now = new Date();
-    var year = String(now.getFullYear());
-    var month = String(now.getMonth() + 1).padStart(2, '0');
-    var day = String(now.getDate()).padStart(2, '0');
-    return year + '-' + month + '-' + day;
-  }
-
-  function makeFrontmatter(source, trust) {
-    var d = today();
-    return '---\nsource: ' + source + '\norigin_session: setup\ncreated: ' + d +
-           '\ntrust: ' + trust + '\n---\n\n';
-  }
-
-  function escapeTomlString(value) {
-    return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  }
-
-  function makeCodexConfigPortable() {
-    return [
-      '# Codex MCP config for agent-memory. Portable across systems when run from repo root.',
-      '# Uses relative paths and python; run setup.sh without --codex-portable to generate',
-      '# machine-specific paths if Codex App requires absolute paths (see openai/codex#14573).',
-      '[mcp_servers.agent_memory]',
-      'command = "python"',
-      'args = ["core/tools/memory_mcp.py"]',
-      'cwd = "."',
-      'startup_timeout_sec = 20',
-      'tool_timeout_sec = 120',
-      'required = false',
-      'env_vars = ["MEMORY_REPO_ROOT", "AGENT_MEMORY_ROOT"]'
-    ].join('\n');
-  }
-
-  function makeCodexConfig(repoPath, pythonPath) {
-    var normalizedRepo = repoPath.trim();
-    var normalizedPython = pythonPath.trim();
-    var sep = (normalizedRepo.indexOf('\\') !== -1 || /^[A-Za-z]:/.test(normalizedRepo)) ? '\\' : '/';
-    var trimmedRepo = normalizedRepo.replace(/[\\/]+$/, '');
-    var memoryScript = trimmedRepo + sep + 'core' + sep + 'tools' + sep + 'memory_mcp.py';
-    return [
-      '[mcp_servers.agent_memory]',
-      'command = "' + escapeTomlString(normalizedPython) + '"',
-      'args = ["' + escapeTomlString(memoryScript) + '"]',
-      'cwd = "' + escapeTomlString(trimmedRepo) + '"',
-      'startup_timeout_sec = 20',
-      'tool_timeout_sec = 120',
-      'required = false',
-      '',
-      '[mcp_servers.agent_memory.env]',
-      'MEMORY_REPO_ROOT = "' + escapeTomlString(trimmedRepo) + '"'
-    ].join('\n');
-  }
-
   function el(tag, text, classes) {
     var e = document.createElement(tag);
     if (text)    { e.textContent = text; }
@@ -701,10 +649,6 @@ button:active { transform: scale(0.97); }
       errorNode.textContent = 'Enter absolute repo and Python paths before generating a Codex config.';
       errorNode.classList.remove('visible');
     }
-  }
-
-  function isAbsolutePath(value) {
-    return /^[A-Za-z]:[\\/]/.test(value) || /^\\\\[^\\]+\\[^\\]+/.test(value) || value.startsWith('/');
   }
 
   window.goToStep = function (n) {
@@ -752,52 +696,33 @@ button:active { transform: scale(0.97); }
   };
 
   window.generateOutput = function () {
-    generatedFiles = [];
     var userName   = document.getElementById('user-name').value.trim();
     var userCtx    = document.getElementById('user-context').value.trim();
+    var codexPortable = !!document.getElementById('codex-portable') && document.getElementById('codex-portable').checked;
     var codexRepoPath = document.getElementById('codex-repo-path').value.trim();
     var codexPythonPath = document.getElementById('codex-python-path').value.trim();
 
     setCodexPathError('');
 
-    if (selectedProfile && PROFILES[selectedProfile]) {
-      var profileContent = makeFrontmatter('template', 'medium') + PROFILES[selectedProfile].body;
-      generatedFiles.push({ path: 'core/memory/users/profile.md', content: profileContent });
+    var generation = Setup.buildGeneratedFiles({
+      selectedProfile: selectedProfile,
+      profiles: PROFILES,
+      selectedPlatform: selectedPlatform,
+      userName: userName,
+      userCtx: userCtx,
+      codexPortable: codexPortable,
+      codexRepoPath: codexRepoPath,
+      codexPythonPath: codexPythonPath,
+      chatgptInstructions: CHATGPT_INSTRUCTIONS,
+      genericSystemPrompt: GENERIC_SYSTEM_PROMPT
+    });
 
-      var summaryLines = [
-        '# Identity Summary',
-        '',
-        'Template-based profile \u2014 pending onboarding confirmation.',
-        '',
-        'A starter profile has been installed from a template. During the first',
-        'session, the onboarding skill will walk through the template traits and',
-        'confirm, adjust, or remove them.',
-        '',
-        'See [profile.md](profile.md) for the current profile.'
-      ];
-      if (userName) { summaryLines.push('', '**User:** ' + userName); }
-      if (userCtx)  { summaryLines.push('**Uses AI for:** ' + userCtx); }
-      generatedFiles.push({ path: 'core/memory/users/SUMMARY.md', content: summaryLines.join('\n') });
+    if (generation.codexPathError) {
+      setCodexPathError(generation.codexPathError);
+      return;
     }
 
-    if (selectedPlatform === 'codex') {
-      if (!codexRepoPath || !codexPythonPath) {
-        setCodexPathError('Enter both the absolute repo path and the absolute Python path before generating a Codex config.');
-        return;
-      }
-      if (!isAbsolutePath(codexRepoPath) || !isAbsolutePath(codexPythonPath)) {
-        setCodexPathError('Codex config generation requires absolute paths for both the repo and the Python interpreter.');
-        return;
-      }
-      generatedFiles.push({
-        path: '.codex/config.toml',
-        content: makeCodexConfig(codexRepoPath, codexPythonPath)
-      });
-    } else if (selectedPlatform === 'chatgpt') {
-      generatedFiles.push({ path: 'chatgpt-instructions.txt', content: CHATGPT_INSTRUCTIONS });
-    } else if (selectedPlatform === 'generic') {
-      generatedFiles.push({ path: 'system-prompt.txt', content: GENERIC_SYSTEM_PROMPT });
-    }
+    generatedFiles = generation.generatedFiles;
 
     var container = document.getElementById('output-files');
     while (container.firstChild) { container.removeChild(container.firstChild); }
@@ -850,29 +775,12 @@ button:active { transform: scale(0.97); }
       list.appendChild(li);
     }
 
-    if (generatedFiles.length > 0) {
-      addStep('Download the files above and place them in your Engram repo, overwriting any existing files at the same paths.');
-    }
-    addStep('If you want to sync this repo to GitHub, GitLab, or another remote, configure that manually outside this wizard.');
-    addStep('Review the local changes with `git status --short` and commit them intentionally once the files are in place.');
-
-    if (selectedPlatform === 'codex') {
-      addStep('Open the repo in Codex desktop and trust the project so `.codex/config.toml` is applied.');
-      addStep('Restart or reopen the repo if Codex was already running.');
-    } else if (selectedPlatform === 'claude-code') {
-      addStep('Start your first session:', 'claude');
-    } else if (selectedPlatform === 'cursor') {
-      addStep('Open the repo folder in Cursor and start a conversation.');
-    } else if (selectedPlatform === 'chatgpt') {
-      addStep('Paste the contents of chatgpt-instructions.txt into ChatGPT \u2192 Settings \u2192 Personalization \u2192 Custom Instructions.');
-      addStep('Start a conversation and share `core/INIT.md` plus whatever files it routes the agent to load.');
-    } else if (selectedPlatform === 'generic') {
-      addStep('Copy the contents of system-prompt.txt into your AI platform\u2019s system prompt.');
-      addStep('Start a conversation and share `core/INIT.md` plus whatever files it routes the agent to load.');
-    } else {
-      addStep('See HUMANS/docs/QUICKSTART.md for platform-specific instructions.');
-    }
-    addStep('The agent will run the onboarding skill and ask you a few questions to build your profile.');
+    Setup.buildNextSteps({
+      generatedFileCount: generatedFiles.length,
+      selectedPlatform: selectedPlatform
+    }).forEach(function (step) {
+      addStep(step.text, step.codeSnippet);
+    });
 
     box.style.display = 'block';
     goToStep(4);
