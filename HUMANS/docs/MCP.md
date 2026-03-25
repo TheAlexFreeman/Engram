@@ -144,7 +144,9 @@ These tools inspect, analyze, and report on the repo without changing it. Always
 | `memory_read_file` | Read a file with parsed frontmatter and version token. |
 | `memory_list_folder` | List folder contents. |
 | `memory_search` | Full-text search across the repo. |
+| `memory_resolve_link` | Resolve one markdown-style link target relative to a governed source path. |
 | `memory_find_references` | Return structured references to a path across governed markdown. |
+| `memory_scan_frontmatter_health` | Scan markdown frontmatter and headings for cross-reference health issues. |
 | `memory_validate_links` | Validate internal markdown and frontmatter path references. |
 | `memory_review_unverified` | Return a grouped digest of `_unverified/` knowledge files. |
 | `memory_get_file_provenance` | Return provenance and trust metadata for a file. |
@@ -161,9 +163,68 @@ These tools inspect, analyze, and report on the repo without changing it. Always
 | `memory_generate_names_index` | Generate a structured NAMES.md payload for knowledge files. |
 | `memory_check_cross_references` | Scan for broken links and SUMMARY drift. |
 | `memory_surface_unlinked` | Surface knowledge files with zero or low cross-reference connectivity. |
+| `memory_suggest_links` | Return scored cross-reference suggestions for one governed markdown file, with optional same-domain or cross-domain filtering. |
+| `memory_cross_domain_links` | Summarize cross-domain link flow, with optional domain and edge-count filters. |
+| `memory_link_delta` | Diff the current link surface against a git base ref, with optional cross-domain and transition filters. |
 | `memory_reorganize_preview` | Preview the impact of moving a file or subtree. |
 | `memory_suggest_structure` | Suggest advisory structure improvements for the governed markdown tree. |
 | `memory_analyze_graph` | Compute structural metrics on the knowledge graph (degree, density, clusters, orphans). |
+
+### Cross-reference ergonomics
+
+These read-only tools are designed for agents that need to reason about markdown links before writing anything:
+
+- `memory_resolve_link`: validate how a raw target resolves from a source file, including anchors.
+- `memory_scan_frontmatter_health`: catch malformed frontmatter and broken `related:` entries before graph tools fail downstream.
+- `memory_suggest_links`: propose scored candidate targets for one file using graph structure plus text cues, optionally narrowed to `all`, `same`, or `cross` domain suggestions and a minimum score threshold.
+- `memory_cross_domain_links`: summarize how domains connect to each other, optionally narrowed by source domain, target domain, or minimum edge count.
+- `memory_link_delta`: compare the current graph to a base ref such as `HEAD` and explain what changed.
+
+Example `memory_suggest_links` use case:
+
+```json
+{
+  "path": "memory/knowledge/philosophy/compression.md",
+  "max_suggestions": 5,
+  "domain_mode": "cross",
+  "min_score": 2.0
+}
+```
+
+Example `memory_cross_domain_links` use case:
+
+```json
+{
+  "path": "memory/knowledge",
+  "source_domain": "philosophy",
+  "target_domain": "cognitive-science",
+  "min_edge_count": 2
+}
+```
+
+Example `memory_link_delta` use cases:
+
+```json
+{
+  "path": "memory/knowledge",
+  "base_ref": "HEAD",
+  "cross_domain_only": true,
+  "transition_filter": "connected->sink"
+}
+```
+
+Important output fields:
+
+- `domain_mode`: echoes whether `memory_suggest_links` returned `all`, `same`, or `cross` domain candidates.
+- `min_score`: suppresses low-confidence `memory_suggest_links` candidates below the requested score.
+- `target_domain` / `is_same_domain`: help agents apply suggestion results directly without re-parsing paths.
+- `source_domain_filter` / `target_domain_filter`: echo the applied `memory_cross_domain_links` pair filters.
+- `min_edge_count`: suppress low-volume domain pairs below the requested threshold.
+- `added_domain_pairs` / `removed_domain_pairs`: aggregate edge deltas by source and target domain.
+- `changed_category_counts`: count how many files changed connectivity class, for example `isolated->connected`.
+- `impacted_files_detail`: per-file view of domain, previous category, and current category.
+- `cross_domain_only`: when true, only cross-domain edge changes are retained in the response.
+- `transition_filter`: when set, only impacted files and edges matching that category transition are retained.
 
 **Health and governance**
 

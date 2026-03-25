@@ -1843,6 +1843,56 @@ See [target](../knowledge/topic/target.md).
             "memory/knowledge/topic/target.md",
         )
 
+    def test_memory_resolve_link_reports_resolution_and_missing_anchor(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic/target.md": "# Target\n\n## Details\n",
+                "memory/knowledge/topic/note.md": "# Note\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        ok_payload = json.loads(
+            asyncio.run(
+                tools["memory_resolve_link"](
+                    path="memory/knowledge/topic/note.md",
+                    target="target.md#details",
+                )
+            )
+        )
+        broken_payload = json.loads(
+            asyncio.run(
+                tools["memory_resolve_link"](
+                    path="memory/knowledge/topic/note.md",
+                    target="target.md#missing",
+                )
+            )
+        )
+
+        self.assertEqual(ok_payload["resolved_path"], "memory/knowledge/topic/target.md")
+        self.assertTrue(ok_payload["exists"])
+        self.assertIsNone(ok_payload["reason"])
+        self.assertEqual(broken_payload["reason"], "anchor not found: #missing")
+
+    def test_memory_scan_frontmatter_health_reports_yaml_and_related_issues(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic/good.md": "---\nsource: test\ncreated: 2026-01-01\ntrust: low\nrelated:\n  - target.md\n---\n\n# Good\n",
+                "memory/knowledge/topic/target.md": "# Target\n",
+                "memory/knowledge/topic/bad.md": "---\nsource: test\ncreated: not-a-date\ntrust: low\nrelated: target.md, missing.md\n--- Broken\n# Bad\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_scan_frontmatter_health"]("memory/knowledge/topic"))
+        )
+
+        self.assertEqual(payload["files_scanned"], 3)
+        self.assertGreaterEqual(payload["files_with_issues"], 1)
+        self.assertIn("yaml_parse_error", payload["issue_counts"])
+        self.assertIn("malformed_frontmatter_close", payload["issue_counts"])
+
     def test_memory_find_references_include_body_scans_path_like_strings(self) -> None:
         repo_root = self._init_repo(
             {
@@ -1945,6 +1995,221 @@ See [topic](../knowledge/topic/target.md).
         self.assertEqual(payload["checked"], 2)
         self.assertEqual(payload["ok_count"], 2)
         self.assertEqual(payload["broken"], [])
+
+    def test_memory_suggest_links_returns_structured_candidates(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/philosophy/compression.md": "---\nsource: test\ncreated: 2026-01-01\ntrust: low\n---\n\n# Compression\n\nCompression relates to gardenfors conceptual spaces.\n",
+                "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md": "# Gardenfors Conceptual Spaces\n",
+                "memory/knowledge/philosophy/other.md": "# Other\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(
+                tools["memory_suggest_links"](
+                    path="memory/knowledge/philosophy/compression.md",
+                    max_suggestions=5,
+                )
+            )
+        )
+
+        self.assertEqual(payload["path"], "memory/knowledge/philosophy/compression.md")
+        self.assertGreaterEqual(payload["total_suggestions"], 1)
+        self.assertIn("target", payload["suggestions"][0])
+        self.assertIn("score", payload["suggestions"][0])
+
+    def test_memory_suggest_links_can_filter_cross_domain_candidates(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/philosophy/compression.md": "# Compression\n\nGardenfors conceptual spaces and reasoning both matter here.\n",
+                "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md": "# Gardenfors Conceptual Spaces\n",
+                "memory/knowledge/philosophy/reasoning.md": "# Reasoning\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(
+                tools["memory_suggest_links"](
+                    path="memory/knowledge/philosophy/compression.md",
+                    max_suggestions=5,
+                    domain_mode="cross",
+                )
+            )
+        )
+
+        self.assertEqual(payload["domain_mode"], "cross")
+        self.assertGreaterEqual(payload["total_suggestions"], 1)
+        self.assertTrue(all(not item["is_same_domain"] for item in payload["suggestions"]))
+        self.assertEqual(
+            payload["suggestions"][0]["target_domain"],
+            "cognitive-science",
+        )
+
+    def test_memory_suggest_links_can_filter_by_min_score(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/philosophy/compression.md": "# Compression\n\nGardenfors conceptual spaces and reasoning both matter here.\n",
+                "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md": "# Gardenfors Conceptual Spaces\n",
+                "memory/knowledge/philosophy/reasoning.md": "# Reasoning\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(
+                tools["memory_suggest_links"](
+                    path="memory/knowledge/philosophy/compression.md",
+                    max_suggestions=5,
+                    domain_mode="all",
+                    min_score=5.0,
+                )
+            )
+        )
+
+        self.assertEqual(payload["min_score"], 5.0)
+        self.assertGreaterEqual(payload["total_suggestions"], 1)
+        self.assertTrue(all(item["score"] >= 5.0 for item in payload["suggestions"]))
+        self.assertTrue(
+            all(
+                item["target"] != "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md"
+                for item in payload["suggestions"]
+            )
+        )
+
+    def test_memory_cross_domain_links_summarizes_pairs(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/philosophy/compression.md": "# Compression\n\nSee [Spaces](../cognitive-science/gardenfors-conceptual-spaces.md).\n",
+                "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md": "# Gardenfors\n\nSee [Compression](../philosophy/compression.md).\n",
+                "memory/knowledge/ai/frontier.md": "# Frontier\n\nSee [Compression](../philosophy/compression.md).\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(asyncio.run(tools["memory_cross_domain_links"]("memory/knowledge")))
+
+        self.assertGreaterEqual(payload["domain_count"], 3)
+        self.assertGreaterEqual(len(payload["directional_pairs"]), 1)
+        self.assertIn("bridge_files", payload)
+
+    def test_memory_cross_domain_links_can_filter_results(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/philosophy/compression.md": "# Compression\n\nSee [Spaces](../cognitive-science/gardenfors-conceptual-spaces.md).\nSee [AI](../ai/frontier.md).\n",
+                "memory/knowledge/philosophy/logic.md": "# Logic\n\nSee [Spaces](../cognitive-science/gardenfors-conceptual-spaces.md).\n",
+                "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md": "# Gardenfors\n",
+                "memory/knowledge/ai/frontier.md": "# Frontier\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(
+                tools["memory_cross_domain_links"](
+                    "memory/knowledge",
+                    "philosophy",
+                    "cognitive-science",
+                    2,
+                )
+            )
+        )
+
+        self.assertEqual(payload["source_domain_filter"], "philosophy")
+        self.assertEqual(payload["target_domain_filter"], "cognitive-science")
+        self.assertEqual(payload["min_edge_count"], 2)
+        self.assertEqual(payload["cross_domain_edge_total"], 2)
+        self.assertEqual(len(payload["directional_pairs"]), 1)
+        self.assertEqual(payload["directional_pairs"][0]["source_domain"], "philosophy")
+        self.assertEqual(payload["directional_pairs"][0]["target_domain"], "cognitive-science")
+
+    def test_memory_link_delta_reports_working_tree_edge_changes(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/philosophy/compression.md": "# Compression\n",
+                "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md": "# Gardenfors\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+        note_path = self._repo_file_path(repo_root, "memory/knowledge/philosophy/compression.md")
+        note_path.write_text(
+            "# Compression\n\nSee [Spaces](../cognitive-science/gardenfors-conceptual-spaces.md).\n",
+            encoding="utf-8",
+        )
+
+        payload = json.loads(asyncio.run(tools["memory_link_delta"]("memory/knowledge", "HEAD")))
+
+        self.assertEqual(payload["base_ref"], "HEAD")
+        self.assertGreaterEqual(len(payload["added_edges"]), 1)
+        self.assertIn("graph_stats_delta", payload)
+        self.assertIn("added_domain_pairs", payload)
+        self.assertIn("impacted_files_detail", payload)
+        self.assertIn("changed_category_counts", payload)
+
+    def test_memory_link_delta_can_filter_to_cross_domain_changes(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/philosophy/compression.md": "# Compression\n",
+                "memory/knowledge/philosophy/logic.md": "# Logic\n",
+                "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md": "# Gardenfors\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+        note_path = self._repo_file_path(repo_root, "memory/knowledge/philosophy/compression.md")
+        note_path.write_text(
+            "# Compression\n\nSee [Logic](logic.md).\nSee [Spaces](../cognitive-science/gardenfors-conceptual-spaces.md).\n",
+            encoding="utf-8",
+        )
+
+        payload = json.loads(
+            asyncio.run(
+                tools["memory_link_delta"](
+                    "memory/knowledge",
+                    "HEAD",
+                    True,
+                )
+            )
+        )
+
+        self.assertTrue(payload["cross_domain_only"])
+        self.assertEqual(len(payload["added_edges"]), 1)
+        self.assertEqual(payload["added_domain_pairs"][0]["source_domain"], "philosophy")
+        self.assertEqual(payload["added_domain_pairs"][0]["target_domain"], "cognitive-science")
+
+    def test_memory_link_delta_can_filter_by_transition(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/philosophy/compression.md": "# Compression\n",
+                "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md": "# Gardenfors\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+        note_path = self._repo_file_path(repo_root, "memory/knowledge/philosophy/compression.md")
+        note_path.write_text(
+            "# Compression\n\nSee [Spaces](../cognitive-science/gardenfors-conceptual-spaces.md).\n",
+            encoding="utf-8",
+        )
+
+        payload = json.loads(
+            asyncio.run(
+                tools["memory_link_delta"](
+                    "memory/knowledge",
+                    "HEAD",
+                    False,
+                    "isolated->sink",
+                )
+            )
+        )
+
+        self.assertEqual(payload["transition_filter"], "isolated->sink")
+        self.assertEqual(payload["changed_category_counts"], {"isolated->sink": 1})
+        self.assertEqual(len(payload["impacted_files_detail"]), 1)
+        self.assertEqual(
+            payload["impacted_files_detail"][0]["path"],
+            "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md",
+        )
 
     def test_memory_reorganize_preview_includes_moves_reference_updates_and_summary_targets(
         self,

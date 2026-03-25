@@ -41,10 +41,15 @@ from typing import TYPE_CHECKING, Any, cast
 from ..path_policy import KNOWN_COMMIT_PREFIXES  # noqa: F401 — re-exported for callers
 from .name_index import generate_names_index
 from .reference_extractor import (
+    build_connectivity_graph,
+    diff_connectivity_graphs,
     find_references,
     find_unlinked_files,
     preview_reorganization,
+    resolve_link_diagnostics,
+    suggest_links_for_file,
     suggest_structure,
+    summarize_cross_domain_links,
     validate_links,
 )
 
@@ -2225,6 +2230,317 @@ def _build_access_summary_for_file(
     }
 
 
+def _iter_frontmatter_health_files(root: Path, requested_path: str) -> list[str]:
+    scope_path = _resolve_visible_path(root, requested_path or "memory/knowledge")
+    if not scope_path.exists():
+        return []
+    if scope_path.is_file():
+        try:
+            return [scope_path.relative_to(root).as_posix()]
+        except ValueError:
+            return []
+
+    files: list[str] = []
+    for md_file in sorted(scope_path.rglob("*.md")):
+        if md_file.name == "NAMES.md":
+            continue
+        try:
+            files.append(md_file.relative_to(root).as_posix())
+        except ValueError:
+            continue
+    return files
+
+
+def _invalid_date_string(value: Any) -> bool:
+    if value is None or isinstance(value, (date, datetime)):
+        return False
+    if not isinstance(value, str):
+        return True
+    candidate = value.strip()
+    if not candidate:
+        return True
+    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            datetime.strptime(candidate, fmt)
+            return False
+        except ValueError:
+            continue
+    return True
+
+
+def _detect_malformed_frontmatter_close(text: str) -> int | None:
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None
+    for line_number, line in enumerate(lines[1:], start=2):
+        stripped = line.strip()
+        if stripped == "---":
+            return None
+        if line.startswith("---") and stripped != "---":
+            return line_number
+    return 1
+
+
+def _frontmatter_health_report(root: Path, rel_path: str) -> dict[str, Any]:
+    from ..frontmatter_utils import read_with_frontmatter
+
+    abs_path = root / rel_path
+    text = abs_path.read_text(encoding="utf-8")
+    issues: list[dict[str, Any]] = []
+    frontmatter: dict[str, Any] = {}
+    body = text
+
+    malformed_close_line = _detect_malformed_frontmatter_close(text)
+    if malformed_close_line is not None:
+        issues.append(
+            {
+                "kind": "malformed_frontmatter_close",
+                "line": malformed_close_line,
+                "message": "frontmatter close marker is missing or has trailing text",
+            }
+        )
+
+    try:
+        frontmatter, body = read_with_frontmatter(abs_path)
+    except Exception as exc:
+        issues.append(
+            {
+                "kind": "yaml_parse_error",
+                "line": 1,
+                "message": str(exc),
+            }
+        )
+        return {
+            "path": rel_path,
+            "issue_count": len(issues),
+            "issues": issues,
+        }
+
+    if malformed_close_line is not None and text.startswith("---"):
+        issues.append(
+            {
+                "kind": "yaml_parse_error",
+                "line": malformed_close_line,
+                "message": "frontmatter block did not parse cleanly",
+            }
+        )
+        return {
+            "path": rel_path,
+            "issue_count": len(issues),
+            "issues": issues,
+        }
+
+    if rel_path.startswith("memory/knowledge/"):
+        for field_name in ("source", "created", "trust"):
+            if frontmatter.get(field_name) in (None, ""):
+                issues.append(
+                    {
+                        "kind": "missing_required_field",
+                        "field": field_name,
+                        "message": f"missing required field: {field_name}",
+                    }
+                )
+
+    for field_name in ("created", "last_verified"):
+        if field_name in frontmatter and _invalid_date_string(frontmatter.get(field_name)):
+            issues.append(
+                {
+                    "kind": "invalid_date",
+                    "field": field_name,
+                    "message": f"invalid date value for {field_name}",
+                }
+            )
+
+    h1_found = any(line.startswith("# ") for line in body.splitlines())
+    if not h1_found:
+        issues.append(
+            {
+                "kind": "missing_h1",
+                "message": "body is missing a top-level H1 heading",
+            }
+        )
+
+    related_value = frontmatter.get("related")
+    if related_value is not None and not isinstance(related_value, list):
+        issues.append(
+            {
+                "kind": "related_not_list",
+                "message": "related should be a YAML list",
+            }
+        )
+
+    related_entries: list[str] = []
+    if isinstance(related_value, list):
+        related_entries = [str(item).strip() for item in related_value]
+    elif isinstance(related_value, str):
+        related_entries = [item.strip() for item in related_value.split(",")]
+
+    seen_related: set[str] = set()
+    for index, item in enumerate(related_entries):
+        if not item:
+            issues.append(
+                {
+                    "kind": "related_empty_entry",
+                    "index": index,
+                    "message": "related contains an empty entry",
+                }
+            )
+            continue
+        if item in seen_related:
+            issues.append(
+                {
+                    "kind": "related_duplicate_entry",
+                    "index": index,
+                    "value": item,
+                    "message": "related contains a duplicate entry",
+                }
+            )
+            continue
+        seen_related.add(item)
+        resolution = resolve_link_diagnostics(root, rel_path, item)
+        if resolution["is_external"]:
+            continue
+        if resolution["reason"] is not None:
+            issues.append(
+                {
+                    "kind": "unresolved_related_target",
+                    "index": index,
+                    "value": item,
+                    "resolved_path": resolution["resolved_path"],
+                    "message": str(resolution["reason"]),
+                }
+            )
+
+    return {
+        "path": rel_path,
+        "issue_count": len(issues),
+        "issues": issues,
+    }
+
+
+def _git_snapshot_graph(repo, scope: str, ref: str):
+    from ..errors import ValidationError
+
+    repo._run(["git", "rev-parse", "--verify", f"{ref}^{{commit}}"])
+    git_scope = repo._to_git_path(scope)
+    listing = repo._run(["git", "ls-tree", "-r", "--name-only", ref, "--", git_scope])
+
+    with tempfile.TemporaryDirectory(prefix="agent-memory-graph-snapshot-") as tmpdir:
+        snapshot_root = Path(tmpdir)
+        for git_rel_path in listing.stdout.splitlines():
+            git_rel_path = git_rel_path.strip()
+            if not git_rel_path.lower().endswith(".md"):
+                continue
+            show_result = subprocess.run(
+                ["git", "show", f"{ref}:{git_rel_path}"],
+                cwd=str(repo.root),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                stdin=subprocess.DEVNULL,
+                check=False,
+            )
+            if show_result.returncode != 0:
+                stderr = (show_result.stderr or "").strip()
+                raise ValidationError(
+                    stderr or f"git show failed for {git_rel_path} at {ref}"
+                )
+            content_rel = repo._from_git_path(git_rel_path)
+            target = snapshot_root / content_rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(show_result.stdout or "", encoding="utf-8")
+        try:
+            return build_connectivity_graph(snapshot_root, scope)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+
+
+def _knowledge_domain_from_path(path: str) -> str:
+    parts = PurePosixPath(path).parts
+    return parts[2] if len(parts) > 2 and parts[0] == "memory" and parts[1] == "knowledge" else ""
+
+
+def _filter_link_delta_payload(
+    payload: dict[str, Any],
+    *,
+    cross_domain_only: bool,
+    transition_filter: str,
+) -> dict[str, Any]:
+    filtered = dict(payload)
+
+    if cross_domain_only:
+        added_edges = [
+            edge
+            for edge in cast(list[dict[str, Any]], filtered.get("added_edges", []))
+            if _knowledge_domain_from_path(str(edge.get("source", "")))
+            != _knowledge_domain_from_path(str(edge.get("target", "")))
+        ]
+        removed_edges = [
+            edge
+            for edge in cast(list[dict[str, Any]], filtered.get("removed_edges", []))
+            if _knowledge_domain_from_path(str(edge.get("source", "")))
+            != _knowledge_domain_from_path(str(edge.get("target", "")))
+        ]
+        filtered["added_edges"] = added_edges
+        filtered["removed_edges"] = removed_edges
+        filtered["added_domain_pairs"] = [
+            item
+            for item in cast(list[dict[str, Any]], filtered.get("added_domain_pairs", []))
+            if str(item.get("source_domain", "")) != str(item.get("target_domain", ""))
+        ]
+        filtered["removed_domain_pairs"] = [
+            item
+            for item in cast(list[dict[str, Any]], filtered.get("removed_domain_pairs", []))
+            if str(item.get("source_domain", "")) != str(item.get("target_domain", ""))
+        ]
+
+        impacted_from_edges = sorted(
+            {
+                path
+                for edge in added_edges + removed_edges
+                for path in (str(edge.get("source", "")), str(edge.get("target", "")))
+                if path
+            }
+        )
+        filtered["impacted_files"] = impacted_from_edges
+        filtered["impacted_files_detail"] = [
+            item
+            for item in cast(list[dict[str, Any]], filtered.get("impacted_files_detail", []))
+            if str(item.get("path", "")) in impacted_from_edges
+        ]
+
+    if transition_filter:
+        normalized = transition_filter.strip().lower()
+        impacted_details = [
+            item
+            for item in cast(list[dict[str, Any]], filtered.get("impacted_files_detail", []))
+            if f"{str(item.get('previous_category', '')).lower()}->{str(item.get('current_category', '')).lower()}"
+            == normalized
+        ]
+        filtered["impacted_files_detail"] = impacted_details
+        filtered["impacted_files"] = [str(item.get("path", "")) for item in impacted_details]
+        raw_counts = cast(dict[str, Any], filtered.get("changed_category_counts", {}))
+        filtered["changed_category_counts"] = {
+            key: value for key, value in raw_counts.items() if str(key).lower() == normalized
+        }
+        impacted_paths = set(filtered["impacted_files"])
+        filtered["added_edges"] = [
+            edge
+            for edge in cast(list[dict[str, Any]], filtered.get("added_edges", []))
+            if str(edge.get("source", "")) in impacted_paths
+            or str(edge.get("target", "")) in impacted_paths
+        ]
+        filtered["removed_edges"] = [
+            edge
+            for edge in cast(list[dict[str, Any]], filtered.get("removed_edges", []))
+            if str(edge.get("source", "")) in impacted_paths
+            or str(edge.get("target", "")) in impacted_paths
+        ]
+
+    return filtered
+
+
 def _git_file_history(repo: Any, rel_path: str, limit: int = 10) -> list[dict[str, str]]:
     """Return recent commit history for a single file."""
     safe_limit = min(max(limit, 1), 20)
@@ -3361,6 +3677,41 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     # memory_find_references
     # ------------------------------------------------------------------
     @mcp.tool(
+        name="memory_resolve_link",
+        annotations=_tool_annotations(
+            title="Resolve Link Target",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_resolve_link(path: str, target: str) -> str:
+        """Resolve one markdown-style target relative to a governed source path."""
+        from ..errors import NotFoundError, ValidationError
+
+        if not isinstance(path, str) or not path.strip():
+            raise ValidationError("path must be a non-empty string")
+        if not isinstance(target, str) or not target.strip():
+            raise ValidationError("target must be a non-empty string")
+
+        root = get_root()
+        source_path = _resolve_visible_path(root, path.strip())
+        try:
+            source_path.relative_to(root)
+        except ValueError as exc:
+            raise ValidationError("path must stay within the repository root") from exc
+        if not source_path.exists() or not source_path.is_file():
+            raise NotFoundError(f"File not found: {path}")
+
+        rel_path = source_path.relative_to(root).as_posix()
+        payload = resolve_link_diagnostics(root, rel_path, target)
+        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
+    # memory_find_references
+    # ------------------------------------------------------------------
+    @mcp.tool(
         name="memory_find_references",
         annotations=_tool_annotations(
             title="Find Path References",
@@ -3384,6 +3735,49 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             "include_body": include_body,
             "matches": matches,
             "total": len(matches),
+        }
+        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
+    # memory_validate_links
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_scan_frontmatter_health",
+        annotations=_tool_annotations(
+            title="Scan Frontmatter Health",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_scan_frontmatter_health(path: str = "memory/knowledge") -> str:
+        """Scan markdown frontmatter and headings for cross-reference health issues."""
+        from ..errors import ValidationError
+
+        root = get_root()
+        requested_path = path.strip().replace("\\", "/") or "memory/knowledge"
+        scope_path = _resolve_visible_path(root, requested_path)
+        try:
+            scope_path.relative_to(root)
+        except ValueError as exc:
+            raise ValidationError("path must stay within the repository root") from exc
+        if not scope_path.exists():
+            return f"Error: Path not found: {path}"
+
+        reports = [_frontmatter_health_report(root, rel_path) for rel_path in _iter_frontmatter_health_files(root, requested_path)]
+        issue_counts: dict[str, int] = {}
+        for report in reports:
+            for issue in report["issues"]:
+                kind = str(issue["kind"])
+                issue_counts[kind] = issue_counts.get(kind, 0) + 1
+
+        payload = {
+            "scope": requested_path,
+            "files_scanned": len(reports),
+            "files_with_issues": sum(1 for report in reports if report["issues"]),
+            "issue_counts": dict(sorted(issue_counts.items())),
+            "files": [report for report in reports if report["issues"]],
         }
         return json.dumps(payload, indent=2)
 
@@ -3503,6 +3897,58 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         try:
             payload = suggest_structure(root, requested_path, heuristics)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
+    # memory_check_cross_references
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_suggest_links",
+        annotations=_tool_annotations(
+            title="Suggest Cross References",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_suggest_links(
+        path: str,
+        max_suggestions: int = 10,
+        domain_mode: str = "all",
+        min_score: float = 0.0,
+    ) -> str:
+        """Return scored cross-reference suggestions for one governed markdown file."""
+        from ..errors import NotFoundError, ValidationError
+
+        if not isinstance(path, str) or not path.strip():
+            raise ValidationError("path must be a non-empty string")
+        max_suggestions = max(1, min(max_suggestions, 25))
+        if not isinstance(domain_mode, str) or not domain_mode.strip():
+            raise ValidationError("domain_mode must be a non-empty string")
+        if not isinstance(min_score, (int, float)):
+            raise ValidationError("min_score must be numeric")
+
+        root = get_root()
+        target_path = _resolve_visible_path(root, path.strip())
+        try:
+            target_path.relative_to(root)
+        except ValueError as exc:
+            raise ValidationError("path must stay within the repository root") from exc
+        if not target_path.exists() or not target_path.is_file():
+            raise NotFoundError(f"File not found: {path}")
+
+        rel_path = target_path.relative_to(root).as_posix()
+        try:
+            payload = suggest_links_for_file(
+                root,
+                rel_path,
+                max_suggestions=max_suggestions,
+                domain_mode=domain_mode,
+                min_score=float(min_score),
+            )
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
         return json.dumps(payload, indent=2)
@@ -3655,6 +4101,49 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     # memory_surface_unlinked
     # ------------------------------------------------------------------
     @mcp.tool(
+        name="memory_cross_domain_links",
+        annotations=_tool_annotations(
+            title="Summarize Cross-Domain Links",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_cross_domain_links(
+        path: str = "memory/knowledge",
+        source_domain: str = "",
+        target_domain: str = "",
+        min_edge_count: int = 1,
+    ) -> str:
+        """Summarize cross-domain link flow within the knowledge graph."""
+        from ..errors import ValidationError
+
+        root = get_root()
+        requested_path = path.strip().replace("\\", "/") or "memory/knowledge"
+        if not isinstance(min_edge_count, int):
+            raise ValidationError("min_edge_count must be an integer")
+        scope_path = _resolve_visible_path(root, requested_path)
+        try:
+            scope_path.relative_to(root)
+        except ValueError as exc:
+            raise ValidationError("path must stay within the repository root") from exc
+        if not scope_path.exists():
+            return f"Error: Path not found: {path}"
+
+        payload = summarize_cross_domain_links(
+            root,
+            requested_path,
+            source_domain=source_domain,
+            target_domain=target_domain,
+            min_edge_count=min_edge_count,
+        )
+        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
+    # memory_surface_unlinked
+    # ------------------------------------------------------------------
+    @mcp.tool(
         name="memory_surface_unlinked",
         annotations=_tool_annotations(
             title="Surface Unlinked Files",
@@ -3733,6 +4222,62 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
+        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
+    # memory_link_delta
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_link_delta",
+        annotations=_tool_annotations(
+            title="Diff Link Surface",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_link_delta(
+        path: str = "memory/knowledge",
+        base_ref: str = "HEAD",
+        cross_domain_only: bool = False,
+        transition_filter: str = "",
+    ) -> str:
+        """Diff the current connectivity graph against a git base revision."""
+        from ..errors import ValidationError
+
+        if not isinstance(base_ref, str) or not base_ref.strip():
+            raise ValidationError("base_ref must be a non-empty string")
+
+        root = get_root()
+        requested_path = path.strip().replace("\\", "/") or "memory/knowledge"
+        scope_path = _resolve_visible_path(root, requested_path)
+        try:
+            scope_path.relative_to(root)
+        except ValueError as exc:
+            raise ValidationError("path must stay within the repository root") from exc
+        if not scope_path.exists():
+            return f"Error: Path not found: {path}"
+
+        repo = get_repo()
+        current_graph = build_connectivity_graph(root, requested_path)
+        previous_graph = _git_snapshot_graph(repo, requested_path, base_ref.strip())
+        payload = diff_connectivity_graphs(current_graph, previous_graph)
+        payload["scope"] = requested_path
+        payload["base_ref"] = base_ref.strip()
+        payload["cross_domain_only"] = cross_domain_only
+        payload["transition_filter"] = transition_filter.strip()
+        payload = _filter_link_delta_payload(
+            payload,
+            cross_domain_only=cross_domain_only,
+            transition_filter=transition_filter,
+        )
+        if len(payload["added_edges"]) > 200:
+            payload["added_edges"] = payload["added_edges"][:200]
+            payload["added_edges_truncated"] = True
+        if len(payload["removed_edges"]) > 200:
+            payload["removed_edges"] = payload["removed_edges"][:200]
+            payload["removed_edges_truncated"] = True
         return json.dumps(payload, indent=2)
 
     # ------------------------------------------------------------------
@@ -5888,12 +6433,17 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         "memory_list_folder": memory_list_folder,
         "memory_review_unverified": memory_review_unverified,
         "memory_search": memory_search,
+        "memory_resolve_link": memory_resolve_link,
         "memory_find_references": memory_find_references,
+        "memory_scan_frontmatter_health": memory_scan_frontmatter_health,
         "memory_validate_links": memory_validate_links,
         "memory_reorganize_preview": memory_reorganize_preview,
         "memory_suggest_structure": memory_suggest_structure,
+        "memory_suggest_links": memory_suggest_links,
         "memory_check_cross_references": memory_check_cross_references,
+        "memory_cross_domain_links": memory_cross_domain_links,
         "memory_surface_unlinked": memory_surface_unlinked,
+        "memory_link_delta": memory_link_delta,
         "memory_generate_summary": memory_generate_summary,
         "memory_generate_names_index": memory_generate_names_index,
         "memory_access_analytics": memory_access_analytics,

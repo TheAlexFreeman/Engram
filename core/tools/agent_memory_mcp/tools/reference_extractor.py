@@ -151,6 +151,64 @@ def _resolve_target_path(
     return rel_path, anchor, None
 
 
+def resolve_link_diagnostics(root: Path, from_path: str, target: str) -> dict[str, Any]:
+    """Return structured resolution diagnostics for one markdown target."""
+    stripped = target.strip()
+    raw_path, anchor = _split_target_and_anchor(target)
+    lowered = stripped.lower()
+    is_fragment_only = lowered.startswith("#")
+    is_external = lowered.startswith(_URL_PREFIXES) and not is_fragment_only
+    normalized_target = raw_path.lstrip("/") if raw_path.startswith("/") else raw_path
+
+    payload: dict[str, Any] = {
+        "source_path": from_path,
+        "raw_target": target,
+        "normalized_target": normalized_target,
+        "anchor": anchor,
+        "resolved_path": None,
+        "exists": None,
+        "is_external": is_external,
+        "is_fragment_only": is_fragment_only,
+        "reason": None,
+    }
+
+    if is_external:
+        payload["reason"] = "external target"
+        return payload
+
+    resolved_path, resolved_anchor, error = _resolve_target_path(from_path, target, root)
+    payload["resolved_path"] = resolved_path
+    payload["anchor"] = resolved_anchor
+
+    if error is not None:
+        payload["exists"] = False
+        payload["reason"] = error
+        return payload
+
+    if resolved_path is None:
+        payload["exists"] = False
+        payload["reason"] = "unresolved target"
+        return payload
+
+    target_path = root / resolved_path
+    if not target_path.exists():
+        payload["exists"] = False
+        payload["reason"] = "target not found"
+        return payload
+
+    payload["exists"] = True
+    if resolved_anchor:
+        try:
+            anchors = _extract_heading_anchors(target_path.read_text(encoding="utf-8"))
+        except OSError:
+            anchors = set()
+        if resolved_anchor not in anchors:
+            payload["reason"] = f"anchor not found: #{resolved_anchor}"
+            return payload
+
+    return payload
+
+
 def _looks_like_path(value: str) -> bool:
     cleaned = value.strip().replace("\\", "/")
     if not cleaned or _is_external_target(cleaned):
@@ -1076,6 +1134,7 @@ def _extract_candidate_context(rel_path: str, root: Path) -> dict[str, Any]:
     return {
         "extract": extract[:500],
         "headings": headings,
+        "title": headings[0][2:].strip() if headings and headings[0].startswith("# ") else "",
         "existing_related": existing_related,
         "trust": str(frontmatter.get("trust", "")),
         "age_days": _file_age_days(frontmatter),
@@ -1094,18 +1153,26 @@ def _suggest_link_candidates(
     graph: ConnectivityGraph,
     root: Path,
     max_suggestions: int = 5,
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     """Find potential cross-reference targets using structural heuristics."""
     path_tokens = _tokenize_stem(rel_path)
     path_parts = Path(rel_path).parts
     # Domain = first directory under memory/knowledge/ (e.g., "ai", "philosophy")
     domain = path_parts[2] if len(path_parts) > 2 else ""
     subdir = Path(rel_path).parent.as_posix()
+    source_context = _extract_candidate_context(rel_path, root)
+    source_body_lower = str(source_context.get("extract", "")).lower()
+    source_title_lower = str(source_context.get("title", "")).lower()
+    source_headings_lower = " ".join(
+        heading.lower().lstrip("# ").strip() for heading in source_context.get("headings", [])
+    )
 
     # Build inverse incoming index for shared-referrer heuristic
     my_referrers = graph.incoming.get(rel_path, set())
+    my_targets = graph.outgoing.get(rel_path, set())
 
     scored: list[tuple[float, str, str]] = []
+    context_cache: dict[str, dict[str, Any]] = {}
 
     for candidate in graph.files:
         if candidate == rel_path:
@@ -1114,6 +1181,9 @@ def _suggest_link_candidates(
         cand_tokens = _tokenize_stem(candidate)
         cand_subdir = Path(candidate).parent.as_posix()
         cand_domain = cand_parts[2] if len(cand_parts) > 2 else ""
+        candidate_context = context_cache.setdefault(candidate, _extract_candidate_context(candidate, root))
+        candidate_title = str(candidate_context.get("title", "")).lower()
+        candidate_phrase = re.sub(r"[-_.]+", " ", Path(candidate).stem).strip().lower()
 
         score = 0.0
         reasons: list[str] = []
@@ -1142,11 +1212,406 @@ def _suggest_link_candidates(
             score += min(len(shared), 3) * 1.5
             reasons.append(f"{len(shared)} shared referrer(s)")
 
+        shared_targets = my_targets & graph.outgoing.get(candidate, set())
+        if shared_targets:
+            score += min(len(shared_targets), 3) * 1.25
+            reasons.append(f"{len(shared_targets)} shared outgoing link(s)")
+
+        if candidate_phrase and len(candidate_phrase) >= 5 and candidate_phrase in source_body_lower:
+            score += 2.5
+            reasons.append("body mentions candidate stem")
+
+        if candidate_title and len(candidate_title) >= 5:
+            if candidate_title in source_headings_lower:
+                score += 3.0
+                reasons.append("heading mentions candidate title")
+            elif candidate_title in source_body_lower or candidate_title in source_title_lower:
+                score += 2.0
+                reasons.append("body mentions candidate title")
+
         if score > 0 and reasons:
             scored.append((score, candidate, "; ".join(reasons)))
 
     scored.sort(key=lambda item: (-item[0], item[1]))
-    return [{"target": target, "reason": reason} for _, target, reason in scored[:max_suggestions]]
+    return [
+        {
+            "target": target,
+            "reason": reason,
+            "reasons": [part.strip() for part in reason.split(";") if part.strip()],
+            "score": round(score, 2),
+        }
+        for score, target, reason in scored[:max_suggestions]
+    ]
+
+
+def suggest_links_for_file(
+    root: Path,
+    rel_path: str,
+    max_suggestions: int = 10,
+    domain_mode: str = "all",
+    min_score: float = 0.0,
+) -> dict[str, Any]:
+    """Return scored cross-reference suggestions for one governed markdown file."""
+    graph = build_connectivity_graph(root)
+    if rel_path not in graph.files:
+        raise ValueError(f"File is outside the governed markdown surface: {rel_path}")
+
+    normalized_domain_mode = domain_mode.strip().lower() or "all"
+    if normalized_domain_mode not in {"all", "same", "cross"}:
+        raise ValueError("domain_mode must be one of: all, same, cross")
+    minimum_score = max(0.0, float(min_score))
+
+    source_parts = Path(rel_path).parts
+    source_domain = source_parts[2] if len(source_parts) > 2 else ""
+
+    suggestions = _suggest_link_candidates(
+        rel_path,
+        graph,
+        root,
+        max_suggestions=max(max_suggestions * 2, max_suggestions),
+    )
+    existing_links = graph.outgoing.get(rel_path, set())
+    filtered: list[dict[str, Any]] = []
+    for suggestion in suggestions:
+        target = str(suggestion["target"])
+        if target in existing_links:
+            continue
+        target_parts = Path(target).parts
+        target_domain = target_parts[2] if len(target_parts) > 2 else ""
+        is_same_domain = bool(source_domain and target_domain and source_domain == target_domain)
+        if normalized_domain_mode == "same" and not is_same_domain:
+            continue
+        if normalized_domain_mode == "cross" and is_same_domain:
+            continue
+        if float(suggestion.get("score", 0.0)) < minimum_score:
+            continue
+        filtered.append(
+            {
+                **suggestion,
+                "already_linked": False,
+                "source_domain": source_domain,
+                "target_domain": target_domain,
+                "is_same_domain": is_same_domain,
+            }
+        )
+        if len(filtered) >= max_suggestions:
+            break
+
+    return {
+        "path": rel_path,
+        "domain_mode": normalized_domain_mode,
+        "min_score": round(minimum_score, 2),
+        "source_domain": source_domain,
+        "in_degree": len(graph.incoming.get(rel_path, set())),
+        "out_degree": len(graph.outgoing.get(rel_path, set())),
+        "current_links": sorted(existing_links),
+        "suggestions": filtered,
+        "total_suggestions": len(filtered),
+        "candidate_pool_size": len(graph.files) - 1,
+    }
+
+
+def summarize_cross_domain_links(
+    root: Path,
+    scope: str = "memory/knowledge",
+    source_domain: str = "",
+    target_domain: str = "",
+    min_edge_count: int = 1,
+) -> dict[str, Any]:
+    """Return cross-domain directional and symmetric link summaries."""
+    from .graph_analysis import analyze_graph, build_knowledge_graph
+
+    graph = build_connectivity_graph(root, scope)
+    knowledge_files = [path for path in graph.files if path.startswith("memory/knowledge/")]
+    knowledge_set = set(knowledge_files)
+    normalized_source = source_domain.strip()
+    normalized_target = target_domain.strip()
+    min_edges = max(1, int(min_edge_count))
+
+    directional_counts: dict[tuple[str, str], int] = {}
+    domain_file_counts: dict[str, int] = {}
+    within_domain_edge_total = 0
+
+    def _domain(path: str) -> str:
+        parts = Path(path).parts
+        return parts[2] if len(parts) > 2 else ""
+
+    for rel_path in knowledge_files:
+        domain = _domain(rel_path)
+        if domain:
+            domain_file_counts[domain] = domain_file_counts.get(domain, 0) + 1
+
+    for source in knowledge_files:
+        source_domain = _domain(source)
+        for target in graph.outgoing.get(source, set()):
+            if target not in knowledge_set:
+                continue
+            target_domain = _domain(target)
+            if not source_domain or not target_domain:
+                continue
+            if source_domain == target_domain:
+                within_domain_edge_total += 1
+                continue
+            directional_counts[(source_domain, target_domain)] = (
+                directional_counts.get((source_domain, target_domain), 0) + 1
+            )
+
+    filtered_directional_counts = {
+        (left, right): count
+        for (left, right), count in directional_counts.items()
+        if count >= min_edges
+        and (not normalized_source or left == normalized_source)
+        and (not normalized_target or right == normalized_target)
+    }
+    symmetric_counts: dict[tuple[str, str], int] = {}
+    per_domain: dict[str, dict[str, Any]] = {}
+    domain_target_counts: dict[str, dict[str, int]] = {}
+    visible_domains: set[str] = set()
+    for (left, right), count in filtered_directional_counts.items():
+        key = tuple(sorted((left, right)))
+        symmetric_counts[key] = symmetric_counts.get(key, 0) + count
+        visible_domains.update((left, right))
+        source_bucket = per_domain.setdefault(
+            left,
+            {
+                "domain": left,
+                "files": domain_file_counts.get(left, 0),
+                "incoming_cross": 0,
+                "outgoing_cross": 0,
+            },
+        )
+        target_bucket = per_domain.setdefault(
+            right,
+            {
+                "domain": right,
+                "files": domain_file_counts.get(right, 0),
+                "incoming_cross": 0,
+                "outgoing_cross": 0,
+            },
+        )
+        source_bucket["outgoing_cross"] += count
+        target_bucket["incoming_cross"] += count
+        targets_for_domain = domain_target_counts.setdefault(left, {})
+        targets_for_domain[right] = targets_for_domain.get(right, 0) + count
+
+    if normalized_source and normalized_source not in per_domain and normalized_source in domain_file_counts:
+        per_domain[normalized_source] = {
+            "domain": normalized_source,
+            "files": domain_file_counts.get(normalized_source, 0),
+            "incoming_cross": 0,
+            "outgoing_cross": 0,
+        }
+        visible_domains.add(normalized_source)
+    if normalized_target and normalized_target not in per_domain and normalized_target in domain_file_counts:
+        per_domain[normalized_target] = {
+            "domain": normalized_target,
+            "files": domain_file_counts.get(normalized_target, 0),
+            "incoming_cross": 0,
+            "outgoing_cross": 0,
+        }
+        visible_domains.add(normalized_target)
+
+    knowledge_graph = build_knowledge_graph(root, scope=scope)
+    metrics = analyze_graph(knowledge_graph["nodes"], knowledge_graph["edges"])
+    cross_domain_edge_total = sum(filtered_directional_counts.values())
+
+    domains_payload = []
+    for domain_name, bucket in sorted(per_domain.items(), key=lambda item: item[0]):
+        top_targets = [
+            {"target_domain": target_domain, "edge_count": count}
+            for target_domain, count in sorted(
+                domain_target_counts.get(domain_name, {}).items(),
+                key=lambda item: (-item[1], item[0]),
+            )[:5]
+        ]
+        domains_payload.append(
+            {
+                **bucket,
+                "cross_degree": bucket["incoming_cross"] + bucket["outgoing_cross"],
+                "top_targets": top_targets,
+            }
+        )
+
+    matrix = [
+        {
+            "source_domain": source_domain,
+            "targets": {
+                target_domain: count
+                for target_domain, count in sorted(targets.items(), key=lambda item: item[0])
+            },
+        }
+        for source_domain, targets in sorted(domain_target_counts.items(), key=lambda item: item[0])
+        if targets
+    ]
+
+    return {
+        "scope": _normalize_repo_path(scope) or "memory/knowledge",
+        "source_domain_filter": normalized_source,
+        "target_domain_filter": normalized_target,
+        "min_edge_count": min_edges,
+        "domain_count": len(visible_domains) if visible_domains else len(per_domain),
+        "domains": domains_payload,
+        "cross_domain_edge_total": cross_domain_edge_total,
+        "within_domain_edge_total": within_domain_edge_total,
+        "cross_domain_edge_ratio": round(
+            cross_domain_edge_total / (cross_domain_edge_total + within_domain_edge_total),
+            4,
+        )
+        if (cross_domain_edge_total + within_domain_edge_total) > 0
+        else 0.0,
+        "matrix": matrix,
+        "directional_pairs": [
+            {
+                "source_domain": source_domain,
+                "target_domain": target_domain,
+                "edge_count": count,
+            }
+            for (source_domain, target_domain), count in sorted(
+                filtered_directional_counts.items(), key=lambda item: (-item[1], item[0])
+            )
+        ],
+        "symmetric_pairs": [
+            {
+                "domains": [left, right],
+                "edge_count": count,
+            }
+            for (left, right), count in sorted(
+                symmetric_counts.items(), key=lambda item: (-item[1], item[0])
+            )
+        ],
+        "bridge_files": metrics.get("bridges", []),
+        "graph_metrics": {
+            "nodes": metrics.get("nodes"),
+            "edges": metrics.get("edges"),
+            "avg_degree": metrics.get("avg_degree"),
+            "sigma": metrics.get("sigma"),
+        },
+    }
+
+
+def summarize_connectivity_graph(graph: ConnectivityGraph) -> dict[str, Any]:
+    """Return compact stats for a directed connectivity graph."""
+    files = graph.files
+    edge_count = sum(len(targets) for targets in graph.outgoing.values())
+    total_degree = [
+        len(graph.outgoing.get(rel_path, set())) + len(graph.incoming.get(rel_path, set()))
+        for rel_path in files
+    ]
+    node_count = len(files)
+    isolated_count = sum(1 for degree in total_degree if degree == 0)
+    sink_count = sum(
+        1
+        for rel_path in files
+        if graph.incoming.get(rel_path, set()) and not graph.outgoing.get(rel_path, set())
+    )
+    source_count = sum(
+        1
+        for rel_path in files
+        if graph.outgoing.get(rel_path, set()) and not graph.incoming.get(rel_path, set())
+    )
+    return {
+        "nodes": node_count,
+        "edges": edge_count,
+        "isolated_count": isolated_count,
+        "sink_count": sink_count,
+        "source_count": source_count,
+        "mean_total_degree": round(sum(total_degree) / node_count, 2) if node_count else 0.0,
+    }
+
+
+def diff_connectivity_graphs(current: ConnectivityGraph, previous: ConnectivityGraph) -> dict[str, Any]:
+    """Return a structured diff between two directed connectivity graphs."""
+    def _domain(path: str) -> str:
+        parts = Path(path).parts
+        return parts[2] if len(parts) > 2 else ""
+
+    def _degree_category(graph: ConnectivityGraph, rel_path: str) -> str | None:
+        return _classify_file(
+            len(graph.incoming.get(rel_path, set())),
+            len(graph.outgoing.get(rel_path, set())),
+            threshold=2,
+        )
+
+    current_edges = {
+        (source, target)
+        for source, targets in current.outgoing.items()
+        for target in targets
+    }
+    previous_edges = {
+        (source, target)
+        for source, targets in previous.outgoing.items()
+        for target in targets
+    }
+
+    added_edges = sorted(current_edges - previous_edges)
+    removed_edges = sorted(previous_edges - current_edges)
+    changed_files = sorted({path for edge in (added_edges + removed_edges) for path in edge})
+
+    added_domain_pairs: dict[tuple[str, str], int] = {}
+    removed_domain_pairs: dict[tuple[str, str], int] = {}
+    for source, target in added_edges:
+        pair = (_domain(source), _domain(target))
+        added_domain_pairs[pair] = added_domain_pairs.get(pair, 0) + 1
+    for source, target in removed_edges:
+        pair = (_domain(source), _domain(target))
+        removed_domain_pairs[pair] = removed_domain_pairs.get(pair, 0) + 1
+
+    impacted_files_detail = []
+    changed_category_counts: dict[str, int] = {}
+    for rel_path in changed_files:
+        previous_category = _degree_category(previous, rel_path)
+        current_category = _degree_category(current, rel_path)
+        transition = f"{previous_category or 'connected'}->{current_category or 'connected'}"
+        changed_category_counts[transition] = changed_category_counts.get(transition, 0) + 1
+        impacted_files_detail.append(
+            {
+                "path": rel_path,
+                "domain": _domain(rel_path),
+                "previous_category": previous_category or "connected",
+                "current_category": current_category or "connected",
+            }
+        )
+
+    current_stats = summarize_connectivity_graph(current)
+    previous_stats = summarize_connectivity_graph(previous)
+
+    return {
+        "current_stats": current_stats,
+        "previous_stats": previous_stats,
+        "graph_stats_delta": {
+            key: round(float(current_stats[key]) - float(previous_stats.get(key, 0)), 2)
+            for key in current_stats
+        },
+        "added_edges": [
+            {"source": source, "target": target} for source, target in added_edges
+        ],
+        "removed_edges": [
+            {"source": source, "target": target} for source, target in removed_edges
+        ],
+        "impacted_files": changed_files,
+        "impacted_files_detail": impacted_files_detail,
+        "added_domain_pairs": [
+            {
+                "source_domain": source_domain,
+                "target_domain": target_domain,
+                "edge_count": count,
+            }
+            for (source_domain, target_domain), count in sorted(
+                added_domain_pairs.items(), key=lambda item: (-item[1], item[0])
+            )
+        ],
+        "removed_domain_pairs": [
+            {
+                "source_domain": source_domain,
+                "target_domain": target_domain,
+                "edge_count": count,
+            }
+            for (source_domain, target_domain), count in sorted(
+                removed_domain_pairs.items(), key=lambda item: (-item[1], item[0])
+            )
+        ],
+        "changed_category_counts": dict(sorted(changed_category_counts.items())),
+    }
 
 
 def _domain_peers(rel_path: str, root: Path, max_peers: int = 8) -> list[str]:

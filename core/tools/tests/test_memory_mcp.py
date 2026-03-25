@@ -103,8 +103,13 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertEqual(payload["contract_versions"]["provenance"], 1)
         self.assertEqual(payload["contract_versions"]["structured_read"], 1)
         self.assertIn("memory_get_capabilities", payload["tool_sets"]["read_support"])
+        self.assertIn("memory_resolve_link", payload["tool_sets"]["read_support"])
         self.assertIn("memory_find_references", payload["tool_sets"]["read_support"])
+        self.assertIn("memory_scan_frontmatter_health", payload["tool_sets"]["read_support"])
         self.assertIn("memory_validate_links", payload["tool_sets"]["read_support"])
+        self.assertIn("memory_suggest_links", payload["tool_sets"]["read_support"])
+        self.assertIn("memory_cross_domain_links", payload["tool_sets"]["read_support"])
+        self.assertIn("memory_link_delta", payload["tool_sets"]["read_support"])
         self.assertIn("memory_reorganize_preview", payload["tool_sets"]["read_support"])
         self.assertIn("memory_suggest_structure", payload["tool_sets"]["read_support"])
         self.assertIn("memory_reorganize_path", payload["tool_sets"]["semantic_extensions"])
@@ -223,8 +228,13 @@ class MemoryMCPTests(unittest.TestCase):
             "memory_get_capabilities",
             "memory_get_tool_profiles",
             "memory_check_cross_references",
+            "memory_resolve_link",
             "memory_find_references",
+            "memory_scan_frontmatter_health",
             "memory_validate_links",
+            "memory_suggest_links",
+            "memory_cross_domain_links",
+            "memory_link_delta",
             "memory_reorganize_preview",
             "memory_suggest_structure",
             "memory_reorganize_path",
