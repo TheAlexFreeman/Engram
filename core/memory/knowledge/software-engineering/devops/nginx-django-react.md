@@ -8,8 +8,8 @@ trust: medium
 related:
   - docker-compose-local-dev.md
   - docker-production-config.md
-  - vite-react-build.md
-  - django-gunicorn-uvicorn.md
+  - ../react/vite-react-build.md
+  - ../django/django-gunicorn-uvicorn.md
   - ../web-fundamentals/http-protocol-reference.md
   - ../web-fundamentals/dns-tls-and-networking.md
 ---

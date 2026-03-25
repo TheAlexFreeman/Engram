@@ -50,7 +50,7 @@ For this repository, the distinction is practical rather than ideological. A mem
 
 ## The current implementation is porcelain-heavy
 
-The wrapper in [tools/agent_memory_mcp/git_repo.py](tools/agent_memory_mcp/git_repo.py) currently uses:
+The wrapper in [tools/agent_memory_mcp/git_repo.py](../../../../tools/agent_memory_mcp/git_repo.py) currently uses:
 
 - `git add`
 - `git add -A`

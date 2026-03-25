@@ -7,7 +7,10 @@ tags: [wal, durability, sqlite, postgres, staging, transactions, rollback]
 trust: medium
 created: 2026-03-19
 last_verified: 2026-03-19
-related: ../../self/_archive/2026-03-22-plan-schema-and-activity-logging-design.md, ../testing/black-box-test-design.md, ../../cognitive-science/memory/reconsolidation-agent-design-implications.md
+related:
+  - ../../self/_archive/2026-03-22-plan-schema-and-activity-logging-design.md
+  - ../testing/black-box-test-design.md
+  - ../../cognitive-science/memory/reconsolidation-agent-design-implications.md
 ---
 
 # Write-Ahead Logging and WAL-Oriented Write Design

@@ -9,7 +9,7 @@ related:
   - docker-production-config.md
   - github-actions-cicd.md
   - docker-compose-local-dev.md
-  - django-security.md
+  - ../django/django-security.md
   - ../django/pydantic-django-integration.md
 ---
 

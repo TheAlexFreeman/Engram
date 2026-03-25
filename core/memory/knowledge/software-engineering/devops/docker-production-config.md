@@ -10,7 +10,7 @@ related:
   - nginx-django-react.md
   - github-actions-cicd.md
   - environment-secrets-management.md
-  - django-gunicorn-uvicorn.md
+  - ../django/django-gunicorn-uvicorn.md
 ---
 
 # Docker Production Configuration

@@ -56,7 +56,7 @@ For agent-memory-seed, this means:
 
 ## The repo already depends on worktree behavior
 
-The current revert preview implementation in [tools/agent_memory_mcp/git_repo.py](tools/agent_memory_mcp/git_repo.py) creates a detached temporary worktree, runs `git revert --no-commit`, then removes the worktree. That code already relies on linked-worktree semantics:
+The current revert preview implementation in [tools/agent_memory_mcp/git_repo.py](../../../../tools/agent_memory_mcp/git_repo.py) creates a detached temporary worktree, runs `git revert --no-commit`, then removes the worktree. That code already relies on linked-worktree semantics:
 
 - shared object store so the preview can see repository history cheaply
 - isolated `HEAD` and index so the preview does not contaminate the main checkout

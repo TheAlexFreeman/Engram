@@ -3,7 +3,10 @@ created: 2026-03-19
 domain: systems-architecture
 last_verified: 2026-03-19
 origin_session: core/memory/activity/2026/03/19/chat-001
-related: git-plumbing-and-automation.md, git-worktrees-and-hooks.md, ../testing/model-checking-abstract-interpretation.md
+related:
+  - git-plumbing-and-automation.md
+  - git-worktrees-and-hooks.md
+  - ../testing/model-checking-abstract-interpretation.md
 source: external-research
 tags:
 - git
@@ -72,7 +75,7 @@ Conceptually:
 
 That means the index is not bookkeeping noise. It is the place where Git assembles the next snapshot before it becomes history.
 
-The current MCP implementation reflects that model directly. In [tools/agent_memory_mcp/git_repo.py](tools/agent_memory_mcp/git_repo.py), `add()` shells out to `git add`, and in tools/agent_memory_mcp/git_repo.py, `commit()` shells out to `git commit -m`. The server is therefore dependent on the index path working correctly.
+The current MCP implementation reflects that model directly. In [tools/agent_memory_mcp/git_repo.py](../../../../tools/agent_memory_mcp/git_repo.py), `add()` shells out to `git add`, and in tools/agent_memory_mcp/git_repo.py, `commit()` shells out to `git commit -m`. The server is therefore dependent on the index path working correctly.
 
 ## What `git add` actually does
 

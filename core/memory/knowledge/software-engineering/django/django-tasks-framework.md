@@ -4,7 +4,10 @@ origin_session: core/memory/activity/2026/03/18/chat-001
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
-related: django-production-stack.md, django-async.md, django-caching-redis.md
+related:
+  - django-production-stack.md
+  - django-async.md
+  - django-caching-redis.md
 ---
 
 # Django 6.0 Tasks Framework (`django.tasks`)

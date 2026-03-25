@@ -9,7 +9,7 @@ related:
   - docker-production-config.md
   - github-actions-cicd.md
   - celery-multi-worker-docker.md
-  - django-migrations-advanced.md
+  - ../django/django-migrations-advanced.md
 ---
 
 # Zero-Downtime Deploys with Docker Compose

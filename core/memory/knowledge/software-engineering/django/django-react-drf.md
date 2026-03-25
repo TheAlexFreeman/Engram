@@ -4,7 +4,13 @@ origin_session: core/memory/activity/2026/03/18/chat-001
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
-related: drf-testing-pytest-django-perf-rec.md, ../devops/nginx-django-react.md, django-security.md, pydantic-django-integration.md, ../web-fundamentals/http-protocol-reference.md, ../web-fundamentals/cors-in-depth.md
+related:
+  - drf-testing-pytest-django-perf-rec.md
+  - ../devops/nginx-django-react.md
+  - django-security.md
+  - pydantic-django-integration.md
+  - ../web-fundamentals/http-protocol-reference.md
+  - ../web-fundamentals/cors-in-depth.md
 ---
 
 # Django + React API design via DRF
