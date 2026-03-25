@@ -264,13 +264,125 @@
     }
   }
 
+  function _decodeFragment(fragment) {
+    try {
+      return decodeURIComponent(fragment);
+    } catch (_) {
+      return fragment;
+    }
+  }
+
+  function normalizeMarkdownAnchor(text) {
+    var value = _decodeFragment(String(text == null ? '' : text).trim());
+    if (!value) return '';
+    return value
+      .replace(/^#+/, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/[\*_~]+/g, '')
+      .toLowerCase()
+      .replace(/&(?:amp;)?/g, ' and ')
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/[\s_]+/g, '-')
+      .replace(/-+/g, '-');
+  }
+
+  function splitMarkdownLinkTarget(target) {
+    var raw = String(target == null ? '' : target).trim();
+    var hashIndex = raw.indexOf('#');
+    var path = hashIndex >= 0 ? raw.substring(0, hashIndex) : raw;
+    var fragment = hashIndex >= 0 ? raw.substring(hashIndex + 1) : '';
+    return {
+      raw: raw,
+      path: path,
+      fragment: fragment,
+      section: fragment ? normalizeMarkdownAnchor(fragment) : ''
+    };
+  }
+
+  function _findElementById(node, id) {
+    if (!node || !id) return null;
+    if (node.id === id) return node;
+
+    var children = node.childNodes || [];
+    for (var i = 0; i < children.length; i++) {
+      var found = _findElementById(children[i], id);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function scrollToMarkdownSection(rootNode, target) {
+    var parsed = splitMarkdownLinkTarget(target);
+    var sectionId = parsed.section || normalizeMarkdownAnchor(target);
+    if (!sectionId) return false;
+
+    var targetNode = _findElementById(rootNode, sectionId);
+    if (!targetNode && typeof document !== 'undefined' && document && typeof document.getElementById === 'function') {
+      targetNode = document.getElementById(sectionId);
+    }
+    if (!targetNode) return false;
+
+    if (typeof targetNode.scrollIntoView === 'function') {
+      targetNode.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+    if (typeof targetNode.focus === 'function') {
+      try {
+        targetNode.focus({ preventScroll: true });
+      } catch (_) {
+        targetNode.focus();
+      }
+    }
+    return true;
+  }
+
+  function _nextHeadingId(text, state) {
+    var base = normalizeMarkdownAnchor(text) || 'section';
+    var counts = state.counts;
+    counts[base] = (counts[base] || 0) + 1;
+    return counts[base] === 1 ? base : base + '-' + counts[base];
+  }
+
+  function _sameOriginMarkdownRef(href) {
+    var parsed = splitMarkdownLinkTarget(href);
+    return !!parsed.path && parsed.path.match(/\.md$/i) && !parsed.path.match(/^https?:\/\//i);
+  }
+
+  function _makeSectionLink(label, href, opts) {
+    var parsed = splitMarkdownLinkTarget(href);
+    var a = document.createElement('a');
+    a.textContent = label;
+    a.href = '#' + parsed.section;
+    a.title = href;
+    a.addEventListener('click', function (ev) {
+      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+      scrollToMarkdownSection(opts && opts._sectionRoot, href);
+    });
+    return a;
+  }
+
+  function _makeXrefLink(label, href, opts, className) {
+    var a = document.createElement('a');
+    a.textContent = label;
+    a.href = '#';
+    a.title = href;
+    if (className) a.className = className;
+    a.addEventListener('click', function (ev) {
+      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+      if (opts && typeof opts.onXrefClick === 'function') opts.onXrefClick(href);
+    });
+    return a;
+  }
+
   /* ── Markdown renderer ──────────────────────────────── */
 
   /**
    * Lightweight markdown-to-DOM renderer.
    * Produces real DOM nodes (no innerHTML). Supports: headings, bold, italic,
-   * inline code, links, lists (nested UL/OL), blockquotes, horizontal rules,
-   * fenced code blocks, tables, and KaTeX math (when loaded).
+  * inline code, links, lists (nested UL/OL), blockquotes, horizontal rules,
+  * fenced code blocks, tables, KaTeX math (when loaded), and document
+  * section links via generated heading anchors.
    *
    * @param {string} text   Markdown source.
    * @param {Element} container  Target DOM element (will be appended to, NOT cleared).
@@ -279,6 +391,10 @@
    *        internal .md cross-reference link. Receives the raw href string.
    */
   function renderMarkdown(text, container, opts) {
+    opts = opts || {};
+    if (!opts._headingState) opts._headingState = { counts: {} };
+    if (!opts._sectionRoot) opts._sectionRoot = container;
+
     var lines = text.split(/\r?\n/);
     var i = 0;
 
@@ -342,6 +458,8 @@
       var hm = line.match(/^(#{1,4})\s+(.+)/);
       if (hm) {
         var h = document.createElement('h' + hm[1].length);
+        h.id = _nextHeadingId(hm[2], opts._headingState);
+        h.tabIndex = -1;
         _appendInline(h, hm[2], opts);
         container.appendChild(h);
         i++; continue;
@@ -491,13 +609,11 @@
         parent.appendChild(mathEl);
       } else if (match[2]) {
         var codeText = match[2].slice(1, -1);
-        if (codeText.match(/\.md$/i) && onXref) {
-          var xa = document.createElement('a');
-          xa.className = 'knowledge-xref';
-          xa.textContent = codeText.replace(/\.md$/, '').split('/').pop();
-          xa.title = codeText;
-          (function (ref) { xa.addEventListener('click', function () { onXref(ref); }); })(codeText);
-          parent.appendChild(xa);
+        if (_sameOriginMarkdownRef(codeText) && onXref) {
+          var codeRef = splitMarkdownLinkTarget(codeText);
+          var codeLabel = codeRef.path.replace(/\.md$/i, '').split('/').pop();
+          if (codeRef.section) codeLabel += ' #' + codeRef.section;
+          parent.appendChild(_makeXrefLink(codeLabel, codeText, opts, 'knowledge-xref'));
         } else {
           var codeEl = document.createElement('code');
           codeEl.textContent = codeText;
@@ -513,13 +629,10 @@
         parent.appendChild(em);
       } else if (match[5] && match[6]) {
         var href = match[6];
-        if (href.match(/\.md$/i) && !href.match(/^https?:\/\//i) && onXref) {
-          var xlink = document.createElement('a');
-          xlink.className = 'knowledge-xref';
-          xlink.textContent = match[5];
-          xlink.title = href;
-          (function (ref) { xlink.addEventListener('click', function () { onXref(ref); }); })(href);
-          parent.appendChild(xlink);
+        if (!splitMarkdownLinkTarget(href).path && splitMarkdownLinkTarget(href).section) {
+          parent.appendChild(_makeSectionLink(match[5], href, opts));
+        } else if (_sameOriginMarkdownRef(href) && onXref) {
+          parent.appendChild(_makeXrefLink(match[5], href, opts, 'knowledge-xref'));
         } else if (href.match(/^(https?:\/\/|[a-zA-Z0-9]|\.\/)/) && !href.match(/^javascript:/i)) {
           var a = document.createElement('a');
           a.textContent = match[5];
@@ -553,6 +666,9 @@
     parseFrontmatter: parseFrontmatter,
     parseFlatYaml: parseFlatYaml,
     parseMarkdownTable: parseMarkdownTable,
+    normalizeMarkdownAnchor: normalizeMarkdownAnchor,
+    splitMarkdownLinkTarget: splitMarkdownLinkTarget,
+    scrollToMarkdownSection: scrollToMarkdownSection,
     openDB: openDB,
     saveHandle: saveHandle,
     loadSavedHandle: loadSavedHandle,

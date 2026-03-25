@@ -275,6 +275,8 @@
   var restoreSavedHandle = E.restoreSavedHandle;
   var showError = E.showError;
   var hideError = E.hideError;
+  var splitMarkdownLinkTarget = E.splitMarkdownLinkTarget;
+  var scrollToMarkdownSection = E.scrollToMarkdownSection;
   var rootHandle = null;
   var currentDoc = null;
 
@@ -374,10 +376,14 @@
 
   /* ── open doc (reader mode) ────────────────────────── */
 
-  async function openDoc(filename) {
+  async function openDoc(filename, section, opts) {
+    opts = opts || {};
     var url = new URL(window.location);
     url.searchParams.set('doc', filename);
-    history.pushState({ doc: filename }, '', url);
+    url.hash = section ? '#' + section : '';
+    if (opts.pushHistory !== false) {
+      history.pushState({ doc: filename, section: section || '' }, '', url);
+    }
 
     currentDoc = filename;
     document.getElementById('index-view').style.display = 'none';
@@ -431,15 +437,17 @@
       var parsed = E.parseFrontmatter(text);
       E.renderMarkdown(parsed.body, body, {
         onXrefClick: function (ref) {
+          var target = splitMarkdownLinkTarget(ref);
           var match = null;
           for (var j = 0; j < DOCS.length; j++) {
-            if (DOCS[j].file === ref || ref.endsWith(DOCS[j].file)) {
+            if (DOCS[j].file === target.path || target.path.endsWith(DOCS[j].file)) {
               match = DOCS[j]; break;
             }
           }
-          if (match) openDoc(match.file);
+          if (match) openDoc(match.file, target.section);
         }
       });
+      if (section) scrollToMarkdownSection(body, '#' + section);
     } else {
       var errDiv = document.createElement('div');
       errDiv.className = 'content-placeholder';
@@ -456,6 +464,7 @@
   function showIndex() {
     var url = new URL(window.location);
     url.searchParams.delete('doc');
+    url.hash = '';
     history.pushState({}, '', url);
     currentDoc = null;
     document.getElementById('index-view').style.display = '';
@@ -467,8 +476,9 @@
   function route() {
     var params = new URLSearchParams(window.location.search);
     var doc = params.get('doc');
+    var section = window.location.hash ? window.location.hash.substring(1) : '';
     if (doc && findDoc(doc)) {
-      openDoc(doc);
+      openDoc(doc, section, { pushHistory: false });
     } else {
       document.getElementById('index-view').style.display = '';
       document.getElementById('reader-view').style.display = 'none';
@@ -487,7 +497,7 @@
       setStatus(true, rootHandle.name);
       document.getElementById('open-btn').style.display = 'none';
       // reload current doc if we were viewing one
-      if (currentDoc) openDoc(currentDoc);
+      if (currentDoc) openDoc(currentDoc, window.location.hash ? window.location.hash.substring(1) : '');
     } catch (err) {
       if (err.name !== 'AbortError')
         showError('Could not open folder: ' + err.message);

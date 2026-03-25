@@ -310,6 +310,8 @@
   var parseMarkdownTable = E.parseMarkdownTable;
   var restoreSavedHandle = E.restoreSavedHandle;
   var makeActivatable = E.makeActivatable;
+  var splitMarkdownLinkTarget = E.splitMarkdownLinkTarget;
+  var scrollToMarkdownSection = E.scrollToMarkdownSection;
 
   /* ── knowledge state ───────────────────────────────── */
 
@@ -317,6 +319,10 @@
   var knowledgeBase = 'core/memory/knowledge';
   var detailPath = [];
   var activeFile = null;
+
+  function sameDirPath(a, b) {
+    return a.join('/') === b.join('/');
+  }
 
   /* ── domain picker ─────────────────────────────────── */
 
@@ -537,7 +543,8 @@
    * relative to the knowledge base root.
    */
   function resolveKnowledgePath(ref) {
-    var path = ref.replace(/^knowledge\//, '');
+    var parsed = splitMarkdownLinkTarget(ref);
+    var path = parsed.path.replace(/^knowledge\//, '');
     if (path.match(/^\.\.\//) || path.match(/^\.\//) ) {
       var base = detailPath.slice();
       var parts = path.split('/');
@@ -549,18 +556,29 @@
     }
     var segments = path.split('/');
     var file = segments.pop();
-    return { dir: segments, file: file };
+    return { dir: segments, file: file, section: parsed.section };
   }
 
   function navigateToFile(ref) {
     var resolved = resolveKnowledgePath(ref);
-    if (!resolved.file) return;
+    if (!resolved.file) {
+      if (resolved.section) {
+        scrollToMarkdownSection(document.getElementById('content-body'), '#' + resolved.section);
+      }
+      return;
+    }
+    if (resolved.file === activeFile && sameDirPath(resolved.dir, detailPath)) {
+      if (resolved.section) {
+        scrollToMarkdownSection(document.getElementById('content-body'), '#' + resolved.section);
+      }
+      return;
+    }
     detailPath = resolved.dir;
     showDetailView();
-    viewFile(resolved.file);
+    viewFile(resolved.file, resolved.section);
   }
 
-  async function viewFile(filename) {
+  async function viewFile(filename, section) {
     activeFile = filename;
     renderBreadcrumb();
 
@@ -604,10 +622,11 @@
           for (var r = 0; r < refs.length; r++) {
             if (r > 0) item.appendChild(document.createTextNode(', '));
             var refPath = refs[r].trim();
-            if (refPath.match(/\.md$/i)) {
+            var refTarget = splitMarkdownLinkTarget(refPath);
+            if (refTarget.path.match(/\.md$/i)) {
               var ra = document.createElement('a');
               ra.className = 'knowledge-xref';
-              ra.textContent = refPath.replace(/\.md$/, '').split('/').pop();
+              ra.textContent = refTarget.path.replace(/\.md$/i, '').split('/').pop() + (refTarget.section ? ' #' + refTarget.section : '');
               ra.title = refPath;
               (function(ref) {
                 makeActivatable(ra, function() { navigateToFile(ref); }, {
@@ -630,6 +649,7 @@
 
     // Render body as styled markdown
     renderMarkdown(parsed.body.trim(), body);
+    if (section) scrollToMarkdownSection(body, '#' + section);
   }
 
   /* ── markdown renderer (delegates to shared Engram.renderMarkdown) ── */

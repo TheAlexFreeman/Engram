@@ -97,6 +97,10 @@ test('resolveGraphRef normalizes relative and bare markdown references', functio
     resolveGraphRef('knowledge/software-engineering/design.md', ['ai']),
     'software-engineering/design.md'
   );
+  assert.equal(
+    resolveGraphRef('./notes/idea.md#open-questions', ['self']),
+    'self/notes/idea.md'
+  );
 });
 
 test('extractRefs returns related frontmatter, markdown links, and backtick references', function () {
@@ -118,9 +122,9 @@ test('extractRefs returns related frontmatter, markdown links, and backtick refe
 
   const refs = extractRefs([
     '---',
-    'related: notes/a.md, notes/b.md',
+    'related: notes/a.md, notes/b.md#deep-dive',
     '---',
-    'See [doc](../shared/c.md) and `inline/ref.md`.',
+    'See [doc](../shared/c.md#section) and `inline/ref.md#anchor`.',
     '[external](https://example.com/nope.md)'
   ].join('\n'));
 

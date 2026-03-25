@@ -331,7 +331,7 @@
   /* ── Reference extraction ────────────────────────────── */
 
   function resolveGraphRef(ref, sourceDir) {
-    var path = ref.replace(/^knowledge\//, '');
+    var path = ref.replace(/^knowledge\//, '').replace(/#.*$/, '');
     if (path.match(/^(self|_unverified)\//)) {
       // already relative to knowledge root
     } else if (path.match(/^\.\.\//) || path.match(/^\.\//)) {
@@ -358,7 +358,7 @@
         var items = fm.related.split(/,\s*/);
         for (var i = 0; i < items.length; i++) {
           var r = items[i].trim();
-          if (r && r.match(/\.md$/i)) refs.push(r);
+          if (r && r.match(/\.md(?:#.*)?$/i)) refs.push(r.replace(/#.*$/, ''));
         }
       }
       var listMatch = parsed.frontmatter.match(/^related:\s*\n((?:\s+-\s+.+\n?)+)/m);
@@ -367,23 +367,26 @@
         if (listItems) {
           for (var j = 0; j < listItems.length; j++) {
             var val = listItems[j].replace(/^\s+-\s+/, '').trim();
-            if (val) refs.push(val.match(/\.md$/i) ? val : val + '.md');
+            if (val) {
+              var normalized = val.replace(/#.*$/, '');
+              refs.push(normalized.match(/\.md$/i) ? normalized : normalized + '.md');
+            }
           }
         }
       }
     }
 
     // 2) Markdown links to .md files in body
-    var linkRx = /\[([^\]]*)\]\(([^)]+\.md)\)/gi;
+    var linkRx = /\[([^\]]*)\]\(([^)]+\.md(?:#[^)]+)?)\)/gi;
     var m;
     while ((m = linkRx.exec(parsed.body)) !== null) {
-      if (!m[2].match(/^https?:\/\//i)) refs.push(m[2]);
+      if (!m[2].match(/^https?:\/\//i)) refs.push(m[2].replace(/#.*$/, ''));
     }
 
     // 3) Backtick-wrapped .md file references
-    var btRx = /`([^`]+\.md)`/gi;
+    var btRx = /`([^`]+\.md(?:#[^`]+)?)`/gi;
     while ((m = btRx.exec(parsed.body)) !== null) {
-      refs.push(m[1]);
+      refs.push(m[1].replace(/#.*$/, ''));
     }
 
     return refs;
