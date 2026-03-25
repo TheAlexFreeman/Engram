@@ -230,16 +230,12 @@ class BootstrapResolverTests(unittest.TestCase):
                 trace_by_path["core/memory/working/projects/SUMMARY.md"].reason,
                 "no_active_projects",
             )
-            self.assertEqual(
-                trace_by_path["core/memory/working/USER.md"].status, "skipped"
-            )
+            self.assertEqual(trace_by_path["core/memory/working/USER.md"].status, "skipped")
             self.assertEqual(
                 trace_by_path["core/memory/working/USER.md"].reason,
                 "placeholder_or_empty",
             )
-            self.assertEqual(
-                trace_by_path["core/memory/working/CURRENT.md"].status, "skipped"
-            )
+            self.assertEqual(trace_by_path["core/memory/working/CURRENT.md"].status, "skipped")
             self.assertEqual(
                 trace_by_path["core/memory/working/CURRENT.md"].reason,
                 "placeholder_or_empty",

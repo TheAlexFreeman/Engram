@@ -366,11 +366,11 @@ def build_minimal_repo(root: Path) -> None:
     )
 
     write(
-        root / "core" / "memory" / "working" / "scratchpad" / "USER.md",
+        root / "core" / "memory" / "working" / "USER.md",
         "# User notes\n\n_Nothing here yet. Add any context you'd like the agent to pick up at session start._\n",
     )
     write(
-        root / "core" / "memory" / "working" / "scratchpad" / "CURRENT.md",
+        root / "core" / "memory" / "working" / "CURRENT.md",
         "# Agent working notes\n\n## Active threads\n\n_None_\n\n## Immediate next actions\n\n_None_\n\n## Open questions\n\n_None_\n\n## Drill-down refs\n\n- core/memory/working/projects/SUMMARY.md\n",
     )
 
@@ -777,7 +777,7 @@ class ValidateMemoryRepoTests(unittest.TestCase):
             root = Path(tempdir)
             build_minimal_repo(root)
             write(
-                root / "core" / "memory" / "working" / "scratchpad" / "CURRENT.md",
+                root / "core" / "memory" / "working" / "CURRENT.md",
                 "# Agent working notes\n\n"
                 + "## Active threads\n\n- "
                 + ("very long note " * 800)
@@ -1880,8 +1880,8 @@ class ValidateMemoryRepoTests(unittest.TestCase):
             REPO_ROOT / "core" / "INIT.md",
             REPO_ROOT / "core" / "memory" / "users" / "SUMMARY.md",
             REPO_ROOT / "core" / "memory" / "working" / "projects" / "SUMMARY.md",
-            REPO_ROOT / "core" / "memory" / "working" / "scratchpad" / "USER.md",
-            REPO_ROOT / "core" / "memory" / "working" / "scratchpad" / "CURRENT.md",
+            REPO_ROOT / "core" / "memory" / "working" / "USER.md",
+            REPO_ROOT / "core" / "memory" / "working" / "CURRENT.md",
         ]
         chats_summary = REPO_ROOT / "core" / "memory" / "activity" / "SUMMARY.md"
         chats_text = chats_summary.read_text(encoding="utf-8")
