@@ -4,6 +4,12 @@ origin_session: core/memory/activity/2026/03/18/chat-001
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
+related:
+  - memory/knowledge/software-engineering/django/django-async.md
+  - memory/knowledge/software-engineering/django/django-database-pooling.md
+  - memory/knowledge/software-engineering/django/django-orm-postgres.md
+  - memory/knowledge/software-engineering/django/django-production-stack.md
+  - memory/knowledge/software-engineering/django/django-security.md
 ---
 
 # Django 6.0 — What's New

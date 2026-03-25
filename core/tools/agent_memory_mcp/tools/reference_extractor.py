@@ -24,6 +24,7 @@ _SCOPE_ALIAS_MAP = {
     "identity": ("memory/users", "identity"),
     "skills": ("memory/skills", "skills"),
 }
+_EXCLUDED_FILENAMES = frozenset({"NAMES.md", "SUMMARY.md"})
 _URL_PREFIXES = ("http://", "https://", "mailto:", "memory://", "file://", "vscode://")
 _MARKDOWN_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)\n]+)\)")
 _BODY_PATH_RE = re.compile(
@@ -192,6 +193,8 @@ def _iter_governed_markdown_files(root: Path) -> list[str]:
         if not folder_path.is_dir():
             continue
         for md_file in sorted(folder_path.rglob("*.md")):
+            if md_file.name in _EXCLUDED_FILENAMES:
+                continue
             try:
                 files.append(md_file.relative_to(root).as_posix())
             except ValueError:
@@ -202,6 +205,8 @@ def _iter_governed_markdown_files(root: Path) -> list[str]:
         humans_root = root.parent / "HUMANS"
     if humans_root.is_dir():
         for md_file in sorted(humans_root.rglob("*.md")):
+            if md_file.name in _EXCLUDED_FILENAMES:
+                continue
             try:
                 rel_path = md_file.relative_to(humans_root).as_posix()
             except ValueError:
@@ -221,10 +226,14 @@ def _iter_governed_markdown_files_in_scope(root: Path, scope: str = "") -> list[
     if scope_path.is_file():
         if scope_path.suffix.lower() != ".md":
             return []
+        if scope_path.name in _EXCLUDED_FILENAMES:
+            return []
         return [scope_path.relative_to(root).as_posix()]
 
     files: list[str] = []
     for md_file in sorted(scope_path.rglob("*.md")):
+        if md_file.name in _EXCLUDED_FILENAMES:
+            continue
         try:
             files.append(md_file.relative_to(root).as_posix())
         except ValueError:

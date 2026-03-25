@@ -4,6 +4,12 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - memory/knowledge/cognitive-science/concepts/structural-alignment-analogy.md
+  - memory/knowledge/cognitive-science/concepts/conceptual-hygiene-interdisciplinary.md
+  - memory/knowledge/cognitive-science/concepts/prototype-theory-rosch.md
+  - memory/knowledge/cognitive-science/concepts/classical-theory-failures.md
+  - memory/knowledge/cognitive-science/concepts/concepts-synthesis-agent-implications.md
 ---
 
 # Gärdenfors' Conceptual Spaces

@@ -7,6 +7,12 @@ trust: medium
 origin_session: core/memory/activity/2026/03/20/chat-001
 created: 2026-03-20
 last_verified: 2026-03-20
+related:
+  - memory/knowledge/self/_archive/session-2026-03-20.md
+  - memory/knowledge/self/_archive/session-2026-03-20-cowork-review.md
+  - memory/knowledge/self/engram-system-overview.md
+  - memory/knowledge/philosophy/compression-intelligence-ait.md
+  - memory/knowledge/cognitive-science/cognitive-science-synthesis.md
 ---
 
 # Intellectual Threads — Cross-Session Conceptual Synthesis

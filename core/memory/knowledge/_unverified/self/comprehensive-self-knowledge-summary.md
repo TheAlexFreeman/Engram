@@ -3,6 +3,12 @@ created: '2026-03-22'
 origin_session: memory/activity/2026/03/22/chat-001
 source: agent-generated
 trust: low
+related:
+  - memory/knowledge/self/engram-system-overview.md
+  - memory/knowledge/self/engram-governance-model.md
+  - memory/knowledge/cognitive-science/cognitive-science-synthesis.md
+  - memory/knowledge/philosophy/philosophy-synthesis.md
+  - memory/knowledge/self/operational-resilience-and-memetic-security-synthesis.md
 ---
 
 ---

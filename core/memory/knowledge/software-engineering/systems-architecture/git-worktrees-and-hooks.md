@@ -7,6 +7,12 @@ tags: [git, worktrees, orphan-branches, hooks, refs, governance, automation]
 trust: medium
 created: 2026-03-19
 last_verified: 2026-03-19
+related:
+  - memory/knowledge/software-engineering/systems-architecture/git-object-model.md
+  - memory/knowledge/software-engineering/systems-architecture/git-plumbing-and-automation.md
+  - memory/knowledge/software-engineering/systems-architecture/provenance-and-trust-models.md
+  - memory/knowledge/software-engineering/systems-architecture/append-only-logs-and-compaction.md
+  - memory/knowledge/software-engineering/systems-architecture/filesystem-atomicity-and-locking.md
 ---
 
 # Git Worktrees, Orphan Branches, and Hooks

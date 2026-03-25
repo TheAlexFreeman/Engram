@@ -7,6 +7,12 @@ topic: Frontier alignment research — scalable oversight, interpretability-as-a
   debate
 trust: medium
 type: knowledge
+related:
+  - memory/knowledge/ai/frontier/alignment/instruction-following.md
+  - memory/knowledge/ai/frontier/alignment/rlhf-reward-models.md
+  - memory/knowledge/ai/frontier/foundation-model-governance.md
+  - memory/knowledge/literature/sons-of-man-covenant.md
+  - memory/knowledge/ai/frontier-synthesis.md
 ---
 
 # Frontier Alignment Research
@@ -47,7 +53,7 @@ If we can only provide reliable feedback on outputs we can already evaluate, the
 
 ### Recursive Reward Modeling (Leike et al. 2018)
 
-**The idea:** Use AI assistance to evaluate AI outputs, bootstrapping from tasks where humans can verify to tasks where they cannot. 
+**The idea:** Use AI assistance to evaluate AI outputs, bootstrapping from tasks where humans can verify to tasks where they cannot.
 
 Human evaluators assess AI outputs with AI assistance (the AI explains its reasoning, flags its uncertainty, provides simpler sub-evaluations the human can verify). This expanded oversight capacity is used to generate reward signals for training the next model iteration.
 

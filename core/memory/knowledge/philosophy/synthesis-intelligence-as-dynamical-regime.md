@@ -4,9 +4,13 @@ origin_session: core/memory/activity/2026/03/18/chat-001
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
+related:
+  - memory/knowledge/philosophy/self-organized-criticality.md
+  - memory/knowledge/philosophy/free-energy-autopoiesis-cybernetics.md
+  - memory/knowledge/philosophy/emergence-consciousness-iit.md
+  - memory/knowledge/philosophy/compression-intelligence-ait.md
+  - memory/knowledge/self/_archive/intelligence-dynamical-systems-conversation.md
 ---
-
-# Synthesis: Intelligence as a Dynamical Regime
 
 This file draws together the research in this folder into a unified picture.
 The claims here integrate multiple traditions; confidence varies by claim.

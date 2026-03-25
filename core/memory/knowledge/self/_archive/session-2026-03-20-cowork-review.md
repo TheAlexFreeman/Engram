@@ -5,6 +5,12 @@ created: 2026-03-20
 trust: medium
 type: session-reflection
 category: knowledge
+related:
+  - memory/knowledge/self/_archive/session-2026-03-20.md
+  - memory/knowledge/self/_archive/2026-03-20-git-session-followup.md
+  - memory/knowledge/self/_archive/2026-03-21-architecture-audit-and-knowledge-migration.md
+  - memory/knowledge/self/_archive/intelligence-dynamical-systems-conversation.md
+  - memory/knowledge/self/engram-system-overview.md
 ---
 
 # Session Reflection — 2026-03-20 (Cowork Review Session)

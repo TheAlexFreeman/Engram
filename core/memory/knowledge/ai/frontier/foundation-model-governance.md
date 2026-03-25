@@ -3,7 +3,12 @@ created: 2026-03-20
 domain: ai/frontier
 last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/20/chat-001
-related: knowledge/_unverified/philosophy/cs-lewis-abolition-of-man.md
+related:
+  - memory/knowledge/literature/cs-lewis-abolition-of-man.md
+  - memory/knowledge/ai/frontier/alignment/frontier-alignment-research.md
+  - memory/knowledge/literature/sons-of-man-covenant.md
+  - memory/knowledge/ai/frontier-synthesis.md
+  - memory/knowledge/self/engram-governance-model.md
 source: external-research
 tags:
 - governance

@@ -7,6 +7,12 @@ tags: [git, plumbing, porcelain, automation, update-index, commit-tree, update-r
 trust: medium
 created: 2026-03-19
 last_verified: 2026-03-19
+related:
+  - memory/knowledge/software-engineering/systems-architecture/git-worktrees-and-hooks.md
+  - memory/knowledge/software-engineering/systems-architecture/git-object-model.md
+  - memory/knowledge/software-engineering/systems-architecture/content-addressable-storage-and-integrity.md
+  - memory/knowledge/software-engineering/systems-architecture/append-only-logs-and-compaction.md
+  - memory/knowledge/software-engineering/systems-architecture/filesystem-atomicity-and-locking.md
 ---
 
 # Git Plumbing for Automation and Failure Recovery

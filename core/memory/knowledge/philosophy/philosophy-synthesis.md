@@ -5,6 +5,12 @@ source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
 type: synthesis
+related:
+  - memory/knowledge/cognitive-science/cognitive-science-synthesis.md
+  - memory/knowledge/ai/frontier-synthesis.md
+  - memory/knowledge/self/engram-system-overview.md
+  - memory/knowledge/philosophy/llm-vs-human-mind-comparative-analysis.md
+  - memory/knowledge/philosophy/blending-compression-coupling-construal.md
 ---
 
 # Philosophy Synthesis: What the Philosophy Knowledge Base Means for This System

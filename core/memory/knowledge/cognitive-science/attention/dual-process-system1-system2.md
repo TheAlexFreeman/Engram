@@ -4,6 +4,12 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - memory/knowledge/cognitive-science/attention/attention-synthesis-agent-implications.md
+  - memory/knowledge/cognitive-science/attention/attentional-bottleneck-limited-capacity.md
+  - memory/knowledge/cognitive-science/attention/availability-representativeness-anchoring.md
+  - memory/knowledge/cognitive-science/attention/cognitive-load-theory-sweller.md
+  - memory/knowledge/cognitive-science/metacognition/metacognitive-monitoring-control.md
 ---
 
 # Dual-Process Theory: System 1 and System 2 (Kahneman)

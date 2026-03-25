@@ -6,6 +6,12 @@ source: agent-generated
 trust: medium
 origin_session: manual
 created: 2026-03-21
+related:
+  - memory/knowledge/self/_archive/session-2026-03-20.md
+  - memory/knowledge/self/_archive/session-2026-03-20-cowork-review.md
+  - memory/knowledge/self/_archive/2026-03-22-plan-schema-and-activity-logging-design.md
+  - memory/knowledge/self/engram-system-overview.md
+  - memory/knowledge/self/engram-governance-model.md
 ---
 
 # Architecture Audit and Knowledge Base Migration

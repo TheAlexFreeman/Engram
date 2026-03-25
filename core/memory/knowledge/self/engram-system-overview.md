@@ -7,6 +7,12 @@ trust: medium
 origin_session: core/memory/activity/2026/03/20/chat-001
 created: 2026-03-20
 last_verified: 2026-03-20
+related:
+  - memory/knowledge/self/engram-governance-model.md
+  - memory/knowledge/self/protocol-design-considerations.md
+  - memory/knowledge/self/validation-as-adaptive-health.md
+  - memory/knowledge/self/environment-capability-asymmetry.md
+  - memory/knowledge/self/operational-resilience-and-memetic-security-synthesis.md
 ---
 
 # Engram System — Architecture and Design Overview

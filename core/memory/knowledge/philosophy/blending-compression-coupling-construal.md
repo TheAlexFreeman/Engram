@@ -4,6 +4,12 @@ origin_session: core/memory/activity/2026/03/18/chat-001
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
+related:
+  - memory/knowledge/philosophy/narrative-cognition.md
+  - memory/knowledge/philosophy/free-energy-autopoiesis-cybernetics.md
+  - memory/knowledge/philosophy/compression-intelligence-ait.md
+  - memory/knowledge/philosophy/cognitive-linguistics-metaphor-blending.md
+  - memory/knowledge/philosophy/synthesis-intelligence-as-dynamical-regime.md
 ---
 
 # Blending-as-Compression, Structural Coupling, and Subjective Construal

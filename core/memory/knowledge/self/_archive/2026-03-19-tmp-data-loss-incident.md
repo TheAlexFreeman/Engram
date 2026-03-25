@@ -6,6 +6,11 @@ created: 2026-03-19
 trust: low
 tags: [incident, data-loss, tmp, git, session-hygiene, pwr, engram, lessons-learned]
 origin_session: core/memory/activity/2026/03/19/chat-002
+related:
+  - memory/knowledge/self/_archive/2026-03-20-git-session-followup.md
+  - memory/knowledge/self/_archive/session-2026-03-20.md
+  - memory/knowledge/self/_archive/2026-03-21-architecture-audit-and-knowledge-migration.md
+  - memory/knowledge/self/_archive/codex-mcp-timeouts-git-stdin.md
 ---
 
 # Incident Report: /tmp Data Loss — 2026-03-19

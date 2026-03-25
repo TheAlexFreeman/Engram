@@ -4,6 +4,12 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - memory/knowledge/cognitive-science/concepts/conceptual-hygiene-interdisciplinary.md
+  - memory/knowledge/cognitive-science/concepts/gardenfors-conceptual-spaces.md
+  - memory/knowledge/cognitive-science/concepts/conceptual-change-types.md
+  - memory/knowledge/philosophy/cognitive-linguistics-metaphor-blending.md
+  - memory/knowledge/cognitive-science/concepts/classical-theory-failures.md
 ---
 
 # Structural Alignment and Analogy (Gentner's Structure-Mapping Theory)

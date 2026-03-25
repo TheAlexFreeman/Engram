@@ -4,6 +4,12 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - memory/knowledge/cognitive-science/metacognition/metacognition-synthesis-agent-implications.md
+  - memory/knowledge/cognitive-science/metacognition/calibration-overconfidence-hard-easy.md
+  - memory/knowledge/cognitive-science/metacognition/conflict-monitoring-feeling-of-rightness.md
+  - memory/knowledge/cognitive-science/metacognition/dunning-kruger-effect.md
+  - memory/knowledge/cognitive-science/metacognition/feeling-of-knowing-tip-of-tongue.md
 ---
 
 # Calibrated Communication of Uncertainty

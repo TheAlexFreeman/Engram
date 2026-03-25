@@ -400,12 +400,14 @@
     var knowledgeBase = deps.getKnowledgeBase();
 
     for (var f = 0; f < listing.files.length; f++) {
-      if (listing.files[f].endsWith('.md')) {
+      var fname = listing.files[f];
+      if (fname === 'NAMES.md' || fname === 'SUMMARY.md') continue;
+      if (fname.endsWith('.md')) {
         var segments = prefix.split('/').filter(Boolean);
         var kbParts = knowledgeBase.split('/');
         var relSegments = segments.slice(kbParts.length);
         results.push({
-          path: (relSegments.length ? relSegments.join('/') + '/' : '') + listing.files[f],
+          path: (relSegments.length ? relSegments.join('/') + '/' : '') + fname,
           dirSegments: relSegments
         });
       }

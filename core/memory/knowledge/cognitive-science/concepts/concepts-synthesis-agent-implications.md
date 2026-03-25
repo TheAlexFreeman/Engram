@@ -4,6 +4,12 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related:
+  - memory/knowledge/cognitive-science/attention/attention-synthesis-agent-implications.md
+  - memory/knowledge/cognitive-science/metacognition/metacognition-synthesis-agent-implications.md
+  - memory/knowledge/cognitive-science/memory/reconsolidation-agent-design-implications.md
+  - memory/knowledge/cognitive-science/concepts/basic-level-categories-asymmetry.md
+  - memory/knowledge/cognitive-science/concepts/embodied-grounded-cognition-concepts.md
 ---
 
 # Concepts and Categorization: Synthesis and Agent Implications

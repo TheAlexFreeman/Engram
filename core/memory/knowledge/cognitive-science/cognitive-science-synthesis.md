@@ -5,6 +5,12 @@ source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
 type: synthesis
+related:
+  - memory/knowledge/cognitive-science/human-llm-cognitive-complementarity.md
+  - memory/knowledge/philosophy/philosophy-synthesis.md
+  - memory/knowledge/ai/frontier-synthesis.md
+  - memory/knowledge/cognitive-science/attention/attention-synthesis-agent-implications.md
+  - memory/knowledge/cognitive-science/concepts/concepts-synthesis-agent-implications.md
 ---
 
 # Cognitive Science Synthesis: What Memory Science Means for This System

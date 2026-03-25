@@ -9,6 +9,12 @@ origin_session: core/memory/activity/2026/03/20/chat-001
 created: 2026-03-20
 last_verified: 2026-03-20
 confidence: medium
+related:
+  - memory/knowledge/ai/frontier/alignment/frontier-alignment-research.md
+  - memory/knowledge/ai/frontier/foundation-model-governance.md
+  - memory/knowledge/self/engram-governance-model.md
+  - memory/knowledge/self/operational-resilience-and-memetic-security-synthesis.md
+  - memory/knowledge/literature/galatea-2-2-ai-discourse.md
 ---
 
 # The Covenant of the Sons of Man
