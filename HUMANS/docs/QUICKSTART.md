@@ -1,6 +1,12 @@
-# Quickstart
+# Engram Quickstart
 
 A persistent, version-controlled memory system that gives any AI model a durable understanding of who you are, what you know, and how you work. It survives across sessions, models, and platforms.
+
+- If you want the architectural rationale, read [CORE.md](CORE.md).
+- If you want the MCP tool surface explained, read [MCP.md](MCP.md).
+- If you want to attach Engram to an existing codebase, read [WORKTREE.md](WORKTREE.md).
+- If you want third-party tool integrations, read [INTEGRATIONS.md](INTEGRATIONS.md).
+- If something breaks, read [HELP.md](HELP.md).
 
 ---
 
@@ -45,6 +51,7 @@ After setup, additional browser views are available in `HUMANS/views/` (Chrome, 
 - **`projects.html`** — browse projects with questions, plan timelines, and notes.
 - **`skills.html`** — browse the skill library (active and archived) with trust badges and metadata.
 - **`users.html`** — browse user profiles and per-user files with metadata display.
+- **`docs.html`** — browse all human-facing documentation with cross-reference navigation.
 
 ---
 
@@ -196,6 +203,12 @@ The memory system is model-agnostic. To switch:
 3. The CHANGELOG.md should record model transitions as system events.
 
 All accumulated knowledge, skills, and identity information transfers automatically because it's stored in files, not in any model's context.
+
+### Attaching to an existing codebase (worktree mode)
+
+If you want Engram to live inside an existing project repository rather than as a standalone repo, use worktree mode. This deploys the memory store as an orphan-branch worktree, keeping memory commits out of your product history.
+
+See [WORKTREE.md](WORKTREE.md) for the full guide, including CI exemptions, tooling-bleed prevention, and MCP client wiring.
 
 ---
 

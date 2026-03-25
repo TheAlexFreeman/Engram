@@ -434,7 +434,8 @@ Copy the relevant section of a GitHub Actions log and ask the AI to explain it. 
 | [CORE.md](CORE.md) | Architecture rationale and design principles |
 | [DESIGN.md](DESIGN.md) | Product philosophy and future directions |
 | [MCP.md](MCP.md) | MCP server architecture and tool reference |
-| [INTEGRATIONS.md](INTEGRATIONS.md) | Worktree mode, CI exemptions, tooling-bleed prevention |
+| [WORKTREE.md](WORKTREE.md) | Worktree mode, CI exemptions, tooling-bleed prevention |
+| [INTEGRATIONS.md](INTEGRATIONS.md) | Third-party tool integrations |
 | [GLOSSARY.md](GLOSSARY.md) | Definitions of key terms (trust level, maturity stage, etc.) |
 
 ---

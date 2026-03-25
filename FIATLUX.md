@@ -489,20 +489,22 @@ global catastrophe. The self-organizing process is powerful precisely because it
 operates without central control, but this means it is also powerful in ways
 that may not serve the interests of any particular participant.
 
-**Pathological feedback loops within human minds** are the dark mirror of these
-dynamics. Addiction is a self-organizing optimization process in which the
-dopaminergic reward system converges on a narrow behavioral attractor — the
-substance or behavior becomes the dominant relevance signal, crowding out all
-other sources of meaning and satisfaction. The addict's relevance realization
-has not *failed*; it has been *captured* by a process that optimizes for a
-single variable at the expense of the person's broader flourishing. Anxiety
-disorders exhibit a similar capture: the threat-detection system becomes
-hyper-convergent, treating an ever-widening range of stimuli as relevant to
-survival, until the person's entire cognitive landscape is organized around
-avoidance. Obsessive-compulsive patterns, ruminative depression, trauma loops —
-each is a self-organizing process that has become pathologically convergent,
-locked into a pattern that resists disruption precisely because it has
-successfully reorganized the cognitive environment to sustain itself.
+**Sinfulness** is the microcosm of this dynamic within the human soul. Where
+evolution operates on populations and markets on prices, the arena here is a
+single nervous system — and the convergent attractor is not a species or an
+equilibrium but a *behavior*. Addiction is the clearest case: the dopaminergic
+reward system locks onto a narrow signal — the substance, the screen, the
+wager — until that signal becomes the dominant relevance around which the
+entire cognitive landscape reorganizes. The addict's relevance realization has
+not *failed*; it has been *captured* by a process that optimizes for a single
+variable at the expense of every other source of meaning. Anxiety is the same
+capture in a different register: the threat-detection system becomes
+hyper-convergent, interpreting an ever-widening range of stimuli as relevant to
+survival, until avoidance is the only organizing principle left. Ruminative
+depression, obsessive-compulsive loops, trauma re-enactment — each is a
+self-organizing process that has become pathologically convergent, and each
+resists disruption for the same reason the other examples in this section do:
+it has already reorganized its environment to sustain itself.
 
 The lesson for Engram is twofold. First, self-organizing dynamics are genuinely
 powerful — they can produce emergent order, adaptive behavior, and creative

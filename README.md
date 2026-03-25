@@ -2,11 +2,15 @@
 
 ## A Semantics-First Collaborative Framework for Cognitive Context Management
 
-Engram is a model-portable, human-legible, version-controlled, adaptively self-organizing memory layer for AI agents. It's more than a memory store — it's an ecology of protocols designed to learn from its own usage patterns in a transparent and robust way.
+Engram is a model-portable, human-legible, version-controlled, adaptively self-organizing memory layer for AI agents. It is more than a memory store — it is an ecology of protocols designed to learn from its own usage patterns in a transparent and robust way.
 
-**Setting up for the first time?** → See [HUMANS/docs/QUICKSTART.md](HUMANS/docs/QUICKSTART.md)
-**Need the fundamentals first?** → See [HUMANS/docs/CORE.md](HUMANS/docs/CORE.md)
-**Exploring the design deeply?** → See [HUMANS/docs/DESIGN.md](HUMANS/docs/DESIGN.md)
+**Setting up for the first time?** → [HUMANS/docs/QUICKSTART.md](HUMANS/docs/QUICKSTART.md)
+**Need the fundamentals first?** → [HUMANS/docs/CORE.md](HUMANS/docs/CORE.md)
+**Exploring the design deeply?** → [HUMANS/docs/DESIGN.md](HUMANS/docs/DESIGN.md)
+**MCP tool surface?** → [HUMANS/docs/MCP.md](HUMANS/docs/MCP.md)
+**Worktree deployment?** → [HUMANS/docs/WORKTREE.md](HUMANS/docs/WORKTREE.md)
+**Third-party integrations?** → [HUMANS/docs/INTEGRATIONS.md](HUMANS/docs/INTEGRATIONS.md)
+**Troubleshooting?** → [HUMANS/docs/HELP.md](HUMANS/docs/HELP.md)
 
 ---
 
@@ -34,44 +38,6 @@ When reviewing or modifying the memory system itself — governance rules, routi
 
 Agents proposing or evaluating system-level changes should explain the impact on all three dimensions and call out explicit tradeoffs when one improves at another's expense.
 
-## Contributor tooling
-
-For a consistent cross-platform editing and validation loop, this repo standardizes on Ruff for Python formatting and linting and includes a repo-local pre-commit configuration.
-
-Recommended setup:
-
-```bash
-python -m pip install -e ".[dev]"
-pre-commit install
-```
-
-Available hooks:
-
-- `ruff check` for Python linting
-- `ruff format --check` for Python formatting enforcement
-- `validate_memory_repo.py` for memory-structure and frontmatter validation
-
-Branch workflow:
-
-- Run `pre-commit run --all-files` before pushing a branch or opening a pull request.
-- Treat `python -m pre_commit run --all-files` as the local equivalent of the main CI quality gate.
-
-To validate the full repo on demand before committing:
-
-```bash
-pre-commit run --all-files
-```
-
-## How to orient yourself
-
-1. **Start here for the architecture and current startup contract.** This file explains how the system is organized and where live routing authority lives.
-2. **Continue to `core/INIT.md`** for live routing, active thresholds, and session-type decisions.
-3. **Use `core/memory/HOME.md` as the session entry point.** It contains the context loading order for returning sessions and the current top-of-mind items.
-4. **Load summaries before full files.** Use `SUMMARY.md` files to decide what to retrieve. Do not load everything into context.
-5. **Log your access** using the ACCESS.jsonl format described below when the accessed folder participates in the ACCESS lifecycle.
-
-> **This README is the default architectural starting point.** `core/INIT.md` is the live router and threshold surface once you continue past this file.
-
 ## Agent routing
 
 Use `core/INIT.md` as the operational router after this architectural entry pass:
@@ -83,104 +49,174 @@ Use `core/INIT.md` as the operational router after this architectural entry pass
 
 For the complete mapping of which files to load per session type, see `core/INIT.md` § "Context loading manifest". For detailed runbooks, see `core/governance/session-checklists.md`.
 
+### Session types
+
+| Session type | When it applies | Token budget |
+|---|---|---|
+| **First run** | No session history, template markers present | ~15,000–20,000 |
+| **Compact returning** | Normal returning session | ~3,000–7,000 |
+| **Full bootstrap** | Periodic deep review needed | ~18,000–25,000 |
+| **Periodic review** | Governance or curation audit cycle | ~18,000–25,000 |
+| **Automation** | Tool-driven, non-interactive | ~3,000–7,000 |
+| **ACCESS aggregation** | Triggered by entry count thresholds | On-demand |
+| **Stage transition** | Maturity stage change | On-demand |
+
+For models with smaller context windows, prefer the compact returning manifest after the first session. As a guideline, bootstrap files should consume no more than ~15% of the model's effective context window. The compact startup path is intentionally whole-file and metadata-first: startup-loaded summaries carry live state and drill-down pointers, while archives and detailed narratives live in deeper files.
+
+### Bootstrap configuration
+
+`agent-bootstrap.toml` is the machine-readable bootstrap configuration. It specifies:
+
+- The canonical router (`core/INIT.md`) and ultimate authority (`FIATLUX.md`)
+- Mode detection rules for each session type with skip conditions
+- Step-by-step loading sequences with per-step token cost estimates
+- Maintenance probes (review-queue placeholder check, ACCESS.jsonl line counting)
+- Worktree mode support via optional `host_repo_root`
+
+Platform adapter files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) all point to this README and `core/INIT.md` as the canonical sources. They exist so that different AI platforms can find the entry point using their native conventions.
+
 ## Repository structure
 
 ```
 /
-├── README.md              ← You are here. System architecture and protocols.
-├── FIATLUX.md             ← Philosophical and theological foundation. Ultimate authority
-│                             for the system's deepest commitments. Do not load in normal
-│                             sessions — consult only when a decision touches the system's
-│                             foundational principles and no operational document resolves it.
-├── CHANGELOG.md           ← Record of how this system has evolved and why.
-├── agent-bootstrap.toml   ← Bootstrap configuration for agent startup routing.
-├── AGENTS.md              ← Platform adapter. Points to core/INIT.md.
-├── CLAUDE.md              ← Platform adapter. Points to core/INIT.md.
-├── .cursorrules           ← Cursor platform adapter. Points to core/INIT.md.
-├── setup.sh               ← Repo-root compatibility wrapper for HUMANS/setup/setup.sh.
-├── setup.html             ← Repo-root compatibility wrapper for HUMANS/views/setup.html.
+├── README.md                ← You are here. System architecture and protocols.
+├── FIATLUX.md               ← Philosophical and theological foundation. Ultimate authority.
+│                               Consult only when operational documents cannot resolve a question.
+├── CHANGELOG.md             ← Record of how this system has evolved and why.
+├── agent-bootstrap.toml     ← Machine-readable bootstrap configuration.
+├── pyproject.toml           ← Python package definition (agent-memory-mcp, Python ≥3.10).
 │
-├── core/                  ← Memory content root. All managed content lives here.
-│   ├── INIT.md            ← Live operational router, thresholds, context loading manifest.
+├── AGENTS.md                ← Platform adapter → core/INIT.md.
+├── CLAUDE.md                ← Platform adapter → core/INIT.md.
+├── .cursorrules             ← Platform adapter → core/INIT.md.
+├── setup.sh                 ← Compatibility wrapper → HUMANS/setup/setup.sh.
+├── setup.html               ← Compatibility wrapper → HUMANS/views/setup.html.
+│
+├── core/                    ← Memory content root. All managed content lives here.
+│   ├── INIT.md              ← Live operational router, thresholds, context loading manifest.
 │   │
-│   ├── governance/        ← How this system updates itself.
-│   │   ├── curation-policy.md    ← Rules for memory hygiene, decay, and promotion.
-│   │   ├── content-boundaries.md  ← Trust-weighted retrieval and instruction containment.
-│   │   ├── security-signals.md    ← Temporal decay, anomaly detection, drift, governance feedback.
-│   │   ├── curation-algorithms.md ← Task similarity and cluster detection (on-demand).
-│   │   ├── update-guidelines.md  ← Protocols for proposing and merging changes.
-│   │   ├── review-queue.md       ← Pending suggestions for system modifications.
-│   │   ├── belief-diff-log.md    ← Periodic audit log tracking content drift.
-│   │   ├── system-maturity.md    ← Developmental stage tracking and adaptive thresholds.
-│   │   ├── maturity-roadmap.md   ← Forward-looking governance improvements and phase roadmap.
-│   │   ├── first-run.md          ← Streamlined first-session flow for agents.
-│   │   ├── session-checklists.md ← Session runbooks + periodic integrity audit.
-│   │   ├── scratchpad-guidelines.md ← On-demand governance for scratchpad use.
-│   │   ├── (task-groups.md       ← Created at Calibration stage.)
-│   │   └── (task-categories.md   ← Created at Consolidation stage.)
+│   ├── governance/          ← How this system updates itself.
+│   │   ├── curation-policy.md       ← Memory hygiene, decay, promotion, conflict resolution.
+│   │   ├── content-boundaries.md    ← Trust-weighted retrieval and instruction containment.
+│   │   ├── security-signals.md      ← Temporal decay, anomaly detection, drift, governance feedback.
+│   │   ├── curation-algorithms.md   ← Task similarity and cluster detection (on-demand).
+│   │   ├── update-guidelines.md     ← Provenance metadata, change-control tiers, frontmatter schema.
+│   │   ├── review-queue.md          ← Pending suggestions for system modifications.
+│   │   ├── belief-diff-log.md       ← Periodic audit log tracking content drift.
+│   │   ├── system-maturity.md       ← Developmental stage tracking and adaptive thresholds.
+│   │   ├── maturity-roadmap.md      ← Forward-looking governance improvements and phase roadmap.
+│   │   ├── first-run.md             ← Streamlined first-session flow for agents.
+│   │   ├── session-checklists.md    ← Session runbooks and periodic integrity audit.
+│   │   └── scratchpad-guidelines.md ← On-demand governance for scratchpad use.
 │   │
-│   ├── tools/             ← MCP server implementation (not loaded by agents).
+│   ├── tools/               ← MCP server implementation (not loaded by agents).
+│   │   └── agent_memory_mcp/
+│   │       ├── server.py            ← MCP server registration.
+│   │       ├── server_main.py       ← CLI entry point (engram-mcp).
+│   │       ├── core/                ← Portable format layer (frontmatter, git, models, path policy).
+│   │       └── tools/               ← Tool registration (read, write, analysis, semantic).
 │   │
-│   └── memory/            ← All retrievable memory content.
-│       ├── HOME.md        ← Session entry point: context loading order and top-of-mind.
-│       ├── users/         ← Who the user is. Personality, preferences, values.
-│       │   ├── SUMMARY.md ← Start here. High-level portrait of the user.
-│       │   ├── ACCESS.jsonl ← Access-tracking log.
-│       │   └── (files added as traits and preferences emerge)
+│   └── memory/              ← All retrievable memory content.
+│       ├── HOME.md           ← Session entry point: context loading order and top-of-mind.
 │       │
-│       ├── knowledge/     ← What the user knows or cares about.
-│       │   ├── SUMMARY.md ← Index of knowledge areas and their relevance.
-│       │   ├── ACCESS.jsonl ← Access-tracking log.
-│       │   ├── _unverified/ ← Quarantine zone for externally sourced content.
-│       │   └── (topic folders/files added as knowledge accumulates)
+│       ├── users/            ← Who the user is. Personality, preferences, values.
+│       │   ├── SUMMARY.md
+│       │   └── ACCESS.jsonl
 │       │
-│       ├── skills/        ← How the agent should perform specific tasks.
-│       │   ├── SUMMARY.md ← Index of available skills and when to use them.
-│       │   ├── ACCESS.jsonl ← Access-tracking log.
+│       ├── knowledge/        ← What the user knows or cares about.
+│       │   ├── SUMMARY.md
+│       │   ├── ACCESS.jsonl
+│       │   ├── _unverified/  ← Quarantine zone for externally sourced content.
+│       │   └── (topic folders added as knowledge accumulates)
+│       │
+│       ├── skills/           ← How the agent should perform specific tasks.
+│       │   ├── SUMMARY.md
+│       │   ├── ACCESS.jsonl
 │       │   └── (skill definitions added as workflows are refined)
 │       │
-│       ├── activity/      ← Episodic memory. Record of past interactions.
-│       │   ├── SUMMARY.md ← High-level summary of the entire session history.
-│       │   ├── ACCESS.jsonl ← Access-tracking log.
-│       │   └── YYYY/MM/DD/ ← Date-organized session archives.
-│       │       ├── SUMMARY.md
-│       │       └── chat-NNN/
-│       │           ├── transcript.md
-│       │           ├── SUMMARY.md
-│       │           └── artifacts/
+│       ├── activity/         ← Episodic memory. Record of past interactions.
+│       │   ├── SUMMARY.md
+│       │   ├── ACCESS.jsonl
+│       │   └── YYYY/MM/DD/chat-NNN/ (date-organized session archives)
 │       │
-│       └── working/       ← Active work contexts and staging.
-│           ├── projects/  ← Project-level orientation and durable work contexts.
-│           │   ├── SUMMARY.md ← Primary orientation surface for returning sessions.
-│           │   ├── ACCESS.jsonl ← Access-tracking log.
-│           │   └── project-id/ ← Project-specific summaries, notes, plans.
-│           │       └── plans/ ← Multi-session roadmaps for this project.
-│           │
-│           └── scratchpad/ ← Sub-governance staging area.
-│               ├── USER.md ← User-authored context for the agent.
-│               ├── CURRENT.md ← Agent working notes.
-│               └── (dated working files and _archive/)
+│       └── working/          ← Active work contexts and staging.
+│           ├── USER.md       ← User-authored context for the agent.
+│           ├── CURRENT.md    ← Agent working notes for the active session.
+│           ├── notes/        ← Working notes.
+│           └── projects/     ← Project-level orientation, summaries, and plans.
 │
-├── HUMANS/                ← Human-facing content. Never loaded by agents.
-│   ├── docs/              ← Documentation.
-│   │   ├── QUICKSTART.md  ← Setup guide. Start here if you're a person.
-│   │   ├── CORE.md        ← Core design decisions, architecture, and guiding philosophy.
-│   │   ├── DESIGN.md      ← Design philosophy, use cases, and future directions.
-│   │   ├── MCP.md         ← Human guide to the MCP architecture and tool surface.
-│   │   └── GLOSSARY.md    ← Definitions of system terminology.
-│   ├── setup/             ← Canonical setup implementation.
-│   │   ├── setup.sh       ← Post-clone setup script implementation.
-│   │   ├── init-worktree.sh ← Memory-as-worktree initializer.
-│   │   └── templates/     ← Starter user and knowledge templates.
-│   ├── views/             ← Browser-based UI files.
-│   │   ├── setup.html     ← Browser-based starter-file generator.
-│   │   └── dashboard.html ← Read-only memory dashboard.
-│   └── tooling/           ← Maintenance tooling and tests.
-│       ├── mcp-config-example.json ← Example MCP configuration.
-│       ├── onboard-export-template.md ← Structured format for onboarding exports.
-│       ├── scripts/       ← Validator, export tooling.
-│       └── tests/         ← Test suite.
+├── HUMANS/                  ← Human-facing content. Never loaded by agents.
+│   ├── docs/                ← Documentation for humans.
+│   │   ├── QUICKSTART.md    ← Getting started. Start here if you are a person.
+│   │   ├── CORE.md          ← Core design decisions (12 decisions, architectural rationale).
+│   │   ├── DESIGN.md        ← Design philosophy, use cases, and future directions.
+│   │   ├── MCP.md           ← MCP architecture guide (51+ tools, 4 resources, 4 prompts).
+│   │   ├── WORKTREE.md      ← Worktree deployment, CI exemptions, MCP client wiring.
+│   │   ├── INTEGRATIONS.md  ← Third-party tool integrations.
+│   │   ├── HELP.md          ← Troubleshooting and debugging guide.
+│   │   └── GLOSSARY.md      ← Definitions of system terminology (~45 terms, 6 sections).
+│   ├── setup/               ← Canonical setup implementation.
+│   │   ├── setup.sh         ← Post-clone setup (7 starter profiles, 5 platforms).
+│   │   ├── init-worktree.sh ← Memory-as-worktree initializer for existing codebases.
+│   │   └── templates/       ← Starter user and knowledge templates.
+│   ├── views/               ← Browser-based UI (7 standalone HTML pages).
+│   │   ├── dashboard.html   ← Read-only memory dashboard.
+│   │   ├── knowledge.html   ← Knowledge tree explorer.
+│   │   ├── projects.html    ← Project viewer.
+│   │   ├── skills.html      ← Skills browser.
+│   │   ├── users.html       ← User profile browser.
+│   │   ├── docs.html        ← Documentation viewer.
+│   │   └── setup.html       ← Browser-based setup wizard.
+│   └── tooling/             ← Maintenance tooling and tests.
+│       ├── mcp-config-example.json
+│       ├── agent-memory-capabilities.toml
+│       ├── onboard-export-template.md
+│       ├── scripts/         ← Validator, export tooling.
+│       └── tests/           ← Test suite (Python and JavaScript).
 ```
+
+## MCP server
+
+The memory system exposes an MCP (Model Context Protocol) server that provides governed tool access to the memory store. The server is the preferred interface for agent interactions — it enforces path policies, preview/commit workflows, provenance metadata, and trust boundaries that direct file access would bypass.
+
+### Installation
+
+```bash
+python -m pip install -e ".[server]"
+```
+
+### Running
+
+```bash
+engram-mcp                    # installed CLI entry point
+# or
+python -m engram_mcp.agent_memory_mcp.server_main
+```
+
+### Tool surface
+
+The MCP server registers 51+ tools organized into three tiers:
+
+| Tier | Access | Purpose |
+|---|---|---|
+| **Tier 0** | Read-only | Capability introspection, file inspection, analysis, health monitoring |
+| **Tier 1** | Semantic write | Plans, knowledge lifecycle, sessions, skills, identity, governance |
+| **Tier 2** | Raw fallback | Direct file operations, gated behind `MEMORY_ENABLE_RAW_WRITE_TOOLS` |
+
+The server also exposes 4 MCP resources (`memory://` URIs for capability summaries, policy state, session health, and active plans) and 4 MCP prompts (workflow scaffolds for session start, periodic review, knowledge promotion, and plan creation).
+
+Three tool profiles control which tools are available: `full` (all tiers), `guided_write` (Tier 0 + Tier 1), and `read_only` (Tier 0 only).
+
+For the complete tool inventory and architecture details, see [HUMANS/docs/MCP.md](HUMANS/docs/MCP.md).
+
+### Environment variables
+
+| Variable | Purpose |
+|---|---|
+| `MEMORY_REPO_ROOT` | Path to the memory repository root |
+| `HOST_REPO_ROOT` | Path to the host repository root (worktree mode only) |
+| `MEMORY_ENABLE_RAW_WRITE_TOOLS` | Enable Tier 2 raw fallback tools (default: disabled) |
+| `MEMORY_TOOL_PROFILE` | Tool profile: `full`, `guided_write`, or `read_only` |
 
 ## Memory curation
 
@@ -217,13 +253,13 @@ When tooling applies a `min_helpfulness` threshold, low-signal entries may be ro
 
 `helpfulness` is the agent's judgment of whether a retrieval was useful to producing the session's responses, on a 0.0–1.0 scale:
 
-| Range   | Meaning                                                                          | Example                                                |
-| ------- | -------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| 0.0–0.1 | **Wrong context.** Irrelevant or retrieved in error.                             | Retrieved "React patterns" for a React Native query    |
-| 0.2–0.4 | **Near-miss.** Right neighborhood but not incorporated.                          | Opened a related file but used a different one instead |
-| 0.5–0.6 | **Useful context.** Directly relevant, informed the response but wasn't central. | Provided background that shaped framing                |
-| 0.7–0.8 | **Highly relevant.** Shaped a key decision or was directly used.                 | File content was quoted or directly applied            |
-| 0.9–1.0 | **Critical.** Response would be significantly worse without this file.           | Core reference that the answer depended on             |
+| Range | Meaning | Example |
+|---|---|---|
+| 0.0–0.1 | **Wrong context.** Irrelevant or retrieved in error. | Retrieved "React patterns" for a React Native query |
+| 0.2–0.4 | **Near-miss.** Right neighborhood but not incorporated. | Opened a related file but used a different one instead |
+| 0.5–0.6 | **Useful context.** Directly relevant, informed the response but wasn't central. | Provided background that shaped framing |
+| 0.7–0.8 | **Highly relevant.** Shaped a key decision or was directly used. | File content was quoted or directly applied |
+| 0.9–1.0 | **Critical.** Response would be significantly worse without this file. | Core reference that the answer depended on |
 
 Score what actually happened, not what should have happened. A high-quality file that wasn't needed for this particular task is a 0.2, not a 0.7. `note` should be one sentence explaining relevance or lack thereof. **Do not fabricate access notes.** Log every content file you actually opened, including misses.
 
@@ -251,7 +287,27 @@ Entries are counted since the last aggregation. Do not count `ACCESS_SCANS.jsonl
 
 ### How to propose changes
 
-Changes follow a three-tier model. **Automatic** changes (ACCESS logs, chat transcripts, routine progress updates) need no approval. **Proposed** changes (new knowledge files, user profile updates, plan creation) require user awareness. **Protected** changes (`core/memory/skills/`, `core/governance/`, `README.md`) require explicit approval + CHANGELOG entry. Externally sourced content must always be written to `core/memory/knowledge/_unverified/` — never directly to `core/memory/knowledge/`. For the full change-control specification, see `core/governance/update-guidelines.md`.
+Changes follow a three-tier model based on provenance metadata. Each content file carries YAML frontmatter specifying `source`, `trust`, `origin_session`, and `created`.
+
+| Change class | Scope | Approval needed |
+|---|---|---|
+| **Automatic** | ACCESS logs, chat transcripts, routine progress updates | None |
+| **Proposed** | New knowledge files, user profile updates, plan creation | User awareness |
+| **Protected** | `core/memory/skills/`, `core/governance/`, `README.md` | Explicit approval + CHANGELOG entry |
+
+Externally sourced content must always be written to `core/memory/knowledge/_unverified/` — never directly to `core/memory/knowledge/`. Promotion from `_unverified/` requires user review.
+
+Trust levels assigned by source:
+
+| Source | Initial trust | Promotion path |
+|---|---|---|
+| `user-stated` | high | Already at highest |
+| `agent-inferred` | medium | → high (user confirms) |
+| `agent-generated` | medium | → high (user endorses) |
+| `external-research` | low | → medium (user review) → high (confirms accuracy) |
+| `template` | medium | → high (onboarding confirmation) |
+
+For the full change-control specification, see `core/governance/update-guidelines.md`.
 
 ### Conflict resolution
 
@@ -262,26 +318,6 @@ When new information contradicts existing memory: prefer explicit user statement
 Summaries exist at every level of the folder hierarchy and follow **progressive compression**: leaf-level summaries (individual chats) are moderately detailed; mid-level summaries (monthly) compress to major themes; top-level summaries (yearly, folder-level) are abstract. When writing summaries, ask: "If an agent six months from now reads only this summary, what do they need to know to serve this user well?"
 
 The summary hierarchy compresses along the temporal dimension. Knowledge also compresses along the conceptual dimension through **emergent abstractions** — meta-knowledge files that capture cross-domain patterns the agent notices. These are proposed to the user (not created silently), tagged `source: agent-inferred` and `trust: medium`, and reference the concrete files they abstract from. See `core/governance/curation-policy.md` for the full lifecycle including session reflection, knowledge amplification, and curation cadence.
-
-## Bootstrap sequence
-
-> **Returning sessions:** Skip this section and use the compact returning manifest in `core/INIT.md` → `core/memory/HOME.md`.
-
-**First run:** If `core/INIT.md` routes you to a blank or template-backed repo, follow `core/governance/first-run.md` — a streamlined flow that handles silent setup and interactive onboarding.
-
-**Full bootstrap on a returning system:** Load the files listed in the Full bootstrap manifest in `core/INIT.md` § "Context loading manifest". This adds `CHANGELOG.md` and governance docs (`curation-policy.md`, `update-guidelines.md`) to the compact returning set.
-
-### Context budget
-
-The canonical token-budget guidance lives in `core/INIT.md`, but the planning ranges are repeated here for alignment:
-
-| Session mode                     | Typical token cost |
-| -------------------------------- | ------------------ |
-| First-run onboarding bootstrap   | ~15,000–20,000     |
-| Returning compact session        | ~3,000–7,000       |
-| Full bootstrap / periodic review | ~18,000–25,000     |
-
-For models with smaller context windows, prefer the compact returning manifest after the first session. As a guideline, bootstrap files should consume no more than ~15% of the model's effective context window. The compact startup path is intentionally whole-file and metadata-first: startup-loaded summaries carry live state and drill-down pointers, while archives and detailed narratives live in deeper files.
 
 ## Security model
 
@@ -306,5 +342,38 @@ If the user themselves is socially engineered into approving a malicious memory 
 ### Repository integrity
 
 For maximum protection, the repository should use GPG-signed commits (`git commit -S`), branch protection on main, and signature verification during review. The memory system itself cannot enforce git configuration, but the agent should flag unsigned commits on protected files during periodic review. See `core/governance/update-guidelines.md` § "Commit integrity".
+
+## Contributor tooling
+
+For a consistent cross-platform editing and validation loop, this repo standardizes on Ruff for Python formatting and linting and includes a repo-local pre-commit configuration.
+
+Recommended setup:
+
+```bash
+python -m pip install -e ".[dev]"
+pre-commit install
+```
+
+Available hooks:
+
+- `ruff check` for Python linting
+- `ruff format --check` for Python formatting enforcement
+- `validate_memory_repo.py` for memory-structure and frontmatter validation
+
+Run the full quality gate locally before pushing:
+
+```bash
+pre-commit run --all-files
+```
+
+## How to orient yourself
+
+1. **Start here for the architecture.** This file explains how the system is organized and where live routing authority lives.
+2. **Continue to `core/INIT.md`** for live routing, active thresholds, and session-type decisions.
+3. **Use `core/memory/HOME.md` as the session entry point.** It contains the context loading order for returning sessions and the current top-of-mind items.
+4. **Load summaries before full files.** Use `SUMMARY.md` files to decide what to retrieve. Do not load everything into context.
+5. **Log your access** using the ACCESS.jsonl format described above when the accessed folder participates in the ACCESS lifecycle.
+
+> **This README is the default architectural starting point.** `core/INIT.md` is the live router and threshold surface once you continue past this file.
 
 Welcome. You have memory now. Use it well.

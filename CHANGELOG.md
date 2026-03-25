@@ -18,6 +18,69 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-24] Split INTEGRATIONS.md into WORKTREE.md + INTEGRATIONS.md
+
+**Changed:** Split `HUMANS/docs/INTEGRATIONS.md` into two focused documents:
+- **WORKTREE.md** (new): Contains all worktree-mode content — integration modes (standalone, worktree, embedded MCP), quick start, CI/CD exemptions (GitHub Actions, GitLab CI, Bitbucket Pipelines), branch protection, tooling-bleed prevention (ESLint, Prettier, Ruff, TypeScript, VS Code, JetBrains, ripgrep), MCP client wiring, operational guidance, and the minimal checklist.
+- **INTEGRATIONS.md** (rewritten): Now focused exclusively on third-party tool integrations — vector search, knowledge graphs, observability, orchestration, multi-agent frameworks, RAG frameworks, developer tools, recommended starting points, and the general wiring pattern.
+
+Updated cross-references in 6 files: README.md (header links + structure tree), QUICKSTART.md (2 references split to WORKTREE.md + new INTEGRATIONS.md link), MCP.md (2 references updated), CORE.md (split into WORKTREE.md + INTEGRATIONS.md links), HELP.md (split into two table rows), docs.html (added WORKTREE.md entry with tree icon).
+
+**Reasoning:** INTEGRATIONS.md was doing double duty — half worktree deployment operations, half third-party ecosystem tools. These serve different audiences at different times: someone deploying a worktree reads the CI/tooling sections once during setup, while someone evaluating complementary tools reads the integration sketches during planning. Splitting them makes both documents easier to navigate and avoids burying the third-party content below 250 lines of CI YAML.
+
+**Approved by:** agent (pending review)
+
+## [2026-03-24] README.md rewrite
+
+**Changed:** Rewrote `README.md` to align with the current system state and the recently rewritten documentation suite. Key changes:
+- Added links to MCP.md and HELP.md in the human-facing quick-reference header (previously only linked QUICKSTART, CORE, DESIGN).
+- Added a **Session types** table listing all 7 session types with token budgets, replacing the inline budget table that was buried in "Bootstrap sequence".
+- Added a **Bootstrap configuration** section explaining `agent-bootstrap.toml` and platform adapter files.
+- Added a full **MCP server** section with installation, running, tool surface overview (51+ tools, 3 tiers, 4 resources, 4 prompts, 3 profiles), and environment variables. Previously the MCP server was only mentioned in passing.
+- Expanded **How to propose changes** with the provenance trust-level table (source → initial trust → promotion path) that was previously only in `update-guidelines.md`.
+- Updated the **Repository structure** tree: added `pyproject.toml`, replaced vague `tools/` entry with `agent_memory_mcp/` substructure, added all 7 browser views, added `INTEGRATIONS.md` and `HELP.md` to docs listing, added `agent-memory-capabilities.toml` to tooling, updated `working/` to reflect actual structure (USER.md and CURRENT.md at working root, not inside scratchpad).
+- Removed the redundant "Bootstrap sequence" section (content absorbed into "Agent routing" and "Session types").
+- Moved "Contributor tooling" and "How to orient yourself" to the end of the file (after the protocol sections agents need) to improve progressive disclosure.
+- General consistency pass: governance file descriptions updated, annotation style aligned with CORE.md conventions.
+
+**Reasoning:** The README is both the agent's architectural entry point and the repository's public-facing landing page. It needed to reflect the MCP server (completely absent before), the full session type enumeration, the provenance model, and the updated doc suite. The previous version predated the MCP.md and INTEGRATIONS.md rewrites and was missing several files from the structure tree.
+
+**Approved by:** agent (pending review)
+
+## [2026-03-24] Third-party integration guide added to INTEGRATIONS.md
+
+**Changed:** Added a new "Third-party integrations" section to `HUMANS/docs/INTEGRATIONS.md` covering ecosystem tools that complement Engram. Nine subsections: semantic retrieval / vector search (LanceDB, ChromaDB, Qdrant, Turbopuffer + embedding model notes), knowledge graphs (Neo4j, FalkorDB, GraphRAG), observability and evaluation (LangFuse, LangSmith, W&B Weave), agent orchestration and scheduling (Temporal, Inngest, n8n, Activepieces), multi-agent frameworks (CrewAI, LangGraph, AutoGen), RAG and memory-augmented frameworks (LlamaIndex, Letta/MemGPT, Cognee), developer workflow tools (Aider, Raycast), recommended starting points (LanceDB+Ollama, LangFuse, Temporal, GraphRAG), and a general wiring pattern (sync layer, query layer, governance boundary).
+
+**Reasoning:** The integrations guide previously covered only worktree deployment and tooling-bleed prevention. Users evaluating Engram alongside other AI infrastructure had no guidance on how external tools could complement the system or where the integration seams are. The new section provides concrete tool-by-tool sketches while reinforcing the governance boundary principle — external systems are read-only consumers or write back through MCP, never via direct file mutation.
+
+**Approved by:** agent (pending review)
+
+## [2026-03-25] Rewrite of MCP.md, QUICKSTART.md, and INTEGRATIONS.md
+
+**Changed:** Updated three more human-facing documentation files under `HUMANS/docs/`:
+- **MCP.md:** Complete rewrite. Renamed to "Engram MCP Architecture Guide". Replaced the confusing "Available MCP resources" table (which listed implementation files) with a clean "Implementation files" table. Expanded the tool inventory from an incomplete flat list (~23 Tier 0 + ~20 Tier 1) to the complete surface with one-line descriptions in tables: 32+ Tier 0 read-only tools (organized into capability introspection, file inspection, analysis, and health/governance groups), 27+ Tier 1 semantic tools (organized into plans, knowledge lifecycle, session/activity, scratchpad/skills/identity, and governance), and 7 Tier 2 raw fallback tools. Added new sections: MCP resources (4 `memory://` URIs), MCP prompts (4 workflow scaffolds), and tool profiles (`full`, `guided_write`, `read_only`). Updated the manifest section with error taxonomy and resource/prompt metadata. Consolidated the "philosophy" subsections into a tighter format. Added cross-references to HELP.md and INTEGRATIONS.md.
+- **QUICKSTART.md:** Renamed to "Engram Quickstart". Added cross-reference header linking to CORE.md, MCP.md, INTEGRATIONS.md, and HELP.md. Added `docs.html` to the browser views list. Added "Attaching to an existing codebase" section pointing to INTEGRATIONS.md for worktree mode.
+- **INTEGRATIONS.md:** Added cross-reference header linking to QUICKSTART.md, MCP.md, and HELP.md. Added closing reference to MCP.md at the end of the checklist.
+
+All cross-references validated: 50+ links across the doc suite, fully connected navigation web, docs.html compatibility confirmed, no stale terminology.
+
+**Reasoning:** MCP.md was substantially outdated — it listed ~43 tools when the server actually exposes 51+, lacked the MCP resources and prompts sections entirely, and its "Available MCP resources" section confusingly listed Python files instead of actual MCP protocol resources. QUICKSTART.md and INTEGRATIONS.md were largely current but lacked cross-references to the rest of the documentation suite, creating navigation dead ends.
+
+**Approved by:** agent (pending review)
+
+## [2026-03-25] Ground-up rewrite of CORE.md, DESIGN.md, and GLOSSARY.md
+
+**Changed:** Rewrote all three human-facing documentation files under `HUMANS/docs/` to reflect the current state of the system:
+- **GLOSSARY.md:** Replaced flat 20-term alphabetical list with a 6-section, ~45-term organized glossary. New sections: Architecture & Structure, Memory Lifecycle, Working Memory, Governance & Security, MCP Tool Surface. Added terms for format/runtime layer, platform adapter, agent-bootstrap.toml, browser views, scratchpad, plans, governed preview, version token, staged transaction, tool tiers, identity churn tracking, and more.
+- **CORE.md:** Expanded from 8 design decisions to 12. Added decisions for MCP governed tool access (73 tools, 3 tiers), browser views (File System Access API, 7 pages), plans as first-class objects, and scratchpads bridging sessions. Updated existing decisions to reference HOME.md, agent-bootstrap.toml, session modes, token budgets, three-tier change model, and governed preview workflows. Updated "When to read which document" to include HELP.md, MCP.md, INTEGRATIONS.md.
+- **DESIGN.md:** Renamed from "Agent Memory Seed" to "Engram". Updated Principles 2 (platform adapters) and 3 (progressive disclosure with browser wizard and collaborative onboarding). Added new subsections: "The governed-write model" (preview/commit, version tokens, change classes) and "Plans as durable work contexts." Added browser dashboard to use cases. Restructured Part III into "Recently Realized" (CI validation, expanded profiles, browser views, MCP health, collaborative onboarding, knowledge graph, git hooks) plus remaining future directions. Rewrote Part IV MCP section from a 5-function sketch to the actual 73-tool, three-tier surface.
+
+All cross-references validated: 18 links across the three files, all resolving correctly. docs.html viewer compatibility confirmed (filename-based, content-agnostic). No stale "Agent Memory Seed" terminology remaining.
+
+**Reasoning:** The three docs were written when the system was a template-stage seed project. They predated the MCP server (73 tools), browser views (7 pages), plan system, collaborative onboarding, governed-write model, and agent-bootstrap.toml. Users reading these files were getting a picture of a system that no longer existed. The rewrite brings them into alignment with the actual system architecture.
+
+**Approved by:** agent (pending review)
+
 ## [2026-03-24] Markdown section-link support in browser views
 
 **Changed:** Expanded the shared browser markdown renderer in `HUMANS/views/engram-utils.js` to generate stable heading IDs, support same-document section links like `#heading`, and preserve cross-document anchors like `other.md#heading` through the internal cross-reference callback. Updated `knowledge.html` and `docs.html` so cross-reference navigation can open a target document and scroll to the requested section. Updated `graph.js` and its JS tests so file-level reference extraction accepts `.md#section` links without dropping the underlying document edge.

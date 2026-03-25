@@ -1,11 +1,15 @@
-# MCP Architecture Guide
+# Engram MCP Architecture Guide
 
-This document explains the Model Context Protocol (MCP) layer in this repository: what it exposes, why it exists, and how it fits the larger design of the system.
+This document explains the Model Context Protocol (MCP) layer in the Engram memory system: what it exposes, why it exists, and how it fits the larger design.
 
 - If you want a quick setup path, read [QUICKSTART.md](QUICKSTART.md).
 - If you want the big-picture system rationale, read [CORE.md](CORE.md).
-- If you want broader product philosophy and future directions, read [DESIGN.md](DESIGN.md).
-- If you want integration patterns across external frameworks, read [INTEGRATIONS.md](INTEGRATIONS.md).
+- If you want deeper theory and future directions, read [DESIGN.md](DESIGN.md).
+- If you want worktree deployment, read [WORKTREE.md](WORKTREE.md).
+- If you want third-party tool integrations, read [INTEGRATIONS.md](INTEGRATIONS.md).
+- If something breaks, read [HELP.md](HELP.md).
+
+---
 
 ## What the MCP layer is
 
@@ -19,23 +23,25 @@ In plain language:
 - Git is the history and recovery mechanism.
 - MCP is the safe operating interface.
 
-The default architectural entry point for a new session remains `README.md`. After that initial orientation, `core/INIT.md` handles live routing and `core/memory/working/projects/SUMMARY.md` is the primary orientation surface for a normal returning session unless the router points somewhere more specific.
+The default architectural entry point for a new session remains `README.md`. After that initial orientation, `core/INIT.md` handles live routing and `core/memory/HOME.md` is the session entry point for normal returning sessions unless the router points somewhere more specific.
 
 That separation is intentional. It keeps the system portable and inspectable while still making it ergonomic for modern agent runtimes.
 
-## Available MCP resources
+## Implementation files
 
-These are the main files and entry points that define the MCP setup.
+These files define the MCP setup:
 
-| Resource | Role | Why it matters |
-| --- | --- | --- |
-| `core/tools/memory_mcp.py` | Compatibility entrypoint script | The simplest path-based way to launch the repo-local MCP server. |
-| `core/tools/agent_memory_mcp/server.py` | Runtime bootstrap | Builds the FastMCP server, resolves the repo root, and registers tools. |
-| `HUMANS/tooling/agent-memory-capabilities.toml` | Capability manifest | Declares what the MCP surface supports, how clients should interpret it, and which approval rules apply. |
-| `HUMANS/tooling/mcp-config-example.json` | Example client config | Shows how a desktop MCP client can point at this repo. |
-| `core/tools/agent_memory_mcp/tools/read_tools.py` | Tier 0 read tools | Read, inspect, audit, and report on the memory repo without mutating it. |
-| `core/tools/agent_memory_mcp/tools/semantic/` | Tier 1 semantic tools | The semantic package is the stable Tier 1 surface, split by domain so governed write operations keep their own invariants and auto-commit behavior without a monolithic module. |
-| `core/tools/agent_memory_mcp/tools/write_tools.py` | Tier 2 raw fallback tools | Low-level staged mutation tools used only when the runtime explicitly enables raw fallback. |
+| File | Role |
+| --- | --- |
+| `core/tools/memory_mcp.py` | Compatibility entrypoint script — the simplest path-based way to launch the server. |
+| `core/tools/agent_memory_mcp/server.py` | Runtime bootstrap — builds the FastMCP server, resolves the repo root, registers all tools, resources, and prompts. |
+| `core/tools/agent_memory_mcp/server_main.py` | CLI entrypoint for `engram-mcp` command (installed via `pip install -e .[server]`). |
+| `core/tools/agent_memory_mcp/tools/read_tools.py` | Tier 0 — read-only inspection, analysis, and reporting tools. |
+| `core/tools/agent_memory_mcp/tools/semantic/` | Tier 1 — semantic write tools split by domain: `graph_tools.py`, `knowledge_tools.py`, `plan_tools.py`, `session_tools.py`, `skill_tools.py`, `user_tools.py`. |
+| `core/tools/agent_memory_mcp/tools/write_tools.py` | Tier 2 — raw fallback mutation tools, gated behind `MEMORY_ENABLE_RAW_WRITE_TOOLS`. |
+| `HUMANS/tooling/agent-memory-capabilities.toml` | Capability manifest — declares tools, approval classes, tool profiles, error taxonomy, and resource/prompt metadata. |
+| `HUMANS/tooling/mcp-config-example.json` | Example client config for Claude Desktop and other MCP hosts. |
+| `.codex/config.toml` | Project-scoped Codex MCP config using portable relative paths. |
 
 ## How the server is launched
 
@@ -45,8 +51,11 @@ The canonical path-based script is:
 python core/tools/memory_mcp.py
 ```
 
-That wrapper imports the repo-local server and runs it. When the package is
-installed, prefer `engram-mcp` instead.
+That wrapper imports the repo-local server and runs it. When the package is installed, prefer the CLI entrypoint instead:
+
+```bash
+engram-mcp
+```
 
 ### How the repo root is resolved
 
@@ -81,21 +90,21 @@ from engram_mcp.agent_memory_mcp.server import create_mcp
 mcp, tools, root, repo = create_mcp(repo_root="/path/to/Engram")
 ```
 
-### Concrete client example: Claude Desktop
+### Client configuration example
 
-The repo already includes an example client config in `HUMANS/tooling/mcp-config-example.json`. A minimal configuration looks like this:
+The repo includes an example config in `HUMANS/tooling/mcp-config-example.json`. A minimal configuration for Claude Desktop or any MCP-capable host:
 
 ```json
 {
-	"mcpServers": {
-		"agent-memory": {
-			"command": "python",
-				"args": ["C:/path/to/Engram/core/tools/memory_mcp.py"],
-			"env": {
-				"AGENT_MEMORY_ROOT": "C:/path/to/Engram"
-			}
-		}
-	}
+  "mcpServers": {
+    "agent-memory": {
+      "command": "python",
+      "args": ["C:/path/to/Engram/core/tools/memory_mcp.py"],
+      "env": {
+        "AGENT_MEMORY_ROOT": "C:/path/to/Engram"
+      }
+    }
+  }
 }
 ```
 
@@ -105,131 +114,212 @@ What this does:
 - tells the runtime which memory repo to operate on,
 - lets the desktop client discover the governed tool surface from the server and capability manifest.
 
-In practice, this is the easiest way to think about the setup: the client owns the UI and approval flow, while the repo-local server owns the repo-specific behavior.
+The client owns the UI and approval flow; the repo-local server owns the repo-specific behavior.
 
-## Tool surface at a glance
+For worktree deployments, set `MEMORY_REPO_ROOT` to the worktree path and `HOST_REPO_ROOT` to the host repo root. See [WORKTREE.md](WORKTREE.md) for details.
 
-The manifest organizes the MCP surface into three layers.
+---
 
-### Tier 0: Read support
+## Tool surface
 
-These tools inspect or analyze the repo without changing it.
+The MCP server exposes **51+ tools** organized into three tiers. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
 
-**Core file and repo inspection**
+### Tier 0: Read-only tools
 
-- `memory_get_capabilities`
-- `memory_read_file`
-- `memory_list_folder`
-- `memory_search`
-- `memory_check_cross_references`
-- `memory_generate_summary`
-- `memory_generate_names_index`
-- `memory_access_analytics`
-- `memory_diff_branch`
-- `memory_git_log`
-- `memory_diff`
-- `memory_validate`
-- `memory_audit_trust`
-- `memory_get_maturity_signals`
-- `memory_reset_session_state`
+These tools inspect, analyze, and report on the repo without changing it. Always available.
 
-**Maintenance and governance analysis**
+**Capability and policy introspection**
 
-- `memory_session_health_check`
-- `memory_check_knowledge_freshness`
-- `memory_check_aggregation_triggers`
-- `memory_aggregate_access`
-- `memory_run_periodic_review`
-- `memory_get_file_provenance`
-- `memory_inspect_commit`
-- `memory_list_plans`
+| Tool | Description |
+| --- | --- |
+| `memory_get_capabilities` | Return the governed capability manifest as structured JSON. |
+| `memory_get_tool_profiles` | Return advisory tool-profile metadata for host-side narrowing. |
+| `memory_get_policy_state` | Compile the current governed contract for an operation and optional path. |
+| `memory_route_intent` | Recommend the best governed operation for a natural-language intent. |
 
-This read-first layer is a major design choice. The system prefers inspection, reporting, and explicit review before protected state changes.
+**File and repo inspection**
+
+| Tool | Description |
+| --- | --- |
+| `memory_read_file` | Read a file with parsed frontmatter and version token. |
+| `memory_list_folder` | List folder contents. |
+| `memory_search` | Full-text search across the repo. |
+| `memory_find_references` | Return structured references to a path across governed markdown. |
+| `memory_validate_links` | Validate internal markdown and frontmatter path references. |
+| `memory_review_unverified` | Return a grouped digest of `_unverified/` knowledge files. |
+| `memory_get_file_provenance` | Return provenance and trust metadata for a file. |
+| `memory_inspect_commit` | Inspect a specific commit by SHA. |
+| `memory_diff` | Show the diff for a specific commit or range. |
+| `memory_diff_branch` | Compare the current branch against a base branch. |
+| `memory_git_log` | Return recent commit history. |
+
+**Analysis and reporting**
+
+| Tool | Description |
+| --- | --- |
+| `memory_generate_summary` | Generate a paste-ready SUMMARY.md draft for a folder. |
+| `memory_generate_names_index` | Generate a structured NAMES.md payload for knowledge files. |
+| `memory_check_cross_references` | Scan for broken links and SUMMARY drift. |
+| `memory_surface_unlinked` | Surface knowledge files with zero or low cross-reference connectivity. |
+| `memory_reorganize_preview` | Preview the impact of moving a file or subtree. |
+| `memory_suggest_structure` | Suggest advisory structure improvements for the governed markdown tree. |
+| `memory_analyze_graph` | Compute structural metrics on the knowledge graph (degree, density, clusters, orphans). |
+
+**Health and governance**
+
+| Tool | Description |
+| --- | --- |
+| `memory_session_health_check` | Return session-start maintenance status for ACCESS and review queue. |
+| `memory_validate` | Run system integrity checks (frontmatter, structure, ACCESS format). |
+| `memory_access_analytics` | Classify files using curation-policy ACCESS patterns (hot, cold, rising, etc.). |
+| `memory_check_knowledge_freshness` | Check knowledge-file freshness against the configured host repo. |
+| `memory_check_aggregation_triggers` | Check whether aggregation thresholds have been reached. |
+| `memory_aggregate_access` | Analyze accumulated ACCESS data without mutating. |
+| `memory_audit_trust` | Audit trust decay and anomaly signals across the repo. |
+| `memory_get_maturity_signals` | Return current maturity stage indicators. |
+| `memory_run_periodic_review` | Run a periodic review analysis (read-only reporting). |
+| `memory_list_plans` | List active plans and their next actions. |
+| `memory_list_pending_reviews` | List knowledge files pending review. |
+| `memory_reset_session_state` | Reset session state files (scratchpad, working state). |
 
 ### Tier 1: Semantic write tools
 
-These are the normal write path. Each tool represents a bounded operation with built-in invariants and an automatic commit on success.
+These are the normal write path. Each tool represents a bounded operation with built-in invariants and an automatic commit on success. They are not generic file-edit tools — each one owns a narrow slice of the memory model and keeps related files in sync.
 
 **Plans**
 
-- `memory_plan_create`
-- `memory_plan_execute`
-- `memory_plan_review`
+| Tool | Description |
+| --- | --- |
+| `memory_plan_create` | Create a new structured plan with phases and tasks. |
+| `memory_plan_execute` | Inspect, start, block, or complete a plan phase. |
+| `memory_plan_review` | Scan completed plans or export completed-plan artifacts. |
 
 **Knowledge lifecycle**
 
-- `memory_add_knowledge_file`
-- `memory_update_names_index`
-- `memory_promote_knowledge_batch`
-- `memory_promote_knowledge`
-- `memory_demote_knowledge`
-- `memory_archive_knowledge`
+| Tool | Description |
+| --- | --- |
+| `memory_add_knowledge_file` | Create a new knowledge file with proper frontmatter. |
+| `memory_promote_knowledge` | Move a file from `_unverified/` to a verified domain folder. |
+| `memory_promote_knowledge_batch` | Batch promotion of multiple knowledge files. |
+| `memory_promote_knowledge_subtree` | Promote an entire subtree of knowledge files. |
+| `memory_demote_knowledge` | Move knowledge to a lower trust tier. |
+| `memory_archive_knowledge` | Archive knowledge files to historical storage. |
+| `memory_mark_reviewed` | Mark a knowledge file as reviewed. |
+| `memory_update_names_index` | Update the NAMES.md index for a knowledge folder. |
+| `memory_reorganize_path` | Move or reorganize knowledge within the tree. |
+| `memory_prune_redundant_links` | Remove redundant cross-references from knowledge files. |
+
+**Session and activity**
+
+| Tool | Description |
+| --- | --- |
+| `memory_record_session` | Record a full session: summary, reflection, and access entries. |
+| `memory_record_chat_summary` | Record a single chat session summary to the activity log. |
+| `memory_record_reflection` | Record a session reflection entry. |
+| `memory_log_access` | Log a single memory file access event to ACCESS.jsonl. |
+| `memory_log_access_batch` | Log multiple access events in a batch. |
+| `memory_run_aggregation` | Aggregate hot ACCESS logs into summary updates. |
 
 **Scratchpad, skills, and identity**
 
-- `memory_append_scratchpad`
-- `memory_update_skill`
-- `memory_update_identity_trait`
+| Tool | Description |
+| --- | --- |
+| `memory_append_scratchpad` | Append a section to the session scratchpad (CURRENT.md). |
+| `memory_update_skill` | Update a skill definition in the skills folder. |
+| `memory_update_user_trait` | Update a user trait in the identity file. |
 
-**Chats and session logging**
+**Governance and safety**
 
-- `memory_record_session`
-- `memory_run_aggregation`
-- `memory_record_chat_summary`
-- `memory_record_reflection`
-- `memory_log_access`
-- `memory_log_access_batch`
-
-**Governance and safety operations**
-
-- `memory_flag_for_review`
-- `memory_resolve_review_item`
-- `memory_record_periodic_review`
-- `memory_revert_commit`
-
-The important point is that these are not generic file-edit tools wearing a nicer label. Each one owns a narrow slice of the memory model and is responsible for keeping related files in sync.
+| Tool | Description |
+| --- | --- |
+| `memory_flag_for_review` | Flag a file or item for the review queue. |
+| `memory_resolve_review_item` | Resolve a flagged review item. |
+| `memory_record_periodic_review` | Record a periodic review cycle. |
+| `memory_revert_commit` | Revert a memory commit with preview-first flow. |
 
 ### Tier 2: Raw fallback tools
 
-These are low-level mutation tools:
+Low-level mutation tools for operations that don't yet have a dedicated semantic tool. **Not enabled by default** — the server only exposes them when the runtime explicitly sets `MEMORY_ENABLE_RAW_WRITE_TOOLS=1`.
 
-- `memory_write`
-- `memory_edit`
-- `memory_delete`
-- `memory_move`
-- `memory_update_frontmatter`
-- `memory_update_frontmatter_bulk`
-- `memory_commit`
+| Tool | Description |
+| --- | --- |
+| `memory_write` | Create or overwrite a file and stage it (no auto-commit). |
+| `memory_edit` | Exact string replacement in a file, then stage (no auto-commit). |
+| `memory_delete` | Delete a file and stage the removal (no auto-commit). |
+| `memory_move` | Rename or move a file, preserving git history (git mv). |
+| `memory_update_frontmatter` | Merge key-value pairs into a file's YAML frontmatter. |
+| `memory_update_frontmatter_bulk` | Apply frontmatter updates to multiple files as a single staged transaction. |
+| `memory_commit` | Commit all staged changes as a single atomic commit. |
 
-They stage changes but do not auto-commit. They also reject protected directories such as `memory/users/`, `governance/`, `memory/activity/`, and `memory/skills/`.
+Tier 2 tools use a **staged-transaction model**: mutations are staged in git's index without committing, and `memory_commit` seals them as a single atomic commit. They reject protected directories such as `memory/users/`, `governance/`, `memory/activity/`, and `memory/skills/`.
 
-Most importantly, they are **not enabled by default**. The server only exposes them when the runtime explicitly sets:
+---
 
-```text
-MEMORY_ENABLE_RAW_WRITE_TOOLS=1
-```
+## MCP resources
 
-This keeps the normal MCP experience semantic and governed, while still leaving a controlled fallback path available for runtimes that genuinely need it.
+The server exposes four MCP resources — stable read endpoints that clients can bind to without making tool calls:
 
-## The manifest is a first-class part of the architecture
+| URI | Backed by | Description |
+| --- | --- | --- |
+| `memory://capabilities/summary` | `memory_get_capabilities` | Load the compact capability and profile snapshot. |
+| `memory://policy/summary` | `memory_get_policy_state` | Inspect change-class, fallback, and profile policy boundaries. |
+| `memory://session/health` | `memory_session_health_check` | Check aggregation pressure, review cadence, and pending queue state. |
+| `memory://plans/active` | `memory_list_plans` | Load a compact summary of active plans and next actions. |
+
+Resources are passive — they provide data the client can read at any time, like a status dashboard. They complement the tools (which perform actions) and prompts (which scaffold workflows).
+
+## MCP prompts
+
+The server exposes four MCP prompts — reusable workflow scaffolds that guide the agent through recurring multi-step operations:
+
+| Prompt | Backed by | Description |
+| --- | --- | --- |
+| `memory_prepare_unverified_review_prompt` | `memory_review_unverified` | Guide review of low-trust knowledge before promotion. |
+| `memory_governed_promotion_preview_prompt` | `memory_promote_knowledge_batch` | Structure a governed promotion-preview conversation. |
+| `memory_prepare_periodic_review_prompt` | `memory_prepare_periodic_review` | Guide a protected periodic-review workflow. |
+| `memory_session_wrap_up_prompt` | `memory_record_session` | Guide end-of-session summarization, reflection, and deferred follow-up. |
+
+Prompts are useful for MCP-native clients that support prompt discovery: the client can offer them as one-click workflows, or the agent can invoke them as structured conversation templates.
+
+---
+
+## Tool profiles
+
+The capability manifest defines three advisory profiles for host-side tool narrowing:
+
+| Profile | Includes | When to use |
+| --- | --- | --- |
+| `full` | All tiers (0 + 1 + 2), resources, prompts | Full governed access with raw fallback enabled. |
+| `guided_write` | Tier 0 + Tier 1, resources, prompts | Normal operation — governed reads and semantic writes. No raw fallback. |
+| `read_only` | Tier 0 only, resources | Inspection and reporting only. No mutation. |
+
+Profiles are advisory — the server exposes all registered tools regardless. The host client is responsible for filtering the tool surface based on the selected profile. The `memory_get_tool_profiles` tool returns the profile metadata programmatically.
+
+The **default** experience is `guided_write`: all Tier 0 and Tier 1 tools are available, Tier 2 is hidden. Setting `MEMORY_ENABLE_RAW_WRITE_TOOLS=1` enables the `full` profile.
+
+## The manifest
 
 The file `HUMANS/tooling/agent-memory-capabilities.toml` is not just documentation. It is part of the runtime contract.
 
 It tells a client:
 
-- which tools exist,
-- whether the runtime is read-only or semantic-capable,
-- which operations are automatic, proposed, or protected,
+- which tools exist and which tier they belong to,
+- whether the runtime is read-only, semantic-capable, or full,
+- which operations are `automatic`, `proposed`, or `protected`,
 - which files each semantic operation is allowed to own,
 - how previews and approvals should work,
-- how results should be presented,
-- which fallback behavior is acceptable.
+- which tool profiles are available for host-side narrowing,
+- which MCP resources and prompts are registered,
+- which error types the server may return (`ConflictError`, `NotFoundError`, `ValidationError`, `StagingError`, `MemoryPermissionError`, `AlreadyDoneError`),
+- how results should be presented and which fallback behavior is acceptable.
 
 This matters because the system is deliberately hybrid. The desktop or host application is expected to discover capabilities and enforce approval UX, while the repo-local MCP server is expected to execute the repo-specific logic correctly.
 
 The manifest makes that split explicit instead of relying on undocumented conventions.
 
-## Key design principles of the MCP architecture
+---
+
+## Design principles
 
 ### 1. The repo stays canonical
 
@@ -249,13 +339,11 @@ This reduces the chance of partial updates, broken invariants, or accidental pol
 
 The MCP surface classifies writes as:
 
-- `automatic`
-- `proposed`
-- `protected`
+- **`automatic`** — Routine, bounded writes with no approval needed (e.g. ACCESS logging, scratchpad append).
+- **`proposed`** — Meaningful changes requiring user awareness before write (e.g. knowledge promotion, identity updates).
+- **`protected`** — Changes to governance, skills, or system-level files requiring explicit approval.
 
-That mirrors the broader governance model of the repo. Routine bounded updates can happen automatically. Durable or identity-shaping changes require user awareness. Protected system surfaces require explicit approval.
-
-In other words, safety is not left to prompt wording alone. It is encoded in the operation model.
+That mirrors the broader governance model of the repo. Safety is not left to prompt wording alone — it is encoded in the operation model.
 
 ### 4. Responsibility is split cleanly
 
@@ -264,20 +352,13 @@ The manifest defines a hybrid boundary:
 - The host client owns approval UX, capability discovery, preview rendering, and fallback selection.
 - The repo-local MCP server owns semantic execution, repo-specific invariants, schema validation, and authoritative mutation.
 
-This is a strong architectural choice. It prevents the client from needing to understand every repo rule while also preventing the repo server from trying to be a full user interface.
+This prevents the client from needing to understand every repo rule while also preventing the repo server from trying to be a full user interface.
 
 ### 5. Git is the publication layer
 
-The server does not merely edit files. Governed semantic tools publish changes through Git and return structured publication metadata.
+The server does not merely edit files. Governed semantic tools publish changes through Git and return structured publication metadata (commit SHA, changed files, new state).
 
-That fits the larger system philosophy:
-
-- memory changes should be reviewable,
-- provenance should be inspectable,
-- commits should be attributable,
-- reverts should be possible.
-
-The MCP layer exists partly to make those guarantees easier to preserve across clients.
+That fits the larger system philosophy: memory changes should be reviewable, provenance should be inspectable, commits should be attributable, and reverts should be possible.
 
 ### 6. Degradation is deliberate
 
@@ -291,47 +372,25 @@ That is consistent with the rest of the system, which is designed to degrade gra
 
 ### 7. Read-first governance is intentional
 
-The recent MCP expansion added more analysis tools before adding more protected writes. That reflects the repo's deeper philosophy: governance should become more observable before it becomes more automated.
+The read tools outnumber the write tools by design. Governance should become more observable before it becomes more automated. The system wants good inspection paths, provenance checks, periodic review reports, and maturity signals so that high-leverage writes remain understandable and auditable.
 
-The system wants good inspection paths, provenance checks, periodic review reports, and maturity signals so that high-leverage writes remain understandable and auditable.
+---
 
 ## How MCP fits the philosophy of the whole system
 
 The MCP architecture is not a sidecar. It expresses the same design philosophy found throughout the repo.
 
-### It supports portability without abandoning ergonomics
+**Portability without abandoning ergonomics.** The whole system is built around model-agnostic, file-based memory. MCP makes that practical for tool-using runtimes by exposing the repo through a standard protocol, but the memory remains portable even without MCP. A vendor-specific memory API would be convenient but would weaken the ownership and portability story. MCP gives interoperability without changing the core storage model.
 
-The whole system is built around model-agnostic, file-based memory. MCP makes that practical for tool-using runtimes by exposing the repo through a standard protocol, but the memory remains portable even without MCP.
+**Transparency and human control.** Human-readable files, Git history, capability manifests, approval classes, and structured write results all point in the same direction: the user should be able to understand what the system can do and what it just did. This is the opposite of opaque built-in memory features that silently rewrite state behind the scenes.
 
-That balance matters. A vendor-specific memory API would be convenient but would weaken the ownership and portability story. MCP gives interoperability without changing the core storage model.
+**Safety as structure.** The wider design separates informational memory from procedural authority and places high-leverage surfaces behind tighter governance. The MCP layer reflects that exactly: protected directories are not open to raw writes, semantic tools are bounded by domain, approval classes are explicit, external content flows through constrained workflows, and system-level review writes are narrow and protected.
 
-### It reinforces transparency and human control
+**Context efficiency.** One purpose of MCP is to let runtimes ask targeted questions instead of loading large parts of the repo speculatively. A client can ask for maturity signals, provenance, or a periodic review report directly rather than reading several governance files and reconstructing the answer itself. That is aligned with the project's strong preference for progressive disclosure and metadata-first retrieval.
 
-Human-readable files, Git history, capability manifests, approval classes, and structured write results all point in the same direction: the user should be able to understand what the system can do and what it just did.
+**Graceful degradation.** The broader system never assumes ideal capabilities. The MCP architecture follows the same rule by making read-only mode, deferred action, and fallback behavior part of the declared contract. That makes the system more honest and more robust across different platforms.
 
-This is the opposite of opaque built-in memory features that silently rewrite state behind the scenes.
-
-### It matches the system's safety model
-
-The wider design separates informational memory from procedural authority and places high-leverage surfaces behind tighter governance. The MCP layer reflects that exactly:
-
-- protected directories are not open to raw writes,
-- semantic tools are bounded by domain,
-- approval classes are explicit,
-- external or uncertain content is handled through constrained workflows,
-- system-level review writes are narrow and protected.
-
-### It helps with context efficiency
-
-One purpose of MCP is to let runtimes ask targeted questions instead of loading large parts of the repo speculatively.
-
-For example, a client can ask for maturity signals, provenance, or a periodic review report directly rather than reading several governance files and reconstructing the answer itself. That is aligned with the project's strong preference for progressive disclosure and metadata-first retrieval.
-
-### It preserves graceful degradation
-
-The broader system never assumes ideal capabilities. The MCP architecture follows the same rule by making read-only mode, deferred action, and fallback behavior part of the declared contract.
-
-That makes the system more honest and more robust across different platforms.
+---
 
 ## What the MCP layer is not
 
@@ -347,11 +406,9 @@ It is a structured interface over a governed Git-backed memory system.
 
 ## Recommended mental model
 
-If you are evaluating the MCP setup, the simplest accurate mental model is:
-
 1. The repository defines the memory model.
 2. The manifest describes the operating contract.
-3. The FastMCP server exposes that contract to clients.
+3. The FastMCP server exposes that contract to clients through tools, resources, and prompts.
 4. Semantic tools enforce the repo's invariants.
 5. Git records and publishes the resulting state.
 

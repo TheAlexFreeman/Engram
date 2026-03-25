@@ -1,255 +1,103 @@
-# Integrating Engram
+# Third-Party Integrations
 
-This guide covers the supported integration modes for this repository, with extra focus on **worktree mode**: deploying the memory store as an orphan-branch worktree inside an existing host repository.
+Ecosystem tools that complement the Engram memory system — what role each fills, and how you would wire them in.
 
-Use this document when you need to:
+- If you want worktree deployment and CI/tooling setup, read [WORKTREE.md](WORKTREE.md).
+- If you want the MCP tool surface explained, read [MCP.md](MCP.md).
+- If you want standalone setup, read [QUICKSTART.md](QUICKSTART.md).
+- If something breaks, read [HELP.md](HELP.md).
 
-- attach the memory system to an existing codebase
-- keep the memory branch out of host CI, release automation, and PR workflows
-- prevent host formatters, linters, and search tools from treating the memory worktree as application code
-- wire an MCP-capable client to either the standalone repo or a deployed worktree
+Engram's file-first, Markdown-native design makes it straightforward to layer additional tools on top of the memory store. The categories below outline ecosystem tools that complement the system, what role each fills, and how you would wire them in.
 
-## Integration modes
+## Semantic retrieval — vector search
 
-### Standalone repo
+Engram currently relies on keyword search and git-backed file reads. Adding a vector index lets agents perform similarity search over knowledge files, activity logs, and session summaries.
 
-Use the repository as-is when the memory system is the primary project.
+| Tool | Why it fits | Integration sketch |
+|---|---|---|
+| **LanceDB** | Embedded, zero-server vector store; stores on disk alongside the repo. | Index Markdown files into a Lance table at commit time or via a post-write hook. Query with cosine similarity from a thin MCP tool wrapper. |
+| **ChromaDB** | Lightweight embedded vector DB with built-in sentence-transformer support. | Run as a sidecar or in-process. Sync `core/memory/knowledge/` into a Chroma collection; expose a `memory_semantic_search` MCP tool. |
+| **Qdrant** | Production-grade vector search with filtering, sparse vectors, and multi-tenancy. | Deploy as a local Docker container or use Qdrant Cloud. Point a sync job at the knowledge tree; query via the Qdrant REST or gRPC client. |
+| **Turbopuffer** | Serverless vector DB with automatic scaling and low cold-start latency. | Good fit if you want managed infrastructure. Use the HTTP API for upserts on commit and queries from MCP. |
 
-- run `setup.sh` from the repo root
-- keep agent adapter files in the repo root
-- point your MCP client at `core/tools/memory_mcp.py` or `engram-mcp`
+**Embedding models.** Any of these vector stores pairs well with a local embedding model. Ollama can serve `nomic-embed-text` or `mxbai-embed-large` for fully offline embeddings. Alternatively, `sentence-transformers` provides a Python-native option (`all-MiniLM-L6-v2` is a good default).
 
-### Worktree mode
+## Knowledge graphs
 
-Use `HUMANS/setup/init-worktree.sh` when you want a host codebase to keep its own persistent memory without mixing memory commits into product history.
+Graph databases capture relationships between entities that flat files lose. They are valuable when the knowledge base grows beyond what sequential Markdown links can convey.
 
-- host repository: application code, normal branch protection, normal CI
-- memory branch: orphan branch such as `agent-memory`
-- memory worktree: directory such as `.agent-memory/`
-- agent adapters: written to the host root so sessions start in the right place
-- memory operations: target the worktree
-- host git operations: target the host repo via `host_repo_root`
+| Tool | Why it fits | Integration sketch |
+|---|---|---|
+| **Neo4j** | Mature graph DB with Cypher query language; strong ecosystem. | Model knowledge topics, users, plans, and relationships as nodes and edges. Populate on commit or via periodic sync. Expose a `memory_graph_query` MCP tool for Cypher queries. |
+| **FalkorDB** | Redis-compatible graph DB optimized for low-latency graph traversal. | Lightweight alternative to Neo4j for smaller deployments or when Redis is already in the stack. |
+| **Microsoft GraphRAG** | Builds a hierarchical community-summary graph from unstructured text, then answers questions over the graph. | Run the GraphRAG indexer on `core/memory/knowledge/` to produce community summaries. Query the graph for high-level synthesis ("What are the main themes across all knowledge files?"). |
 
-### Embedded MCP
+## Observability and evaluation
 
-If you already have an agent runtime, prefer MCP over direct file access whenever possible.
+As agents interact with the memory system, you want visibility into what tools they call, how long operations take, what knowledge they retrieve, and whether the governed-write pipeline is working correctly.
 
-- server entrypoint: `core/tools/memory_mcp.py`
-- installed CLI: `engram-mcp`
-- repo root env var: `MEMORY_REPO_ROOT`
-- optional host repo env var in worktree mode: `HOST_REPO_ROOT`
+| Tool | Why it fits | Integration sketch |
+|---|---|---|
+| **LangFuse** | Open-source LLM observability: traces, cost tracking, prompt versioning, evaluation datasets. Self-hostable. | Instrument MCP tool calls as LangFuse spans. Tag each span with the tool name, maturity tier, and success/failure. Use the dashboard to spot expensive or failing patterns. |
+| **LangSmith** | Managed observability from LangChain. Similar trace/eval surface, tighter LangChain integration. | Same instrumentation approach. Better fit if you already use LangChain or LangGraph for orchestration. |
+| **Weights & Biases Weave** | Trace-based evaluation with built-in leaderboard and dataset management. | Wrap MCP tool dispatch in Weave `@op` decorators. Compare tool-call quality across model versions. |
 
-## Worktree mode quick start
+## Agent orchestration and scheduling
 
-Run the init script from the **host repository root**:
+If you run multi-agent workflows or need periodic maintenance tasks (aggregation, freshness checks, promotion sweeps), a scheduler or orchestrator can drive those cycles.
 
-```bash
-bash HUMANS/setup/init-worktree.sh \
-    --non-interactive \
-    --platform codex \
-    --profile software-developer \
-    --worktree-path .agent-memory \
-    --branch-name agent-memory
-```
+| Tool | Why it fits | Integration sketch |
+|---|---|---|
+| **Temporal** | Durable workflow engine: retries, timeouts, versioning, visibility. | Define workflows for periodic review, knowledge promotion, and aggregation. Activities call MCP tools. Temporal handles retry and scheduling. |
+| **Inngest** | Event-driven step functions with built-in cron triggers. | Similar to Temporal but lower operational overhead. Define a cron function for `memory_run_periodic_review` and `memory_check_knowledge_freshness`. |
+| **n8n** | Visual workflow automation with 400+ integrations. Self-hostable. | Build a workflow that triggers on git push to the memory branch, runs freshness checks, and posts results to Slack or a dashboard. |
+| **Activepieces** | Open-source alternative to n8n with a code-first option. | Same pattern: event-driven or cron-triggered workflows that call MCP tools via HTTP or subprocess. |
 
-The script will:
+## Multi-agent frameworks
 
-1. create an orphan memory branch
-2. materialize the memory worktree at the configured path
-3. write host-root adapter files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`)
-4. write MCP client config for the selected platform
-5. seed a starter codebase-survey plan and `core/memory/knowledge/codebase/` skeleton
-6. add worktree-local `.ignore` and `.editorconfig` defaults
+If you run multiple agents that share the same memory store, these frameworks provide coordination primitives.
 
-## Worktree mode: CI/CD exemptions
+| Tool | Why it fits | Integration sketch |
+|---|---|---|
+| **CrewAI** | Role-based multi-agent system with task delegation. | Give each crew member an MCP tool handle. Use Engram as the shared long-term memory while CrewAI manages short-term task state. |
+| **LangGraph** | Graph-based agent orchestration from LangChain. Supports cycles, persistence, and human-in-the-loop. | Model the governed-write pipeline as a LangGraph graph. Nodes call MCP tools; edges encode maturity transitions. |
+| **AutoGen** | Microsoft's multi-agent conversation framework. | Register MCP tools as AutoGen functions. Use Engram for cross-session persistence; AutoGen handles intra-session message passing. |
 
-Treat the memory branch as **operational state**, not as a deployable application branch. It should usually be exempt from normal CI gates, branch protection, and release-note tooling.
+## RAG and memory-augmented frameworks
 
-### GitHub Actions
+These frameworks specialize in retrieval-augmented generation and can treat Engram as their backing store.
 
-Ignore the memory branch on `push` and `pull_request` triggers.
+| Tool | Why it fits | Integration sketch |
+|---|---|---|
+| **LlamaIndex** | Comprehensive RAG framework with document loaders, index types, and query engines. | Use the Markdown reader to ingest `core/memory/knowledge/`. Build a vector index or knowledge-graph index. Expose as a query tool inside MCP. |
+| **Letta (MemGPT)** | Adds tiered memory (core, recall, archival) to LLM agents. | Map Letta's archival memory to Engram's knowledge tree. Use Letta for conversation-window management; Engram for durable storage. |
+| **Cognee** | Builds a knowledge graph from documents with automatic entity extraction and relationship mapping. | Run Cognee's pipeline on the knowledge tree to extract entities and relationships, then expose the resulting graph for agent queries. |
 
-```yaml
-on:
-    push:
-        branches-ignore:
-            - agent-memory
-    pull_request:
-        branches-ignore:
-            - agent-memory
-```
+## Developer workflow tools
 
-If you use a custom memory branch name, replace `agent-memory` everywhere with that configured value.
+| Tool | Why it fits | Integration sketch |
+|---|---|---|
+| **Aider** | CLI-based coding assistant that works with git. | Point Aider at the host repo while Engram runs as a worktree sidecar. Aider handles code edits; the memory agent records what was learned. |
+| **Raycast AI** | macOS launcher with AI commands and clipboard history. | Build a Raycast extension that queries the MCP server for knowledge lookups, plan status, or quick session notes without leaving the keyboard. |
 
-### GitHub branch protection
+## Recommended starting points
 
-Do not apply your mainline protection rules to the memory branch.
+If you are deciding where to begin, these four integrations offer the highest value relative to setup cost:
 
-- exclude it from required status checks
-- exclude it from required reviews
-- exclude it from merge queues and deployment environments
-- avoid using it as a source or target in normal pull requests
+1. **LanceDB + Ollama embeddings.** Adds semantic search with zero external dependencies. Both run locally, store on disk, and need no API keys. Start by indexing `core/memory/knowledge/` into a Lance table and exposing a `memory_vector_search` tool.
 
-If your organization applies wildcard branch rules, add a more specific exemption for the memory branch.
+2. **LangFuse.** Self-host with Docker Compose, instrument MCP tool dispatch, and get immediate visibility into how agents use the memory system. Helps validate that governance rules are working.
 
-### GitHub PR and release-note noise
+3. **Temporal.** Ideal once you have recurring maintenance tasks like periodic reviews, promotion sweeps, or freshness checks. Handles retry, scheduling, and workflow versioning so you do not have to build those primitives from scratch.
 
-Keep the memory branch out of normal review and release workflows.
+4. **GraphRAG.** High value once the knowledge base is large enough that flat search misses cross-topic connections. The community-summary approach produces synthesis that neither keyword search nor vector search can replicate.
 
-- do not open PRs from the memory branch into product branches except for deliberate debugging
-- exclude the memory branch from any branch enumeration your release tooling performs
-- if you use generated release notes, ensure the job only considers your shipping branches or tagged merges
+## General wiring pattern
 
-### GitLab CI
+Most third-party integrations follow the same shape:
 
-Use workflow rules or per-job rules to skip the memory branch entirely.
+1. **Sync layer.** Watch for file changes in the memory store (git hooks, file-system watcher, or periodic poll) and push updates into the external system (vector index, graph, event bus).
+2. **Query layer.** Expose the external system's query capability as one or more MCP tools so agents can use it during sessions.
+3. **Governance boundary.** Keep Engram as the single governed writer for Markdown files. External systems are read-only consumers of the memory store, or they write back through the MCP governed-write pipeline — never by direct file mutation.
 
-```yaml
-workflow:
-    rules:
-        - if: '$CI_COMMIT_BRANCH == "agent-memory"'
-            when: never
-        - when: always
-```
-
-For existing per-job pipelines, use the same branch check in `rules:` blocks.
-
-### Bitbucket Pipelines
-
-Bitbucket does not have a direct `branches-ignore` equivalent for every pipeline layout, so use a branch gate near the top of the pipeline or split your branch selectors explicitly.
-
-```yaml
-pipelines:
-    default:
-        - step:
-                name: Host CI
-                script:
-                    - if [ "$BITBUCKET_BRANCH" = "agent-memory" ]; then echo "Skipping memory branch"; exit 0; fi
-                    - ./ci.sh
-```
-
-If you already use `branches:` selectors, omit the memory branch there and keep it out of `default` when practical.
-
-## Worktree mode: tooling-bleed prevention
-
-The memory worktree should not be treated like host application code by default. Exclude the worktree path from formatters, linters, type checkers, and editor search where possible.
-
-Assume the deployed worktree path is `.agent-memory/`. Replace that path if you configured a different location.
-
-### Built-in worktree defaults
-
-`init-worktree.sh` now writes two worktree-local files automatically:
-
-- `.ignore` to keep memory-content folders out of host-repo searches by default
-- `.editorconfig` to stop host-root formatting rules from leaking into the memory files
-
-If you intentionally search inside the memory worktree, use `rg --no-ignore`, `fd --no-ignore`, or the equivalent editor setting.
-
-### ESLint
-
-Add the worktree path to `.eslintignore`:
-
-```text
-.agent-memory/
-```
-
-### Prettier
-
-Add the worktree path to `.prettierignore`:
-
-```text
-.agent-memory/
-```
-
-### Ruff and Black
-
-Exclude the worktree path in `pyproject.toml` so Python tooling does not recurse into the memory files.
-
-```toml
-[tool.ruff]
-exclude = [".agent-memory"]
-
-[tool.black]
-extend-exclude = "(^|/).agent-memory/"
-```
-
-If you already maintain larger exclude lists, append the worktree path instead of replacing the existing values.
-
-### TypeScript
-
-Exclude the worktree path in `tsconfig.json`:
-
-```json
-{
-    "exclude": [".agent-memory"]
-}
-```
-
-If `exclude` already exists, append the path.
-
-### VS Code search
-
-Exclude the worktree path in workspace settings:
-
-```json
-{
-    "search.exclude": {
-        ".agent-memory": true
-    },
-    "files.watcherExclude": {
-        ".agent-memory/**": true
-    }
-}
-```
-
-### JetBrains IDEs
-
-Mark the deployed worktree directory as **Excluded** in the Project tool window, or add it to a custom search scope exclusion if you still want it visible in the tree.
-
-### ripgrep and fd
-
-The generated worktree-local `.ignore` already hides the main memory folders when you search from the host repo. If you want a host-root override as well, add the worktree path to `.rgignore` or `.ignore` in the host repo root:
-
-```text
-.agent-memory/
-```
-
-### Optional host `.gitignore`
-
-If you do not want the worktree path to appear as an untracked directory in the host repo, add it to the host root `.gitignore`:
-
-```text
-.agent-memory/
-```
-
-That does **not** affect the memory branch itself; it only keeps the host checkout clean.
-
-## MCP client wiring
-
-### Codex
-
-In worktree mode, the init script writes `.codex/config.toml` in the host root. Trust that file so Codex can launch the memory MCP server from the worktree.
-
-### Other MCP-capable clients
-
-In worktree mode, the init script writes `mcp-config-example.json` in the host root. Copy that entry into the client-specific MCP config and preserve these fields:
-
-- command: `engram-mcp` when installed, otherwise the Python-plus-script fallback
-- cwd: the memory worktree path
-- `MEMORY_REPO_ROOT`: the memory worktree path
-- `HOST_REPO_ROOT`: the host repo root
-
-## Operational guidance
-
-- use the host repo for product-code commands, builds, and git inspection
-- use the memory worktree for identity, knowledge, plans, chats, scratchpad, and governance files
-- keep only one active governed writer per memory worktree
-- treat generated templates as starting points; replace low-trust survey stubs with verified notes as soon as the codebase survey begins
-
-## Minimal checklist
-
-1. Initialize the worktree from the host repo root.
-2. Exempt the memory branch from CI and branch protection.
-3. Exclude the worktree path from host tooling.
-4. Trust the generated MCP config for your client.
-5. Start with `core/memory/working/projects/codebase-survey/plans/survey-plan.yaml` and fill `core/memory/knowledge/codebase/` as you learn the host repo.
+For the full MCP tool surface available once the server is running, see [MCP.md](MCP.md).

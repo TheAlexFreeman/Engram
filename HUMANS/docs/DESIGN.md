@@ -1,4 +1,4 @@
-# Agent Memory Seed: Design Philosophy and Future Directions
+# Engram: Design Philosophy and Future Directions
 
 A companion document for humans exploring this project — covering the architectural principles behind the system, its intended and emergent use cases, natural directions for future development, and integration possibilities with external tools and platforms.
 
@@ -12,25 +12,25 @@ A companion document for humans exploring this project — covering the architec
 
 Every AI conversation starts from zero. Models have no persistent state between sessions — no memory of who you are, what you've told them, or what you've built together. This forces users into a repetitive cycle: re-explain context, re-state preferences, re-teach workflows. The more capable the model, the more painful this reset becomes, because the gap between what the model *could* do with context and what it *actually* does without it grows wider with each generation.
 
-Agent Memory Seed solves this by externalizing memory into a structured, version-controlled repository that any model can read. The key insight is that **memory is data, not state** — it belongs in files the user owns, not in a platform's opaque context window or fine-tuning parameters.
+Engram solves this by externalizing memory into a structured, version-controlled repository that any model can read. The key insight is that **memory is data, not state** — it belongs in files the user owns, not in a platform's opaque context window or fine-tuning parameters.
 
 ### Design principles
 
 **1. Files over APIs.** The entire system is markdown files in a git repository. No database, no cloud service, no proprietary format. This makes the memory human-readable, human-editable, machine-portable, diffable, and backed by decades of tooling for versioning, merging, and auditing. A user can open any file, read what the agent "knows," and change it with a text editor.
 
-**2. Model-agnostic by construction.** The memory system doesn't depend on any model's capabilities, context window size, or tool-use abilities. It works with Claude, GPT, Gemini, Llama, or any future model that can read text files. The bootstrap sequence in README.md is written as instructions any competent model can follow. Platform-specific adapters (CLAUDE.md, .cursorrules, chatgpt-instructions.txt) are thin pointers to the canonical source of truth, not duplicated rule sets.
+**2. Model-agnostic by construction.** The memory system doesn't depend on any model's capabilities, context window size, or tool-use abilities. It works with Claude, GPT, Gemini, Llama, or any future model that can read text files. The bootstrap sequence in README.md is written as instructions any competent model can follow. Platform-specific adapters (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) are thin pointers to the canonical source of truth, not duplicated rule sets. The machine-readable `agent-bootstrap.toml` mirrors the routing logic in `core/INIT.md` with token budgets and per-step metadata, giving tool-use-capable agents a structured alternative to parsing markdown.
 
-**3. Progressive disclosure.** The system has significant depth — trust-weighted retrieval, instruction containment, temporal decay, maturity-adaptive thresholds, emergent categorization — but none of this complexity is visible to a new user. Setup asks three questions (remote, profile, platform). The first session is a guided conversation. The governance layer operates silently. Complexity reveals itself only as the system matures and the user engages more deeply. This is the "earn trust by being useful immediately, then reveal depth gradually" principle.
+**3. Progressive disclosure.** The system has significant depth — trust-weighted retrieval, instruction containment, temporal decay, maturity-adaptive thresholds, emergent categorization, 73 MCP tools across three tiers — but none of this complexity is visible to a new user. Setup offers a browser-based wizard or a shell script with eight starter profiles. The first session is a four-phase collaborative conversation: the agent does real work with the user on a seed task, demonstrates capabilities inline, discovers the user's working style through observation, and confirms a profile at the end. The governance layer operates silently. The MCP tool surface is invisible unless the user looks. Complexity reveals itself only as the system matures and the user engages more deeply.
 
-**4. The user owns the truth.** Every piece of memory has provenance metadata tracking where it came from, when it was last verified, and how much to trust it. The user can inspect, edit, revert, or delete anything at any time. Git provides a complete audit trail. The system never writes to protected files without explicit approval. This is a fundamental architectural commitment: the human is always the authority, and the system must make its state transparent enough for the human to exercise that authority.
+**4. The user owns the truth.** Every piece of memory has provenance metadata tracking where it came from, when it was last verified, and how much to trust it. The user can inspect, edit, revert, or delete anything at any time. Git provides a complete audit trail. The system never writes to protected files without explicit approval. The browser dashboard and viewers let users see their memory without starting an AI session. This is a fundamental architectural commitment: the human is always the authority, and the system must make its state transparent enough for the human to exercise that authority.
 
-**5. Security as architecture, not policy.** Defense against memory injection (the risk that an adversary plants content the agent later acts on as legitimate) is built into the system's structure, not bolted on as guidelines. External content is quarantined by default. Trust levels are enforced structurally. Instruction containment is a folder-level contract. Skills are protected-tier. The belief-diff log makes drift visible. These are structural constraints that remain effective regardless of which model reads the repo or how capable it is at following instructions.
+**5. Security as architecture, not policy.** Defense against memory injection (the risk that an adversary plants content the agent later acts on as legitimate) is built into the system's structure, not bolted on as guidelines. External content is quarantined by default. Trust levels are enforced structurally — through the MCP path-policy layer. Instruction containment is a folder-level contract. Skills are protected-tier. The belief-diff log makes drift visible. Identity churn tracking rate-limits rapid personality changes. These are structural constraints that remain effective regardless of which model reads the repo or how capable it is at following instructions.
 
-**6. Self-organizing dynamics.** The system doesn't just store memory — it curates it. ACCESS.jsonl tracks what's retrieved and how useful it was. Aggregation identifies patterns. High-value knowledge is amplified; low-value knowledge cools toward retirement. Categories emerge from co-retrieval patterns rather than being imposed upfront. Governance rules themselves are subject to evidence-based revision. The system is designed to become more useful over time through its own feedback loops, not just through accumulation.
+**6. Self-organizing dynamics.** The system doesn't just store memory — it curates it. ACCESS.jsonl tracks what's retrieved and how useful it was. Aggregation identifies patterns. High-value knowledge is amplified; low-value knowledge cools toward retirement. Categories emerge from co-retrieval patterns rather than being imposed upfront. Governance rules themselves are subject to evidence-based revision. The MCP tool surface (`memory_access_analytics`, `memory_run_aggregation`, `memory_check_aggregation_triggers`, `memory_get_maturity_signals`) gives agents programmatic access to these self-organizing dynamics. The system is designed to become more useful over time through its own feedback loops, not just through accumulation.
 
-**7. Graceful degradation.** The system adapts to constraints rather than failing. Read-only platforms get deferred-action summaries. Models with small context windows get compressed summaries. Missing files don't break the bootstrap — the sequence has explicit skip conditions. The validator is optional. Every feature is designed so that its absence reduces functionality without breaking the system.
+**7. Graceful degradation.** The system adapts to constraints rather than failing. Read-only platforms get deferred-action summaries. Models with small context windows get compressed summaries. Missing files don't break the bootstrap — the sequence has explicit skip conditions. The validator is optional. Tier 2 write tools are gated behind an environment flag. Every feature is designed so that its absence reduces functionality without breaking the system.
 
-**8. Context efficiency as a first-class concern.** Every governance file, every skill, every protocol competes for space in the agent's context window — and every token spent on governance is a token not spent on the user's actual task. The system manages this budget deliberately: a context loading manifest tells the agent exactly which files to load for each session type, governance files are split into always-load summaries and on-demand reference documents, and skip annotations prevent redundant reads across files. Context efficiency is not an optimization applied after the fact — it is a design constraint that shapes how every file is written, scoped, and cross-referenced. See "The dual-audience problem" below for a deeper treatment.
+**8. Context efficiency as a first-class concern.** Every governance file, every skill, every protocol competes for space in the agent's context window — and every token spent on governance is a token not spent on the user's actual task. The system manages this budget deliberately: a context loading manifest tells the agent exactly which files to load for each session type (returning sessions cost 3,000–7,000 tokens; full bootstrap costs 18,000–25,000), governance files are split into always-load summaries and on-demand reference documents, and skip annotations prevent redundant reads across files. Context efficiency is not an optimization applied after the fact — it is a design constraint that shapes how every file is written, scoped, and cross-referenced. See "The dual-audience problem" below for a deeper treatment.
 
 ### The compression hierarchy
 
@@ -44,41 +44,74 @@ This mirrors how human memory works: recent events are vivid and detailed; older
 
 ### Format layer vs. runtime layer
 
-The repository now treats the memory contract and the MCP server as two distinct layers.
+The repository treats the memory contract and the MCP server as two distinct layers.
 
 **Format layer.** The modules under `core/tools/agent_memory_mcp/core/` expose the file-format and validation contract without depending on `mcp`. They re-export the canonical implementations in `core/tools/agent_memory_mcp/{errors,frontmatter_utils,git_repo,models,path_policy}.py`, which cover exception types, frontmatter parsing, git subprocess operations, structured write results, and path-policy validation. Human-facing tooling such as validators and setup scripts can import this layer directly.
 
-**Runtime layer.** The MCP server lives in `core/tools/agent_memory_mcp/server.py` and the tool registration modules under `core/tools/agent_memory_mcp/tools/`. This layer requires the `mcp` package and is responsible for exposing the governed read/write surface to agents.
+**Runtime layer.** The MCP server lives in `core/tools/agent_memory_mcp/server.py` and the tool registration modules under `core/tools/agent_memory_mcp/tools/`. This layer requires the `mcp` package and is responsible for exposing the governed read/write surface to agents. It organizes 73 tools into three tiers: Tier 0 (38 read-only), Tier 1 (28 semantic operations), and Tier 2 (7 gated write primitives). See [MCP.md](MCP.md) for the full tool reference.
 
-The package root is lazy by design: importing `engram_mcp.agent_memory_mcp` no longer imports the server until a caller asks for `mcp`, `create_mcp`, or another runtime export. That keeps the boundary structural rather than purely documentary.
+The package root (`engram_mcp.agent_memory_mcp`) is lazy by design: it doesn't import the server until a caller asks for `mcp`, `create_mcp`, or another runtime export. That keeps the boundary structural rather than purely documentary.
+
+### The governed-write model
+
+The MCP layer implements a distinctive approach to memory mutation. Rather than giving agents unrestricted file access, all governed writes follow a **preview → approve → commit** workflow:
+
+1. **Preview.** The agent calls a semantic tool (e.g. `memory_promote_knowledge`, `memory_plan_execute`). The server validates the request against path policies, change categories, and frontmatter rules, then returns a structured preview: the proposed diff, affected files, and commit message.
+2. **Approve.** The agent (or user, for protected-tier changes) reviews the preview and decides whether to proceed.
+3. **Commit.** The approved change is committed with full provenance metadata, and the response includes publication details (commit SHA, changed files, new state) — eliminating the need for a read-after-write round-trip.
+
+**Version tokens** prevent stale overwrites: each file read returns a token, and writes must pass the token back to confirm the agent is working from current content.
+
+**Change classes** map onto the governance model: automatic changes commit immediately, proposed changes surface for awareness, and protected changes require explicit approval. The MCP server enforces these classifications at the API boundary, making governance structural rather than relying on the agent to follow instructions.
+
+**Tier 2 write primitives** (`memory_write`, `memory_edit`, `memory_delete`, `memory_move`, `memory_commit`) use a staged-transaction model: mutations are staged in git's index without committing, and `memory_commit` seals them as a single atomic commit. These tools are gated behind the `MEMORY_ENABLE_RAW_WRITE_TOOLS` environment flag because they bypass the semantic governance layer — they're a fallback for operations that don't yet have a dedicated semantic tool, not the primary write path.
+
+### Plans as durable work contexts
+
+Most meaningful work spans multiple sessions. Engram's **plan system** treats multi-session projects as first-class persistent objects stored in `core/memory/working/projects/`. A plan is a YAML-structured document with:
+
+- **Phases and tasks** — hierarchical breakdown with status tracking.
+- **Execution state** — `status`, `next_action`, phase progress percentages.
+- **Task-local sequencing** — plans are the one place outside `skills/` and `governance/` that may contain procedural instructions, scoped to that specific investigation.
+
+Four MCP tools manage the plan lifecycle:
+
+- `memory_plan_create` — create a structured plan with phases and tasks.
+- `memory_plan_execute` — advance phases, mark items complete, update execution state.
+- `memory_plan_review` — review outcomes, finalize or archive.
+- `memory_list_plans` — inventory plans in a project.
+
+Plans solve a specific problem: without persistent multi-session roadmaps, agents either lose track of complex work between conversations or rely on the user to re-supply the project context every session. With plans, the project's full context — goals, progress, decisions, next steps — is always available.
 
 ### The feedback loop
 
 The system's most important property is that it improves through use. The feedback loop operates at multiple scales:
 
-1. **Per-retrieval**: ACCESS.jsonl entries record whether each file retrieval was helpful, creating fine-grained signal.
-2. **Per-aggregation**: Accumulated ACCESS data is analyzed to update summaries, identify high/low-value files, and detect co-retrieval clusters.
-3. **Per-session**: Reflection notes capture how memory influenced the session's quality — a meta-level that pure retrieval tracking can't capture.
-4. **Per-review**: Periodic reviews assess whether governance rules themselves are producing good outcomes, closing the loop between top-down constraints and bottom-up evidence.
+1. **Per-retrieval**: ACCESS.jsonl entries record whether each file retrieval was helpful, creating fine-grained signal. MCP tools (`memory_log_access`, `memory_log_access_batch`) make this programmatic.
+2. **Per-aggregation**: Accumulated ACCESS data is analyzed to update summaries, identify high/low-value files, and detect co-retrieval clusters. MCP tools (`memory_run_aggregation`, `memory_check_aggregation_triggers`, `memory_access_analytics`) automate the analysis.
+3. **Per-session**: Reflection notes (`memory_record_reflection`) capture how memory influenced the session's quality — a meta-level that pure retrieval tracking can't capture.
+4. **Per-review**: Periodic reviews (`memory_run_periodic_review`, `memory_prepare_periodic_review`) assess whether governance rules themselves are producing good outcomes, closing the loop between top-down constraints and bottom-up evidence.
 
 Each scale feeds into the next: retrieval data informs aggregation, aggregation informs summaries, summaries inform retrieval, and the whole system is evaluated during review. This is not a storage system — it's a self-organizing process.
 
 ### Maturity as a design concept
 
-The system explicitly models its own developmental stage. A young system (Exploration) uses loose thresholds, captures aggressively, and tolerates ambiguity. A mature system (Consolidation) uses tight thresholds, captures selectively, and enforces order. The transition between stages is driven by quantitative signals (session count, retrieval success rate, confirmation ratio), not calendar time.
+The system explicitly models its own developmental stage. A young system (Exploration) uses loose thresholds, captures aggressively, and tolerates ambiguity. A mature system (Consolidation) uses tight thresholds, captures selectively, and enforces order. The transition between stages is driven by quantitative signals (session count, retrieval success rate, confirmation ratio — available via `memory_get_maturity_signals`), not calendar time.
 
 This adaptive approach prevents a common failure mode in knowledge management systems: applying mature-system rules to a young system (creating bureaucratic overhead before there's enough data to justify it) or applying young-system rules to a mature system (allowing unchecked growth in a system that should be consolidating).
 
 ### The dual-audience problem
 
-The memory system's documentation serves two audiences with fundamentally different needs. Human readers want self-contained, readable documents they can understand without cross-referencing six other files. Agent readers want minimal, non-redundant context that maximizes the token budget available for the user's actual task. These goals are in direct tension: what makes a governance file readable for a human (restating key concepts, providing worked examples, explaining rationale) is exactly what wastes an agent's context window through redundancy.
+The memory system serves two primary audiences with fundamentally different needs. Human readers want self-contained, readable documents they can understand without cross-referencing six other files. Agent readers want minimal, non-redundant context that maximizes the token budget available for the user's actual task. These goals are in direct tension: what makes a governance file readable for a human (restating key concepts, providing worked examples, explaining rationale) is exactly what wastes an agent's context window through redundancy.
 
-This tension is not a problem to solve once — it is a permanent design constraint that every file in the system must navigate. The strategies that have emerged:
+A third audience — visual human readers — emerged with the browser views. The dashboard, knowledge explorer, project viewer, and other views serve people who want to see their memory at a glance rather than reading markdown files. The views consume the same underlying files but present them through interactive panels, graphs, and navigable card layouts.
+
+This three-audience tension is not a problem to solve once — it is a permanent design constraint that every file in the system must navigate. The strategies that have emerged:
 
 **Role classification.** Every file in `core/governance/` falls into one of three roles: *always-load after entry* (read once the agent reaches the live router — must be lean and non-redundant), *on-demand* (loaded only when a specific operation requires it — can be more detailed), or *human-only* (never loaded by agents — can be as expansive as needed). The context loading manifest in `core/INIT.md` makes these roles explicit.
 
 - *Always-load after entry:* `core/INIT.md`. The architectural starting point is `README.md`; once the agent reaches `core/INIT.md`, that file carries the live operational weight of a normal session and must stay lean.
-- *On-demand:* `session-checklists.md`, `curation-policy.md`, `content-boundaries.md`, `update-guidelines.md` (loaded on full bootstrap), `curation-algorithms.md` (loaded during aggregation or stage transitions), `update-guidelines.md` § "Worked example" (reference for first read-only session), `system-maturity.md` (loaded during periodic review), `security-signals.md` (loaded during periodic review).
+- *On-demand:* `session-checklists.md`, `curation-policy.md`, `content-boundaries.md`, `update-guidelines.md` (loaded on full bootstrap), `curation-algorithms.md` (loaded during aggregation or stage transitions), `system-maturity.md` (loaded during periodic review), `security-signals.md` (loaded during periodic review).
 - *Human-only:* `HUMANS/docs/GLOSSARY.md`. Every term it defines is already introduced in context by the governance file that establishes it. It exists for humans browsing the repo, not for agents building context.
 
 **Denormalized lookup files.** `core/INIT.md` is a deliberately denormalized document: it duplicates threshold values, decision guides, and operational parameters from across the governance layer into a single file the agent reads every session. The normative justification for each value lives in the source files (curation-policy, system-maturity), but the agent never needs to load those files just to look up a threshold. This is the database-design principle of trading storage redundancy for read performance, applied to context windows.
@@ -113,6 +146,8 @@ The core use case is an individual who works with AI regularly — a developer, 
 
 **Value proposition**: The agent starts every session by reading your profile, preferences, and recent history. By session 3, it knows your coding style. By session 10, it knows which questions to ask and which to skip. By session 50, it has a nuanced model of your thinking patterns, recurring projects, and evolving interests. Switching from Claude to GPT to a local model loses nothing — the memory is in your files, not in any platform's state.
 
+The browser dashboard makes this tangible even outside agent sessions: users can see their knowledge domains, active projects, recent activity, and system health at a glance — all running client-side with no server or data leaving the machine.
+
 ### Developer workflow augmentation
 
 Software developers already live in git repositories. Adding a memory repo to their workflow is natural. Specific high-value patterns:
@@ -120,7 +155,7 @@ Software developers already live in git repositories. Adding a memory repo to th
 - **Cross-session debugging context.** The agent remembers what you tried yesterday, which hypotheses were eliminated, and which leads were promising. No more re-explaining the problem.
 - **Codebase-specific conventions.** Skills files encode project-specific patterns: commit message formats, testing conventions, deployment procedures, architectural decisions. The agent follows your team's norms without being told each time.
 - **Onboarding acceleration.** A team could maintain a shared memory repo with project knowledge, architectural decisions, and common procedures. New team members' AI assistants would immediately understand the project context.
-- **Long-running project context.** For multi-week or multi-month projects, the agent maintains a compressed history of decisions, pivots, and accumulated knowledge that would otherwise be lost to context window limits.
+- **Long-running project context.** For multi-week or multi-month projects, the plan system maintains structured roadmaps with phases, tasks, and execution state — decisions, pivots, and accumulated knowledge persist across sessions without relying on context windows.
 
 ### Research and knowledge management
 
@@ -128,7 +163,7 @@ Researchers accumulate knowledge across many sessions, often on overlapping topi
 
 - **Cross-session synthesis.** Knowledge files persist across sessions, so the agent can connect insights from Tuesday's literature review to Thursday's data analysis without the user manually bridging them.
 - **Emergent abstractions.** The system is designed to detect cross-domain patterns and propose meta-knowledge. A researcher working on both statistical methods and experimental design might find the agent surfacing connections neither the agent nor the researcher explicitly taught it.
-- **Citation and provenance tracking.** Every piece of ingested knowledge carries provenance metadata. The quarantine zone ensures external research is labeled and segregated until verified.
+- **Citation and provenance tracking.** Every piece of ingested knowledge carries provenance metadata. The quarantine zone ensures external research is labeled and segregated until verified. The knowledge graph overlay in the browser views makes citation relationships visual.
 - **Living literature reviews.** Knowledge files can serve as evolving summaries of a research area, updated incrementally as new papers or findings are discussed across sessions.
 
 ### Team and organizational memory
@@ -151,64 +186,84 @@ The system's progressive, conversational approach to building a user profile has
 
 Beyond technical work, the system can serve as a general-purpose persistent AI assistant:
 
-- **Project management.** Tracking multiple projects, deadlines, dependencies, and decisions across sessions. The agent remembers what you committed to last week.
+- **Project management.** Tracking multiple projects, deadlines, dependencies, and decisions across sessions. The plan system gives the agent structured multi-session context. The agent remembers what you committed to last week.
 - **Writing assistance.** An author's style preferences, character notes, plot decisions, and revision history persist across sessions. The agent maintains consistency across a long writing project.
 - **Health and habit tracking.** Preferences, routines, and goals tracked conversationally rather than through rigid forms. The agent adapts its suggestions based on accumulated history.
 
 ---
 
-## Part III: Future Development Directions
+## Part III: Development Trajectory
+
+### Recently realized
+
+These capabilities were future aspirations when the system was first designed. They now exist:
+
+**Pre-commit validation.** The repo includes a pre-commit configuration with Ruff (Python linting and formatting) and `validate_memory_repo.py` (memory-structure and frontmatter validation). Run `pre-commit run --all-files` before pushing.
+
+**Expanded starter profiles.** The browser-based setup wizard (`HUMANS/views/setup.html`) and the shell-based setup script (`HUMANS/setup/setup.sh`) offer eight starter profiles — from Software Developer and Researcher to Student, Creative Writer, and a blank template — covering a broad range of personas.
+
+**Browser-based memory visualization.** Six standalone HTML pages under `HUMANS/views/`: a seven-panel dashboard (user portrait, system health, active projects, recent activity, knowledge base, scratchpad, skills), a knowledge explorer with canvas-based force-directed knowledge graph, a project viewer with YAML plan timelines and phase indicators, a skills browser, a users browser, and a docs viewer. All client-side via the File System Access API.
+
+**MCP health and analytics tools.** `memory_session_health_check` (session-start maintenance status), `memory_validate` (system integrity check), `memory_get_maturity_signals` (maturity indicators), `memory_access_analytics` (retrieval metrics), `memory_check_knowledge_freshness` (staleness detection), and `memory_audit_trust` (trust decay audit) provide programmatic system health reporting.
+
+**Collaborative onboarding.** The first session is no longer an interview-style intake. The four-phase onboarding flow (`core/memory/skills/onboarding.md`) has the agent work with the user on a real seed task, demonstrate capabilities inline, perform a discovery audit of working style, and confirm a profile at the end — with a read-only export path for platforms without write access.
+
+**Knowledge graph analysis.** MCP tools for computing structural metrics (`memory_analyze_graph`) and pruning redundant cross-references (`memory_prune_redundant_links`); plus a browser-based canvas graph overlay with domain coloring, zoom, search, and network analysis.
+
+**Git hooks.** Pre-commit hooks validate frontmatter, check ACCESS.jsonl format, and enforce Python linting/formatting. Protected-tier enforcement (CHANGELOG entries for skills/governance changes) is handled by the MCP governance layer.
 
 ### Near-term (next iteration)
 
-**1. Automated validation in CI.** The existing `validate_memory_repo.py` script could run as a GitHub Actions workflow or pre-commit hook, catching frontmatter errors, ACCESS.jsonl format issues, and governance inconsistencies before they're committed. This is the natural next step from the current optional-validation approach.
+**Automated belief-diff generation.** The `core/governance/belief-diff-log.md` protocol is currently manual. A scheduled script (or a GitHub Action on a 30-day cron) could generate the belief diff automatically, making drift detection passive rather than requiring agent initiative.
 
-**2. Automated belief-diff generation.** The `core/governance/belief-diff-log.md` protocol is currently manual. A scheduled script (or a GitHub Action on a 30-day cron) could generate the belief diff automatically, making drift detection passive rather than requiring agent initiative.
-
-**3. Import/export tooling.** Beyond `onboard-export.sh`, the system needs tools for:
+**Import/export tooling.** The system needs tools for:
 - Exporting a complete memory snapshot (for backup or migration).
 - Importing memory from other formats (plain text notes, structured databases, other agent memory systems).
 - Partial export (sharing knowledge files without identity data, for team contexts).
 
-**4. Expanded starter profiles.** The current three templates (Software Developer, Researcher, Project Manager) cover common personas. Additional profiles — Data Scientist, Designer, Technical Writer, Student, Executive — would lower the barrier further for specific audiences.
+**Context budget monitoring.** The system tracks retrieval helpfulness but not context cost. A lightweight mechanism — logging approximate token counts consumed by governance files at session start, or tracking how much of the context window is spent on system overhead vs. user work — would provide the data needed to evaluate whether governance files are earning their context budget. This would close the feedback loop on context efficiency the same way ACCESS.jsonl closes the feedback loop on retrieval quality.
 
-**5. A `/health` diagnostic skill.** A skill the user can trigger to get a system health report: how many files, coverage percentage, retrieval success rate, stale content, pending review items, maturity stage assessment. Makes the system's self-organizing dynamics visible to the user on demand.
-
-**6. Context budget monitoring.** The system tracks retrieval helpfulness but not context cost. A lightweight mechanism — logging approximate token counts consumed by governance files at session start, or tracking how much of the context window is spent on system overhead vs. user work — would provide the data needed to evaluate whether governance files are earning their context budget. This would close the feedback loop on context efficiency the same way ACCESS.jsonl closes the feedback loop on retrieval quality.
+**CLI tool.** A dedicated CLI (`engram` or `memory`) wrapping common operations:
+- `engram status` — show system health, maturity stage, pending items.
+- `engram search <query>` — search across all files using the summary hierarchy.
+- `engram import <file>` — import external content to quarantine.
+- `engram review` — interactive review of pending queue items.
+- `engram export --format <obsidian|notion|plain>` — export for other tools.
+- `engram validate` — run the validator with formatted output.
 
 ### Medium-term (architectural extensions)
 
-**7. Multi-user support.** The current architecture assumes a single user. Supporting multiple users (e.g., a team repo) would require:
+**Multi-user support.** The current architecture assumes a single user. Supporting multiple users (e.g., a team repo) would require:
 - Per-user identity folders (or a shared identity with user-specific overlays).
 - Access control on identity files (Alice's preferences shouldn't be writable by Bob's agent).
 - Conflict resolution for concurrent writes to shared knowledge.
 - Git branch strategies for isolated experimentation vs. shared ground truth.
 
-**8. Semantic retrieval.** The current retrieval mechanism is SUMMARY.md-based: the agent reads summaries and decides what to fetch. This works well but becomes less effective as the system grows. Adding a local embedding index (e.g., using a lightweight model to embed all files and perform nearest-neighbor search) would dramatically improve retrieval precision at scale without changing the fundamental architecture. The embedding index would be a supplementary retrieval mechanism alongside SUMMARY-based navigation, not a replacement.
+**Semantic retrieval.** The current retrieval mechanism is SUMMARY.md-based: the agent reads summaries and decides what to fetch. This works well but becomes less effective as the system grows. Adding a local embedding index (e.g., using a lightweight model to embed all files and perform nearest-neighbor search) would dramatically improve retrieval precision at scale without changing the fundamental architecture. The embedding index would be a supplementary retrieval mechanism alongside SUMMARY-based navigation, not a replacement. The existing `memory_search` tool (full-text) and `memory_find_references` (structural) provide a foundation to build on.
 
-**9. Real-time sync.** For users who switch between platforms within a single working session (e.g., Claude Code for coding, ChatGPT for brainstorming), the current per-session architecture means one platform's changes aren't visible to the other until the session ends. A lightweight sync mechanism (filesystem watcher + auto-commit, or a shared working directory) would enable mid-session handoffs.
+**Real-time sync.** For users who switch between platforms within a single working session (e.g., Claude Code for coding, ChatGPT for brainstorming), the current per-session architecture means one platform's changes aren't visible to the other until the session ends. A lightweight sync mechanism (filesystem watcher + auto-commit, or a shared working directory) would enable mid-session handoffs.
 
-**10. Memory visualization.** A web dashboard showing:
-- A knowledge graph of how files relate to each other (based on cross-references and co-retrieval patterns).
-- A heat map of retrieval frequency and helpfulness across the repo.
-- A timeline of how the user's profile has evolved.
-- Maturity stage tracking with historical trend.
-This would make the system's self-organizing dynamics visible and engaging, especially for users who are more visual than textual.
+**Skill marketplace.** Once multiple users have mature memory systems, commonly useful skills become shareable. A skill marketplace (a curated repository of skill files) would allow users to install pre-built workflows. The protected-tier security model already handles this: installed skills would arrive at `trust: low` and require user review before execution, the same way external knowledge is quarantined.
 
-**11. Skill marketplace.** Once multiple users have mature memory systems, commonly useful skills become shareable. A skill marketplace (a curated repository of skill files) would allow users to install pre-built workflows. The protected-tier security model already handles this: installed skills would arrive at `trust: low` and require user review before execution, the same way external knowledge is quarantined.
+**VS Code / IDE extension.** A lightweight extension that:
+- Shows the current user profile in a sidebar panel.
+- Provides a "Memory Search" command leveraging the MCP tool surface.
+- Highlights when a file being edited is referenced in the memory system.
+- Displays the current maturity stage and system health.
+- Surfaces pending review-queue items as IDE notifications.
 
 ### Long-term (ecosystem evolution)
 
-**12. Federated memory.** A protocol for memory systems to share knowledge selectively — e.g., a team's shared knowledge repo that individual memory systems can subscribe to, receiving updates to knowledge files while maintaining their own identity and skills. This extends the git model naturally: shared knowledge is a remote repository; individual memory is a local fork.
+**Federated memory.** A protocol for memory systems to share knowledge selectively — e.g., a team's shared knowledge repo that individual memory systems can subscribe to, receiving updates to knowledge files while maintaining their own identity and skills. This extends the git model naturally: shared knowledge is a remote repository; individual memory is a local fork.
 
-**13. Agent-to-agent memory transfer.** When a user has multiple specialized agents (a coding agent, a research agent, a writing agent), they currently share a single memory repo. A more sophisticated architecture would allow agents to maintain separate working memories while sharing a common long-term memory layer — similar to how human working memory is task-specific but draws on shared long-term memory.
+**Agent-to-agent memory transfer.** When a user has multiple specialized agents (a coding agent, a research agent, a writing agent), they currently share a single memory repo. A more sophisticated architecture would allow agents to maintain separate working memories while sharing a common long-term memory layer — similar to how human working memory is task-specific but draws on shared long-term memory.
 
-**14. Temporal reasoning.** The system currently stores memory with timestamps but doesn't reason temporally in sophisticated ways. Future extensions could support:
+**Temporal reasoning.** The system currently stores memory with timestamps but doesn't reason temporally in sophisticated ways. Future extensions could support:
 - Automatic detection of time-dependent knowledge ("this API version is current as of March 2026" becoming stale).
 - Predictive retrieval based on temporal patterns ("the user usually asks about deployment on Fridays").
 - Narrative generation from the temporal stream ("here's how your understanding of distributed systems evolved over the past year").
 
-**15. Self-modifying governance.** The governance feedback mechanism already allows the agent to propose governance changes based on evidence. The long-term direction is a system where governance rules genuinely co-evolve with content — where thresholds, trust policies, and even folder structures adapt continuously rather than in discrete periodic reviews.
+**Self-modifying governance.** The governance feedback mechanism already allows the agent to propose governance changes based on evidence. The long-term direction is a system where governance rules genuinely co-evolve with content — where thresholds, trust policies, and even folder structures adapt continuously rather than in discrete periodic reviews.
 
 ---
 
@@ -216,24 +271,18 @@ This would make the system's self-organizing dynamics visible and engaging, espe
 
 ### Platform integrations
 
-**MCP (Model Context Protocol) server.** The memory repo is exposed as an MCP server for MCP-capable clients such as Claude Code, Codex, Cursor, and IDE integrations. The MCP layer provides a standardized tool interface for reading memory, inspecting provenance, and performing governed writes without each client reimplementing the repo's rules. At a high level, the server provides:
-- `read_memory(path)` — retrieve a file with trust-level metadata.
-- `search_memory(query)` — semantic search across the repo.
-- `propose_change(path, content, reasoning)` — queue a proposed change with governance enforcement.
-- `log_access(file, task, helpfulness)` — append to ACCESS.jsonl.
-- `get_context(topic)` — return the most relevant files for a given topic, navigating the summary hierarchy automatically.
+**MCP (Model Context Protocol) server.** The memory repo is exposed as an MCP server for MCP-capable clients such as Claude Code, Codex, Cursor, and IDE integrations. The server provides 73 governed tools across three tiers:
 
-The MCP layer already serves as a first-class tool-facing interface, while thin platform-specific adapters still provide the initial handoff into the canonical repo contract. It also provides a natural enforcement point for context efficiency — the MCP server can package compact workflow bundles and policy lookups so clients spend fewer tokens reconstructing the same startup logic.
+- **Tier 0 — Read-only (38 tools).** File reading with parsed frontmatter and version tokens, full-text search, reference discovery, link validation, graph analysis, access analytics, session health checks, maturity signal assessment, aggregation trigger monitoring, diff/log inspection, and capability introspection.
+- **Tier 1 — Semantic operations (28 tools).** Knowledge promotion, demotion, and archival with governed previews. Plan creation, execution, and review. Session recording, chat summaries, reflection notes. Access logging (single and batch). Aggregation orchestration. Periodic review execution. Skill and user trait updates with rate-limiting. Scratchpad management. Commit revert with preview-first flow.
+- **Tier 2 — Write primitives (7 tools, gated).** Low-level staged mutations (`memory_write`, `memory_edit`, `memory_delete`, `memory_move`, `memory_update_frontmatter`, `memory_update_frontmatter_bulk`) sealed by `memory_commit`. Available only when `MEMORY_ENABLE_RAW_WRITE_TOOLS=true`.
 
-**VS Code / IDE extension.** A lightweight extension that:
-- Shows the current user profile in a sidebar panel.
-- Provides a "Memory Search" command that queries the repo using the summary hierarchy.
-- Highlights when a file being edited is referenced in the memory system.
-- Displays the current maturity stage and system health.
-- Surfaces pending review-queue items as IDE notifications.
+The server also exposes **MCP resources** (`memory://session/health`, `memory://plans/active`) and **MCP prompts** (unverified review, promotion preview, periodic review, session wrap-up) for workflow orchestration.
+
+See [MCP.md](MCP.md) for the full human-facing guide to the tool surface.
 
 **GitHub App.** A GitHub App that:
-- Runs `validate_memory_repo.py` on every push (CI validation).
+- Runs validation on every push (CI validation).
 - Generates belief diffs on a schedule (automated drift detection).
 - Auto-archives expired low-trust content (temporal decay enforcement).
 - Notifies the user of pending review items via GitHub Issues or PR comments.
@@ -260,28 +309,12 @@ The MCP layer already serves as a first-class tool-facing interface, while thin 
 
 **Calendar and communication.** Integrations with calendar (meeting context), email (stakeholder communication patterns), and Slack (team dynamics) would enrich the identity and knowledge layers with context the user would otherwise need to re-explain each session. All such content would flow through the quarantine zone.
 
-### Developer tooling integrations
-
-**Git hooks.** Pre-commit hooks that:
-- Validate frontmatter on all staged content files.
-- Check ACCESS.jsonl format.
-- Prevent accidental commits of sensitive data to identity files.
-- Enforce the protected-tier requirement (skills and meta changes require a CHANGELOG entry in the same commit).
-
-**CLI tool.** A dedicated CLI (`ams` or `memory`) that wraps common operations:
-- `memory status` — show system health, maturity stage, pending items.
-- `memory search <query>` — search across all files using the summary hierarchy.
-- `memory import <file>` — import external content to quarantine.
-- `memory review` — interactive review of pending queue items.
-- `memory export --format <obsidian|notion|plain>` — export for other tools.
-- `memory validate` — run the validator with formatted output.
-
 ---
 
 ## Summary
 
-Agent Memory Seed is a system built on the conviction that AI memory should be a user-owned, human-readable, model-portable artifact — not a platform feature that locks users in or an opaque embedding store that defies inspection. Its architecture draws from version control (git as the audit trail), information retrieval (progressive compression and trust-weighted retrieval), immune systems (quarantine, decay, anomaly detection), and developmental biology (maturity stages with adaptive parameters).
+Engram is a system built on the conviction that AI memory should be a user-owned, human-readable, model-portable artifact — not a platform feature that locks users in or an opaque embedding store that defies inspection. Its architecture draws from version control (git as the audit trail), information retrieval (progressive compression and trust-weighted retrieval), immune systems (quarantine, decay, anomaly detection), and developmental biology (maturity stages with adaptive parameters).
 
-The system serves two audiences — humans who read and edit the files, and agents who load them into finite context windows — and treats the tension between their needs as a permanent design constraint rather than a problem to solve once. Context efficiency is not an afterthought but a first-class architectural concern, shaping how files are scoped, split, annotated, and loaded.
+The system serves three audiences — humans who read and edit the files, agents who load them into finite context windows, and visual users who browse them through the dashboard and viewers — and treats the tension between their needs as a permanent design constraint rather than a problem to solve once. Context efficiency is not an afterthought but a first-class architectural concern, shaping how files are scoped, split, annotated, and loaded.
 
-The system is currently a template — a seed, as the name suggests. Its value grows with use: each session adds signal, each aggregation sharpens retrieval, each review strengthens governance. The future directions outlined here extend that trajectory: from individual to team, from manual to automated, from single-platform to ecosystem-wide. But the core principle remains constant: **memory is yours, stored in files you control, in a format any model can read.**
+The system's value grows with use: each session adds signal, each aggregation sharpens retrieval, each review strengthens governance. The MCP tool surface makes these feedback loops programmatic rather than manual. The future directions outlined here extend that trajectory: from individual to team, from manual to automated, from single-platform to ecosystem-wide. But the core principle remains constant: **memory is yours, stored in files you control, in a format any model can read.**
