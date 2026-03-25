@@ -785,13 +785,26 @@
     var lArrow = el('span', '\u25be', 'graph-panel-arrow');
     ltitle.appendChild(lArrow);
     legend.appendChild(ltitle);
+    var legendItemsWrap = el('div', '', 'legend-items');
+    legend.appendChild(legendItemsWrap);
     var domainsSeen = {};
     for (var i = 0; i < graph.nodes.length; i++) {
       domainsSeen[graph.nodes[i].domain] = true;
     }
+    var domainOrder = Object.keys(DOMAIN_COLORS);
+    var sortedDomains = Object.keys(domainsSeen).sort(function (left, right) {
+      var leftIndex = domainOrder.indexOf(left);
+      var rightIndex = domainOrder.indexOf(right);
+      if (leftIndex === -1 && rightIndex === -1) return left.localeCompare(right);
+      if (leftIndex === -1) return 1;
+      if (rightIndex === -1) return -1;
+      return leftIndex - rightIndex;
+    });
     var selectedDomain = null;
+    var hoveredLegendDomain = null;
     var legendItems = {};
-    for (var d in domainsSeen) {
+    for (var di = 0; di < sortedDomains.length; di++) {
+      var d = sortedDomains[di];
       var item = el('div', '', 'legend-item');
       var dot = el('span', '', 'legend-dot');
       dot.style.background = DOMAIN_COLORS[d] || DOMAIN_DEFAULT_COLOR;
@@ -813,16 +826,19 @@
             }
           }
         });
+        itemEl.addEventListener('mouseenter', function () {
+          hoveredLegendDomain = domain;
+        });
+        itemEl.addEventListener('mouseleave', function () {
+          if (hoveredLegendDomain === domain) hoveredLegendDomain = null;
+        });
       })(d, item);
-      legend.appendChild(item);
+      legendItemsWrap.appendChild(item);
     }
     var legendCollapsed = false;
     ltitle.addEventListener('click', function () {
       legendCollapsed = !legendCollapsed;
-      var items = legend.querySelectorAll('.legend-item');
-      for (var k = 0; k < items.length; k++) {
-        items[k].style.display = legendCollapsed ? 'none' : '';
-      }
+      legendItemsWrap.style.display = legendCollapsed ? 'none' : '';
       lArrow.textContent = legendCollapsed ? '\u25b8' : '\u25be';
       bringToFront(legend);
     });
@@ -1170,7 +1186,14 @@
           if (nodes[di].domain === selectedDomain) domainSet[di] = true;
         }
       }
-      var hasHighlight = hoverActive || domainActive;
+      var legendHoverSet = {};
+      var legendHoverActive = hoveredLegendDomain !== null;
+      if (legendHoverActive) {
+        for (var li = 0; li < nodes.length; li++) {
+          if (nodes[li].domain === hoveredLegendDomain) legendHoverSet[li] = true;
+        }
+      }
+      var hasHighlight = hoverActive || domainActive || legendHoverActive;
 
       // Edges
       for (var e = 0; e < edgeIdx.length; e++) {
@@ -1191,6 +1214,7 @@
         var node = nodes[i];
         var r = nodeRadius(node);
         var color = DOMAIN_COLORS[node.domain] || DOMAIN_DEFAULT_COLOR;
+        var matchedLegendHover = legendHoverActive && legendHoverSet[i];
         var dimmedByHover = hoverActive && !highlightSet[i];
         var dimmedByDomain = !hoverActive && domainActive && !domainSet[i];
         var dimmed = dimmedByHover || dimmedByDomain;
@@ -1219,6 +1243,17 @@
           ctx.strokeStyle = '#fff';
           ctx.lineWidth = 2 / cam.zoom;
           ctx.stroke();
+        }
+
+        if (matchedLegendHover && !hoverActive && !domainActive) {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, (drawR + 4.5) / cam.zoom, 0, Math.PI * 2);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2 / cam.zoom;
+          ctx.globalAlpha = 0.55;
+          ctx.setLineDash([]);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
         }
 
         // Persistent ring for the node open in the sidebar
@@ -1296,9 +1331,10 @@
       for (var i = 0; i < nodes.length; i++) {
         var showByHover = hoverActive && highlightSet[i];
         var showByDomain = !hoverActive && domainActive && domainSet[i];
+        var showByLegendHover = !hoverActive && legendHoverActive && legendHoverSet[i];
         var showByDegree = !hasHighlight && nodes[i].degree >= labelThreshold;
         var showByPreview = i === previewNodeIdx;
-        if (!showByHover && !showByDomain && !showByDegree && !showByPreview) continue;
+        if (!showByHover && !showByDomain && !showByLegendHover && !showByDegree && !showByPreview) continue;
         var node = nodes[i];
         var r = nodeRadius(node);
         ctx.fillStyle = 'rgba(232,226,217,0.9)';

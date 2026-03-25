@@ -76,12 +76,16 @@ test('summarizeGraph produces readable summary data for accessible output', func
   };
 
   const summary = summarizeGraph(result, 'ai');
+  const sentenceTexts = summary.sentences.map(function (line) {
+    if (typeof line === 'string') return line;
+    return line.map(function (segment) { return segment.text; }).join('');
+  });
 
   assert.equal(summary.title, 'Graph summary for ai');
   assert.equal(summary.topDomains.length, 2);
   assert.equal(summary.topHubs[0].label, 'hub-a');
-  assert.ok(summary.sentences.some(function (line) { return line.includes('5 files and 4 links'); }));
-  assert.ok(summary.sentences.some(function (line) { return line.includes('Small-world structure is present'); }));
+  assert.ok(sentenceTexts.some(function (line) { return line.includes('5 files and 4 links'); }));
+  assert.ok(sentenceTexts.some(function (line) { return line.includes('Small-world structure is present'); }));
 });
 
 test('resolveGraphRef normalizes relative and bare markdown references', function () {
