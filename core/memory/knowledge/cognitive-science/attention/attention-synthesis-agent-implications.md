@@ -4,7 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
-related: attentional-bottleneck-limited-capacity.md, cognitive-load-theory-sweller.md, transformer-attention-vs-human-attention.md, ../metacognition/metacognition-synthesis-agent-implications.md, ../concepts/concepts-synthesis-agent-implications.md, ../memory/reconsolidation-agent-design-implications.md
+related: attentional-bottleneck-limited-capacity.md, cognitive-load-theory-sweller.md, transformer-attention-vs-human-attention.md, ../metacognition/metacognition-synthesis-agent-implications.md, ../concepts/concepts-synthesis-agent-implications.md, ../memory/reconsolidation-agent-design-implications.md, executive-functions-miyake-unity-diversity.md
 ---
 
 # Attention: Synthesis and Agent Design Implications

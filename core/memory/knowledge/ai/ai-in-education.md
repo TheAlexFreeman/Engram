@@ -15,6 +15,7 @@ related:
   - ../philosophy/history/ancient/plato.md
   - frontier-synthesis.md
   - tools/agent-memory-in-ai-ecosystem.md
+  - frontier/epistemology/compression-and-intelligence.md
 ---
 
 # AI in Education

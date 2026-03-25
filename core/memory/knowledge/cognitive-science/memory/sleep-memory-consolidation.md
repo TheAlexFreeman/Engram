@@ -4,7 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
-related: standard-model-consolidation.md, procedural-memory-priming-conditioning.md, hippocampus-memory-formation.md
+related: standard-model-consolidation.md, procedural-memory-priming-conditioning.md, hippocampus-memory-formation.md, reconsolidation-discovery-mechanism.md
 ---
 
 # Sleep and Memory Consolidation

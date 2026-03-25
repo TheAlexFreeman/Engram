@@ -14,6 +14,8 @@ related:
   - grounding-problem-phenomenological.md
   - heidegger-care-temporality.md
   - husserl-intentionality-epoche.md
+  - heidegger-being-in-the-world.md
+  - heidegger-readiness-presence-at-hand.md
 ---
 
 # Synthesis: Phenomenology, Dynamical Systems, and Embodied AI

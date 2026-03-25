@@ -5,6 +5,10 @@ source: agent-generated
 topic: Synthesis of AI frontier research findings most relevant to this memory system's design, behavior, and risks
 trust: low
 type: knowledge
+related:
+  - frontier/architectures/mixture-of-experts.md
+  - ai-in-education.md
+  - ai-as-complementary-cognition.md
 ---
 
 # AI Frontier Research: Synthesis for This System

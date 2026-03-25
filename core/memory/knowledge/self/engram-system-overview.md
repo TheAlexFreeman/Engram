@@ -13,6 +13,7 @@ related:
   - memory/knowledge/self/validation-as-adaptive-health.md
   - memory/knowledge/self/environment-capability-asymmetry.md
   - memory/knowledge/self/operational-resilience-and-memetic-security-synthesis.md
+  - memory/knowledge/_unverified/self/comprehensive-self-knowledge-summary.md
 ---
 
 # Engram System — Architecture and Design Overview

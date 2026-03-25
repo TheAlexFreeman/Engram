@@ -4,7 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
-related: reconsolidation-agent-design-implications.md, ../../mathematics/game-theory/mechanism-design-revelation-principle.md, ../../mathematics/causal-inference/causal-discovery-algorithms.md, ebbinghaus-forgetting-spacing-effect.md, false-memory-constructive-nature.md, hippocampus-memory-formation.md, motivated-forgetting-retrieval-induced.md, standard-model-consolidation.md
+related: reconsolidation-agent-design-implications.md, ../../mathematics/game-theory/mechanism-design-revelation-principle.md, ../../mathematics/causal-inference/causal-discovery-algorithms.md, ebbinghaus-forgetting-spacing-effect.md, false-memory-constructive-nature.md, hippocampus-memory-formation.md, motivated-forgetting-retrieval-induced.md, standard-model-consolidation.md, sleep-memory-consolidation.md, tulving-episodic-semantic-distinction.md
 ---
 
 # Discovery and Mechanism of Memory Reconsolidation

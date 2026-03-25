@@ -9,6 +9,7 @@ related:
   - heidegger-readiness-presence-at-hand.md
   - heidegger-care-temporality.md
   - husserl-intentionality-epoche.md
+  - synthesis-phenomenology-dynamical-systems.md
 ---
 
 # Heidegger: Being-in-the-World and Dasein

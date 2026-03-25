@@ -15,6 +15,7 @@ related:
   - agent-configuration-and-tooling.md
   - prompt-engineering-for-code.md
   - context-window-management.md
+  - ../../ai/frontier-synthesis.md
 ---
 
 # AI Engineering Trajectory

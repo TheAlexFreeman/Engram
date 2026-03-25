@@ -13,6 +13,7 @@ related:
   - availability-representativeness-anchoring.md
   - transformer-attention-vs-human-attention.md
   - vigilance-decrement.md
+  - early-late-selection-models.md
 ---
 
 # Executive Functions: Miyake's Unity-and-Diversity Framework

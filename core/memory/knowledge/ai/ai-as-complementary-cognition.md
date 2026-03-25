@@ -12,6 +12,7 @@ related:
   - frontier/epistemology/compression-and-intelligence.md
   - tools/agent-memory-in-ai-ecosystem.md
   - ../software-engineering/ai-engineering/ai-assisted-development-workflows.md
+  - ai-in-education.md
 ---
 
 # AI as Complementary Cognition

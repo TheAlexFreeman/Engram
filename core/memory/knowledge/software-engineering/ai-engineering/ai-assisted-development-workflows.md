@@ -10,6 +10,7 @@ related:
   - prompt-engineering-for-code.md
   - agent-configuration-and-tooling.md
   - ../../ai/tools/ai-tools-landscape-2026.md
+  - ai-engineering-trajectory.md
 ---
 
 # AI-Assisted Development Workflows
