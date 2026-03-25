@@ -3,10 +3,13 @@
  *
  * Exports via window.Engram:
  *   el, clearNode, escapeHtml, setStatus, makeActivatable, showError, hideError,
- *   readFile, listDir,
+ *   readFile, listDir, writeFile,
  *   parseFrontmatter, parseFlatYaml, parseMarkdownTable,
+ *   getRelatedList, setRelatedList, addRelatedEntry, removeRelatedEntry,
  *   openDB, loadSavedHandle, saveHandle, clearSavedHandle,
- *   requestReadPermission, restoreSavedHandle, readTextWithFallback,
+ *   requestReadPermission, requestWritePermission,
+ *   restoreSavedHandle, readTextWithFallback,
+ *   buildFileIndex,
  *   DB_NAME, STORE, HANDLE_KEY,
  *   renderMarkdown
  */
@@ -117,6 +120,23 @@
     return { dirs: dirs, files: files };
   }
 
+  /** Write text content to a file via the File System Access API. Returns true on success. */
+  async function writeFile(dirHandle, path, content) {
+    var parts = path.split('/').filter(Boolean);
+    var current = dirHandle;
+    for (var i = 0; i < parts.length - 1; i++) {
+      try { current = await current.getDirectoryHandle(parts[i]); }
+      catch (_) { return false; }
+    }
+    try {
+      var fh = await current.getFileHandle(parts[parts.length - 1]);
+      var writable = await fh.createWritable();
+      await writable.write(content);
+      await writable.close();
+      return true;
+    } catch (_) { return false; }
+  }
+
   /* ── Parsing helpers ───────────────────────────────── */
 
   /** Strip YAML frontmatter and return {frontmatter: string|null, body: string}. */
@@ -164,6 +184,163 @@
       rows.push(row);
     }
     return rows;
+  }
+
+  /* ── Related-field helpers (frontmatter `related:` manipulation) ── */
+
+  /**
+   * Parse the `related:` field from raw file content.
+   * Returns { list: string[], format: 'comma'|'yaml-list'|'none' }.
+   */
+  function getRelatedList(content) {
+    var none = { list: [], format: 'none' };
+    if (!content) return none;
+    var fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch) return none;
+    var fm = fmMatch[1];
+
+    // YAML list format:  related:\n  - foo.md\n  - bar.md
+    var listMatch = fm.match(/^related:\s*\n((?:[ \t]+-\s+.+\n?)+)/m);
+    if (listMatch) {
+      var items = listMatch[1].match(/^[ \t]+-\s+(.+)/gm);
+      var list = [];
+      if (items) {
+        for (var i = 0; i < items.length; i++) {
+          var val = items[i].replace(/^[ \t]+-\s+/, '').trim();
+          if (val) list.push(val);
+        }
+      }
+      return { list: list, format: 'yaml-list' };
+    }
+
+    // Comma-separated inline format:  related: foo.md, bar.md
+    var inlineMatch = fm.match(/^related:\s*(.+)$/m);
+    if (inlineMatch) {
+      var raw = inlineMatch[1].trim();
+      if (!raw) return { list: [], format: 'comma' };
+      var parts = raw.split(/,\s*/);
+      var list = [];
+      for (var i = 0; i < parts.length; i++) {
+        var v = parts[i].trim();
+        if (v) list.push(v);
+      }
+      return { list: list, format: 'comma' };
+    }
+
+    return none;
+  }
+
+  /**
+   * Replace or insert the `related:` field in raw file content.
+   * Preserves original format when possible. Returns the updated file text.
+   */
+  function setRelatedList(content, newList, preferFormat) {
+    if (!content) content = '';
+    var fmMatch = content.match(/^(---\r?\n)([\s\S]*?)(\r?\n---)/);
+    var nl = content.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
+
+    // Determine target format
+    var current = getRelatedList(content);
+    var format = preferFormat || (current.format !== 'none' ? current.format : 'comma');
+
+    // Build the new field text
+    var fieldText = '';
+    if (newList.length > 0) {
+      if (format === 'yaml-list') {
+        fieldText = 'related:' + nl;
+        for (var i = 0; i < newList.length; i++) {
+          fieldText += '  - ' + newList[i] + nl;
+        }
+        fieldText = fieldText.replace(new RegExp(nl.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '$'), '');
+      } else {
+        fieldText = 'related: ' + newList.join(', ');
+      }
+    }
+
+    if (!fmMatch) {
+      // No frontmatter — create one if we have entries to add
+      if (newList.length === 0) return content;
+      return '---' + nl + fieldText + nl + '---' + nl + content;
+    }
+
+    var fm = fmMatch[2];
+
+    // Remove existing related field (both formats)
+    var yamlListRx = /^related:\s*\n(?:[ \t]+-\s+.+\n?)*/m;
+    var inlineRx = /^related:\s*.*$/m;
+    if (yamlListRx.test(fm)) {
+      fm = fm.replace(yamlListRx, '');
+    } else if (inlineRx.test(fm)) {
+      fm = fm.replace(inlineRx, '');
+    }
+
+    // Clean up double blank lines from removal
+    fm = fm.replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '').replace(/\n+$/, '');
+
+    // Insert new field (or leave it off if empty)
+    if (fieldText) {
+      fm = fm ? fm + nl + fieldText : fieldText;
+    }
+
+    return fmMatch[1] + fm + fmMatch[3] + content.substring(fmMatch[0].length);
+  }
+
+  /** Add a related entry to a file. Returns { success: boolean, list: string[] }. */
+  async function addRelatedEntry(dirHandle, filePath, targetPath) {
+    var content = await readFile(dirHandle, filePath);
+    if (content === null) return { success: false, list: [] };
+    var rel = getRelatedList(content);
+    for (var i = 0; i < rel.list.length; i++) {
+      if (rel.list[i] === targetPath) return { success: true, list: rel.list };
+    }
+    var newList = rel.list.concat([targetPath]);
+    var updated = setRelatedList(content, newList);
+    var ok = await writeFile(dirHandle, filePath, updated);
+    return { success: ok, list: ok ? newList : rel.list };
+  }
+
+  /** Remove a related entry from a file. Returns { success: boolean, list: string[] }. */
+  async function removeRelatedEntry(dirHandle, filePath, targetPath) {
+    var content = await readFile(dirHandle, filePath);
+    if (content === null) return { success: false, list: [] };
+    var rel = getRelatedList(content);
+    var newList = [];
+    for (var i = 0; i < rel.list.length; i++) {
+      if (rel.list[i] !== targetPath) newList.push(rel.list[i]);
+    }
+    if (newList.length === rel.list.length) return { success: true, list: rel.list };
+    var updated = setRelatedList(content, newList);
+    var ok = await writeFile(dirHandle, filePath, updated);
+    return { success: ok, list: ok ? newList : rel.list };
+  }
+
+  /** Recursively list all .md files under a directory. Returns [{path, label, domain}]. */
+  async function buildFileIndex(dirHandle, basePath) {
+    var results = [];
+    async function walk(handle, prefix) {
+      var listing = await listDir(handle, prefix);
+      for (var f = 0; f < listing.files.length; f++) {
+        var fname = listing.files[f];
+        if (fname === 'NAMES.md' || fname === 'SUMMARY.md') continue;
+        if (!fname.endsWith('.md')) continue;
+        var parts = prefix.split('/').filter(Boolean);
+        var baseParts = basePath.split('/').filter(Boolean);
+        var relParts = parts.slice(baseParts.length);
+        var relPath = (relParts.length ? relParts.join('/') + '/' : '') + fname;
+        results.push({
+          path: relPath,
+          label: fname.replace(/\.md$/, ''),
+          domain: relParts[0] || ''
+        });
+      }
+      for (var d = 0; d < listing.dirs.length; d++) {
+        var dirName = listing.dirs[d];
+        if (dirName === '__pycache__' || dirName.startsWith('.')) continue;
+        await walk(handle, prefix ? prefix + '/' + dirName : dirName);
+      }
+    }
+    await walk(dirHandle, basePath);
+    return results;
   }
 
   /* ── IndexedDB handle persistence ──────────────────── */
@@ -228,6 +405,23 @@
     }
 
     return 'prompt';
+  }
+
+  /** Request read-write permission on a directory handle. */
+  async function requestWritePermission(handle) {
+    if (!handle) return 'denied';
+    try {
+      if (typeof handle.queryPermission === 'function') {
+        var current = await handle.queryPermission({ mode: 'readwrite' });
+        if (current === 'granted') return current;
+      }
+      if (typeof handle.requestPermission === 'function') {
+        return await handle.requestPermission({ mode: 'readwrite' });
+      }
+    } catch (_) {
+      return 'denied';
+    }
+    return 'denied';
   }
 
   async function restoreSavedHandle(opts) {
@@ -663,9 +857,15 @@
     hideError: hideError,
     readFile: readFile,
     listDir: listDir,
+    writeFile: writeFile,
     parseFrontmatter: parseFrontmatter,
     parseFlatYaml: parseFlatYaml,
     parseMarkdownTable: parseMarkdownTable,
+    getRelatedList: getRelatedList,
+    setRelatedList: setRelatedList,
+    addRelatedEntry: addRelatedEntry,
+    removeRelatedEntry: removeRelatedEntry,
+    buildFileIndex: buildFileIndex,
     normalizeMarkdownAnchor: normalizeMarkdownAnchor,
     splitMarkdownLinkTarget: splitMarkdownLinkTarget,
     scrollToMarkdownSection: scrollToMarkdownSection,
@@ -674,6 +874,7 @@
     loadSavedHandle: loadSavedHandle,
     clearSavedHandle: clearSavedHandle,
     requestReadPermission: requestReadPermission,
+    requestWritePermission: requestWritePermission,
     restoreSavedHandle: restoreSavedHandle,
     readTextWithFallback: readTextWithFallback,
     DB_NAME: DB_NAME,

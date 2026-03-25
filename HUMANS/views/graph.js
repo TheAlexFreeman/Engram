@@ -838,7 +838,7 @@
     var legendCollapsed = false;
     ltitle.addEventListener('click', function () {
       legendCollapsed = !legendCollapsed;
-      legendItemsWrap.style.display = legendCollapsed ? 'none' : '';
+      legend.classList.toggle('collapsed', legendCollapsed);
       lArrow.textContent = legendCollapsed ? '\u25b8' : '\u25be';
       bringToFront(legend);
     });
@@ -1033,6 +1033,9 @@
       previewBody.textContent = 'Loading\u2026';
       preview.classList.add('visible');
 
+      // Reset to content tab for new node, but keep connections tab visible
+      if (typeof switchPreviewTab === 'function') switchPreviewTab(activePreviewTab || 'content');
+
       previewOpen.onclick = function () {
         var segs = node.id.split('/');
         var file = segs.pop();
@@ -1075,7 +1078,279 @@
 
       previewBody.textContent = '';
       deps.renderMarkdown(parsed.body.trim(), previewBody);
+
+      // If connections tab is active, load connections for this node
+      if (activePreviewTab === 'connections') renderConnections(node.id);
     }
+
+    /* ── Preview panel tabs (Content / Connections) ───── */
+
+    var previewTabs = document.querySelectorAll('.preview-tab');
+    var connectionsPane = document.getElementById('graph-preview-connections');
+    var activePreviewTab = 'content';
+
+    function switchPreviewTab(tab) {
+      activePreviewTab = tab;
+      for (var t = 0; t < previewTabs.length; t++) {
+        previewTabs[t].classList.toggle('active', previewTabs[t].dataset.tab === tab);
+      }
+      previewBody.style.display = tab === 'content' ? '' : 'none';
+      previewMeta.style.display = tab === 'content' ? '' : 'none';
+      connectionsPane.style.display = tab === 'connections' ? '' : 'none';
+      if (tab === 'connections' && previewNodeId) {
+        renderConnections(previewNodeId);
+      }
+    }
+
+    for (var ti = 0; ti < previewTabs.length; ti++) {
+      (function (btn) {
+        btn.addEventListener('click', function () { switchPreviewTab(btn.dataset.tab); });
+      })(previewTabs[ti]);
+    }
+
+    /* ── Connection panel logic ───────────────────────── */
+
+    var connOutbound = document.getElementById('connections-outbound');
+    var connInbound = document.getElementById('connections-inbound');
+    var connInboundWrap = document.getElementById('connections-inbound-wrap');
+    var connSearch = document.getElementById('connections-search');
+    var connDropdown = document.getElementById('connection-dropdown');
+    var writePermissionGranted = false;
+
+    function domainDot(domain) {
+      var dot = document.createElement('span');
+      dot.className = 'conn-domain-dot';
+      dot.style.background = DOMAIN_COLORS[domain] || DOMAIN_DEFAULT_COLOR;
+      return dot;
+    }
+
+    async function ensureWritePermission() {
+      if (writePermissionGranted) return true;
+      var handle = deps.getRootHandle();
+      if (!handle || typeof deps.requestWritePermission !== 'function') return false;
+      var result = await deps.requestWritePermission(handle);
+      if (result === 'granted') { writePermissionGranted = true; return true; }
+      return false;
+    }
+
+    function showToast(msg, isError) {
+      var toast = document.createElement('div');
+      toast.className = 'graph-toast' + (isError ? ' graph-toast-error' : '');
+      toast.textContent = msg;
+      var container = document.getElementById('graph-overlay');
+      container.appendChild(toast);
+      setTimeout(function () { toast.classList.add('visible'); }, 10);
+      setTimeout(function () {
+        toast.classList.remove('visible');
+        setTimeout(function () { container.removeChild(toast); }, 300);
+      }, 2500);
+    }
+
+    function rebuildAdj() {
+      for (var key in adj) delete adj[key];
+      for (var e = 0; e < edges.length; e++) {
+        var si = idxMap[edges[e].source], ti = idxMap[edges[e].target];
+        if (si === undefined || ti === undefined) continue;
+        if (!adj[si]) adj[si] = [];
+        if (!adj[ti]) adj[ti] = [];
+        adj[si].push(ti);
+        adj[ti].push(si);
+      }
+      // Rebuild edgeIdx
+      edgeIdx.length = 0;
+      for (var e = 0; e < edges.length; e++) {
+        edgeIdx.push({ s: idxMap[edges[e].source], t: idxMap[edges[e].target] });
+      }
+    }
+
+    function makeConnectionRow(nodeId, label, domain, provenance, canRemove, sourceId) {
+      var row = document.createElement('div');
+      row.className = 'connection-row';
+      row.appendChild(domainDot(domain));
+      var labelSpan = document.createElement('span');
+      labelSpan.className = 'conn-label';
+      labelSpan.textContent = label;
+      labelSpan.title = nodeId;
+      row.appendChild(labelSpan);
+      var badge = document.createElement('span');
+      badge.className = 'connection-badge connection-badge-' + provenance;
+      badge.textContent = provenance;
+      row.appendChild(badge);
+      if (canRemove) {
+        var removeBtn = document.createElement('button');
+        removeBtn.className = 'conn-remove';
+        removeBtn.textContent = '\u00d7';
+        removeBtn.title = 'Remove link';
+        removeBtn.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          handleRemoveLink(sourceId, nodeId, row);
+        });
+        row.appendChild(removeBtn);
+      }
+      row.addEventListener('click', function () {
+        var idx = idxMap[nodeId];
+        if (idx !== undefined) {
+          cam.x = nodes[idx].x;
+          cam.y = nodes[idx].y;
+          cam.zoom = 2;
+          showPreviewNode(nodes[idx]);
+        }
+      });
+      return row;
+    }
+
+    async function handleRemoveLink(sourceId, targetId, rowEl) {
+      if (!(await ensureWritePermission())) {
+        showToast('Write permission required', true);
+        return;
+      }
+      var knowledgeBase = deps.getKnowledgeBase();
+      var rootHandle = deps.getRootHandle();
+      var result = await deps.removeRelatedEntry(rootHandle, knowledgeBase + '/' + sourceId, targetId);
+      if (!result.success) {
+        showToast('Failed to remove link', true);
+        return;
+      }
+      // Update graph data
+      for (var e = edges.length - 1; e >= 0; e--) {
+        if (edges[e].source === sourceId && edges[e].target === targetId) {
+          edges.splice(e, 1); break;
+        }
+      }
+      var si = idxMap[sourceId], ti = idxMap[targetId];
+      if (si !== undefined) nodes[si].refs = Math.max(0, nodes[si].refs - 1);
+      if (ti !== undefined) nodes[ti].refBy = Math.max(0, nodes[ti].refBy - 1);
+      if (si !== undefined) nodes[si].degree = nodes[si].refs + nodes[si].refBy;
+      if (ti !== undefined) nodes[ti].degree = nodes[ti].refs + nodes[ti].refBy;
+      rebuildAdj();
+      if (rowEl && rowEl.parentNode) rowEl.parentNode.removeChild(rowEl);
+      showToast('Link removed');
+    }
+
+    async function handleAddLink(sourceId, targetId) {
+      if (!(await ensureWritePermission())) {
+        showToast('Write permission required', true);
+        return false;
+      }
+      var knowledgeBase = deps.getKnowledgeBase();
+      var rootHandle = deps.getRootHandle();
+      var result = await deps.addRelatedEntry(rootHandle, knowledgeBase + '/' + sourceId, targetId);
+      if (!result.success) {
+        showToast('Failed to add link', true);
+        return false;
+      }
+      // Update graph data
+      edges.push({ source: sourceId, target: targetId });
+      var si = idxMap[sourceId], ti = idxMap[targetId];
+      if (si !== undefined) { nodes[si].refs++; nodes[si].degree = nodes[si].refs + nodes[si].refBy; }
+      if (ti !== undefined) { nodes[ti].refBy++; nodes[ti].degree = nodes[ti].refs + nodes[ti].refBy; }
+      rebuildAdj();
+      showToast('Link added');
+      return true;
+    }
+
+    function renderConnections(nodeId) {
+      clearNode(connOutbound);
+      clearNode(connInbound);
+      connInboundWrap.style.display = 'none';
+      connSearch.value = '';
+      connDropdown.style.display = 'none';
+
+      var idx = idxMap[nodeId];
+      if (idx === undefined) return;
+
+      // Determine which targets are in this node's frontmatter related list
+      var knowledgeBase = deps.getKnowledgeBase();
+      var rootHandle = deps.getRootHandle();
+      deps.readFile(rootHandle, knowledgeBase + '/' + nodeId).then(function (content) {
+        var related = deps.getRelatedList(content || '');
+        var relatedSet = {};
+        for (var r = 0; r < related.list.length; r++) {
+          relatedSet[related.list[r]] = true;
+        }
+
+        // Outbound: nodes this file links to (source === nodeId)
+        var outTargets = {};
+        var inSources = {};
+        for (var e = 0; e < edges.length; e++) {
+          if (edges[e].source === nodeId) outTargets[edges[e].target] = true;
+          if (edges[e].target === nodeId) inSources[edges[e].source] = true;
+        }
+
+        // Render outbound connections
+        for (var tid in outTargets) {
+          var ti = idxMap[tid];
+          if (ti === undefined) continue;
+          var tNode = nodes[ti];
+          var isFm = !!relatedSet[tid];
+          var row = makeConnectionRow(tid, tNode.label, tNode.domain,
+            isFm ? 'frontmatter' : 'body', isFm, nodeId);
+          connOutbound.appendChild(row);
+        }
+
+        // Render inbound connections (only those not already in outbound)
+        var hasInbound = false;
+        for (var sid in inSources) {
+          if (outTargets[sid]) continue;
+          var si = idxMap[sid];
+          if (si === undefined) continue;
+          var sNode = nodes[si];
+          var row = makeConnectionRow(sid, sNode.label, sNode.domain, 'inbound', false, sid);
+          connInbound.appendChild(row);
+          hasInbound = true;
+        }
+        if (hasInbound) connInboundWrap.style.display = '';
+
+        if (connOutbound.children.length === 0 && !hasInbound) {
+          connOutbound.appendChild(el('div', 'No connections found.', 'connections-empty'));
+        }
+      });
+    }
+
+    // Add-link search
+    var searchDebounce = null;
+    connSearch.addEventListener('input', function () {
+      clearTimeout(searchDebounce);
+      var q = connSearch.value.trim().toLowerCase();
+      if (q.length < 2) { connDropdown.style.display = 'none'; return; }
+      searchDebounce = setTimeout(function () {
+        clearNode(connDropdown);
+        var currentAdj = adj[idxMap[previewNodeId]] || [];
+        var connectedSet = {};
+        for (var c = 0; c < currentAdj.length; c++) connectedSet[currentAdj[c]] = true;
+
+        var matches = 0;
+        for (var n = 0; n < nodes.length; n++) {
+          if (nodes[n].id === previewNodeId) continue;
+          if (connectedSet[n]) continue;
+          if (nodes[n].label.toLowerCase().indexOf(q) < 0 &&
+              nodes[n].id.toLowerCase().indexOf(q) < 0) continue;
+          var item = document.createElement('div');
+          item.className = 'connection-dropdown-item';
+          item.appendChild(domainDot(nodes[n].domain));
+          var lbl = el('span', nodes[n].label);
+          lbl.title = nodes[n].id;
+          item.appendChild(lbl);
+          (function (targetNode) {
+            item.addEventListener('click', function () {
+              connDropdown.style.display = 'none';
+              connSearch.value = '';
+              handleAddLink(previewNodeId, targetNode.id).then(function (ok) {
+                if (ok) renderConnections(previewNodeId);
+              });
+            });
+          })(nodes[n]);
+          connDropdown.appendChild(item);
+          matches++;
+          if (matches >= 8) break;
+        }
+        connDropdown.style.display = matches > 0 ? '' : 'none';
+      }, 150);
+    });
+
+    connSearch.addEventListener('blur', function () {
+      setTimeout(function () { connDropdown.style.display = 'none'; }, 200);
+    });
 
     canvas.addEventListener('dblclick', function (ev) {
       var rect = canvas.getBoundingClientRect();

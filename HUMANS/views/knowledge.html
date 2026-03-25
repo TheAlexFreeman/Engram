@@ -218,6 +218,62 @@ body { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 .detail-content .content-placeholder {
   padding: 3rem 1rem; text-align: center; color: var(--color-text-faint);
 }
+
+/* ── Inline related editor ───────────────────────────── */
+.related-editor { width: 100%; margin-top: 0.25rem; }
+.related-label-row {
+  display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem;
+}
+.related-edit-toggle {
+  font-size: 0.62rem; padding: 0.1rem 0.4rem; cursor: pointer;
+  background: none; border: 1px solid var(--color-border); border-radius: 3px;
+  color: var(--color-text-secondary);
+}
+.related-edit-toggle:hover { background: var(--color-hover-bg); }
+.related-chips {
+  display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center;
+}
+.related-chip {
+  display: inline-flex; align-items: center; gap: 0.2rem;
+  padding: 0.15rem 0.45rem; font-size: 0.72rem;
+  background: rgba(130,130,130,0.12); border-radius: 4px;
+  color: var(--color-text);
+}
+.related-chip-label {
+  color: var(--color-primary); text-decoration: none; cursor: pointer;
+}
+.related-chip-label:hover { text-decoration: underline; }
+.related-chip-remove {
+  padding: 0; width: 16px; height: 16px; line-height: 1;
+  font-size: 0.8rem; text-align: center;
+  background: none; border: none; border-radius: 3px;
+  color: var(--color-text-secondary); cursor: pointer;
+}
+.related-chip-remove:hover { background: rgba(244,67,54,0.15); color: #ef5350; }
+.related-chip-add { position: relative; background: none; }
+.related-add-input {
+  width: 120px; padding: 0.12rem 0.35rem; font-size: 0.7rem;
+  border: 1px solid var(--color-border); border-radius: 3px;
+  background: var(--color-bg); color: var(--color-text);
+}
+.related-add-input:focus { outline: none; border-color: var(--color-primary); }
+.related-autocomplete {
+  position: absolute; left: 0; top: 100%; z-index: 20;
+  width: 260px; max-height: 200px; overflow-y: auto;
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-small); box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.related-autocomplete-item {
+  display: flex; align-items: center; gap: 0.35rem;
+  padding: 0.3rem 0.5rem; cursor: pointer; font-size: 0.72rem;
+}
+.related-autocomplete-item:hover { background: var(--color-hover-bg); }
+.related-ac-domain {
+  font-size: 0.58rem; padding: 0.05rem 0.3rem;
+  background: rgba(130,130,130,0.12); border-radius: 2px;
+  color: var(--color-text-secondary);
+}
+.related-empty { color: var(--color-text-faint); font-size: 0.72rem; font-style: italic; }
 </style>
 </head>
 <body>
@@ -294,8 +350,23 @@ body { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
         <button id="graph-preview-open">Open &#8594;</button>
         <button id="graph-preview-close">&#10005;</button>
       </div>
+      <div class="graph-preview-tabs">
+        <button class="preview-tab active" data-tab="content">Content</button>
+        <button class="preview-tab" data-tab="connections">Connections</button>
+      </div>
       <div class="graph-preview-meta" id="graph-preview-meta" style="display:none"></div>
       <div class="graph-preview-body" id="graph-preview-body"></div>
+      <div class="graph-preview-connections" id="graph-preview-connections" style="display:none">
+        <div class="connections-add">
+          <input type="text" id="connections-search" placeholder="Search files to link&#8230;" autocomplete="off">
+          <div class="connection-dropdown" id="connection-dropdown"></div>
+        </div>
+        <div class="connections-list" id="connections-outbound"></div>
+        <div class="connections-inbound-section" id="connections-inbound-wrap" style="display:none">
+          <div class="connections-section-label">Referenced by</div>
+          <div class="connections-list" id="connections-inbound"></div>
+        </div>
+      </div>
     </div>
     <div class="analysis-backdrop" id="analysis-backdrop">
       <div class="analysis-modal">
@@ -595,6 +666,143 @@ body { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
     viewFile(resolved.file, resolved.section);
   }
 
+  /* ── Inline related editor ─────────────────────────── */
+
+  var relatedEditing = false;
+
+  function renderRelatedEditor(container, rawContent, filePath) {
+    var related = E.getRelatedList(rawContent);
+    var wrapper = el('div', '', 'related-editor');
+
+    // Label + edit toggle
+    var labelRow = el('div', '', 'related-label-row');
+    var label = el('span', 'related:', 'meta-label');
+    labelRow.appendChild(label);
+    var editBtn = el('button', relatedEditing ? 'done' : 'edit', 'related-edit-toggle');
+    editBtn.type = 'button';
+    labelRow.appendChild(editBtn);
+    wrapper.appendChild(labelRow);
+
+    // Chips container
+    var chips = el('div', '', 'related-chips');
+
+    function renderChips() {
+      while (chips.firstChild) chips.removeChild(chips.firstChild);
+      for (var i = 0; i < related.list.length; i++) {
+        (function (ref, idx) {
+          var chip = el('span', '', 'related-chip');
+          var refTarget = splitMarkdownLinkTarget(ref);
+          var chipLabel = refTarget.path.replace(/\.md$/i, '').split('/').pop();
+          if (refTarget.section) chipLabel += ' #' + refTarget.section;
+
+          var labelEl = document.createElement('a');
+          labelEl.className = 'related-chip-label';
+          labelEl.textContent = chipLabel;
+          labelEl.title = ref;
+          makeActivatable(labelEl, function () { navigateToFile(ref); }, {
+            role: 'link', label: 'Open related file ' + ref
+          });
+          chip.appendChild(labelEl);
+
+          if (relatedEditing) {
+            var removeBtn = el('button', '\u00d7', 'related-chip-remove');
+            removeBtn.type = 'button';
+            removeBtn.title = 'Remove ' + ref;
+            removeBtn.addEventListener('click', function (ev) {
+              ev.stopPropagation();
+              E.removeRelatedEntry(rootHandle, filePath, ref).then(function (result) {
+                if (result.success) {
+                  related.list.splice(idx, 1);
+                  renderChips();
+                }
+              });
+            });
+            chip.appendChild(removeBtn);
+          }
+          chips.appendChild(chip);
+        })(related.list[i], i);
+      }
+
+      // Add button (always last in edit mode)
+      if (relatedEditing) {
+        var addChip = el('span', '', 'related-chip related-chip-add');
+        var addInput = document.createElement('input');
+        addInput.type = 'text';
+        addInput.className = 'related-add-input';
+        addInput.placeholder = '+ add related...';
+        addChip.appendChild(addInput);
+        chips.appendChild(addChip);
+
+        var dropdown = el('div', '', 'related-autocomplete');
+        dropdown.style.display = 'none';
+        addChip.appendChild(dropdown);
+
+        var addDebounce = null;
+        addInput.addEventListener('input', function () {
+          clearTimeout(addDebounce);
+          var q = addInput.value.trim().toLowerCase();
+          if (q.length < 2) { dropdown.style.display = 'none'; return; }
+          addDebounce = setTimeout(function () {
+            E.buildFileIndex(rootHandle, knowledgeBase).then(function (files) {
+              while (dropdown.firstChild) dropdown.removeChild(dropdown.firstChild);
+              var existingSet = {};
+              for (var r = 0; r < related.list.length; r++) existingSet[related.list[r]] = true;
+              var matches = 0;
+              for (var f = 0; f < files.length; f++) {
+                var entry = files[f];
+                if (existingSet[entry.path]) continue;
+                if (entry.label.toLowerCase().indexOf(q) < 0 &&
+                    entry.path.toLowerCase().indexOf(q) < 0) continue;
+                var item = el('div', '', 'related-autocomplete-item');
+                var domainBadge = el('span', entry.domain || '', 'related-ac-domain');
+                item.appendChild(domainBadge);
+                item.appendChild(document.createTextNode(entry.label));
+                item.title = entry.path;
+                (function (path) {
+                  item.addEventListener('click', function () {
+                    dropdown.style.display = 'none';
+                    addInput.value = '';
+                    E.addRelatedEntry(rootHandle, filePath, path).then(function (result) {
+                      if (result.success) {
+                        related.list.push(path);
+                        renderChips();
+                      }
+                    });
+                  });
+                })(entry.path);
+                dropdown.appendChild(item);
+                matches++;
+                if (matches >= 8) break;
+              }
+              dropdown.style.display = matches > 0 ? '' : 'none';
+            });
+          }, 200);
+        });
+
+        addInput.addEventListener('blur', function () {
+          setTimeout(function () { dropdown.style.display = 'none'; }, 200);
+        });
+      }
+
+      if (related.list.length === 0 && !relatedEditing) {
+        chips.appendChild(el('span', 'none', 'related-empty'));
+      }
+    }
+
+    renderChips();
+    wrapper.appendChild(chips);
+    container.appendChild(wrapper);
+
+    editBtn.addEventListener('click', function () {
+      E.requestWritePermission(rootHandle).then(function (perm) {
+        if (perm !== 'granted') return;
+        relatedEditing = !relatedEditing;
+        editBtn.textContent = relatedEditing ? 'done' : 'edit';
+        renderChips();
+      });
+    });
+  }
+
   async function viewFile(filename, section) {
     activeFile = filename;
     renderBreadcrumb();
@@ -628,40 +836,21 @@ body { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
       for (var i = 0; i < fields.length; i++) {
         var key = fields[i];
         if (!fm[key]) continue;
+        if (key === 'related') continue; // Handled separately below
         var item = el('span', '', 'meta-item');
         item.appendChild(el('span', key + ':', 'meta-label'));
         if (key === 'trust') {
           var trustVal = fm[key].toLowerCase();
           var cls = 'badge badge-' + (trustVal === 'high' ? 'high' : trustVal === 'medium' ? 'medium' : 'low');
           item.appendChild(el('span', fm[key], cls));
-        } else if (key === 'related') {
-          var refs = fm[key].split(/,\s*/);
-          for (var r = 0; r < refs.length; r++) {
-            if (r > 0) item.appendChild(document.createTextNode(', '));
-            var refPath = refs[r].trim();
-            var refTarget = splitMarkdownLinkTarget(refPath);
-            if (refTarget.path.match(/\.md$/i)) {
-              var ra = document.createElement('a');
-              ra.className = 'knowledge-xref';
-              ra.textContent = refTarget.path.replace(/\.md$/i, '').split('/').pop() + (refTarget.section ? ' #' + refTarget.section : '');
-              ra.title = refPath;
-              (function(ref) {
-                makeActivatable(ra, function() { navigateToFile(ref); }, {
-                  role: 'link',
-                  label: 'Open related file ' + ref
-                });
-              })(refPath);
-              item.appendChild(document.createTextNode(' '));
-              item.appendChild(ra);
-            } else {
-              item.appendChild(document.createTextNode(' ' + refPath));
-            }
-          }
         } else {
           item.appendChild(document.createTextNode(' ' + fm[key]));
         }
         meta.appendChild(item);
       }
+
+      // Inline related editor (chips)
+      renderRelatedEditor(meta, content, filePath);
     }
 
     // Render body as styled markdown
@@ -681,14 +870,20 @@ body { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 
   EngramGraph.init({
     el: el, showError: showError, readFile: readFile,
-    listDir: listDir, parseFrontmatter: parseFrontmatter,
+    listDir: listDir, writeFile: E.writeFile,
+    parseFrontmatter: parseFrontmatter,
     parseFlatYaml: parseFlatYaml, renderMarkdown: renderMarkdown,
     getRootHandle: function () { return rootHandle; },
     getKnowledgeBase: function () { return knowledgeBase; },
     getDetailPath: function () { return detailPath; },
     setDetailPath: function (p) { detailPath = p; },
     showDetailView: showDetailView,
-    viewFile: viewFile
+    viewFile: viewFile,
+    requestWritePermission: E.requestWritePermission,
+    getRelatedList: E.getRelatedList,
+    addRelatedEntry: E.addRelatedEntry,
+    removeRelatedEntry: E.removeRelatedEntry,
+    buildFileIndex: E.buildFileIndex
   });
 
   /* ── initialization ────────────────────────────────── */
