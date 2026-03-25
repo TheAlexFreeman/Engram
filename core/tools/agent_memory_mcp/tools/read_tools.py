@@ -4082,7 +4082,8 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                   zero-co-access links).
         """
         from ..errors import NotFoundError, ValidationError
-        from ..tools.graph_analysis import parse_co_access, score_links_by_access as _slba
+        from ..tools.graph_analysis import parse_co_access
+        from ..tools.graph_analysis import score_links_by_access as _slba
 
         if not isinstance(path, str) or not path.strip():
             raise ValidationError("path must be a non-empty string")

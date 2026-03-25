@@ -655,7 +655,8 @@ def parse_co_access(
     their co-access count over the lookback window.
     """
     import json as _json
-    from datetime import date as _date, timedelta as _timedelta
+    from datetime import date as _date
+    from datetime import timedelta as _timedelta
 
     cutoff = _date.today() - _timedelta(days=lookback_days)
 
