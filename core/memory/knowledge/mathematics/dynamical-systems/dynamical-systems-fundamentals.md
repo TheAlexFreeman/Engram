@@ -3,6 +3,7 @@ created: '2026-03-21'
 origin_session: core/memory/activity/2026/03/21/chat-001
 source: agent-generated
 trust: medium
+related: chaos-lorenz-strange-attractors.md, bifurcation-theory-catastrophe.md, ergodic-theory-mixing.md, fractals-dimension-multiscale.md, complex-networks-small-world-scale-free.md, self-organized-criticality.md, ../../../ai/frontier/epistemology/llms-as-dynamical-systems.md, ../statistical-mechanics/statistical-mechanics-of-learning.md
 ---
 
 # Dynamical Systems Fundamentals

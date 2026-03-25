@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related: olson-logic-of-collective-action.md, ostrom-governing-the-commons.md, north-institutions-institutional-change.md, acemoglu-robinson-inclusive-institutions.md, ../../../philosophy/ethics/parfit-collective-action.md, ../behavioral-economics/behavioral-economics-rationality-synthesis.md, ../network-diffusion/surowiecki-wisdom-of-crowds.md
 ---
 
 # Collective Action: Synthesis and AI Governance

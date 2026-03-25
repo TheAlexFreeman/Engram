@@ -57,8 +57,9 @@
         status: domain.status
       };
     });
-    var topHubs = result.hubs.slice(0, 3).map(function (hub) {
+    var topHubs = result.hubs.slice(0, 10).map(function (hub) {
       return {
+        id: hub.id,
         label: hub.label,
         domain: hub.domain,
         degree: hub.degree
@@ -66,28 +67,68 @@
     });
 
     var scopeLabel = scope || 'all knowledge domains';
+    var TIP_DEGREE    = 'Mean number of links per file. Higher values indicate a more densely interconnected knowledge base.';
+    var TIP_PATHLEN   = 'Mean shortest-path distance between any two reachable files. Lower = easier to traverse the full graph.';
+    var TIP_CLUSTER   = 'How often a file\'s linked neighbours are also linked to each other (0\u20131). Higher = tighter local clusters.';
+    var TIP_SIGMA     = 'Small-world coefficient \u03c3 = (C/C\u2080)\u00a0/\u00a0(L/L\u2080). \u03c3\u00a0>\u00a01 confirms small-world structure.';
+    var TIP_SMALLWLD  = 'Small-world graphs combine high local clustering with short global path lengths \u2014 common in real-world knowledge and social networks.';
+    var TIP_ORPHAN    = 'Files with zero or one link. They sit outside the main knowledge network and may benefit from cross-references.';
+
     var sentences = [
-      'Scope: ' + scopeLabel + '.',
-      'The graph contains ' + result.nodes + ' files and ' + result.edges + ' links, with an average degree of ' + formatNumber(result.avgDegree, 1) + '.',
-      'Average path length is ' + formatNumber(result.avgPathLength, 2) + ' and average clustering is ' + formatNumber(result.avgClustering, 3) + '.',
+      [{ text: 'Scope: ' + scopeLabel + '.' }],
+      [
+        { text: 'The graph contains ' + result.nodes + ' files and ' + result.edges + ' links, with an ' },
+        { text: 'average degree', tip: TIP_DEGREE },
+        { text: ' of ' + formatNumber(result.avgDegree, 1) + '.' }
+      ],
+      [
+        { text: 'Average ' },
+        { text: 'path length', tip: TIP_PATHLEN },
+        { text: ' is ' + formatNumber(result.avgPathLength, 2) + ' and average ' },
+        { text: 'clustering', tip: TIP_CLUSTER },
+        { text: ' is ' + formatNumber(result.avgClustering, 3) + '.' }
+      ],
       result.sigma > 1
-        ? 'Small-world structure is present with sigma ' + formatNumber(result.sigma, 2) + '.'
+        ? [
+            { text: 'Small-world', tip: TIP_SMALLWLD },
+            { text: ' structure is present with ' },
+            { text: '\u03c3', tip: TIP_SIGMA },
+            { text: '\u00a0' + formatNumber(result.sigma, 2) + '.' }
+          ]
         : (result.sigma > 0
-            ? 'Small-world structure is weak with sigma ' + formatNumber(result.sigma, 2) + '.'
-            : 'Small-world structure could not be computed from the current graph.'),
-      result.bridges.length > 0
-        ? 'Bridge nodes detected: ' + result.bridges.slice(0, 3).map(function (bridge) { return bridge.label; }).join(', ') + '.'
-        : 'No strong bridge nodes were detected.',
+            ? [
+                { text: 'Small-world', tip: TIP_SMALLWLD },
+                { text: ' structure is weak with ' },
+                { text: '\u03c3', tip: TIP_SIGMA },
+                { text: '\u00a0' + formatNumber(result.sigma, 2) + '.' }
+              ]
+            : [
+                { text: 'Small-world', tip: TIP_SMALLWLD },
+                { text: ' structure could not be computed from the current graph.' }
+              ]),
       result.orphans.length > 0
-        ? result.orphans.length + ' node' + (result.orphans.length === 1 ? '' : 's') + ' are isolated or weakly connected.'
-        : 'No isolated or weakly connected nodes were detected.'
+        ? [
+            { text: result.orphans.length + ' node' + (result.orphans.length === 1 ? '' : 's') + ' are ' },
+            { text: 'isolated or weakly connected', tip: TIP_ORPHAN },
+            { text: '.' }
+          ]
+        : [
+            { text: 'No ' },
+            { text: 'isolated or weakly connected', tip: TIP_ORPHAN },
+            { text: ' nodes were detected.' }
+          ]
     ];
+
+    var topBridges = result.bridges.slice(0, 10).map(function (bridge) {
+      return { id: bridge.id, label: bridge.label, domain: bridge.domain };
+    });
 
     return {
       title: 'Graph summary for ' + scopeLabel,
       sentences: sentences,
       topDomains: topDomains,
-      topHubs: topHubs
+      topHubs: topHubs,
+      topBridges: topBridges
     };
   }
 
@@ -298,7 +339,7 @@
         domain: nodes[i].domain, degree: nodes[i].degree });
     }
     byDegree.sort(function (a, b) { return b.degree - a.degree; });
-    var hubs = byDegree.slice(0, 5);
+    var hubs = byDegree.slice(0, 10);
 
     // Orphan detection: degree 0 or 1
     var orphans = [];
@@ -521,6 +562,14 @@
     var stats = document.getElementById('graph-stats');
     var a11ySummary = document.getElementById('graph-accessible-summary');
 
+    // Bring-to-front for overlapping left-side panels
+    function bringToFront(panel) {
+      a11ySummary.style.zIndex = (panel === a11ySummary) ? 4 : 1;
+      legend.style.zIndex = (panel === legend) ? 4 : 1;
+    }
+    a11ySummary.addEventListener('mousedown', function () { bringToFront(a11ySummary); });
+    legend.addEventListener('mousedown', function () { bringToFront(legend); });
+
     stats.textContent = graph.nodes.length + ' files \u00B7 ' + graph.edges.length + ' links';
     canvas.setAttribute('role', 'img');
     canvas.setAttribute('tabindex', '0');
@@ -528,25 +577,50 @@
 
     function renderAccessibleSummary(result) {
       if (!a11ySummary) return;
+      var wasCollapsed = a11ySummary.classList.contains('collapsed');
       clearNode(a11ySummary);
       var summary = summarizeGraph(result, graph.scope || 'all knowledge domains');
       a11ySummary.setAttribute('aria-label', summary.title);
 
-      var title = document.createElement('h3');
-      title.textContent = summary.title;
-      a11ySummary.appendChild(title);
+      // Title row (always visible, acts as collapse toggle)
+      var titleRow = document.createElement('div');
+      titleRow.className = 'graph-panel-titlerow';
+      var titleEl = document.createElement('h3');
+      titleEl.textContent = summary.title;
+      var titleArrow = document.createElement('span');
+      titleArrow.className = 'graph-panel-arrow';
+      titleArrow.textContent = wasCollapsed ? '\u25b8' : '\u25be';
+      titleRow.appendChild(titleEl);
+      titleRow.appendChild(titleArrow);
+      a11ySummary.appendChild(titleRow);
+
+      // Collapsible body
+      var bodyEl = document.createElement('div');
+      bodyEl.className = 'graph-panel-body';
+      if (wasCollapsed) bodyEl.style.display = 'none';
 
       for (var si = 0; si < summary.sentences.length; si++) {
         var p = document.createElement('p');
-        p.textContent = summary.sentences[si];
-        a11ySummary.appendChild(p);
+        var segs = summary.sentences[si];
+        for (var sg = 0; sg < segs.length; sg++) {
+          if (segs[sg].tip) {
+            var abbr = document.createElement('abbr');
+            abbr.title = segs[sg].tip;
+            abbr.className = 'graph-term';
+            abbr.textContent = segs[sg].text;
+            p.appendChild(abbr);
+          } else {
+            p.appendChild(document.createTextNode(segs[sg].text));
+          }
+        }
+        bodyEl.appendChild(p);
       }
 
       if (summary.topDomains.length > 0) {
         var domainTitle = document.createElement('p');
         domainTitle.className = 'graph-summary-label';
         domainTitle.textContent = 'Largest domains';
-        a11ySummary.appendChild(domainTitle);
+        bodyEl.appendChild(domainTitle);
 
         var domainList = document.createElement('ul');
         for (var di = 0; di < summary.topDomains.length; di++) {
@@ -555,24 +629,147 @@
           domainItem.textContent = domain.name + ': ' + domain.nodes + ' nodes (' + domain.status + ')';
           domainList.appendChild(domainItem);
         }
-        a11ySummary.appendChild(domainList);
+        bodyEl.appendChild(domainList);
       }
 
       if (summary.topHubs.length > 0) {
         var hubTitle = document.createElement('p');
         hubTitle.className = 'graph-summary-label';
         hubTitle.textContent = 'Top hubs';
-        a11ySummary.appendChild(hubTitle);
+        bodyEl.appendChild(hubTitle);
 
+        var HUB_VISIBLE = 3;
         var hubList = document.createElement('ul');
-        for (var hi = 0; hi < summary.topHubs.length; hi++) {
+        var hubMoreBtn = null;
+
+        function makeHubItem(hub) {
           var hubItem = document.createElement('li');
-          var hub = summary.topHubs[hi];
-          hubItem.textContent = hub.label + ' (' + hub.domain + ', degree ' + hub.degree + ')';
+          var hubLink = document.createElement('button');
+          hubLink.className = 'graph-hub-link';
+          hubLink.textContent = hub.label;
+          var hubMeta = document.createElement('span');
+          hubMeta.className = 'graph-hub-meta';
+          hubMeta.textContent = ' (' + hub.domain + ', degree ' + hub.degree + ')';
+          hubItem.appendChild(hubLink);
+          hubItem.appendChild(hubMeta);
+          (function (hubId) {
+            hubLink.addEventListener('mouseenter', function () {
+              var idx = idxMap[hubId];
+              if (idx !== undefined) hoveredNode = idx;
+            });
+            hubLink.addEventListener('mouseleave', function () {
+              var idx = idxMap[hubId];
+              if (hoveredNode === idx) hoveredNode = -1;
+            });
+            hubLink.addEventListener('click', function () {
+              var idx = idxMap[hubId];
+              if (idx !== undefined) showPreviewNode(nodes[idx]);
+            });
+          })(hub.id);
+          return hubItem;
+        }
+
+        for (var hi = 0; hi < summary.topHubs.length; hi++) {
+          var hubItem = makeHubItem(summary.topHubs[hi]);
+          if (hi >= HUB_VISIBLE) hubItem.style.display = 'none';
           hubList.appendChild(hubItem);
         }
-        a11ySummary.appendChild(hubList);
+        bodyEl.appendChild(hubList);
+
+        if (summary.topHubs.length > HUB_VISIBLE) {
+          hubMoreBtn = document.createElement('button');
+          hubMoreBtn.className = 'graph-hub-more';
+          hubMoreBtn.textContent = '+ ' + (summary.topHubs.length - HUB_VISIBLE) + ' more';
+          var hubExpanded = false;
+          hubMoreBtn.addEventListener('click', function () {
+            hubExpanded = !hubExpanded;
+            var items = hubList.querySelectorAll('li');
+            for (var k = HUB_VISIBLE; k < items.length; k++) {
+              items[k].style.display = hubExpanded ? '' : 'none';
+            }
+            hubMoreBtn.textContent = hubExpanded
+              ? '\u2212 show fewer'
+              : '+ ' + (summary.topHubs.length - HUB_VISIBLE) + ' more';
+          });
+          bodyEl.appendChild(hubMoreBtn);
+        }
       }
+
+      if (summary.topBridges.length > 0) {
+        var bridgeTitle = document.createElement('p');
+        bridgeTitle.className = 'graph-summary-label';
+        bridgeTitle.textContent = 'Bridge nodes';
+        bodyEl.appendChild(bridgeTitle);
+
+        var BRIDGE_VISIBLE = 3;
+        var bridgeList = document.createElement('ul');
+        var bridgeMoreBtn = null;
+
+        function makeBridgeItem(bridge) {
+          var bridgeItem = document.createElement('li');
+          var bridgeLink = document.createElement('button');
+          bridgeLink.className = 'graph-hub-link';
+          bridgeLink.textContent = bridge.label;
+          var bridgeMeta = document.createElement('span');
+          bridgeMeta.className = 'graph-hub-meta';
+          bridgeMeta.textContent = ' (' + bridge.domain + ')';
+          bridgeItem.appendChild(bridgeLink);
+          bridgeItem.appendChild(bridgeMeta);
+          (function (bridgeId) {
+            bridgeLink.addEventListener('mouseenter', function () {
+              var idx = idxMap[bridgeId];
+              if (idx !== undefined) hoveredNode = idx;
+            });
+            bridgeLink.addEventListener('mouseleave', function () {
+              var idx = idxMap[bridgeId];
+              if (hoveredNode === idx) hoveredNode = -1;
+            });
+            bridgeLink.addEventListener('click', function () {
+              var idx = idxMap[bridgeId];
+              if (idx !== undefined) showPreviewNode(nodes[idx]);
+            });
+          })(bridge.id);
+          return bridgeItem;
+        }
+
+        for (var bi = 0; bi < summary.topBridges.length; bi++) {
+          var bridgeItem = makeBridgeItem(summary.topBridges[bi]);
+          if (bi >= BRIDGE_VISIBLE) bridgeItem.style.display = 'none';
+          bridgeList.appendChild(bridgeItem);
+        }
+        bodyEl.appendChild(bridgeList);
+
+        if (summary.topBridges.length > BRIDGE_VISIBLE) {
+          bridgeMoreBtn = document.createElement('button');
+          bridgeMoreBtn.className = 'graph-hub-more';
+          bridgeMoreBtn.textContent = '+ ' + (summary.topBridges.length - BRIDGE_VISIBLE) + ' more';
+          var bridgeExpanded = false;
+          bridgeMoreBtn.addEventListener('click', function () {
+            bridgeExpanded = !bridgeExpanded;
+            var items = bridgeList.querySelectorAll('li');
+            for (var k = BRIDGE_VISIBLE; k < items.length; k++) {
+              items[k].style.display = bridgeExpanded ? '' : 'none';
+            }
+            bridgeMoreBtn.textContent = bridgeExpanded
+              ? '\u2212 show fewer'
+              : '+ ' + (summary.topBridges.length - BRIDGE_VISIBLE) + ' more';
+          });
+          bodyEl.appendChild(bridgeMoreBtn);
+        }
+      } else {
+        var noBridgeP = document.createElement('p');
+        noBridgeP.textContent = 'No strong bridge nodes were detected.';
+        bodyEl.appendChild(noBridgeP);
+      }
+
+      a11ySummary.appendChild(bodyEl);
+
+      titleRow.addEventListener('click', function () {
+        var collapsed = a11ySummary.classList.toggle('collapsed');
+        bodyEl.style.display = collapsed ? 'none' : '';
+        titleArrow.textContent = collapsed ? '\u25b8' : '\u25be';
+        bringToFront(a11ySummary);
+      });
     }
 
     function resize() {
@@ -585,6 +782,8 @@
     // Build legend (clickable domain filter)
     legend.textContent = '';
     var ltitle = el('div', 'Domains', 'legend-title');
+    var lArrow = el('span', '\u25be', 'graph-panel-arrow');
+    ltitle.appendChild(lArrow);
     legend.appendChild(ltitle);
     var domainsSeen = {};
     for (var i = 0; i < graph.nodes.length; i++) {
@@ -617,6 +816,16 @@
       })(d, item);
       legend.appendChild(item);
     }
+    var legendCollapsed = false;
+    ltitle.addEventListener('click', function () {
+      legendCollapsed = !legendCollapsed;
+      var items = legend.querySelectorAll('.legend-item');
+      for (var k = 0; k < items.length; k++) {
+        items[k].style.display = legendCollapsed ? 'none' : '';
+      }
+      lArrow.textContent = legendCollapsed ? '\u25b8' : '\u25be';
+      bringToFront(legend);
+    });
 
     // Initialize node positions
     var W = canvas.width, H = canvas.height;
@@ -762,10 +971,12 @@
     var previewClose = document.getElementById('graph-preview-close');
     var previewResize = document.getElementById('graph-preview-resize');
     var previewNodeId = null;
+    var previewNodeIdx = -1;
 
     function closePreview() {
       preview.classList.remove('visible');
       previewNodeId = null;
+      previewNodeIdx = -1;
     }
 
     function closeOverlay() {
@@ -798,6 +1009,7 @@
 
     async function showPreviewNode(node) {
       previewNodeId = node.id;
+      previewNodeIdx = idxMap[node.id] !== undefined ? idxMap[node.id] : -1;
 
       previewTitle.textContent = node.label;
       previewMeta.textContent = '';
@@ -1009,6 +1221,17 @@
           ctx.stroke();
         }
 
+        // Persistent ring for the node open in the sidebar
+        if (i === previewNodeIdx && i !== hoveredNode) {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, (drawR + 3.5) / cam.zoom, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+          ctx.lineWidth = 1.5 / cam.zoom;
+          ctx.setLineDash([4 / cam.zoom, 3 / cam.zoom]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
         // Analysis: bridge halo
         if (analysisHighlight.bridges && bridgeSet[i]) {
           ctx.beginPath();
@@ -1074,7 +1297,8 @@
         var showByHover = hoverActive && highlightSet[i];
         var showByDomain = !hoverActive && domainActive && domainSet[i];
         var showByDegree = !hasHighlight && nodes[i].degree >= labelThreshold;
-        if (!showByHover && !showByDomain && !showByDegree) continue;
+        var showByPreview = i === previewNodeIdx;
+        if (!showByHover && !showByDomain && !showByDegree && !showByPreview) continue;
         var node = nodes[i];
         var r = nodeRadius(node);
         ctx.fillStyle = 'rgba(232,226,217,0.9)';

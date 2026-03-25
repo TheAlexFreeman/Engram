@@ -9,6 +9,10 @@ related:
   - attention-synthesis-agent-implications.md
   - attentional-bottleneck-limited-capacity.md
   - cognitive-load-theory-sweller.md
+  - dual-process-system1-system2.md
+  - availability-representativeness-anchoring.md
+  - transformer-attention-vs-human-attention.md
+  - vigilance-decrement.md
 ---
 
 # Executive Functions: Miyake's Unity-and-Diversity Framework

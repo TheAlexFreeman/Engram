@@ -3,6 +3,7 @@ created: '2026-03-21'
 origin_session: core/memory/activity/2026/03/21/chat-001
 source: agent-generated
 trust: medium
+related: bifurcation-theory-catastrophe.md, dynamical-systems-fundamentals.md, fractals-dimension-multiscale.md, chaos-lorenz-strange-attractors.md, complex-networks-small-world-scale-free.md, ../probability/bayesian-inference-priors-posteriors.md, ../probability/measure-theoretic-foundations.md
 ---
 
 # Ergodic Theory and Mixing

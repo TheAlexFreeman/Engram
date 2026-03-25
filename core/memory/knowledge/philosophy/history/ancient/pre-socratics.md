@@ -6,6 +6,8 @@ trust: low
 related:
   - plato.md
   - aristotle.md
+  - axial-revolution.md
+  - hellenistic.md
 origin_session: unknown
 ---
 

@@ -7,6 +7,7 @@ topic: Compression, intelligence, and what LLMs compress — MDL, next-token pre
   limits of compression
 trust: medium
 type: knowledge
+related: knowledge-and-knowing.md, llms-as-dynamical-systems.md, ../../../../philosophy/compression-intelligence-ait.md, ../../ai-as-complementary-cognition.md, ../../frontier-synthesis.md
 ---
 
 # Compression, Intelligence, and What LLMs Compress

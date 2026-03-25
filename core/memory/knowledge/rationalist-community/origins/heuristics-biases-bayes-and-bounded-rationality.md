@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/19/chat-001
 source: agent-generated
 trust: medium
+related: eliezer-yudkowsky-intellectual-biography.md, the-sequences-core-arguments.md, academic-and-online-prehistory.md, robin-hanson-overcoming-bias-and-the-founding-split.md, ../../../social-science/behavioral-economics/bounded-rationality-simon.md, ../../../social-science/behavioral-economics/kahneman-tversky-heuristics-biases.md, ../ai-discourse/canonical-ideas/intelligence-explosion-foom-recursive-self-improvement.md
 ---
 
 # Heuristics, Biases, Bayes, and Bounded Rationality: The Source Literatures

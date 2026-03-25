@@ -11,6 +11,9 @@ related:
   - ../twentieth/phenomenology-existentialism.md
   - ../twentieth/philosophy-of-mind-language.md
   - ../contemporary/synthesis-open-questions.md
+  - language-thought-meaning-across-history.md
+  - science-metaphysics-religion-across-history.md
+  - the-self-across-history.md
 origin_session: unknown
 ---
 

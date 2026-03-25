@@ -3,6 +3,7 @@ created: '2026-03-21'
 origin_session: core/memory/activity/2026/03/21/chat-001
 source: agent-generated
 trust: medium
+related: bifurcation-theory-catastrophe.md, self-organized-criticality.md, dynamical-systems-fundamentals.md, ergodic-theory-mixing.md, ../statistical-mechanics/partition-function-free-energy.md, ../../../social-science/network-diffusion/rogers-diffusion-of-innovations.md, ../../../social-science/network-diffusion/surowiecki-wisdom-of-crowds.md
 ---
 
 # Complex Networks: Small-World and Scale-Free Structures

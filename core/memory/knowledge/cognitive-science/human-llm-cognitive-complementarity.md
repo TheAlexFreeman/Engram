@@ -4,6 +4,7 @@ origin_session: unknown
 created: '2026-03-20'
 trust: medium
 type: analysis
+related: ../philosophy/llm-vs-human-mind-comparative-analysis.md, cognitive-science-synthesis.md, attention/attention-synthesis-agent-implications.md, concepts/concepts-synthesis-agent-implications.md, ../ai/frontier-synthesis.md
 ---
 
 # Human–LLM Cognitive Complementarity: What the Comparison Implies for Collaboration Design

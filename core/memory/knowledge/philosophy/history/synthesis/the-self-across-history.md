@@ -13,6 +13,9 @@ related:
   - ../nineteenth/kierkegaard-nietzsche.md
   - ../twentieth/phenomenology-existentialism.md
   - ../contemporary/ethics-political-philosophy.md
+  - language-thought-meaning-across-history.md
+  - mind-body-across-history.md
+  - science-metaphysics-religion-across-history.md
 origin_session: unknown
 ---
 

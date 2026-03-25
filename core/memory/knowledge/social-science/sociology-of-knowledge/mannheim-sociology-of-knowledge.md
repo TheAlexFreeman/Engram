@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related: social-construction-of-scientific-knowledge.md, kuhn-paradigms-scientific-revolutions.md, latour-actor-network-theory.md, merton-scientific-norms.md
 ---
 
 # Mannheim: The Sociology of Knowledge

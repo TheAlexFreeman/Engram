@@ -8,6 +8,11 @@ origin_session: core/memory/activity/2026/03/20/chat-001
 tags: [git, architecture, multi-agent, environment, deployment, coordination]
 related:
   - _archive/2026-03-19-tmp-data-loss-incident.md
+  - engram-governance-model.md
+  - operational-resilience-and-memetic-security-synthesis.md
+  - protocol-design-considerations.md
+  - validation-as-adaptive-health.md
+  - engram-system-overview.md
 ---
 
 # Environment Capability Asymmetry in Engram Deployments

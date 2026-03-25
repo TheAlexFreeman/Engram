@@ -10,6 +10,8 @@ source: external-research
 topic: LLMs as dynamical systems — activation trajectories, in-context learning, reasoning
   as trajectory extension
 trust: medium
+related: compression-and-intelligence.md, knowledge-and-knowing.md, ../../../../mathematics/dynamical-systems/dynamical-systems-fundamentals.md, ../../../../philosophy/synthesis-intelligence-as-dynamical-regime.md, ../../../../philosophy/phenomenology/synthesis-phenomenology-dynamical-systems.md
+---
 type: knowledge
 ---
 

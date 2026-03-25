@@ -7,7 +7,7 @@ topic: Mixture of Experts (MoE) — sparse routing, DeepSeek MoE, expert special
   inference economics
 trust: medium
 type: knowledge
-related: ../../../social-science/collective-action/olson-logic-of-collective-action.md, ../../../cognitive-science/relevance-realization/aptitudes-of-intelligence-rr-common-factor.md, ../../../literature/sons-of-man-covenant.md
+related: ../../../social-science/collective-action/olson-logic-of-collective-action.md, ../../../cognitive-science/relevance-realization/aptitudes-of-intelligence-rr-common-factor.md, ../../../literature/sons-of-man-covenant.md, state-space-models.md, synthetic-data-self-improvement.md, ../alignment/frontier-alignment-research.md
 ---
 
 # Mixture of Experts (MoE)

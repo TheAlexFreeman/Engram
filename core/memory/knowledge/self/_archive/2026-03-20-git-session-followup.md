@@ -6,7 +6,7 @@ created: 2026-03-20
 trust: low
 tags: [git, session-hygiene, multi-agent, engram_mcp, architecture, incident-followup]
 origin_session: core/memory/activity/2026/03/20/chat-001
-related: knowledge/_unverified/system-notes/2026-03-19-tmp-data-loss-incident.md
+related: 2026-03-19-tmp-data-loss-incident.md, session-2026-03-20.md, session-2026-03-20-cowork-review.md, 2026-03-21-architecture-audit-and-knowledge-migration.md, 2026-03-22-plan-schema-and-activity-logging-design.md
 ---
 
 # Git Session Follow-up: 2026-03-20

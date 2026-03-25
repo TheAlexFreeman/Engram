@@ -15,6 +15,8 @@ related:
   - ../../philosophy/history/medieval/augustine-neoplatonism.md
   - ../../philosophy/phenomenology/merleau-ponty-perception-as-skill.md
   - brothers-karamazov-theodicy-freedom-faith.md
+  - notes-from-underground-consciousness-spite-reason.md
+  - demons-nihilism-ideology-possessed-mind.md
 ---
 
 # The Idiot — Goodness, Beauty, and the Impossible Christ

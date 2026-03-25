@@ -3,6 +3,7 @@ created: '2026-03-20'
 origin_session: core/memory/activity/2026/03/20/chat-002
 source: agent-generated
 trust: low
+related: memetic-security-design-implications.md, memetic-security-drift-vs-attack.md, memetic-security-injection-vectors.md, memetic-security-irreducible-core.md, memetic-security-memory-amplification.md, memetic-security-mitigation-audit.md
 ---
 
 # Comparative Analysis: Memory Security Across Systems and Literature

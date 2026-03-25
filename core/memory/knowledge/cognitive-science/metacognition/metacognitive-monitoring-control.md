@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: conflict-monitoring-feeling-of-rightness.md, metacognitive-control-learning.md, feeling-of-knowing-tip-of-tongue.md, source-monitoring-reality-monitoring.md, illusion-of-knowing-explanatory-depth.md, calibration-overconfidence-hard-easy.md, metacognition-synthesis-agent-implications.md
 ---
 
 # Metacognitive Monitoring and Control: The Nelson-Narens Framework

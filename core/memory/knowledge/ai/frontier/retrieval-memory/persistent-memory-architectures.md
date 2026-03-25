@@ -7,6 +7,7 @@ topic: Persistent memory architectures — vector stores, knowledge graphs, epis
   git-backed
 trust: medium
 type: knowledge
+related: rag-architecture.md, reranking-two-stage-retrieval.md, agentic-rag-patterns.md, long-context-architecture.md, colpali-visual-document-retrieval.md, ../../tools/agent-memory-in-ai-ecosystem.md
 ---
 
 # Persistent Memory Architectures for AI Systems

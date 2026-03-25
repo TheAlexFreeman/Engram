@@ -6,6 +6,7 @@ source: external-research
 topic: Long-context architecture — Flash Attention, RoPE, KV cache, effective context
 trust: medium
 type: knowledge
+related: agentic-rag-patterns.md, rag-architecture.md, colpali-visual-document-retrieval.md, hyde-query-expansion.md, persistent-memory-architectures.md, reranking-two-stage-retrieval.md, ../multi-agent/agent-architecture-patterns.md
 ---
 
 # Long-Context Architecture

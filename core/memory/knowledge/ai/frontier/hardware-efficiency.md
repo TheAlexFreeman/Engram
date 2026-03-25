@@ -16,7 +16,7 @@ tags:
 - chips
 title: AI Hardware and Efficiency Trends
 trust: medium
-related: inference-time-compute.md, foundation-model-governance.md, agentic-frameworks.md
+related: inference-time-compute.md, foundation-model-governance.md, agentic-frameworks.md, memetic-security-capability-robustness.md, ../frontier-synthesis.md
 ---
 
 # AI Hardware and Efficiency Trends

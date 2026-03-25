@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related: latour-actor-network-theory.md, mannheim-sociology-of-knowledge.md, merton-scientific-norms.md, social-construction-of-scientific-knowledge.md, ../../../philosophy/history/contemporary/philosophy-of-science.md
 ---
 
 # Kuhn: Paradigms and Scientific Revolutions

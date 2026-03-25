@@ -10,6 +10,10 @@ related:
   - embedded-enacted-ecological-4e.md
   - husserl-time-consciousness.md
   - ../../cognitive-science/relevance-realization/relevance-realization-synthesis.md
+  - clark-chalmers-extended-mind.md
+  - grounding-problem-phenomenological.md
+  - heidegger-care-temporality.md
+  - husserl-intentionality-epoche.md
 ---
 
 # Synthesis: Phenomenology, Dynamical Systems, and Embodied AI

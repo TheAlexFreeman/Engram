@@ -4,7 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/19/chat-002
 source: agent-generated
 trust: medium
-related: gwern-and-the-rationalist-research-ethos.md, ../institutions/miri-cfar-and-institutional-rationality.md, ../origins/eliezer-yudkowsky-intellectual-biography.md
+related: gwern-and-the-rationalist-research-ethos.md, ../institutions/miri-cfar-and-institutional-rationality.md, ../origins/eliezer-yudkowsky-intellectual-biography.md, ../ai-discourse/canonical-ideas/corrigibility-shutdown-problem-value-loading.md, ../ai-discourse/canonical-ideas/deceptive-alignment-mesa-optimization.md, ../ai-discourse/canonical-ideas/goodharts-law-reward-hacking-alignment-tax.md, ../ai-discourse/canonical-ideas/intelligence-explosion-foom-recursive-self-improvement.md
 ---
 
 # Scott Alexander and the Broadening of Rationalism

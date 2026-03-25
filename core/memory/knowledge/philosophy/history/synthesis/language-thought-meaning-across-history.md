@@ -12,6 +12,9 @@ related:
   - ../twentieth/later-wittgenstein-ordinary-language.md
   - ../twentieth/philosophy-of-mind-language.md
   - ../twentieth/continental-structuralism-poststructuralism.md
+  - mind-body-across-history.md
+  - science-metaphysics-religion-across-history.md
+  - the-self-across-history.md
 origin_session: unknown
 ---
 

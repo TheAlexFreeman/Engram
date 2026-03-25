@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related: group-polarization-groupthink.md, asch-conformity-experiments.md, bystander-effect-diffusion-responsibility.md, milgram-obedience-experiments.md, zimbardo-stanford-prison-situation.md, ../cultural-evolution/transmission-biases-cognitive-attractors.md, ../behavioral-economics/behavioral-economics-rationality-synthesis.md, ../behavioral-economics/bounded-rationality-simon.md, ../behavioral-economics/kahneman-tversky-heuristics-biases.md
 ---
 
 # Social Psychology and Transmission Biases: A Synthesis

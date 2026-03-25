@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related: asch-conformity-experiments.md, bystander-effect-diffusion-responsibility.md, milgram-obedience-experiments.md, social-psychology-transmission-biases-synthesis.md, zimbardo-stanford-prison-situation.md, ../cultural-evolution/henrich-collective-brain.md, ../network-diffusion/granovetter-weak-ties-strength.md, ../network-diffusion/rogers-diffusion-of-innovations.md, ../network-diffusion/surowiecki-wisdom-of-crowds.md
 ---
 
 # Group Polarization and Groupthink

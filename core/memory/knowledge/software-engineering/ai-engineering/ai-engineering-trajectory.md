@@ -11,6 +11,10 @@ related:
   - ../../ai/frontier/multi-agent/agent-architecture-patterns.md
   - ../../ai/frontier/inference-time-compute.md
   - ../../ai/tools/agent-memory-in-ai-ecosystem.md
+  - ai-code-review-and-quality.md
+  - agent-configuration-and-tooling.md
+  - prompt-engineering-for-code.md
+  - context-window-management.md
 ---
 
 # AI Engineering Trajectory

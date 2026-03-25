@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: theory-theory-knowledge-based-view.md, classical-theory-failures.md, prototype-theory-rosch.md, concepts-synthesis-agent-implications.md, basic-level-categories-asymmetry.md
 ---
 
 # Exemplar Theory and Hybrid Models

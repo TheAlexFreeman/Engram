@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related: mannheim-sociology-of-knowledge.md, merton-scientific-norms.md, kuhn-paradigms-scientific-revolutions.md, latour-actor-network-theory.md, ../behavioral-economics/behavioral-economics-rationality-synthesis.md
 ---
 
 # Social Construction of Scientific Knowledge: The Strong Programme and Its Aftermath

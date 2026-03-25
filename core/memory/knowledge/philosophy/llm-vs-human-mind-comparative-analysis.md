@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/18/chat-001
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
+related: ../cognitive-science/human-llm-cognitive-complementarity.md, ../cognitive-science/attention/transformer-attention-vs-human-attention.md, blending-compression-coupling-construal.md, cognitive-linguistics-metaphor-blending.md, ../self/security/memetic-security-comparative-analysis.md
 ---
 
 # LLMs vs. Human Minds: A Comparative Analysis in the Dynamical Systems Framework

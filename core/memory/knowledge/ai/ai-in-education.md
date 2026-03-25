@@ -13,6 +13,8 @@ related:
   - ../cognitive-science/concepts/conceptual-change-types.md
   - ../cognitive-science/relevance-realization/four-kinds-of-knowing.md
   - ../philosophy/history/ancient/plato.md
+  - frontier-synthesis.md
+  - tools/agent-memory-in-ai-ecosystem.md
 ---
 
 # AI in Education

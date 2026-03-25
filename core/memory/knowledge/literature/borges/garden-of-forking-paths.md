@@ -14,6 +14,11 @@ related:
   - ../house-of-leaves-uncanny-textual-space.md
   - ../../philosophy/narrative-cognition.md
   - ../../mathematics/dynamical-systems/chaos-lorenz-strange-attractors.md
+  - funes-the-memorious.md
+  - on-exactitude-in-science.md
+  - pierre-menard.md
+  - the-aleph.md
+  - tlon-uqbar-orbis-tertius.md
 ---
 
 # The Garden of Forking Paths: Time, Labyrinths, and Branching Narrative

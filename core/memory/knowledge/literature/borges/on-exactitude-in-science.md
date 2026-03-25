@@ -13,6 +13,9 @@ related:
   - funes-the-memorious.md
   - the-aleph.md
   - ../../ai/frontier/epistemology/compression-and-intelligence.md
+  - garden-of-forking-paths.md
+  - pierre-menard.md
+  - tlon-uqbar-orbis-tertius.md
 ---
 
 # On Exactitude in Science: Maps, Models, and the Paradox of Perfect Representation

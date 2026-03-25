@@ -9,6 +9,8 @@ related:
   - memory/knowledge/cognitive-science/cognitive-science-synthesis.md
   - memory/knowledge/philosophy/philosophy-synthesis.md
   - memory/knowledge/self/operational-resilience-and-memetic-security-synthesis.md
+  - memory/knowledge/self/_archive/2026-03-21-architecture-audit-and-knowledge-migration.md
+  - memory/knowledge/self/_archive/intellectual-threads.md
 ---
 
 ---

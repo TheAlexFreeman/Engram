@@ -3,6 +3,7 @@ created: '2026-03-21'
 origin_session: core/memory/activity/2026/03/21/chat-001
 source: agent-generated
 trust: medium
+related: bifurcation-theory-catastrophe.md, complex-networks-small-world-scale-free.md, dynamical-systems-fundamentals.md, chaos-lorenz-strange-attractors.md, ergodic-theory-mixing.md, ../../../philosophy/self-organized-criticality.md, ../statistical-mechanics/hopfield-boltzmann-machines.md, ../statistical-mechanics/spin-glasses-replica-method.md
 ---
 
 # Self-Organized Criticality

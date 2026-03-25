@@ -7,6 +7,7 @@ trust: medium
 origin_session: memory/activity/2026/03/22/chat-001
 created: 2026-03-22
 last_verified: 2026-03-22
+related: 2026-03-21-architecture-audit-and-knowledge-migration.md, 2026-03-20-git-session-followup.md
 ---
 
 # Plan Schema Redesign and Activity Logging Architecture

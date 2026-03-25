@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/19/chat-001
 source: agent-generated
 trust: medium
+related: eliezer-yudkowsky-intellectual-biography.md, the-sequences-core-arguments.md, heuristics-biases-bayes-and-bounded-rationality.md, robin-hanson-overcoming-bias-and-the-founding-split.md
 ---
 
 # Academic and Online Prehistory of the Rationalist Community

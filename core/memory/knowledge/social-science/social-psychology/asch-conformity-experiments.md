@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related: group-polarization-groupthink.md, milgram-obedience-experiments.md, bystander-effect-diffusion-responsibility.md, social-psychology-transmission-biases-synthesis.md, zimbardo-stanford-prison-situation.md
 ---
 
 # Asch: Conformity and the Power of Majority Influence

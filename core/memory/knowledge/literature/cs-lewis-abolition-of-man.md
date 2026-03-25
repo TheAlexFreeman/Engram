@@ -7,7 +7,7 @@ origin_session: core/memory/activity/2026/03/20/chat-001
 type: knowledge
 domain: philosophy
 tags: [literature, cs-lewis, ethics, moral-realism, natural-law, technocracy, ai-alignment, education, inklings]
-related: knowledge/_unverified/philosophy/cs-lewis-space-trilogy.md
+related: cs-lewis-space-trilogy.md, mcluhan-and-media-theory.md, joyce-mcluhan-medium-consciousness-compression.md
 ---
 
 # C.S. Lewis: *The Abolition of Man* (1943)

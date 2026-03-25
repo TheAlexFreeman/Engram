@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/19/chat-001
 source: agent-generated
 trust: medium
+related: academic-and-online-prehistory.md, eliezer-yudkowsky-intellectual-biography.md, heuristics-biases-bayes-and-bounded-rationality.md, robin-hanson-overcoming-bias-and-the-founding-split.md, ../community/meetups-workshops-hpmor-and-lived-rationality.md
 ---
 
 # The Sequences: Core Arguments and Structure

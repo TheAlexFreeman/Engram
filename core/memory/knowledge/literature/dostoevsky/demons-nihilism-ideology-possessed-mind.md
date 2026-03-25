@@ -15,6 +15,8 @@ related:
   - ../../philosophy/history/nineteenth/kierkegaard-nietzsche.md
   - ../../philosophy/cognitive-linguistics-metaphor-blending.md
   - brothers-karamazov-theodicy-freedom-faith.md
+  - crime-and-punishment-guilt-freedom-suffering.md
+  - the-idiot-goodness-beauty-impossible-christ.md
 ---
 
 # Demons — Nihilism, Ideology, and the Possessed Mind

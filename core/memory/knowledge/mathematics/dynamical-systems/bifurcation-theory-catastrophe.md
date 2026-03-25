@@ -3,6 +3,7 @@ created: '2026-03-21'
 origin_session: core/memory/activity/2026/03/21/chat-001
 source: agent-generated
 trust: medium
+related: dynamical-systems-fundamentals.md, chaos-lorenz-strange-attractors.md, ergodic-theory-mixing.md, complex-networks-small-world-scale-free.md, self-organized-criticality.md, fractals-dimension-multiscale.md
 ---
 
 # Bifurcation Theory and Catastrophe Theory

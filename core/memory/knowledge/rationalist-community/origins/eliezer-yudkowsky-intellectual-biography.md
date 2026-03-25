@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: core/memory/activity/2026/03/19/chat-001
 source: agent-generated
 trust: medium
+related: academic-and-online-prehistory.md, heuristics-biases-bayes-and-bounded-rationality.md, the-sequences-core-arguments.md, robin-hanson-overcoming-bias-and-the-founding-split.md, ../ai-discourse/canonical-ideas/corrigibility-shutdown-problem-value-loading.md, ../ai-discourse/canonical-ideas/deceptive-alignment-mesa-optimization.md
 ---
 
 # Eliezer Yudkowsky: Intellectual Biography

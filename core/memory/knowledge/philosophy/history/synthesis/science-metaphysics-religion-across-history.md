@@ -17,6 +17,9 @@ related:
   - ../contemporary/philosophy-of-science.md
   - ../non-western/indian-philosophy.md
   - ../non-western/islamic-modern-philosophy.md
+  - language-thought-meaning-across-history.md
+  - mind-body-across-history.md
+  - the-self-across-history.md
 origin_session: unknown
 ---
 

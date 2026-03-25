@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related: asch-conformity-experiments.md, group-polarization-groupthink.md, milgram-obedience-experiments.md, social-psychology-transmission-biases-synthesis.md, zimbardo-stanford-prison-situation.md
 ---
 
 # Bystander Effect and Diffusion of Responsibility

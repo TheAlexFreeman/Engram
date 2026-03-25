@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related: acemoglu-robinson-inclusive-institutions.md, collective-action-synthesis-ai-governance.md, olson-logic-of-collective-action.md, ostrom-governing-the-commons.md, ../behavioral-economics/behavioral-economics-rationality-synthesis.md
 ---
 
 # North: Institutions, Institutional Change, and Economic Performance

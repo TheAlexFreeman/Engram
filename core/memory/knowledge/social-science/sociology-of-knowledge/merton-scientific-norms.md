@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related: social-construction-of-scientific-knowledge.md, kuhn-paradigms-scientific-revolutions.md, latour-actor-network-theory.md, mannheim-sociology-of-knowledge.md, ../cultural-evolution/fricker-epistemic-injustice.md, ../network-diffusion/surowiecki-wisdom-of-crowds.md, ../social-epistemology/extended-mind-distributed-cognition.md, ../social-psychology/group-polarization-groupthink.md
 ---
 
 # Merton: Scientific Norms and the Sociology of Science

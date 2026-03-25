@@ -3,6 +3,7 @@ created: '2026-03-21'
 origin_session: core/memory/activity/2026/03/21/chat-001
 source: agent-generated
 trust: medium
+related: dynamical-systems-fundamentals.md, ergodic-theory-mixing.md, bifurcation-theory-catastrophe.md, chaos-lorenz-strange-attractors.md, complex-networks-small-world-scale-free.md, self-organized-criticality.md
 ---
 
 # Fractals, Dimension, and Multiscale Structure

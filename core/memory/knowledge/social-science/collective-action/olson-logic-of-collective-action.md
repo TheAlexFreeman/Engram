@@ -4,6 +4,7 @@ last_verified: '2026-03-21'
 origin_session: manual
 source: agent-generated
 trust: low
+related: collective-action-synthesis-ai-governance.md, north-institutions-institutional-change.md, ostrom-governing-the-commons.md, acemoglu-robinson-inclusive-institutions.md, ../../../philosophy/ethics/parfit-collective-action.md
 ---
 
 # Olson: The Logic of Collective Action

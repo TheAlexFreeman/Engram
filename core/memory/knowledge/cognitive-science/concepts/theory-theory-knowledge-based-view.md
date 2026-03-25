@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: classical-theory-failures.md, exemplar-theory-hybrid-models.md, basic-level-categories-asymmetry.md, concepts-synthesis-agent-implications.md, knowledge-compilation-proceduralization.md
 ---
 
 # Theory-Theory and the Knowledge-Based View of Concepts

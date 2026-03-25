@@ -4,6 +4,7 @@ origin_session: core/memory/activity/2026/03/20/chat-004
 source: agent-generated
 last_verified: '2026-03-20'
 trust: medium
+related: ../attention/attention-synthesis-agent-implications.md, ../concepts/concepts-synthesis-agent-implications.md, ../memory/reconsolidation-agent-design-implications.md, calibration-overconfidence-hard-easy.md, feeling-of-knowing-tip-of-tongue.md, metacognitive-monitoring-control.md
 ---
 
 # Metacognition: Synthesis and Agent Design Implications
@@ -29,7 +30,7 @@ The agent memory system's trust architecture is best understood as an attempt to
 4. Competence in generating text about X ≠ competence in knowing whether X claims are accurate (Dunning-Kruger)
 5. Source attribution fails systematically (source monitoring errors, confabulation)
 
-**What the trust system does well:** 
+**What the trust system does well:**
 - Creates external metadata that compensates for absent internal metacognitive signals
 - Distinguishes source types with different reliability profiles (agent-generated vs. external-sourced)
 - Creates a human review cycle that functions like the testing effect — correcting JOL miscalibration
