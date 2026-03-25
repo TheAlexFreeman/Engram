@@ -1194,3 +1194,95 @@ result_fields = [
 ]
 fallback_tools = ["memory_commit"]
 error_kinds = ["ValidationError", "ConflictError", "StagingError"]
+
+[operations.memory_score_existing_links]
+group = "curation"
+tier = "read"
+change_class = "read_only"
+commit_model = "none"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "path",
+  "min_score",
+  "domain_mode",
+  "total_links",
+  "pruning_candidates",
+  "strong_links",
+  "in_degree",
+  "out_degree",
+]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError"]
+
+[operations.memory_audit_link_density]
+group = "curation"
+tier = "semantic"
+change_class = "read_only"
+commit_model = "none"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "scope",
+  "degree_threshold",
+  "clustering_threshold",
+  "dense_nodes",
+  "bridge_edges",
+  "total_bridge_edges",
+  "total_redundant",
+  "graph_stats",
+]
+fallback_tools = []
+error_kinds = []
+
+[operations.memory_score_links_by_access]
+group = "curation"
+tier = "read"
+change_class = "read_only"
+commit_model = "none"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "path",
+  "lookback_days",
+  "min_access_score",
+  "total_links",
+  "pruning_candidates",
+  "strong_links",
+  "out_degree",
+]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError"]
+
+[operations.memory_prune_weak_links]
+group = "curation"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "curation"
+preview_support = true
+preview_mode = "dry_run"
+preview_argument = "dry_run"
+writes = ["memory/knowledge/**/*.md"]
+owns_frontmatter = ["memory/knowledge/**/*.md"]
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "files_changed",
+  "total_removed",
+  "details",
+  "dry_run",
+  "signal",
+]
+fallback_tools = ["memory_edit", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]

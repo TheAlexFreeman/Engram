@@ -33,7 +33,7 @@ where $G(x) = \text{softmax}(W_g x)$ computes routing logits, top-k selects the 
 **The economic argument:** With $N = 64$ experts and $k = 2$ (activate the top-2 for each token), the model has $64\times$ more parameters than a dense model of the same layer structure, but each forward pass only activates $\frac{2}{64} \approx 3\%$ of the total parameters. This dramatically reduces FLOPs-per-token while maintaining the representation capacity of the larger parameter count.
 
 **The parameter/compute split:** MoE decouples two axes that are conflated in dense models:
-- **Memory footprint** (scales with total parameters, including inactive experts)  
+- **Memory footprint** (scales with total parameters, including inactive experts)
 - **Compute cost** (scales with active parameters per token)
 
 Training still requires all experts to receive enough gradient signal to be useful (load balancing), but inference benefits immediately from the sparse activation.

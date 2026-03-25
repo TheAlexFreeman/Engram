@@ -1148,6 +1148,98 @@ def _tokenize_stem(filename: str) -> set[str]:
     return tokens - _STEM_STOP_WORDS - {""}
 
 
+def _score_link_pair(
+    source: str,
+    target: str,
+    graph: ConnectivityGraph,
+    root: Path,
+    *,
+    _source_context: dict[str, Any] | None = None,
+    _target_context: dict[str, Any] | None = None,
+) -> tuple[float, list[str]]:
+    """Score the relevance of a link from *source* → *target*.
+
+    Uses the same heuristic signals as :func:`_suggest_link_candidates`.
+    Returns ``(score, reasons)`` — higher score means a stronger link.
+
+    Optional *_source_context* and *_target_context* can be supplied to
+    avoid redundant file reads when iterating over many pairs.
+    """
+    path_tokens = _tokenize_stem(source)
+    source_parts = Path(source).parts
+    source_domain = source_parts[2] if len(source_parts) > 2 else ""
+    source_subdir = Path(source).parent.as_posix()
+    src_ctx = (
+        _source_context if _source_context is not None else _extract_candidate_context(source, root)
+    )
+    source_body_lower = str(src_ctx.get("extract", "")).lower()
+    source_title_lower = str(src_ctx.get("title", "")).lower()
+    source_headings_lower = " ".join(
+        heading.lower().lstrip("# ").strip() for heading in src_ctx.get("headings", [])
+    )
+    my_referrers = graph.incoming.get(source, set())
+    my_targets = graph.outgoing.get(source, set())
+
+    cand_parts = Path(target).parts
+    cand_tokens = _tokenize_stem(target)
+    cand_subdir = Path(target).parent.as_posix()
+    cand_domain = cand_parts[2] if len(cand_parts) > 2 else ""
+    tgt_ctx = (
+        _target_context if _target_context is not None else _extract_candidate_context(target, root)
+    )
+    candidate_title = str(tgt_ctx.get("title", "")).lower()
+    candidate_phrase = re.sub(r"[-_.]+", " ", Path(target).stem).strip().lower()
+
+    score = 0.0
+    reasons: list[str] = []
+
+    # Filename stem overlap
+    overlap = path_tokens & cand_tokens
+    if len(overlap) >= 2:
+        score += len(overlap) * 2.0
+        reasons.append(f"shared stems: {', '.join(sorted(overlap))}")
+    elif len(overlap) == 1 and len(path_tokens) <= 3:
+        score += 1.0
+        reasons.append(f"shared stem: {next(iter(overlap))}")
+
+    # Same subdirectory / same domain
+    if cand_subdir == source_subdir:
+        score += 3.0
+        reasons.append("same directory")
+    elif cand_domain == source_domain and source_domain:
+        score += 1.0
+        reasons.append("same domain")
+
+    # Shared incoming references (co-citation)
+    cand_referrers = graph.incoming.get(target, set())
+    shared_referrers = my_referrers & cand_referrers
+    if shared_referrers:
+        score += min(len(shared_referrers), 3) * 1.5
+        reasons.append(f"{len(shared_referrers)} shared referrer(s)")
+
+    # Shared outgoing links
+    shared_targets = my_targets & graph.outgoing.get(target, set())
+    if shared_targets:
+        score += min(len(shared_targets), 3) * 1.25
+        reasons.append(f"{len(shared_targets)} shared outgoing link(s)")
+
+    # Candidate name appears in source body
+    if candidate_phrase and len(candidate_phrase) >= 5 and candidate_phrase in source_body_lower:
+        score += 2.5
+        reasons.append("body mentions candidate stem")
+
+    # Candidate title appears in source headings/body
+    if candidate_title and len(candidate_title) >= 5:
+        if candidate_title in source_headings_lower:
+            score += 3.0
+            reasons.append("heading mentions candidate title")
+        elif candidate_title in source_body_lower or candidate_title in source_title_lower:
+            score += 2.0
+            reasons.append("body mentions candidate title")
+
+    return score, reasons
+
+
 def _suggest_link_candidates(
     rel_path: str,
     graph: ConnectivityGraph,
@@ -1155,86 +1247,24 @@ def _suggest_link_candidates(
     max_suggestions: int = 5,
 ) -> list[dict[str, Any]]:
     """Find potential cross-reference targets using structural heuristics."""
-    path_tokens = _tokenize_stem(rel_path)
-    path_parts = Path(rel_path).parts
-    # Domain = first directory under memory/knowledge/ (e.g., "ai", "philosophy")
-    domain = path_parts[2] if len(path_parts) > 2 else ""
-    subdir = Path(rel_path).parent.as_posix()
     source_context = _extract_candidate_context(rel_path, root)
-    source_body_lower = str(source_context.get("extract", "")).lower()
-    source_title_lower = str(source_context.get("title", "")).lower()
-    source_headings_lower = " ".join(
-        heading.lower().lstrip("# ").strip() for heading in source_context.get("headings", [])
-    )
-
-    # Build inverse incoming index for shared-referrer heuristic
-    my_referrers = graph.incoming.get(rel_path, set())
-    my_targets = graph.outgoing.get(rel_path, set())
-
-    scored: list[tuple[float, str, str]] = []
     context_cache: dict[str, dict[str, Any]] = {}
+    scored: list[tuple[float, str, str]] = []
 
     for candidate in graph.files:
         if candidate == rel_path:
             continue
-        cand_parts = Path(candidate).parts
-        cand_tokens = _tokenize_stem(candidate)
-        cand_subdir = Path(candidate).parent.as_posix()
-        cand_domain = cand_parts[2] if len(cand_parts) > 2 else ""
         candidate_context = context_cache.setdefault(
             candidate, _extract_candidate_context(candidate, root)
         )
-        candidate_title = str(candidate_context.get("title", "")).lower()
-        candidate_phrase = re.sub(r"[-_.]+", " ", Path(candidate).stem).strip().lower()
-
-        score = 0.0
-        reasons: list[str] = []
-
-        # Filename stem overlap
-        overlap = path_tokens & cand_tokens
-        if len(overlap) >= 2:
-            score += len(overlap) * 2.0
-            reasons.append(f"shared stems: {', '.join(sorted(overlap))}")
-        elif len(overlap) == 1 and len(path_tokens) <= 3:
-            score += 1.0
-            reasons.append(f"shared stem: {next(iter(overlap))}")
-
-        # Same subdirectory
-        if cand_subdir == subdir:
-            score += 3.0
-            reasons.append("same directory")
-        elif cand_domain == domain and domain:
-            score += 1.0
-            reasons.append("same domain")
-
-        # Shared incoming references
-        cand_referrers = graph.incoming.get(candidate, set())
-        shared = my_referrers & cand_referrers
-        if shared:
-            score += min(len(shared), 3) * 1.5
-            reasons.append(f"{len(shared)} shared referrer(s)")
-
-        shared_targets = my_targets & graph.outgoing.get(candidate, set())
-        if shared_targets:
-            score += min(len(shared_targets), 3) * 1.25
-            reasons.append(f"{len(shared_targets)} shared outgoing link(s)")
-
-        if (
-            candidate_phrase
-            and len(candidate_phrase) >= 5
-            and candidate_phrase in source_body_lower
-        ):
-            score += 2.5
-            reasons.append("body mentions candidate stem")
-
-        if candidate_title and len(candidate_title) >= 5:
-            if candidate_title in source_headings_lower:
-                score += 3.0
-                reasons.append("heading mentions candidate title")
-            elif candidate_title in source_body_lower or candidate_title in source_title_lower:
-                score += 2.0
-                reasons.append("body mentions candidate title")
-
+        score, reasons = _score_link_pair(
+            rel_path,
+            candidate,
+            graph,
+            root,
+            _source_context=source_context,
+            _target_context=candidate_context,
+        )
         if score > 0 and reasons:
             scored.append((score, candidate, "; ".join(reasons)))
 
@@ -1248,6 +1278,46 @@ def _suggest_link_candidates(
         }
         for score, target, reason in scored[:max_suggestions]
     ]
+
+
+def score_existing_links(
+    rel_path: str,
+    graph: ConnectivityGraph,
+    root: Path,
+    min_score: float = 0.0,
+) -> list[dict[str, Any]]:
+    """Score each current outgoing link from *rel_path*.
+
+    Uses the same heuristic signals as :func:`_suggest_link_candidates` but
+    applied to links that already exist rather than candidates.
+
+    Returns a list sorted ascending by score so that the weakest links appear
+    first.  Each entry contains ``{target, score, reasons, alert}`` where
+    ``alert=True`` when ``score < min_score``.
+    """
+    existing_links = graph.outgoing.get(rel_path, set())
+    source_context = _extract_candidate_context(rel_path, root)
+    results: list[dict[str, Any]] = []
+    for target in sorted(existing_links):
+        target_context = _extract_candidate_context(target, root)
+        score, reasons = _score_link_pair(
+            rel_path,
+            target,
+            graph,
+            root,
+            _source_context=source_context,
+            _target_context=target_context,
+        )
+        results.append(
+            {
+                "target": target,
+                "score": round(score, 2),
+                "reasons": reasons,
+                "alert": score < min_score,
+            }
+        )
+    results.sort(key=lambda x: x["score"])
+    return results
 
 
 def suggest_links_for_file(

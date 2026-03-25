@@ -43,7 +43,7 @@ The core claim from attentional science: **effective cognition requires not just
 
 **Agent analog:** LLM forward passes are structurally System 1 — fast, parallel, associative next-token prediction. Chain-of-thought reasoning imposes a System 2-like structure by making reasoning sequential and visible. But chain-of-thought "System 2" lacks genuine metacognitive error-monitoring: each step in the chain is still a forward pass without a separate error-detection mechanism.
 
-**Design implication:** 
+**Design implication:**
 - For important, high-stakes, or counterintuitive claims, impose deliberate reasoning structure (chain-of-thought, step verification, explicit consideration of alternatives).
 - Treat fluent outputs as potential System 1 errors — high fluency is not a reliability signal; it may be an overconfidence signal.
 - Do not rely on spontaneous System 2 engagement; build it into prompt structure.

@@ -47,6 +47,7 @@ from .reference_extractor import (
     find_unlinked_files,
     preview_reorganization,
     resolve_link_diagnostics,
+    score_existing_links,
     suggest_links_for_file,
     suggest_structure,
     summarize_cross_domain_links,
@@ -3955,6 +3956,171 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         return json.dumps(payload, indent=2)
 
     # ------------------------------------------------------------------
+    # memory_score_existing_links
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_score_existing_links",
+        annotations=_tool_annotations(
+            title="Score Existing Links",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_score_existing_links(
+        path: str,
+        scope: str = "",
+        min_score: float = 1.0,
+        domain_mode: str = "all",
+    ) -> str:
+        """Score each outgoing link from a file to identify weak pruning candidates.
+
+        Uses the same structural heuristics as ``memory_suggest_links`` (stem
+        overlap, shared directory, co-citation, body mentions) but applied to
+        *existing* links rather than uncreated candidates.  Links scoring below
+        *min_score* are flagged as ``alert=true``.
+
+        Args:
+            path: Repo-relative path to the file to audit (e.g.
+                  ``"memory/knowledge/ai/alignment.md"``).
+            scope: Unused — reserved for future batch-mode support.
+            min_score: Links below this score are flagged as pruning candidates
+                  (default 1.0, which is below the "same domain only" baseline).
+            domain_mode: ``"all"`` (default) — score all outgoing links;
+                  ``"same"`` — only same-domain links; ``"cross"`` — only
+                  cross-domain links.
+        """
+        from ..errors import NotFoundError, ValidationError
+
+        if not isinstance(path, str) or not path.strip():
+            raise ValidationError("path must be a non-empty string")
+        if not isinstance(min_score, (int, float)):
+            raise ValidationError("min_score must be numeric")
+        normalized_domain_mode = (domain_mode or "all").strip().lower()
+        if normalized_domain_mode not in {"all", "same", "cross"}:
+            raise ValidationError("domain_mode must be one of: all, same, cross")
+
+        root = get_root()
+        target_path = _resolve_visible_path(root, path.strip())
+        try:
+            target_path.relative_to(root)
+        except ValueError as exc:
+            raise ValidationError("path must stay within the repository root") from exc
+        if not target_path.exists() or not target_path.is_file():
+            raise NotFoundError(f"File not found: {path}")
+
+        rel_path = target_path.relative_to(root).as_posix()
+        graph = build_connectivity_graph(root)
+        if rel_path not in graph.outgoing:
+            raise ValidationError(f"File is outside the governed markdown surface: {rel_path}")
+
+        min_score_f = max(0.0, float(min_score))
+        all_scored = score_existing_links(rel_path, graph, root, min_score=min_score_f)
+
+        # Apply domain_mode filter
+        source_parts = Path(rel_path).parts
+        source_domain = source_parts[2] if len(source_parts) > 2 else ""
+        filtered: list[dict] = []
+        for entry in all_scored:
+            tgt_parts = Path(entry["target"]).parts
+            tgt_domain = tgt_parts[2] if len(tgt_parts) > 2 else ""
+            is_same = bool(source_domain and tgt_domain and source_domain == tgt_domain)
+            if normalized_domain_mode == "same" and not is_same:
+                continue
+            if normalized_domain_mode == "cross" and is_same:
+                continue
+            filtered.append({**entry, "is_same_domain": is_same})
+
+        pruning_candidates = [e for e in filtered if e["alert"]]
+        strong_links = [e for e in filtered if not e["alert"]]
+
+        payload = {
+            "path": rel_path,
+            "min_score": round(min_score_f, 2),
+            "domain_mode": normalized_domain_mode,
+            "total_links": len(filtered),
+            "pruning_candidates": pruning_candidates,
+            "strong_links": strong_links,
+            "in_degree": len(graph.incoming.get(rel_path, set())),
+            "out_degree": len(graph.outgoing.get(rel_path, set())),
+        }
+        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
+    # memory_score_links_by_access
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_score_links_by_access",
+        annotations=_tool_annotations(
+            title="Score Links by Access Co-occurrence",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_score_links_by_access(
+        path: str,
+        lookback_days: int = 90,
+        min_access_score: int = 1,
+    ) -> str:
+        """Score each outgoing link by how often the two files are read together.
+
+        Parses ACCESS.jsonl logs across all governed scopes.  Within each
+        session (grouped by ``session_id`` or date), every pair of files
+        accessed contributes +1 to their co-access count.  Links whose files
+        are never read in the same session score 0 and are flagged as
+        ``never_co_accessed``.
+
+        Args:
+            path: Repo-relative path to the file to audit.
+            lookback_days: Only consider ACCESS entries within this window
+                  (default 90 days).
+            min_access_score: Links with fewer co-accesses than this are
+                  flagged as pruning candidates (default 1 — flags all
+                  zero-co-access links).
+        """
+        from ..errors import NotFoundError, ValidationError
+        from ..tools.graph_analysis import parse_co_access, score_links_by_access as _slba
+
+        if not isinstance(path, str) or not path.strip():
+            raise ValidationError("path must be a non-empty string")
+        lookback = max(1, int(lookback_days))
+        min_score = max(0, int(min_access_score))
+
+        root = get_root()
+        target_path = _resolve_visible_path(root, path.strip())
+        try:
+            target_path.relative_to(root)
+        except ValueError as exc:
+            raise ValidationError("path must stay within the repository root") from exc
+        if not target_path.exists() or not target_path.is_file():
+            raise NotFoundError(f"File not found: {path}")
+
+        rel_path = target_path.relative_to(root).as_posix()
+        graph = build_connectivity_graph(root)
+        if rel_path not in graph.outgoing:
+            raise ValidationError(f"File is outside the governed markdown surface: {rel_path}")
+
+        co_access = parse_co_access(root, lookback_days=lookback)
+        all_scored = _slba(rel_path, co_access, graph)
+
+        pruning_candidates = [e for e in all_scored if e["access_score"] < min_score]
+        strong_links = [e for e in all_scored if e["access_score"] >= min_score]
+
+        payload = {
+            "path": rel_path,
+            "lookback_days": lookback,
+            "min_access_score": min_score,
+            "total_links": len(all_scored),
+            "pruning_candidates": pruning_candidates,
+            "strong_links": strong_links,
+            "out_degree": len(graph.outgoing.get(rel_path, set())),
+        }
+        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
     # memory_check_cross_references
     # ------------------------------------------------------------------
     @mcp.tool(
@@ -6441,6 +6607,8 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         "memory_reorganize_preview": memory_reorganize_preview,
         "memory_suggest_structure": memory_suggest_structure,
         "memory_suggest_links": memory_suggest_links,
+        "memory_score_existing_links": memory_score_existing_links,
+        "memory_score_links_by_access": memory_score_links_by_access,
         "memory_check_cross_references": memory_check_cross_references,
         "memory_cross_domain_links": memory_cross_domain_links,
         "memory_surface_unlinked": memory_surface_unlinked,
