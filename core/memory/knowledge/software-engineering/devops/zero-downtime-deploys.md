@@ -237,7 +237,7 @@ def health(request):
         db_ok = True
     except Exception:
         db_ok = False
-    
+
     status = 200 if db_ok else 503
     return JsonResponse({"db": db_ok}, status=status)
 ```
@@ -277,19 +277,19 @@ Add smoke tests to the CI/CD deploy job:
   run: |
     # Wait for services to be ready
     sleep 15
-    
+
     # Test main app response
     STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://example.com/)
     if [ "$STATUS" != "200" ]; then echo "Frontend unhealthy: $STATUS"; exit 1; fi
-    
+
     # Test API health endpoint
     STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://example.com/api/health/)
     if [ "$STATUS" != "200" ]; then echo "API unhealthy: $STATUS"; exit 1; fi
-    
+
     # Test that admin doesn't error (302 is expected redirect to login)
     STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://example.com/admin/)
     if [ "$STATUS" != "302" ]; then echo "Admin unhealthy: $STATUS"; exit 1; fi
-    
+
     echo "All smoke tests passed."
 ```
 
