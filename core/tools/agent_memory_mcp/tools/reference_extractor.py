@@ -725,6 +725,41 @@ def plan_reorganization(root: Path, source: str, dest: str) -> dict[str, Any]:
             applies_in_execution=True,
         )
 
+    # SUMMARY.md files are excluded from general reference scanning, but a
+    # reorganization must still rewrite any links inside them that point into
+    # the moved subtree.  Scan only the SUMMARY files that this reorganization
+    # touches (those returned by _summary_targets_for_reorganization) so the
+    # update stays targeted.
+    for summary_path in _summary_targets_for_reorganization(normalized_source, normalized_dest):
+        abs_summary = root / summary_path
+        if not abs_summary.exists() or summary_path in future_paths:
+            continue
+        try:
+            _, body = read_with_frontmatter(abs_summary)
+        except OSError:
+            continue
+        for link_match in _MARKDOWN_LINK_RE.finditer(body):
+            raw_target = link_match.group(2)
+            resolved = _resolve_reference(summary_path, raw_target, root)
+            if not isinstance(resolved, str) or not _path_is_within(resolved, normalized_source):
+                continue
+            new_resolved_path = _replace_path_prefix(resolved, normalized_source, normalized_dest)
+            add_ref_update(
+                current_path=summary_path,
+                display_path=summary_path,
+                ref_type="markdown_link",
+                old_value=raw_target,
+                new_value=_rewrite_reference_target(
+                    summary_path,
+                    raw_target,
+                    new_resolved_path,
+                ),
+                line=body[: link_match.start()].count("\n") + 1,
+                resolved_old=resolved,
+                resolved_new=new_resolved_path,
+                applies_in_execution=True,
+            )
+
     files_with_references = [
         {
             **payload,

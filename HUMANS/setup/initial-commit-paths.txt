@@ -576,8 +576,11 @@ core/tools/memory_mcp.py
 core/tools/tests/__init__.py
 core/tools/tests/test_agent_memory_mcp_write_tools.py
 core/tools/tests/test_core_boundary.py
+core/tools/tests/test_graph_tools.py
+core/tools/tests/test_link_scoring.py
 core/tools/tests/test_link_tools_engine.py
 core/tools/tests/test_memory_mcp.py
+core/tools/tests/test_surface_unlinked.py
 extract_names.py
 pyproject.toml
 setup.html

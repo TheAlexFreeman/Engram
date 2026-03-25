@@ -11,12 +11,11 @@ Covers:
 from __future__ import annotations
 
 import importlib
-import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import ClassVar, Any
+from typing import Any, ClassVar
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -97,7 +96,7 @@ class ScoreLinkPairTests(unittest.TestCase):
             ),
         }
         self._root = _write_files(self._tmpdir.name, self._files)
-        graph_mod = _load_graph_analysis()
+        _load_graph_analysis()
         self._graph = self.extractor.build_connectivity_graph(self._root)
 
     def test_same_directory_boosts_score(self) -> None:
