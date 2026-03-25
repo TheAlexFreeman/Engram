@@ -15,7 +15,7 @@
 /* ── Layout ──────────────────────────────────────────── */
 .dashboard-header {
   background: var(--dark-bg); color: var(--dark-text);
-  padding: var(--space-lg) var(--space-lg) var(--space-md);
+  padding: var(--space-md) var(--space-lg) var(--space-md);
 }
 .dashboard-header h1 { color: #fff; margin-bottom: var(--space-xs); }
 .dashboard-header .subtitle { color: var(--dark-text-muted); margin-bottom: var(--space-md); }
@@ -105,6 +105,121 @@ button:active { transform: scale(0.97); }
 
 .panel.full-width {
   grid-column: 1 / -1;
+}
+
+/* ── Dashboard user panel (two-column) ───────────────── */
+.dash-users-layout {
+  display: flex; gap: 0; height: 320px;
+}
+.dash-users-list {
+  width: 200px; flex-shrink: 0;
+  border-right: 1px solid var(--color-border-light);
+  overflow-y: auto;
+}
+.dash-users-list-item {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.55rem 0.75rem; cursor: pointer;
+  border-bottom: 1px solid var(--color-border-fine);
+  transition: background var(--duration) var(--ease);
+  font-size: var(--text-sm);
+}
+.dash-users-list-item:hover { background: var(--color-bg); }
+.dash-users-list-item.active {
+  background: var(--color-active-bg, var(--color-bg));
+  border-left: 3px solid var(--color-primary);
+  font-weight: 600;
+}
+.dash-users-list-avatar {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  background: var(--color-hover-bg); border: 2px solid var(--color-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; font-weight: 600; color: var(--color-text-secondary);
+}
+.dash-users-list-name {
+  flex: 1; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.dash-users-list-files {
+  font-size: var(--text-xs); color: var(--color-text-muted); flex-shrink: 0;
+}
+.dash-user-viewer {
+  flex: 1; min-width: 0; overflow-y: auto;
+  padding: 1.1rem 1.4rem;
+  font-size: var(--text-sm);
+}
+.dash-user-viewer-empty {
+  display: flex; align-items: center; justify-content: center;
+  height: 100%; color: var(--color-text-faint); font-size: var(--text-sm);
+}
+.dash-viewer-header {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.6rem; flex-wrap: wrap;
+}
+.dash-viewer-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: var(--color-hover-bg); border: 2px solid var(--color-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; font-weight: 600; color: var(--color-text-secondary);
+}
+.dash-viewer-name {
+  font-weight: 700; font-size: 1rem;
+}
+.dash-viewer-meta {
+  display: flex; gap: 0.4rem; flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.dash-viewer-meta .tag {
+  font-size: var(--text-xs); padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-pill, 12px);
+  background: rgba(255,245,230,0.06); border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+.dash-viewer-body h1,
+.dash-viewer-body h2,
+.dash-viewer-body h3,
+.dash-viewer-body h4 {
+  margin: 1rem 0 0.35rem; font-size: 0.85rem; font-weight: 600;
+  color: var(--color-text);
+}
+.dash-viewer-body h1 { font-size: 0.95rem; }
+.dash-viewer-body h2 { font-size: 0.9rem; }
+.dash-viewer-body hr {
+  border: none; border-top: 1px solid var(--color-border-fine);
+  margin: 1rem 0;
+}
+.dash-viewer-body p,
+.dash-viewer-body li {
+  margin: 0 0 0.3rem; line-height: 1.55;
+  color: var(--color-text-secondary); font-size: var(--text-sm);
+}
+.dash-viewer-body ul {
+  padding-left: 1.1rem; margin: 0 0 0.4rem;
+}
+.dash-viewer-body strong { font-weight: 600; color: var(--color-text); }
+.dash-viewer-body em { font-style: italic; }
+.dash-viewer-body code {
+  font-family: var(--font-mono); font-size: 0.78em;
+  background: rgba(130,130,130,0.1); padding: 0.1em 0.3em;
+  border-radius: 3px;
+}
+.dash-viewer-files {
+  margin-top: 0.7rem; padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border-fine);
+}
+.dash-viewer-files-title {
+  font-size: var(--text-xs); font-weight: 600; color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  margin-bottom: 0.3rem;
+}
+.dash-viewer-file-link {
+  display: block; font-size: var(--text-sm);
+  color: var(--color-primary); text-decoration: none;
+  padding: 0.15rem 0; cursor: pointer;
+}
+.dash-viewer-file-link:hover { text-decoration: underline; }
+@media (max-width: 700px) {
+  .dash-users-layout { flex-direction: column; height: auto; max-height: 400px; }
+  .dash-users-list { width: 100%; border-right: none; border-bottom: 1px solid var(--color-border-light); max-height: 120px; }
 }
 
 /* ── Stat cards ──────────────────────────────────────── */
@@ -214,13 +329,13 @@ button:active { transform: scale(0.97); }
     </div>
   </div>
 
-  <!-- User Portrait (full width) -->
+  <!-- Users (full width, two-column) -->
   <div class="panel full-width" id="panel-portrait">
     <div class="panel-header">
-      <h2><span class="icon">&#128100;</span> User Portrait</h2>
+      <h2><span class="icon">&#128100;</span> Users</h2>
       <a href="users.html" class="nav-link" style="margin-left:auto;font-size:0.75rem;">View all &#8594;</a>
     </div>
-    <div class="panel-body" id="portrait-body">
+    <div class="panel-body" id="portrait-body" style="padding:0;max-height:none;overflow:hidden">
       <div class="placeholder"><span class="icon">&#128100;</span><p>No user data found.</p></div>
     </div>
   </div>
@@ -380,51 +495,221 @@ button:active { transform: scale(0.97); }
     var body = document.getElementById('portrait-body');
     body.innerHTML = '';
 
-    var summary = await readFile(rootHandle, 'core/memory/users/SUMMARY.md');
-    if (!summary) {
-      body.appendChild(el('p', 'No users/SUMMARY.md found.', 'placeholder'));
+    var listing = await listDir(rootHandle, 'core/memory/users');
+    var userDirs = listing.dirs.filter(function (d) { return !d.startsWith('_'); });
+
+    if (userDirs.length === 0) {
+      body.appendChild(el('p', 'No user profiles found.', 'placeholder'));
       return;
     }
 
-    // Find user directories
-    var listing = await listDir(rootHandle, 'core/memory/users');
-    var userDirs = listing.dirs;
+    // Load all user data upfront
+    var users = [];
+    for (var i = 0; i < userDirs.length; i++) {
+      var dirName = userDirs[i];
+      var userFiles = await listDir(rootHandle, 'core/memory/users/' + dirName);
+      var mdFiles = userFiles.files.filter(function (f) { return f.endsWith('.md'); });
 
-    var parsed = parseFrontmatter(summary);
-    var lines = parsed.body.split(/\r?\n/).filter(function (l) { return l.trim(); });
+      // Read all md files for this user
+      var fileContents = {};
+      for (var fi = 0; fi < mdFiles.length; fi++) {
+        var content = await readFile(rootHandle, 'core/memory/users/' + dirName + '/' + mdFiles[fi]);
+        if (content) fileContents[mdFiles[fi]] = content;
+      }
 
-    // Render user summary lines (skip the heading)
-    var frag = document.createDocumentFragment();
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim();
-      if (line.match(/^#+\s/)) {
-        var level = line.match(/^(#+)/)[1].length;
-        var heading = el(level <= 2 ? 'h3' : 'h4', line.replace(/^#+\s*/, ''));
-        heading.style.marginTop = '0.75rem';
-        heading.style.marginBottom = '0.25rem';
-        heading.style.fontSize = level <= 2 ? '0.9rem' : '0.85rem';
-        frag.appendChild(heading);
-      } else if (line.startsWith('-') || line.startsWith('*')) {
-        var p = el('p', line.replace(/^[-*]\s*/, ''));
-        p.style.marginLeft = '0.75rem';
-        p.style.marginBottom = '0.15rem';
-        frag.appendChild(p);
-      } else if (line.startsWith('Drill')) {
-        // skip drill-down lines
-      } else {
-        frag.appendChild(el('p', line));
+      var meta = {};
+      if (fileContents['profile.md']) {
+        var parsed = parseFrontmatter(fileContents['profile.md']);
+        if (parsed.frontmatter) meta = parseFlatYaml(parsed.frontmatter);
+      }
+
+      users.push({ name: dirName, files: mdFiles, fileContents: fileContents, meta: meta });
+    }
+
+    // Build two-column layout
+    var layout = el('div', '', 'dash-users-layout');
+    var listCol = el('div', '', 'dash-users-list');
+    var viewer = el('div', '', 'dash-user-viewer');
+    viewer.innerHTML = '<div class="dash-user-viewer-empty">Select a user to view their profile</div>';
+    layout.appendChild(listCol);
+    layout.appendChild(viewer);
+
+    var activeItem = null;
+
+    function showUser(user) {
+      viewer.innerHTML = '';
+
+      // Header row
+      var header = el('div', '', 'dash-viewer-header');
+      header.appendChild(el('div', user.name.charAt(0).toUpperCase(), 'dash-viewer-avatar'));
+      var nameEl = el('span', user.name, 'dash-viewer-name');
+      header.appendChild(nameEl);
+      var trust = (user.meta.trust || '').toLowerCase();
+      if (trust) {
+        var cls = 'badge badge-' + (trust === 'high' ? 'high' : trust === 'medium' ? 'medium' : 'low');
+        header.appendChild(el('span', user.meta.trust, cls));
+      }
+      viewer.appendChild(header);
+
+      // Meta tags
+      var metaRow = el('div', '', 'dash-viewer-meta');
+      if (user.meta.created) metaRow.appendChild(el('span', 'since ' + user.meta.created, 'tag'));
+      if (user.meta.source) metaRow.appendChild(el('span', user.meta.source, 'tag'));
+      metaRow.appendChild(el('span', '\uD83D\uDCC4 ' + user.files.length + ' file' + (user.files.length !== 1 ? 's' : ''), 'tag'));
+      viewer.appendChild(metaRow);
+
+      // Render profile.md body as lightweight markdown
+      var profileContent = user.fileContents['profile.md'];
+      if (profileContent) {
+        var parsed = parseFrontmatter(profileContent);
+        var viewerBody = el('div', '', 'dash-viewer-body');
+        renderSimpleMarkdown(parsed.body, viewerBody);
+        viewer.appendChild(viewerBody);
+      }
+
+      // File list for quick-access to other docs
+      if (user.files.length > 1) {
+        var filesSection = el('div', '', 'dash-viewer-files');
+        filesSection.appendChild(el('div', 'User files', 'dash-viewer-files-title'));
+        for (var fi = 0; fi < user.files.length; fi++) {
+          var fname = user.files[fi];
+          var fLink = el('a', fname.replace(/\.md$/i, ''), 'dash-viewer-file-link');
+          fLink.title = fname;
+          (function (fileName, u) {
+            fLink.addEventListener('click', function () { showFile(u, fileName); });
+          })(fname, user);
+          filesSection.appendChild(fLink);
+        }
+        viewer.appendChild(filesSection);
       }
     }
 
-    if (userDirs.length > 0) {
-      var tag = el('p', 'User folders: ' + userDirs.join(', '));
-      tag.style.marginTop = '0.5rem';
-      tag.style.fontSize = '0.8rem';
-      tag.style.color = '#555';
-      frag.appendChild(tag);
+    function showFile(user, fileName) {
+      var content = user.fileContents[fileName];
+      if (!content) return;
+      viewer.innerHTML = '';
+
+      // Back link
+      var back = el('a', '\u2190 ' + user.name, 'dash-viewer-file-link');
+      back.style.marginBottom = '0.5rem';
+      back.addEventListener('click', function () { showUser(user); });
+      viewer.appendChild(back);
+
+      // File title
+      viewer.appendChild(el('h3', fileName.replace(/\.md$/i, ''), 'dash-viewer-name'));
+
+      var parsed = parseFrontmatter(content);
+
+      // Frontmatter meta
+      if (parsed.frontmatter) {
+        var fm = parseFlatYaml(parsed.frontmatter);
+        var metaRow = el('div', '', 'dash-viewer-meta');
+        var metaKeys = ['trust', 'source', 'created', 'last_verified', 'type'];
+        for (var mi = 0; mi < metaKeys.length; mi++) {
+          if (fm[metaKeys[mi]]) {
+            var tagText = metaKeys[mi] + ': ' + fm[metaKeys[mi]];
+            var tagCls = 'tag';
+            if (metaKeys[mi] === 'trust') {
+              var tv = fm.trust.toLowerCase();
+              tagCls = 'badge badge-' + (tv === 'high' ? 'high' : tv === 'medium' ? 'medium' : 'low');
+            }
+            metaRow.appendChild(el('span', tagText, tagCls));
+          }
+        }
+        viewer.appendChild(metaRow);
+      }
+
+      var viewerBody = el('div', '', 'dash-viewer-body');
+      renderSimpleMarkdown(parsed.body, viewerBody);
+      viewer.appendChild(viewerBody);
     }
 
-    body.appendChild(frag);
+    /** Lightweight markdown-to-DOM (headings, bullets, bold, italic, code). */
+    function renderSimpleMarkdown(text, container) {
+      var lines = (text || '').split(/\r?\n/);
+      var inList = false;
+      var ul = null;
+
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var trimmed = line.trim();
+        if (!trimmed) {
+          if (inList) { container.appendChild(ul); ul = null; inList = false; }
+          continue;
+        }
+
+        // Headings
+        var hMatch = trimmed.match(/^(#{1,4})\s+(.+)/);
+        if (hMatch) {
+          if (inList) { container.appendChild(ul); ul = null; inList = false; }
+          var level = Math.min(hMatch[1].length, 4);
+          var heading = document.createElement('h' + level);
+          heading.innerHTML = inlineFormat(hMatch[2]);
+          container.appendChild(heading);
+          continue;
+        }
+
+        // Bullets
+        if (trimmed.match(/^[-*]\s/)) {
+          if (!inList) { ul = document.createElement('ul'); inList = true; }
+          var li = document.createElement('li');
+          li.innerHTML = inlineFormat(trimmed.replace(/^[-*]\s+/, ''));
+          ul.appendChild(li);
+          // Peek ahead for continuation lines (indented)
+          while (i + 1 < lines.length && lines[i + 1].match(/^\s{2,}/) && !lines[i + 1].trim().match(/^[-*]\s/)) {
+            i++;
+            li.innerHTML += ' ' + inlineFormat(lines[i].trim());
+          }
+          continue;
+        }
+
+        // Plain paragraph
+        if (inList) { container.appendChild(ul); ul = null; inList = false; }
+        if (trimmed === '---') {
+          container.appendChild(document.createElement('hr'));
+          continue;
+        }
+        var p = document.createElement('p');
+        p.innerHTML = inlineFormat(trimmed);
+        container.appendChild(p);
+      }
+      if (inList && ul) container.appendChild(ul);
+    }
+
+    function inlineFormat(text) {
+      return text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    }
+
+    // Build list items
+    for (var ui = 0; ui < users.length; ui++) {
+      (function (user) {
+        var item = el('div', '', 'dash-users-list-item');
+        item.appendChild(el('div', user.name.charAt(0).toUpperCase(), 'dash-users-list-avatar'));
+        item.appendChild(el('span', user.name, 'dash-users-list-name'));
+        item.appendChild(el('span', user.files.length + '', 'dash-users-list-files'));
+        item.addEventListener('click', function () {
+          if (activeItem) activeItem.classList.remove('active');
+          item.classList.add('active');
+          activeItem = item;
+          showUser(user);
+        });
+        listCol.appendChild(item);
+      })(users[ui]);
+    }
+
+    body.appendChild(layout);
+
+    // Auto-select first user
+    if (users.length > 0) {
+      var first = listCol.firstChild;
+      first.classList.add('active');
+      activeItem = first;
+      showUser(users[0]);
+    }
   }
 
   async function loadHealth() {

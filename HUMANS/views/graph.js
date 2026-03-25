@@ -18,16 +18,16 @@
 
   /* ── Domain colours ──────────────────────────────────── */
   var DOMAIN_COLORS = {
-    'ai':                    '#6ec6ff',
-    'cognitive-science':     '#b39ddb',
-    'literature':            '#ffab91',
-    'mathematics':           '#80cbc4',
-    'philosophy':            '#fff59d',
-    'rationalist-community': '#ef9a9a',
-    'self':                  '#a5d6a7',
-    'social-science':        '#ce93d8',
-    'software-engineering':  '#90caf9',
-    '_unverified':           '#757575'
+    'ai':                    '#29b6f6',
+    'cognitive-science':     '#ab47bc',
+    'literature':            '#ff7043',
+    'mathematics':           '#26a69a',
+    'philosophy':            '#fdd835',
+    'rationalist-community': '#ef5350',
+    'self':                  '#66bb6a',
+    'social-science':        '#ec407a',
+    'software-engineering':  '#5c6bc0',
+    '_unverified':           '#78909c'
   };
   var DOMAIN_DEFAULT_COLOR = '#888888';
 
