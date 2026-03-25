@@ -11,6 +11,7 @@ related:
   - environment-secrets-management.md
   - dev-workflow-tooling.md
   - sentry-fullstack-observability.md
+  - ../react/vite-react-build.md
 ---
 
 # GitHub Actions CI/CD for Django + React

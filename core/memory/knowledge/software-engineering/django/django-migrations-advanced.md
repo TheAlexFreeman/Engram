@@ -8,6 +8,10 @@ related:
   - django-orm-postgres.md
   - django-production-stack.md
   - django-database-pooling.md
+  - django-6.0-whats-new.md
+  - psycopg3-and-connection-management.md
+  - django-security.md
+  - drf-testing-pytest-django-perf-rec.md
 origin_session: unknown
 ---
 

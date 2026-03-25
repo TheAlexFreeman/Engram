@@ -10,6 +10,10 @@ related:
   - react-error-boundaries-suspense.md
   - vitest-rtl-msw.md
   - ../devops/sentry-fullstack-observability.md
+  - react-hook-form-zod.md
+  - tanstack-query.md
+  - react-19-overview.md
+  - ../devops/github-actions-cicd.md
 ---
 
 # Vite Configuration for React

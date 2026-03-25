@@ -4,6 +4,9 @@ origin_session: core/memory/activity/2026/03/18/chat-001
 created: 2026-03-18
 last_verified: 2026-03-20
 trust: medium
+related:
+  - django-security.md
+  - django-migrations-advanced.md
 ---
 
 # DRF API contracts, pytest, and django-perf-rec

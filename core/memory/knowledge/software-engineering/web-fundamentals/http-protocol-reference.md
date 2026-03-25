@@ -12,6 +12,7 @@ related:
   - ../django/django-caching-redis.md
   - dns-tls-and-networking.md
   - cors-in-depth.md
+  - ../django/django-security.md
 ---
 
 # HTTP Protocol Reference

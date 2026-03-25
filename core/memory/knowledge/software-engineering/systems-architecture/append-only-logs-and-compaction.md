@@ -12,6 +12,7 @@ related:
   - filesystem-atomicity-and-locking.md
   - crdts-and-collaborative-text.md
   - filesystems-for-developers.md
+  - concurrency-models-for-local-state.md
 ---
 
 # Append-Only Logs, Compaction, and Materialized Summaries

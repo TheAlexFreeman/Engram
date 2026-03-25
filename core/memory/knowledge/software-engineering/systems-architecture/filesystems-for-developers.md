@@ -12,6 +12,7 @@ related:
   - filesystem-atomicity-and-locking.md
   - append-only-logs-and-compaction.md
   - git-object-model.md
+  - concurrency-models-for-local-state.md
 ---
 
 # Filesystems for Developers Building Stateful Tools

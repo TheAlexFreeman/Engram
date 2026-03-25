@@ -7,7 +7,7 @@ tags: [cas, integrity, merkle, git, commit-sha, provenance, verification]
 trust: medium
 created: 2026-03-19
 last_verified: 2026-03-19
-related: git-object-model.md, git-worktrees-and-hooks.md, provenance-and-trust-models.md
+related: git-object-model.md, git-worktrees-and-hooks.md, provenance-and-trust-models.md, concurrency-models-for-local-state.md
 ---
 
 # Content-Addressable Storage and Integrity

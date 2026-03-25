@@ -10,6 +10,7 @@ related:
   - django-gunicorn-uvicorn.md
   - celery-worker-beat-ops.md
   - psycopg3-and-connection-management.md
+  - django-security.md
 origin_session: unknown
 ---
 

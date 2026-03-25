@@ -10,6 +10,10 @@ related:
   - django-6.0-whats-new.md
   - django-observability-structlog-sentry.md
   - ../web-fundamentals/cors-in-depth.md
+  - django-database-pooling.md
+  - drf-testing-pytest-django-perf-rec.md
+  - ../web-fundamentals/http-protocol-reference.md
+  - django-migrations-advanced.md
 origin_session: unknown
 ---
 

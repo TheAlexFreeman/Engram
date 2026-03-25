@@ -9,6 +9,10 @@ related:
   - unit-testing-principles.md
   - coverage-and-mutation-testing.md
   - formal-verification-foundations.md
+  - black-box-test-design.md
+  - property-based-testing.md
+  - integration-testing-strategies.md
+  - test-driven-development.md
 ---
 
 # Testing Foundations and Epistemology
