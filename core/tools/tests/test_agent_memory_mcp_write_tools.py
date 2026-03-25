@@ -2074,7 +2074,8 @@ See [topic](../knowledge/topic/target.md).
         self.assertTrue(all(item["score"] >= 5.0 for item in payload["suggestions"]))
         self.assertTrue(
             all(
-                item["target"] != "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md"
+                item["target"]
+                != "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md"
                 for item in payload["suggestions"]
             )
         )

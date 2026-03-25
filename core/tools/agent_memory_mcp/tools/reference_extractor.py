@@ -1181,7 +1181,9 @@ def _suggest_link_candidates(
         cand_tokens = _tokenize_stem(candidate)
         cand_subdir = Path(candidate).parent.as_posix()
         cand_domain = cand_parts[2] if len(cand_parts) > 2 else ""
-        candidate_context = context_cache.setdefault(candidate, _extract_candidate_context(candidate, root))
+        candidate_context = context_cache.setdefault(
+            candidate, _extract_candidate_context(candidate, root)
+        )
         candidate_title = str(candidate_context.get("title", "")).lower()
         candidate_phrase = re.sub(r"[-_.]+", " ", Path(candidate).stem).strip().lower()
 
@@ -1217,7 +1219,11 @@ def _suggest_link_candidates(
             score += min(len(shared_targets), 3) * 1.25
             reasons.append(f"{len(shared_targets)} shared outgoing link(s)")
 
-        if candidate_phrase and len(candidate_phrase) >= 5 and candidate_phrase in source_body_lower:
+        if (
+            candidate_phrase
+            and len(candidate_phrase) >= 5
+            and candidate_phrase in source_body_lower
+        ):
             score += 2.5
             reasons.append("body mentions candidate stem")
 
@@ -1394,7 +1400,11 @@ def summarize_cross_domain_links(
         targets_for_domain = domain_target_counts.setdefault(left, {})
         targets_for_domain[right] = targets_for_domain.get(right, 0) + count
 
-    if normalized_source and normalized_source not in per_domain and normalized_source in domain_file_counts:
+    if (
+        normalized_source
+        and normalized_source not in per_domain
+        and normalized_source in domain_file_counts
+    ):
         per_domain[normalized_source] = {
             "domain": normalized_source,
             "files": domain_file_counts.get(normalized_source, 0),
@@ -1402,7 +1412,11 @@ def summarize_cross_domain_links(
             "outgoing_cross": 0,
         }
         visible_domains.add(normalized_source)
-    if normalized_target and normalized_target not in per_domain and normalized_target in domain_file_counts:
+    if (
+        normalized_target
+        and normalized_target not in per_domain
+        and normalized_target in domain_file_counts
+    ):
         per_domain[normalized_target] = {
             "domain": normalized_target,
             "files": domain_file_counts.get(normalized_target, 0),
@@ -1519,8 +1533,11 @@ def summarize_connectivity_graph(graph: ConnectivityGraph) -> dict[str, Any]:
     }
 
 
-def diff_connectivity_graphs(current: ConnectivityGraph, previous: ConnectivityGraph) -> dict[str, Any]:
+def diff_connectivity_graphs(
+    current: ConnectivityGraph, previous: ConnectivityGraph
+) -> dict[str, Any]:
     """Return a structured diff between two directed connectivity graphs."""
+
     def _domain(path: str) -> str:
         parts = Path(path).parts
         return parts[2] if len(parts) > 2 else ""
@@ -1533,14 +1550,10 @@ def diff_connectivity_graphs(current: ConnectivityGraph, previous: ConnectivityG
         )
 
     current_edges = {
-        (source, target)
-        for source, targets in current.outgoing.items()
-        for target in targets
+        (source, target) for source, targets in current.outgoing.items() for target in targets
     }
     previous_edges = {
-        (source, target)
-        for source, targets in previous.outgoing.items()
-        for target in targets
+        (source, target) for source, targets in previous.outgoing.items() for target in targets
     }
 
     added_edges = sorted(current_edges - previous_edges)
@@ -1582,12 +1595,8 @@ def diff_connectivity_graphs(current: ConnectivityGraph, previous: ConnectivityG
             key: round(float(current_stats[key]) - float(previous_stats.get(key, 0)), 2)
             for key in current_stats
         },
-        "added_edges": [
-            {"source": source, "target": target} for source, target in added_edges
-        ],
-        "removed_edges": [
-            {"source": source, "target": target} for source, target in removed_edges
-        ],
+        "added_edges": [{"source": source, "target": target} for source, target in added_edges],
+        "removed_edges": [{"source": source, "target": target} for source, target in removed_edges],
         "impacted_files": changed_files,
         "impacted_files_detail": impacted_files_detail,
         "added_domain_pairs": [

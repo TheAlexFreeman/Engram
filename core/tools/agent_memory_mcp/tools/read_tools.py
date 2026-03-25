@@ -2443,9 +2443,7 @@ def _git_snapshot_graph(repo, scope: str, ref: str):
             )
             if show_result.returncode != 0:
                 stderr = (show_result.stderr or "").strip()
-                raise ValidationError(
-                    stderr or f"git show failed for {git_rel_path} at {ref}"
-                )
+                raise ValidationError(stderr or f"git show failed for {git_rel_path} at {ref}")
             content_rel = repo._from_git_path(git_rel_path)
             target = snapshot_root / content_rel
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -3765,7 +3763,10 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         if not scope_path.exists():
             return f"Error: Path not found: {path}"
 
-        reports = [_frontmatter_health_report(root, rel_path) for rel_path in _iter_frontmatter_health_files(root, requested_path)]
+        reports = [
+            _frontmatter_health_report(root, rel_path)
+            for rel_path in _iter_frontmatter_health_files(root, requested_path)
+        ]
         issue_counts: dict[str, int] = {}
         for report in reports:
             for issue in report["issues"]:

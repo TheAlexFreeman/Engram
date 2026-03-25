@@ -24,6 +24,7 @@ HUMANS/docs/HELP.md
 HUMANS/docs/INTEGRATIONS.md
 HUMANS/docs/MCP.md
 HUMANS/docs/QUICKSTART.md
+HUMANS/docs/WORKTREE.md
 HUMANS/tooling/agent-memory-capabilities.toml
 HUMANS/tooling/agent-task-readiness.toml
 HUMANS/tooling/mcp-config-example.json
@@ -38,6 +39,7 @@ HUMANS/tooling/tests-js/dashboard-utils.test.js
 HUMANS/tooling/tests-js/engram-utils.test.js
 HUMANS/tooling/tests-js/graph.test.js
 HUMANS/tooling/tests-js/setup-utils.test.js
+HUMANS/tooling/tests-js/view-smoke.test.js
 HUMANS/tooling/tests/__init__.py
 HUMANS/tooling/tests/test_access_logging_batch.py
 HUMANS/tooling/tests/test_bootstrap_resolver.py
@@ -574,6 +576,7 @@ core/tools/memory_mcp.py
 core/tools/tests/__init__.py
 core/tools/tests/test_agent_memory_mcp_write_tools.py
 core/tools/tests/test_core_boundary.py
+core/tools/tests/test_link_tools_engine.py
 core/tools/tests/test_memory_mcp.py
 extract_names.py
 pyproject.toml

@@ -17,7 +17,9 @@ def _load_reference_extractor() -> ModuleType:
     try:
         return importlib.import_module("engram_mcp.agent_memory_mcp.tools.reference_extractor")
     except ModuleNotFoundError as exc:
-        raise unittest.SkipTest(f"reference_extractor dependencies unavailable: {exc.name}") from exc
+        raise unittest.SkipTest(
+            f"reference_extractor dependencies unavailable: {exc.name}"
+        ) from exc
 
 
 class LinkToolsEngineTests(unittest.TestCase):
@@ -83,7 +85,8 @@ class LinkToolsEngineTests(unittest.TestCase):
         suggestion = next(
             item
             for item in payload["suggestions"]
-            if item["target"] == "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md"
+            if item["target"]
+            == "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md"
         )
         self.assertIn("reasons", suggestion)
         self.assertTrue(any("candidate title" in reason for reason in suggestion["reasons"]))
@@ -110,7 +113,8 @@ class LinkToolsEngineTests(unittest.TestCase):
         self.assertTrue(all(not item["is_same_domain"] for item in payload["suggestions"]))
         self.assertTrue(
             any(
-                item["target"] == "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md"
+                item["target"]
+                == "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md"
                 for item in payload["suggestions"]
             )
         )
@@ -136,7 +140,8 @@ class LinkToolsEngineTests(unittest.TestCase):
         self.assertTrue(all(item["score"] >= 5.0 for item in payload["suggestions"]))
         self.assertTrue(
             all(
-                item["target"] != "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md"
+                item["target"]
+                != "memory/knowledge/cognitive-science/gardenfors-conceptual-spaces.md"
                 for item in payload["suggestions"]
             )
         )
@@ -212,7 +217,10 @@ class LinkToolsEngineTests(unittest.TestCase):
         self.assertIn("impacted_files_detail", payload)
         self.assertIn("changed_category_counts", payload)
         self.assertTrue(
-            any(item["path"] == "memory/knowledge/philosophy/compression.md" for item in payload["impacted_files_detail"])
+            any(
+                item["path"] == "memory/knowledge/philosophy/compression.md"
+                for item in payload["impacted_files_detail"]
+            )
         )
 
 

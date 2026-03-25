@@ -53,10 +53,9 @@ For the complete mapping of which files to load per session type, see `core/INIT
 
 | Session type | When it applies | Token budget |
 |---|---|---|
-| **First run** | No session history, template markers present | ~15,000–20,000 |
-| **Compact returning** | Normal returning session | ~3,000–7,000 |
-| **Full bootstrap** | Periodic deep review needed | ~18,000–25,000 |
-| **Periodic review** | Governance or curation audit cycle | ~18,000–25,000 |
+| **First-run onboarding bootstrap** | No session history, template markers present | ~15,000–20,000 |
+| **Returning compact session** | Normal returning session | ~3,000–7,000 |
+| **Full bootstrap / periodic review** | Periodic deep review or governance audit | ~18,000–25,000 |
 | **Automation** | Tool-driven, non-interactive | ~3,000–7,000 |
 | **ACCESS aggregation** | Triggered by entry count thresholds | On-demand |
 | **Stage transition** | Maturity stage change | On-demand |
