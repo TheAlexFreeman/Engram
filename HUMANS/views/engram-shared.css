@@ -13,8 +13,8 @@
   --color-accent: #c2b49a;
 
   /* ── Header bars (darkest layer) ───────────────────── */
-  --dark-bg: #0e0c0a;
-  --dark-surface: #181512;
+  --dark-bg: #2a2d31;
+  --dark-surface: #32363b;
   --dark-text: #e8e2d9;
   --dark-text-muted: #9a9082;
   --dark-border: rgba(255,245,230,0.08);
