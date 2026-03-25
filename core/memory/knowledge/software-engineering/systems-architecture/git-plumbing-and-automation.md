@@ -1,18 +1,28 @@
 ---
-source: external-research
-origin_session: core/memory/activity/2026/03/19/chat-001
-type: knowledge
-domain: systems-architecture
-tags: [git, plumbing, porcelain, automation, update-index, commit-tree, update-ref, notes, bundle, sparse-checkout]
-trust: medium
 created: 2026-03-19
+domain: systems-architecture
 last_verified: 2026-03-19
+origin_session: core/memory/activity/2026/03/19/chat-001
 related:
-  - memory/knowledge/software-engineering/systems-architecture/git-worktrees-and-hooks.md
-  - memory/knowledge/software-engineering/systems-architecture/git-object-model.md
-  - memory/knowledge/software-engineering/systems-architecture/content-addressable-storage-and-integrity.md
-  - memory/knowledge/software-engineering/systems-architecture/append-only-logs-and-compaction.md
-  - memory/knowledge/software-engineering/systems-architecture/filesystem-atomicity-and-locking.md
+- memory/knowledge/software-engineering/systems-architecture/git-worktrees-and-hooks.md
+- memory/knowledge/software-engineering/systems-architecture/git-object-model.md
+- memory/knowledge/software-engineering/systems-architecture/content-addressable-storage-and-integrity.md
+- memory/knowledge/software-engineering/systems-architecture/append-only-logs-and-compaction.md
+- memory/knowledge/software-engineering/systems-architecture/filesystem-atomicity-and-locking.md
+source: external-research
+tags:
+- git
+- plumbing
+- porcelain
+- automation
+- update-index
+- commit-tree
+- update-ref
+- notes
+- bundle
+- sparse-checkout
+trust: medium
+type: knowledge
 ---
 
 # Git Plumbing for Automation and Failure Recovery
@@ -193,4 +203,4 @@ The main takeaway is that plumbing commands are not just internals trivia. They 
 - Pro Git, "Git Internals - Plumbing and Porcelain"
 - Pro Git, "Git Internals - Git Objects"
 - Git documentation for `git-worktree`
-- Repository code in [tools/agent_memory_mcp/git_repo.py](tools/agent_memory_mcp/git_repo.py)
+- Repository code in tools/agent_memory_mcp/git_repo.py

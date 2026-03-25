@@ -1,18 +1,25 @@
 ---
-source: external-research
-origin_session: core/memory/activity/2026/03/19/chat-001
-type: knowledge
-domain: systems-architecture
-tags: [git, worktrees, orphan-branches, hooks, refs, governance, automation]
-trust: medium
 created: 2026-03-19
+domain: systems-architecture
 last_verified: 2026-03-19
+origin_session: core/memory/activity/2026/03/19/chat-001
 related:
-  - memory/knowledge/software-engineering/systems-architecture/git-object-model.md
-  - memory/knowledge/software-engineering/systems-architecture/git-plumbing-and-automation.md
-  - memory/knowledge/software-engineering/systems-architecture/provenance-and-trust-models.md
-  - memory/knowledge/software-engineering/systems-architecture/append-only-logs-and-compaction.md
-  - memory/knowledge/software-engineering/systems-architecture/filesystem-atomicity-and-locking.md
+- memory/knowledge/software-engineering/systems-architecture/git-object-model.md
+- memory/knowledge/software-engineering/systems-architecture/git-plumbing-and-automation.md
+- memory/knowledge/software-engineering/systems-architecture/provenance-and-trust-models.md
+- memory/knowledge/software-engineering/systems-architecture/append-only-logs-and-compaction.md
+- memory/knowledge/software-engineering/systems-architecture/filesystem-atomicity-and-locking.md
+source: external-research
+tags:
+- git
+- worktrees
+- orphan-branches
+- hooks
+- refs
+- governance
+- automation
+trust: medium
+type: knowledge
 ---
 
 # Git Worktrees, Orphan Branches, and Hooks
@@ -166,4 +173,4 @@ It also reinforces a broader lesson for the MCP server: worktrees are the right 
 
 - Git documentation, `git-worktree`
 - Git documentation, `githooks`
-- Repository code in [tools/agent_memory_mcp/git_repo.py](tools/agent_memory_mcp/git_repo.py)
+- Repository code in tools/agent_memory_mcp/git_repo.py

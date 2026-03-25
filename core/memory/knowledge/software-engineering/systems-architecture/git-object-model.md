@@ -1,13 +1,24 @@
 ---
-source: external-research
-origin_session: core/memory/activity/2026/03/19/chat-001
-type: knowledge
-domain: systems-architecture
-tags: [git, object-model, blobs, trees, commits, tags, index, refs, reflog, packfiles, storage]
-trust: medium
 created: 2026-03-19
+domain: systems-architecture
 last_verified: 2026-03-19
+origin_session: core/memory/activity/2026/03/19/chat-001
 related: git-plumbing-and-automation.md, git-worktrees-and-hooks.md, ../testing/model-checking-abstract-interpretation.md
+source: external-research
+tags:
+- git
+- object-model
+- blobs
+- trees
+- commits
+- tags
+- index
+- refs
+- reflog
+- packfiles
+- storage
+trust: medium
+type: knowledge
 ---
 
 # Git Object Model and Why It Matters Here
@@ -61,7 +72,7 @@ Conceptually:
 
 That means the index is not bookkeeping noise. It is the place where Git assembles the next snapshot before it becomes history.
 
-The current MCP implementation reflects that model directly. In [tools/agent_memory_mcp/git_repo.py](tools/agent_memory_mcp/git_repo.py), `add()` shells out to `git add`, and in [tools/agent_memory_mcp/git_repo.py](tools/agent_memory_mcp/git_repo.py), `commit()` shells out to `git commit -m`. The server is therefore dependent on the index path working correctly.
+The current MCP implementation reflects that model directly. In [tools/agent_memory_mcp/git_repo.py](tools/agent_memory_mcp/git_repo.py), `add()` shells out to `git add`, and in tools/agent_memory_mcp/git_repo.py, `commit()` shells out to `git commit -m`. The server is therefore dependent on the index path working correctly.
 
 ## What `git add` actually does
 
@@ -151,7 +162,7 @@ One tempting but incorrect mental model is: "the server writes files, then commi
 
 So the staging step is not optional boilerplate. It is the mechanism that turns mutable working-tree bytes into a stable next snapshot.
 
-That is why [tools/agent_memory_mcp/git_repo.py](tools/agent_memory_mcp/git_repo.py) and [tools/agent_memory_mcp/git_repo.py](tools/agent_memory_mcp/git_repo.py) are more than simple shell wrappers: they encode the current transaction model of the whole system.
+That is why tools/agent_memory_mcp/git_repo.py and tools/agent_memory_mcp/git_repo.py are more than simple shell wrappers: they encode the current transaction model of the whole system.
 
 ## Architectural relevance for future work
 
@@ -169,4 +180,4 @@ The root lesson is simple: Git is not a fancy file-copy tool. It is an object da
 - Pro Git, "Git Internals - Git Objects"
 - Pro Git, "Git Internals - Git References"
 - Pro Git, "Git Internals - Packfiles"
-- Repository code in [tools/agent_memory_mcp/git_repo.py](tools/agent_memory_mcp/git_repo.py)
+- Repository code in tools/agent_memory_mcp/git_repo.py
