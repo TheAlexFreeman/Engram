@@ -60,3 +60,11 @@ Resolved, rejected, superseded, or false-positive items may be moved to an "Arch
 Security flags should never be silently queued for later review. All other types may be deferred if the current session is time-constrained.
 
 ---
+
+### [2026-03-26] Review core/tools/agent_memory_mcp/git_repo.py
+**Item ID:** 2026-03-26-review-core-tools-agent-memory-mcp-git-repo-py
+**Type:** proposed
+**File:** core/tools/agent_memory_mcp/git_repo.py
+**Priority:** normal
+**Reason:** Add stale HEAD.lock cleanup to the plumbing fallback path. When _should_fallback_to_plumbing detects a lock error, check whether HEAD.lock exists, is older than 30s, and belongs to a dead PID — if so, unlink it before retrying. This prevents the failure mode where a FUSE-mounted filesystem (e.g., Cowork VM) leaves orphaned lock files that block both porcelain and plumbing commit paths. See harness-expansion session 2026-03-26 for the full diagnosis.
+**Status:** pending
