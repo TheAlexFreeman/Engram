@@ -270,14 +270,15 @@ button:active { transform: scale(0.97); }
 <header class="dashboard-header">
   <div style="max-width:1020px;margin:0 auto;">
     <h1>Engram</h1>
-    <p class="subtitle">Read-only view of your local memory repository. Nothing is sent anywhere.</p>
+    <p class="subtitle">Read-only view of your memory repository.</p>
     <nav class="toolbar" aria-label="Dashboard navigation and repository actions">
       <a href="setup.html" class="nav-link" style="margin-left: 0.5rem">&#8592; Setup Wizard</a>
       <a href="docs.html" class="nav-link" style="margin-left: 0.5rem">&#128203; Docs</a>
       <button class="btn-primary" id="open-btn" onclick="openFolder()">Open Memory Repo</button>
+      <button class="btn-secondary" id="github-btn" onclick="connectGitHub()">Connect to GitHub</button>
       <button class="btn-secondary" id="refresh-btn" onclick="refresh()" style="display:none">Refresh</button>
       <span class="status" id="status-bar">
-        <span class="dot disconnected"></span> No folder loaded
+        <span class="dot disconnected"></span> No source loaded
       </span>
     </nav>
   </div>
@@ -290,9 +291,9 @@ button:active { transform: scale(0.97); }
 <!-- placeholder before folder is loaded -->
 <div class="placeholder" id="placeholder">
   <div class="icon">&#128193;</div>
-  <p>Click <strong>Open Memory Repo</strong> to load your Engram folder.<br>
-  The dashboard reads files locally using your browser — nothing leaves your machine.</p>
-  <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--color-text-faint)">Requires a Chromium-based browser (Chrome, Edge, Brave, Arc).</p>
+  <p>Click <strong>Open Memory Repo</strong> to load your local Engram folder,<br>
+  or <strong>Connect to GitHub</strong> to read from a remote repository.</p>
+  <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--color-text-faint)">Local folder access requires a Chromium-based browser (Chrome, Edge, Brave, Arc).<br>GitHub access works in any modern browser.</p>
 </div>
 
 <!-- panels (hidden until folder loaded) -->
@@ -408,6 +409,7 @@ button:active { transform: scale(0.97); }
 
   /** Count files recursively in a sub-directory. */
   async function countFiles(dirHandle, path) {
+    if (E.isGitHubHandle(dirHandle)) return E.countFilesGitHub(dirHandle, path);
     var current = dirHandle;
     if (path) {
       var parts = path.split('/').filter(Boolean);
@@ -437,7 +439,7 @@ button:active { transform: scale(0.97); }
   window.openFolder = async function () {
     hideError();
     if (!window.showDirectoryPicker) {
-      showError('Your browser does not support the File System Access API. Please use Chrome, Edge, Brave, or Arc.');
+      showError('Your browser does not support the File System Access API. Use Connect to GitHub instead, or switch to Chrome, Edge, Brave, or Arc.');
       return;
     }
     try {
@@ -454,6 +456,14 @@ button:active { transform: scale(0.97); }
 
   /** Verify that a handle points to a plausible Engram repo. */
   async function verifyRepo(handle) {
+    if (E.isGitHubHandle(handle)) {
+      var readme = await readFile(handle, 'README.md');
+      if (!readme) {
+        showError('Could not read from GitHub repository ' + handle.name + '. Check that it exists and is public.');
+        return false;
+      }
+      return true;
+    }
     var readme = await readFile(handle, 'README.md');
     var hasCore = false;
     try { await handle.getDirectoryHandle('core'); hasCore = true; } catch (_) {}
@@ -482,7 +492,10 @@ button:active { transform: scale(0.97); }
         loadScratchpad(),
         loadSkills()
       ]);
-      setStatus(true, 'Loaded from ' + rootHandle.name);
+      var sourceLabel = E.isGitHubHandle(rootHandle)
+        ? 'GitHub: ' + rootHandle.name
+        : rootHandle.name;
+      setStatus(true, 'Loaded from ' + sourceLabel);
     } catch (e) {
       setStatus(false, 'Error during load');
       showError('Error loading dashboard data: ' + e.message);
@@ -1075,22 +1088,40 @@ button:active { transform: scale(0.97); }
 
   /* ── auto-restore on page load ─────────────────────── */
 
+  window.connectGitHub = async function () {
+    hideError();
+    var gh = E.detectGitHubRepo();
+    if (!gh) {
+      var input = prompt('Enter GitHub repository (owner/repo):');
+      if (!input) return;
+      input = input.trim()
+        .replace(/^https?:\/\/github\.com\//, '')
+        .replace(/\.git$/, '')
+        .replace(/\/$/, '');
+      var parts = input.split('/');
+      if (parts.length < 2 || !parts[0] || !parts[1]) {
+        showError('Invalid format. Use: owner/repo');
+        return;
+      }
+      gh = E.makeGitHubHandle(parts[0], parts[1]);
+    }
+
+    rootHandle = gh;
+    if (!(await verifyRepo(rootHandle))) {
+      rootHandle = null;
+      return;
+    }
+
+    E.saveGitHubConfig(gh);
+    document.getElementById('refresh-btn').style.display = '';
+    document.getElementById('github-btn').textContent = 'Change Repo';
+    await refresh();
+  };
+
   (async function init() {
-    // Browser compatibility check
+    // Disable local folder button if API unavailable
     if (!window.showDirectoryPicker) {
       document.getElementById('open-btn').disabled = true;
-      var ph = document.getElementById('placeholder');
-      ph.textContent = '';
-      var warn = el('div', '\u26A0', 'icon');
-      var p1 = el('p');
-      p1.appendChild(el('strong', 'Browser not supported.'));
-      p1.appendChild(document.createTextNode(' The File System Access API is required to read your local memory repo.'));
-      var p2 = el('p', 'Please open this page in Chrome, Edge, Brave, or Arc.');
-      p2.style.marginTop = '0.5rem';
-      ph.appendChild(warn);
-      ph.appendChild(p1);
-      ph.appendChild(p2);
-      return;
     }
 
     // Try to restore a previously opened directory
@@ -1099,12 +1130,17 @@ button:active { transform: scale(0.97); }
 
     // Verify the saved handle still points to a valid repo
     rootHandle = restored.handle;
+    var isGH = E.isGitHubHandle(rootHandle);
     if (!(await verifyRepo(rootHandle))) {
       rootHandle = null;
-      await clearSavedHandle();
+      if (isGH) E.clearGitHubConfig();
+      else await clearSavedHandle();
       return;
     }
 
+    if (isGH) {
+      document.getElementById('github-btn').textContent = 'Change Repo';
+    }
     document.getElementById('refresh-btn').style.display = '';
     await refresh();
   })();
