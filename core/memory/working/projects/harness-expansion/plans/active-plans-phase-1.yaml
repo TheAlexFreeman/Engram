@@ -2,7 +2,8 @@ id: active-plans-phase-1
 project: harness-expansion
 created: '2026-03-26'
 origin_session: memory/activity/2026/03/26/chat-001
-status: active
+status: completed
+sessions_used: 5
 budget:
   deadline: '2026-04-15'
   max_sessions: 8
@@ -186,8 +187,8 @@ work:
 
     - id: tool-surface-create
       title: Update memory_plan_create to accept new fields
-      status: pending
-      commit: null
+      status: completed
+      commit: fc0156f
       blockers:
         - phase-payload-enrichment
       sources:
@@ -218,8 +219,8 @@ work:
 
     - id: tool-surface-execute
       title: Update memory_plan_execute to surface sources and enforce approval gates
-      status: pending
-      commit: null
+      status: completed
+      commit: fc0156f
       blockers:
         - tool-surface-create
       sources:
@@ -257,8 +258,8 @@ work:
 
     - id: test-coverage
       title: Add test coverage for all new schema fields and tool behaviors
-      status: pending
-      commit: null
+      status: completed
+      commit: f412db7
       blockers:
         - tool-surface-execute
       sources:
@@ -294,8 +295,8 @@ work:
 
     - id: documentation
       title: Update human-facing documentation for the new plan schema
-      status: pending
-      commit: null
+      status: completed
+      commit: f412db7
       blockers:
         - test-coverage
       sources:
@@ -336,4 +337,24 @@ work:
         - path: CHANGELOG.md
           action: update
           description: Add entry for plan schema extensions.
-review: null
+review:
+  completed: '2026-03-26'
+  completed_session: memory/activity/2026/03/26/chat-001
+  outcome: completed
+  purpose_assessment: |
+    All four schema extensions (SourceSpec, PostconditionSpec, requires_approval, PlanBudget)
+    are implemented and tested. The MCP tool surface (memory_plan_create, memory_plan_execute)
+    surfaces all new fields through inspect, start, and complete actions. 58 unit tests in
+    test_plan_schema_extensions.py and 6 tool-layer integration tests in
+    test_agent_memory_mcp_write_tools.py all pass. DESIGN.md and MCP.md document the new
+    schema and execution cycle. CHANGELOG.md has an entry. All changes are backward-compatible.
+  unresolved:
+    - question: Should internal source paths be validated for existence at plan-create time?
+      note: Yes — currently enforced via save_plan/validate_plan_references.
+    - question: Should postconditions be free-text or typed with validator references?
+      note: Both — bare strings coerce to manual type; typed specs support check/grep/test/manual.
+    - question: How should requires_approval interact with the existing change-class system?
+      note: Composed — approval_required is true if requires_approval OR change_class is proposed/protected.
+    - question: Should budget enforcement be implemented now or deferred to a later phase?
+      note: Advisory model implemented now; enforced budgets planned for a future harness phase.
+  follow_up: null
