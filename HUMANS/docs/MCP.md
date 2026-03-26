@@ -251,9 +251,28 @@ These are the normal write path. Each tool represents a bounded operation with b
 
 | Tool | Description |
 | --- | --- |
-| `memory_plan_create` | Create a new structured plan with phases and tasks. |
-| `memory_plan_execute` | Inspect, start, block, or complete a plan phase. |
+| `memory_plan_create` | Create a new structured plan with phases, sources, postconditions, and an optional budget. |
+| `memory_plan_execute` | Inspect, start, block, or complete a plan phase; surfaces sources, approval gates, and budget status. |
 | `memory_plan_review` | Scan completed plans or export completed-plan artifacts. |
+
+**`memory_plan_create` key parameters**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `phases` | list | Phase dicts. Each phase may include `sources` (list of `{path, type, intent, uri?}`), `postconditions` (list of strings or `{description, type?, target?}`), and `requires_approval` (bool). |
+| `budget` | dict \| null | Optional budget: `deadline` (YYYY-MM-DD), `max_sessions` (int ≥ 1), `advisory` (bool, default `true`). |
+
+The `resulting_state` includes a `budget_status` block when a budget is set.
+
+**`memory_plan_execute` actions and response fields**
+
+| Action | Effect | Key response fields |
+| --- | --- | --- |
+| `inspect` | Read-only: returns full phase payload. | `phase.sources`, `phase.postconditions`, `phase.requires_approval`, `budget_status` |
+| `start` | Transitions phase to `in-progress`. | `sources`, `postconditions`, `requires_approval`, `approval_required`, `budget_status` |
+| `complete` | Seals phase; increments `sessions_used`; emits budget warnings when limits are approached. | `sessions_used`, `budget_status`, `warnings` |
+
+`advisory: true` budgets emit warnings only. `advisory: false` budgets raise an error when the session cap is exceeded.
 
 **Knowledge lifecycle**
 

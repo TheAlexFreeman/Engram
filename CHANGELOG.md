@@ -18,6 +18,24 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-26] Plan schema extensions: sources, postconditions, approval gates, budget
+
+**Changed:** Extended the plan schema with four new structural features and updated the MCP tool surface to expose them:
+
+- **`SourceSpec`** — new dataclass on `PlanPhase.sources`. Each source has `path`, `type` (`internal`/`external`/`mcp`), `intent`, and optional `uri`. Internal sources are validated for existence at save time. The `next_action()` and `phase_payload()` responses include sources so agents know what to read before acting.
+- **`PostconditionSpec`** — new dataclass on `PlanPhase.postconditions`. Each postcondition has a free-text `description` and optional typed validator (`check`/`grep`/`test`/`manual` with a `target`). Bare strings coerce to `manual` type. Postconditions are surfaced in `inspect` and `start` responses.
+- **`requires_approval`** — boolean flag on `PlanPhase` (default `False`). When true, the `start` action returns `approval_required: true` and `requires_approval: true` in `resulting_state`, signalling the agent to pause before writing.
+- **`PlanBudget`** — new top-level dataclass on `PlanDocument.budget`. Fields: `deadline` (YYYY-MM-DD), `max_sessions` (int ≥ 1), `advisory` (bool, default `True`). Advisory budgets emit warnings; enforced budgets raise errors when exhausted. `sessions_used` is incremented by each `complete` action and persisted in the plan YAML. `budget_status()` returns `days_remaining`, `sessions_remaining`, `over_budget`, and related fields.
+- **`next_action()`** now returns a structured dict (`id`, `title`, `sources`, `postconditions`, `requires_approval`) instead of a plain string.
+- **`memory_plan_create`** accepts a `budget` parameter and phase dicts with all new fields.
+- **`memory_plan_execute`**: `inspect` includes full new fields in the phase payload; `start` surfaces sources, postconditions, approval gate, and budget status; `complete` increments `sessions_used` and emits budget warnings.
+
+All changes are backward-compatible: plans created before this revision load without modification and default all new fields to empty/false/null.
+
+**Reasoning:** The original plan schema could store phases and tasks but gave agents no structured cue for what to read before acting, what must be true after, when to pause for human input, or when a project budget was exceeded. This left the agent harness incomplete — plans were passive records rather than active execution surfaces. These extensions close that gap by making plans the primary source of per-phase pre-work directives and approval constraints.
+
+**Approved by:** agent (pending review)
+
 ## [2026-03-24] Split INTEGRATIONS.md into WORKTREE.md + INTEGRATIONS.md
 
 **Changed:** Split `HUMANS/docs/INTEGRATIONS.md` into two focused documents:

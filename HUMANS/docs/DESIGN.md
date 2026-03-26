@@ -73,6 +73,10 @@ Most meaningful work spans multiple sessions. Engram's **plan system** treats mu
 - **Phases and tasks** — hierarchical breakdown with status tracking.
 - **Execution state** — `status`, `next_action`, phase progress percentages.
 - **Task-local sequencing** — plans are the one place outside `skills/` and `governance/` that may contain procedural instructions, scoped to that specific investigation.
+- **Sources** — per-phase reading list declaring what the agent should review before acting, along with the intent for each source.
+- **Postconditions** — per-phase success criteria (free-text, or typed with `check`/`grep`/`test`/`manual` validators) that declare what must be true after the phase is done.
+- **Approval gates** — `requires_approval: true` on a phase tells downstream tooling to pause and surface the gate before writing anything.
+- **Execution budget** — a top-level `budget` block with an optional `deadline` (YYYY-MM-DD), `max_sessions` cap, and an `advisory` flag that controls whether the cap is enforced or advisory-only.
 
 Four MCP tools manage the plan lifecycle:
 
@@ -80,6 +84,17 @@ Four MCP tools manage the plan lifecycle:
 - `memory_plan_execute` — advance phases, mark items complete, update execution state.
 - `memory_plan_review` — review outcomes, finalize or archive.
 - `memory_list_plans` — inventory plans in a project.
+
+#### Phase execution cycle
+
+For each phase, the recommended execution cycle is:
+
+1. **`inspect`** — confirm sources, postconditions, approval gate, and budget status before touching anything.
+2. **`start`** — transition the phase to `in-progress`; the response includes sources to read and whether approval is required.
+3. *(agent reads sources and performs the work)*
+4. **`complete`** — seal the phase with a commit SHA; increments `sessions_used` and emits budget warnings when limits are approached or exceeded.
+
+The `inspect` and `start` responses both surface `sources`, `postconditions`, `requires_approval`, and `budget_status` so that agents have the full execution context without additional file reads.
 
 Plans solve a specific problem: without persistent multi-session roadmaps, agents either lose track of complex work between conversations or rely on the user to re-supply the project context every session. With plans, the project's full context — goals, progress, decisions, next steps — is always available.
 

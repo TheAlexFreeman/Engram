@@ -7898,5 +7898,289 @@ trust: high
             )
 
 
+    # -----------------------------------------------------------------------
+    # memory_plan_create: budget and phase fields
+    # -----------------------------------------------------------------------
+
+    def test_memory_plan_create_with_budget_stores_and_returns_budget_status(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-26\nproject_count: 1\n---\n\n# Projects\n\n_No active or ongoing projects._\n",
+                "memory/working/projects/example/SUMMARY.md": "---\nsource: agent-generated\norigin_session: manual\ncreated: 2026-03-26\ntrust: medium\ntype: project\nstatus: active\ncognitive_mode: exploration\nopen_questions: 0\nactive_plans: 0\nlast_activity: 2026-03-26\ncurrent_focus: Harness work.\n---\n\n# Project: Example\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        raw = asyncio.run(
+            tools["memory_plan_create"](
+                plan_id="budget-plan",
+                project_id="example",
+                purpose_summary="Budget plan",
+                purpose_context="Plan with a budget constraint.",
+                phases=[
+                    {
+                        "id": "phase-a",
+                        "title": "Do the work",
+                        "changes": [
+                            {
+                                "path": "memory/working/projects/example/notes/output.md",
+                                "action": "create",
+                                "description": "Write output note.",
+                            }
+                        ],
+                    }
+                ],
+                session_id="memory/activity/2026/03/26/chat-001",
+                budget={"deadline": "2026-04-15", "max_sessions": 8, "advisory": True},
+            )
+        )
+        payload = json.loads(raw)
+        plan_body = yaml.safe_load(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "projects"
+                / "example"
+                / "plans"
+                / "budget-plan.yaml"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(plan_body["budget"]["deadline"], "2026-04-15")
+        self.assertEqual(plan_body["budget"]["max_sessions"], 8)
+        self.assertNotIn("advisory", plan_body["budget"])  # True is the default, omitted
+        self.assertIn("budget_status", payload["new_state"])
+        self.assertEqual(payload["new_state"]["budget_status"]["max_sessions"], 8)
+        self.assertEqual(payload["new_state"]["budget_status"]["sessions_used"], 0)
+
+    def test_memory_plan_create_with_phase_sources_and_postconditions(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-26\nproject_count: 1\n---\n\n# Projects\n\n_No active or ongoing projects._\n",
+                "memory/working/projects/example/SUMMARY.md": "---\nsource: agent-generated\norigin_session: manual\ncreated: 2026-03-26\ntrust: medium\ntype: project\nstatus: active\ncognitive_mode: exploration\nopen_questions: 0\nactive_plans: 0\nlast_activity: 2026-03-26\ncurrent_focus: Schema validation work.\n---\n\n# Project: Example\n",
+                "memory/working/notes/reference.md": "# Reference\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        asyncio.run(
+            tools["memory_plan_create"](
+                plan_id="rich-plan",
+                project_id="example",
+                purpose_summary="Rich plan",
+                purpose_context="Plan with sources and postconditions.",
+                phases=[
+                    {
+                        "id": "phase-a",
+                        "title": "Do it",
+                        "sources": [
+                            {
+                                "path": "memory/working/notes/reference.md",
+                                "type": "internal",
+                                "intent": "Read the reference notes.",
+                            }
+                        ],
+                        "postconditions": ["Output file exists", "Tests pass"],
+                        "requires_approval": True,
+                        "changes": [
+                            {
+                                "path": "memory/working/projects/example/notes/output.md",
+                                "action": "create",
+                                "description": "Write output note.",
+                            }
+                        ],
+                    }
+                ],
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        plan_body = yaml.safe_load(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "projects"
+                / "example"
+                / "plans"
+                / "rich-plan.yaml"
+            ).read_text(encoding="utf-8")
+        )
+        phase = plan_body["work"]["phases"][0]
+        self.assertEqual(len(phase["sources"]), 1)
+        self.assertEqual(phase["sources"][0]["type"], "internal")
+        self.assertEqual(len(phase["postconditions"]), 2)
+        self.assertTrue(phase["requires_approval"])
+
+    # -----------------------------------------------------------------------
+    # memory_plan_execute: inspect, start, complete with new fields
+    # -----------------------------------------------------------------------
+
+    def _plan_yaml_with_budget(self, *, sessions_used: int = 0) -> str:
+        return (
+            "id: tracked-plan\n"
+            "project: example\n"
+            "created: 2026-03-26\n"
+            "origin_session: memory/activity/2026/03/26/chat-001\n"
+            "status: active\n"
+            "budget:\n"
+            "  deadline: '2026-04-15'\n"
+            "  max_sessions: 3\n"
+            f"sessions_used: {sessions_used}\n"
+            "purpose:\n"
+            "  summary: Tracked plan\n"
+            "  context: Plan with budget and approval gate.\n"
+            "  questions: []\n"
+            "work:\n"
+            "  phases:\n"
+            "    - id: phase-a\n"
+            "      title: Gated phase\n"
+            "      status: pending\n"
+            "      commit: null\n"
+            "      blockers: []\n"
+            "      sources:\n"
+            "        - path: memory/working/notes/ref.md\n"
+            "          type: internal\n"
+            "          intent: Read reference.\n"
+            "      postconditions:\n"
+            "        - File exists\n"
+            "      requires_approval: true\n"
+            "      changes:\n"
+            "        - path: memory/working/projects/example/notes/out.md\n"
+            "          action: create\n"
+            "          description: Write output.\n"
+            "review: null\n"
+        )
+
+    def _plan_repo_files(self, plan_yaml: str) -> dict[str, str]:
+        return {
+            "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-26\nproject_count: 1\n---\n\n# Projects\n\n_No active or ongoing projects._\n",
+            "memory/working/projects/example/SUMMARY.md": "---\nsource: agent-generated\norigin_session: manual\ncreated: 2026-03-26\ntrust: medium\ntype: project\nstatus: active\ncognitive_mode: exploration\nopen_questions: 0\nactive_plans: 1\nlast_activity: 2026-03-26\ncurrent_focus: Budget plan.\n---\n\n# Project: Example\n",
+            "memory/working/projects/example/plans/tracked-plan.yaml": plan_yaml,
+            "memory/working/notes/ref.md": "# Ref\n",
+        }
+
+    def test_memory_plan_execute_inspect_includes_sources_postconditions_budget(self) -> None:
+        plan_yaml = self._plan_yaml_with_budget()
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="inspect",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertIn("sources", payload["phase"])
+        self.assertEqual(payload["phase"]["sources"][0]["type"], "internal")
+        self.assertIn("postconditions", payload["phase"])
+        self.assertEqual(payload["phase"]["postconditions"][0]["description"], "File exists")
+        self.assertTrue(payload["phase"]["requires_approval"])
+        self.assertIn("budget_status", payload)
+        self.assertEqual(payload["budget_status"]["max_sessions"], 3)
+        self.assertFalse(payload["budget_status"]["over_budget"])
+
+    def test_memory_plan_execute_start_surfaces_approval_gate_for_requires_approval_phase(
+        self,
+    ) -> None:
+        plan_yaml = self._plan_yaml_with_budget()
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertTrue(payload["new_state"]["requires_approval"])
+        self.assertTrue(payload["new_state"]["approval_required"])
+        self.assertIn("sources", payload["new_state"])
+        self.assertIn("postconditions", payload["new_state"])
+        self.assertIn("budget_status", payload["new_state"])
+
+    def test_memory_plan_execute_complete_increments_sessions_used(self) -> None:
+        plan_yaml = self._plan_yaml_with_budget(sessions_used=0)
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        # Start the phase first
+        asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        # Now complete it
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="complete",
+                session_id="memory/activity/2026/03/26/chat-001",
+                commit_sha="abc1234",
+            )
+        )
+        payload = json.loads(raw)
+        plan_body = yaml.safe_load(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "projects"
+                / "example"
+                / "plans"
+                / "tracked-plan.yaml"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(payload["new_state"]["sessions_used"], 1)
+        self.assertEqual(plan_body.get("sessions_used", 0), 1)
+        self.assertIn("budget_status", payload["new_state"])
+
+    def test_memory_plan_execute_complete_warns_when_session_budget_exhausted(self) -> None:
+        # sessions_used starts at 2, max_sessions is 3 — completing makes it 3 (exhausted)
+        plan_yaml = self._plan_yaml_with_budget(sessions_used=2)
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="complete",
+                session_id="memory/activity/2026/03/26/chat-001",
+                commit_sha="abc1234",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertTrue(any("session budget" in w.lower() for w in payload["warnings"]))
+        self.assertTrue(payload["new_state"]["budget_status"]["over_session_budget"])
+
+
 if __name__ == "__main__":
     unittest.main()
