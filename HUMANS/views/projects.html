@@ -303,6 +303,104 @@
   font-size: var(--text-sm); color: var(--color-text-faint); font-style: italic;
   padding: var(--space-xs) 0;
 }
+
+/* ── Plan view toggle ────────────────────────────────── */
+.plan-view-toggle {
+  display: inline-flex; margin-left: auto;
+  border: 1px solid var(--color-border-light); border-radius: var(--radius-pill);
+  overflow: hidden; font-size: var(--text-xs);
+}
+.plan-view-toggle .toggle-btn {
+  padding: 0.2rem 0.55rem; cursor: pointer;
+  color: var(--color-text-muted); background: transparent;
+  border: none; font-family: inherit; font-size: inherit; font-weight: 600;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+.plan-view-toggle .toggle-btn:hover { color: var(--color-text); }
+.plan-view-toggle .toggle-btn.active {
+  background: var(--color-primary); color: var(--color-bg);
+}
+
+/* ── Flowchart ───────────────────────────────────────── */
+.flowchart-wrap {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  margin-bottom: var(--space-md); overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.flowchart-plan-header {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: var(--text-sm); font-weight: 600;
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.flowchart-container {
+  overflow-x: auto; padding: var(--space-md);
+}
+.flowchart-container svg { display: block; }
+
+/* Nodes */
+.fc-node { cursor: pointer; }
+.fc-node rect.fc-bg {
+  fill: var(--color-bg); stroke: var(--color-border-light); stroke-width: 1;
+  transition: stroke var(--duration) var(--ease);
+}
+.fc-node:hover rect.fc-bg,
+.fc-node:focus rect.fc-bg { stroke: var(--color-primary); stroke-width: 1.5; }
+.fc-node.fc-selected rect.fc-bg { stroke: var(--color-primary); stroke-width: 2; }
+.fc-node text.fc-title {
+  fill: var(--color-text); font-size: 11px; font-weight: 600;
+  font-family: var(--font-sans);
+}
+.fc-node text.fc-subtitle {
+  fill: var(--color-text-muted); font-size: 9px;
+  font-family: var(--font-sans);
+}
+
+/* Edges */
+.fc-edge { fill: none; stroke-width: 1.5; }
+.fc-edge-implicit { stroke: var(--color-border); stroke-dasharray: 5 3; }
+.fc-edge-explicit { stroke: var(--color-text-muted); }
+
+/* Popover */
+.fc-popover {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  padding: var(--space-sm) var(--space-md);
+  margin-top: var(--space-sm);
+  box-shadow: var(--shadow-hover);
+  font-size: var(--text-sm);
+}
+.fc-popover .fc-pop-title {
+  font-weight: 700; margin-bottom: 0.35rem;
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.fc-popover .fc-pop-close {
+  margin-left: auto; cursor: pointer; color: var(--color-text-muted);
+  font-size: 0.9rem; transition: color var(--duration) var(--ease);
+}
+.fc-popover .fc-pop-close:hover { color: var(--color-text); }
+.fc-popover .fc-pop-changes {
+  margin-top: 0.4rem; font-size: var(--text-xs); color: var(--color-text-muted);
+}
+.fc-popover .change-item {
+  display: flex; align-items: baseline; gap: 0.3rem; padding: 0.1rem 0;
+}
+
+/* Legend */
+.fc-legend {
+  display: flex; gap: var(--space-md); flex-wrap: wrap;
+  padding: 0.4rem 0.75rem; border-top: 1px solid var(--color-border-fine);
+  font-size: var(--text-xs); color: var(--color-text-muted);
+}
+.fc-legend-item {
+  display: flex; align-items: center; gap: 0.25rem;
+}
+.fc-legend-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+}
 </style>
 </head>
 <body>
@@ -344,7 +442,12 @@
   </div>
 
   <div class="project-section" id="plans-section">
-    <div class="section-title">&#128203; Plans</div>
+    <div class="section-title">&#128203; Plans
+      <span class="plan-view-toggle" id="plan-view-toggle">
+        <button class="toggle-btn active" data-view="timeline" aria-label="Timeline view">Timeline</button>
+        <button class="toggle-btn" data-view="flowchart" aria-label="Flowchart view">Flowchart</button>
+      </span>
+    </div>
     <div id="plans-body"></div>
   </div>
 
@@ -377,6 +480,9 @@
   var PROJECTS_ROOT = 'core/memory/working/projects';
   var rootHandle = null;
   var currentSlug = null;
+  var planViewMode = localStorage.getItem('engram-plan-view') || 'timeline';
+  var cachedPlanData = [];  // [{yamlText, filename, plan}]
+  var cachedMdData = [];    // [{filename, bodyMarkdown}]
 
   /* ── helpers ───────────────────────────────────────── */
 
@@ -391,6 +497,19 @@
     if (mode === 'crystallization') return 'mode-chip mode-crystallization';
     if (mode === 'verification') return 'mode-chip mode-verification';
     return 'mode-chip';
+  }
+
+  /* ── helpers ───────────────────────────────────────── */
+
+  async function countActivePlans(slug) {
+    var listing = await listDir(rootHandle, PROJECTS_ROOT + '/' + slug + '/plans');
+    var count = 0;
+    for (var i = 0; i < listing.files.length; i++) {
+      if (!listing.files[i].match(/\.ya?ml$/i)) continue;
+      var content = await readFile(rootHandle, PROJECTS_ROOT + '/' + slug + '/plans/' + listing.files[i]);
+      if (content && content.match(/^status:\s*active/m)) count++;
+    }
+    return count;
   }
 
   /* ── project list ──────────────────────────────────── */
@@ -427,6 +546,13 @@
           var footer = el('div', '', 'card-footer');
           if (openQs !== '0') footer.appendChild(el('span', openQs + ' open question' + (openQs === '1' ? '' : 's')));
           if (lastActivity) footer.appendChild(el('span', lastActivity));
+          var planSpan = el('span', '');
+          footer.appendChild(planSpan);
+          (function (slug, span) {
+            countActivePlans(slug).then(function (n) {
+              if (n > 0) span.textContent = n + ' active plan' + (n !== 1 ? 's' : '');
+            });
+          })(name, planSpan);
           card.appendChild(footer);
 
           (function (slug) {
@@ -720,6 +846,9 @@
       return;
     }
 
+    // Cache plan data for view toggling
+    cachedPlanData = [];
+    cachedMdData = [];
     for (var i = 0; i < listing.files.length; i++) {
       var filename = listing.files[i];
       var filePath = PROJECTS_ROOT + '/' + slug + '/plans/' + filename;
@@ -727,20 +856,67 @@
       if (!content) continue;
 
       if (filename.match(/\.ya?ml$/i)) {
-        container.appendChild(buildPlanCard(content, filename));
+        var plan = parsePlanYaml(content);
+        cachedPlanData.push({ yamlText: content, filename: filename, plan: plan });
       } else if (filename.match(/\.md$/i)) {
-        var card = el('div', '', 'plan-card');
-        var header = el('div', '', 'plan-header');
-        header.appendChild(el('span', '\uD83D\uDCC4'));
-        header.appendChild(document.createTextNode(' ' + filename));
-        card.appendChild(header);
-        var body = el('div', '', 'section-body');
-        body.style.padding = '0.5rem 0.65rem';
         var parsed = parseFrontmatter(content);
-        Engram.renderMarkdown(parsed.body.trim(), body);
-        card.appendChild(body);
-        container.appendChild(card);
+        cachedMdData.push({ filename: filename, bodyMarkdown: parsed.body.trim() });
       }
+    }
+
+    // Initialize toggle state
+    initPlanViewToggle();
+    renderPlansView(container);
+  }
+
+  function initPlanViewToggle() {
+    var toggle = document.getElementById('plan-view-toggle');
+    var btns = toggle.querySelectorAll('.toggle-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', btns[i].getAttribute('data-view') === planViewMode);
+    }
+    toggle.onclick = function (e) {
+      var btn = e.target.closest('.toggle-btn');
+      if (!btn) return;
+      var view = btn.getAttribute('data-view');
+      if (view === planViewMode) return;
+      planViewMode = view;
+      localStorage.setItem('engram-plan-view', view);
+      for (var j = 0; j < btns.length; j++) {
+        btns[j].classList.toggle('active', btns[j].getAttribute('data-view') === view);
+      }
+      var container = document.getElementById('plans-body');
+      container.textContent = '';
+      renderPlansView(container);
+    };
+  }
+
+  function renderPlansView(container) {
+    if (cachedPlanData.length === 0 && cachedMdData.length === 0) {
+      container.appendChild(el('p', 'No plans yet.', 'section-empty'));
+      return;
+    }
+
+    for (var i = 0; i < cachedPlanData.length; i++) {
+      var entry = cachedPlanData[i];
+      if (planViewMode === 'flowchart') {
+        container.appendChild(buildFlowchartView(entry.plan, entry.filename));
+      } else {
+        container.appendChild(buildPlanCard(entry.yamlText, entry.filename));
+      }
+    }
+    for (var j = 0; j < cachedMdData.length; j++) {
+      var md = cachedMdData[j];
+      var card = el('div', '', 'plan-card');
+      var header = el('div', '', 'plan-header');
+      header.appendChild(el('span', '\uD83D\uDCC4'));
+      header.appendChild(document.createTextNode(' ' + md.filename));
+      card.appendChild(header);
+      var body = el('div', '', 'section-body');
+      body.style.padding = '0.5rem 0.65rem';
+      Engram.renderMarkdown(md.bodyMarkdown, body);
+      card.appendChild(body);
+      container.appendChild(card);
     }
   }
 
@@ -833,7 +1009,7 @@
 
     for (var p = 0; p < phaseBlocks.length; p++) {
       var block = phaseBlocks[p];
-      var phase = { id: '', title: '', status: '', changes: [] };
+      var phase = { id: '', title: '', status: '', blockers: [], changes: [] };
 
       var idLine = block.split(/\r?\n/)[0];
       phase.id = idLine.trim();
@@ -843,6 +1019,14 @@
 
       var statusM = block.match(/status:\s*(.+)/);
       if (statusM) phase.status = statusM[1].trim();
+
+      // Extract blockers
+      var blockersM = block.match(/blockers:\s*\[([^\]]*)\]/);
+      if (blockersM && blockersM[1].trim()) {
+        phase.blockers = blockersM[1].split(',').map(function (b) {
+          return b.trim().replace(/^["']|["']$/g, '');
+        }).filter(Boolean);
+      }
 
       // Extract changes
       var changeBlocks = block.split(/\n\s{8}- path:\s*/);
@@ -862,6 +1046,465 @@
     }
 
     return result;
+  }
+
+  /* ── flowchart ─────────────────────────────────────── */
+
+  /**
+   * Build a dependency DAG from a parsed plan.
+   * Mirrors the implicit-predecessor logic from plan_utils.py phase_blockers().
+   */
+  function buildPhaseDag(plan) {
+    var nodes = [];
+    var edges = [];
+    var idSet = {};
+
+    for (var i = 0; i < plan.phases.length; i++) {
+      var phase = plan.phases[i];
+      idSet[phase.id] = true;
+      nodes.push({
+        id: phase.id,
+        title: phase.title || phase.id,
+        status: phase.status || 'pending',
+        changeCount: phase.changes.length
+      });
+    }
+
+    for (var j = 0; j < plan.phases.length; j++) {
+      var ph = plan.phases[j];
+      var hasExplicit = ph.blockers && ph.blockers.length > 0;
+
+      if (hasExplicit) {
+        for (var b = 0; b < ph.blockers.length; b++) {
+          var ref = ph.blockers[b];
+          if (ref.indexOf(':') >= 0) {
+            // Inter-plan blocker — add a stub node
+            if (!idSet[ref]) {
+              idSet[ref] = true;
+              var parts = ref.split(':');
+              nodes.push({
+                id: ref,
+                title: '\u21D0 ' + parts[0] + ' / ' + parts[1],
+                status: 'external',
+                changeCount: 0
+              });
+            }
+            edges.push({ from: ref, to: ph.id, type: 'explicit' });
+          } else if (idSet[ref]) {
+            edges.push({ from: ref, to: ph.id, type: 'explicit' });
+          }
+        }
+      }
+
+      // Implicit predecessor edge (only if no explicit blockers)
+      if (!hasExplicit && j > 0) {
+        edges.push({ from: plan.phases[j - 1].id, to: ph.id, type: 'implicit' });
+      }
+    }
+
+    return { nodes: nodes, edges: edges };
+  }
+
+  /**
+   * Layered left-to-right layout for a plan DAG.
+   * Returns { positions: {id: {x, y, layer}}, svgWidth, svgHeight }
+   */
+  function layeredLayout(dag, cfg) {
+    cfg = cfg || {};
+    var nodeW = cfg.nodeWidth || 180;
+    var nodeH = cfg.nodeHeight || 56;
+    var gapX = cfg.layerGapX || 80;
+    var gapY = cfg.nodeGapY || 28;
+    var padX = cfg.padX || 24;
+    var padY = cfg.padY || 24;
+
+    // Build adjacency
+    var children = {};  // id -> [id]
+    var parents = {};   // id -> [id]
+    var idList = [];
+    for (var n = 0; n < dag.nodes.length; n++) {
+      var nid = dag.nodes[n].id;
+      idList.push(nid);
+      children[nid] = children[nid] || [];
+      parents[nid] = parents[nid] || [];
+    }
+    for (var e = 0; e < dag.edges.length; e++) {
+      children[dag.edges[e].from] = children[dag.edges[e].from] || [];
+      children[dag.edges[e].from].push(dag.edges[e].to);
+      parents[dag.edges[e].to] = parents[dag.edges[e].to] || [];
+      parents[dag.edges[e].to].push(dag.edges[e].from);
+    }
+
+    // Topological sort (Kahn's algorithm)
+    var inDeg = {};
+    for (var i = 0; i < idList.length; i++) inDeg[idList[i]] = (parents[idList[i]] || []).length;
+    var queue = [];
+    for (var k = 0; k < idList.length; k++) {
+      if (inDeg[idList[k]] === 0) queue.push(idList[k]);
+    }
+    var topoOrder = [];
+    while (queue.length > 0) {
+      var cur = queue.shift();
+      topoOrder.push(cur);
+      var ch = children[cur] || [];
+      for (var ci = 0; ci < ch.length; ci++) {
+        inDeg[ch[ci]]--;
+        if (inDeg[ch[ci]] === 0) queue.push(ch[ci]);
+      }
+    }
+    // Fallback if cycle detected (shouldn't happen for plans)
+    if (topoOrder.length < idList.length) {
+      for (var f = 0; f < idList.length; f++) {
+        if (topoOrder.indexOf(idList[f]) < 0) topoOrder.push(idList[f]);
+      }
+    }
+
+    // Assign layers — longest path from any source
+    var layer = {};
+    for (var ti = 0; ti < topoOrder.length; ti++) {
+      var id = topoOrder[ti];
+      var maxParent = -1;
+      var pars = parents[id] || [];
+      for (var pi = 0; pi < pars.length; pi++) {
+        if (layer[pars[pi]] !== undefined && layer[pars[pi]] > maxParent) {
+          maxParent = layer[pars[pi]];
+        }
+      }
+      layer[id] = maxParent + 1;
+    }
+
+    // Group by layer
+    var layerGroups = {};
+    var maxLayer = 0;
+    for (var li = 0; li < topoOrder.length; li++) {
+      var layerIdx = layer[topoOrder[li]];
+      if (layerIdx > maxLayer) maxLayer = layerIdx;
+      layerGroups[layerIdx] = layerGroups[layerIdx] || [];
+      layerGroups[layerIdx].push(topoOrder[li]);
+    }
+
+    // Barycenter ordering within layers (one pass)
+    var pos = {};
+    for (var lj = 0; lj <= maxLayer; lj++) {
+      var group = layerGroups[lj];
+      if (lj > 0 && group.length > 1) {
+        // Compute barycenter based on parent positions
+        var bary = {};
+        for (var gi = 0; gi < group.length; gi++) {
+          var pars2 = parents[group[gi]] || [];
+          if (pars2.length === 0) { bary[group[gi]] = gi; continue; }
+          var sum = 0;
+          for (var bp = 0; bp < pars2.length; bp++) {
+            sum += (pos[pars2[bp]] || {}).y || 0;
+          }
+          bary[group[gi]] = sum / pars2.length;
+        }
+        group.sort(function (a, b) { return bary[a] - bary[b]; });
+        layerGroups[lj] = group;
+      }
+      for (var gj = 0; gj < group.length; gj++) {
+        pos[group[gj]] = {
+          x: padX + lj * (nodeW + gapX),
+          y: padY + gj * (nodeH + gapY),
+          layer: lj
+        };
+      }
+    }
+
+    // Compute total SVG size
+    var maxNodesInLayer = 0;
+    for (var lk = 0; lk <= maxLayer; lk++) {
+      if (layerGroups[lk].length > maxNodesInLayer) maxNodesInLayer = layerGroups[lk].length;
+    }
+    var svgW = padX * 2 + (maxLayer + 1) * nodeW + maxLayer * gapX;
+    var svgH = padY * 2 + maxNodesInLayer * nodeH + Math.max(0, maxNodesInLayer - 1) * gapY;
+
+    return { positions: pos, svgWidth: Math.max(svgW, 200), svgHeight: Math.max(svgH, 100), nodeWidth: nodeW, nodeHeight: nodeH };
+  }
+
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function svgEl(tag, attrs) {
+    var node = document.createElementNS(SVG_NS, tag);
+    if (attrs) {
+      for (var k in attrs) {
+        if (attrs.hasOwnProperty(k)) node.setAttribute(k, attrs[k]);
+      }
+    }
+    return node;
+  }
+
+  function statusColor(status) {
+    if (status === 'completed') return 'var(--color-ok)';
+    if (status === 'in-progress') return 'var(--color-active)';
+    if (status === 'blocked') return 'var(--color-danger)';
+    if (status === 'skipped') return 'var(--color-text-faint)';
+    if (status === 'external') return 'var(--color-warn)';
+    return 'var(--color-border)'; // pending
+  }
+
+  function truncate(text, max) {
+    if (text.length <= max) return text;
+    return text.substring(0, max - 1) + '\u2026';
+  }
+
+  /**
+   * Build the complete flowchart view for a single plan.
+   */
+  function buildFlowchartView(plan, filename) {
+    var wrap = el('div', '', 'flowchart-wrap');
+
+    // Header
+    var header = el('div', '', 'flowchart-plan-header');
+    header.appendChild(document.createTextNode(plan.id || filename));
+    if (plan.status) header.appendChild(el('span', plan.status, statusBadgeClass(plan.status)));
+    wrap.appendChild(header);
+
+    if (plan.summary) {
+      wrap.appendChild(el('div', plan.summary, 'plan-purpose'));
+    }
+
+    if (plan.phases.length === 0) {
+      var empty = el('div', '', 'flowchart-container');
+      empty.appendChild(el('p', 'No phases defined.', 'section-empty'));
+      wrap.appendChild(empty);
+      return wrap;
+    }
+
+    // Build DAG + layout
+    var dag = buildPhaseDag(plan);
+    var layout = layeredLayout(dag);
+
+    // Container
+    var container = el('div', '', 'flowchart-container');
+
+    // SVG
+    var svg = svgEl('svg', {
+      width: layout.svgWidth,
+      height: layout.svgHeight,
+      viewBox: '0 0 ' + layout.svgWidth + ' ' + layout.svgHeight,
+      role: 'img',
+      'aria-label': 'Flowchart of plan: ' + (plan.id || filename)
+    });
+
+    // Defs — arrowheads
+    var defs = svgEl('defs');
+    var mkImplicit = svgEl('marker', {
+      id: 'fc-arrow-implicit-' + plan.id,
+      viewBox: '0 0 10 8', refX: '10', refY: '4',
+      markerWidth: '8', markerHeight: '6', orient: 'auto-start-reverse'
+    });
+    mkImplicit.appendChild(svgEl('path', {
+      d: 'M 0 0 L 10 4 L 0 8 z',
+      fill: 'var(--color-border)'
+    }));
+    defs.appendChild(mkImplicit);
+
+    var mkExplicit = svgEl('marker', {
+      id: 'fc-arrow-explicit-' + plan.id,
+      viewBox: '0 0 10 8', refX: '10', refY: '4',
+      markerWidth: '8', markerHeight: '6', orient: 'auto-start-reverse'
+    });
+    mkExplicit.appendChild(svgEl('path', {
+      d: 'M 0 0 L 10 4 L 0 8 z',
+      fill: 'var(--color-text-muted)'
+    }));
+    defs.appendChild(mkExplicit);
+    svg.appendChild(defs);
+
+    // Build node map for lookups
+    var nodeMap = {};
+    for (var ni = 0; ni < dag.nodes.length; ni++) {
+      nodeMap[dag.nodes[ni].id] = dag.nodes[ni];
+    }
+
+    // Render edges
+    var nW = layout.nodeWidth;
+    var nH = layout.nodeHeight;
+    for (var ei = 0; ei < dag.edges.length; ei++) {
+      var edge = dag.edges[ei];
+      var fromPos = layout.positions[edge.from];
+      var toPos = layout.positions[edge.to];
+      if (!fromPos || !toPos) continue;
+
+      var x1 = fromPos.x + nW;
+      var y1 = fromPos.y + nH / 2;
+      var x2 = toPos.x;
+      var y2 = toPos.y + nH / 2;
+      var cpOff = Math.min(Math.abs(x2 - x1) * 0.4, 50);
+
+      var path = svgEl('path', {
+        d: 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + cpOff) + ' ' + y1 + ', ' + (x2 - cpOff) + ' ' + y2 + ', ' + x2 + ' ' + y2,
+        class: 'fc-edge fc-edge-' + edge.type,
+        'marker-end': 'url(#fc-arrow-' + edge.type + '-' + plan.id + ')'
+      });
+      svg.appendChild(path);
+    }
+
+    // Track selected node for popover
+    var selectedNodeId = null;
+
+    // Render nodes
+    for (var ni2 = 0; ni2 < dag.nodes.length; ni2++) {
+      var node = dag.nodes[ni2];
+      var p = layout.positions[node.id];
+      if (!p) continue;
+
+      var g = svgEl('g', {
+        class: 'fc-node',
+        transform: 'translate(' + p.x + ',' + p.y + ')',
+        tabindex: '0',
+        role: 'button',
+        'aria-label': 'Phase: ' + node.title + ' \u2014 ' + node.status
+      });
+
+      // Background rect
+      g.appendChild(svgEl('rect', {
+        class: 'fc-bg',
+        x: 0, y: 0, width: nW, height: nH, rx: 8, ry: 8
+      }));
+
+      // Status indicator bar
+      g.appendChild(svgEl('rect', {
+        x: 0, y: 0, width: 4, height: nH, rx: 2, ry: 2,
+        fill: statusColor(node.status)
+      }));
+
+      // Title text
+      var title = svgEl('text', {
+        class: 'fc-title',
+        x: 14, y: 24
+      });
+      title.textContent = truncate(node.title, 22);
+      g.appendChild(title);
+
+      // Tooltip with full title
+      var titleEl = svgEl('title');
+      titleEl.textContent = node.title + ' (' + node.status + ')';
+      g.appendChild(titleEl);
+
+      // Subtitle (change count)
+      if (node.changeCount > 0) {
+        var sub = svgEl('text', {
+          class: 'fc-subtitle',
+          x: 14, y: 42
+        });
+        sub.textContent = node.changeCount + ' change' + (node.changeCount !== 1 ? 's' : '');
+        g.appendChild(sub);
+      } else if (node.status === 'external') {
+        var extSub = svgEl('text', {
+          class: 'fc-subtitle',
+          x: 14, y: 42
+        });
+        extSub.textContent = 'external dep';
+        g.appendChild(extSub);
+      }
+
+      // Click handler
+      (function (nodeId) {
+        var handler = function () {
+          if (selectedNodeId === nodeId) {
+            closePopover(container);
+            selectedNodeId = null;
+            svg.querySelector('.fc-selected');
+            var prev = svg.querySelector('.fc-selected');
+            if (prev) prev.classList.remove('fc-selected');
+          } else {
+            selectedNodeId = nodeId;
+            var prevSel = svg.querySelector('.fc-selected');
+            if (prevSel) prevSel.classList.remove('fc-selected');
+            g.classList.add('fc-selected');
+            showPopover(container, plan, nodeId);
+          }
+        };
+        g.addEventListener('click', handler);
+        g.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); handler(); }
+          if (ev.key === 'Escape') { closePopover(container); selectedNodeId = null; var s = svg.querySelector('.fc-selected'); if (s) s.classList.remove('fc-selected'); }
+        });
+      })(node.id);
+
+      svg.appendChild(g);
+    }
+
+    container.appendChild(svg);
+    wrap.appendChild(container);
+
+    // Legend
+    var legend = el('div', '', 'fc-legend');
+    var legendItems = [
+      ['completed', 'var(--color-ok)'], ['in-progress', 'var(--color-active)'],
+      ['pending', 'var(--color-border)'], ['blocked', 'var(--color-danger)']
+    ];
+    for (var li = 0; li < legendItems.length; li++) {
+      var lItem = el('span', '', 'fc-legend-item');
+      var dot = el('span', '', 'fc-legend-dot');
+      dot.style.background = legendItems[li][1];
+      lItem.appendChild(dot);
+      lItem.appendChild(document.createTextNode(legendItems[li][0]));
+      legend.appendChild(lItem);
+    }
+    wrap.appendChild(legend);
+
+    return wrap;
+  }
+
+  function closePopover(container) {
+    var existing = container.querySelector('.fc-popover');
+    if (existing) existing.remove();
+  }
+
+  function showPopover(container, plan, phaseId) {
+    closePopover(container);
+
+    var phase = null;
+    for (var i = 0; i < plan.phases.length; i++) {
+      if (plan.phases[i].id === phaseId) { phase = plan.phases[i]; break; }
+    }
+    if (!phase) return;
+
+    var pop = el('div', '', 'fc-popover');
+
+    // Title row
+    var titleRow = el('div', '', 'fc-pop-title');
+    titleRow.appendChild(document.createTextNode(phase.title || phase.id));
+    if (phase.status) titleRow.appendChild(el('span', phase.status, statusBadgeClass(phase.status)));
+    var closeBtn = el('span', '\u2715', 'fc-pop-close');
+    makeActivatable(closeBtn, function () { closePopover(container); }, { role: 'button', label: 'Close phase details' });
+    titleRow.appendChild(closeBtn);
+    pop.appendChild(titleRow);
+
+    // Blockers
+    if (phase.blockers && phase.blockers.length > 0) {
+      var blockerDiv = el('div', '', 'fc-pop-changes');
+      blockerDiv.appendChild(el('div', 'Blockers:', ''));
+      for (var b = 0; b < phase.blockers.length; b++) {
+        blockerDiv.appendChild(el('div', '\u2022 ' + phase.blockers[b]));
+      }
+      pop.appendChild(blockerDiv);
+    }
+
+    // Changes
+    if (phase.changes.length > 0) {
+      var changesDiv = el('div', '', 'fc-pop-changes');
+      for (var c = 0; c < phase.changes.length; c++) {
+        var ch = phase.changes[c];
+        var item = el('div', '', 'change-item');
+        if (ch.action) {
+          item.appendChild(el('span', ch.action, 'action-badge action-' + ch.action));
+        }
+        item.appendChild(el('span', ch.path || ''));
+        if (ch.description) {
+          var desc = el('span', ' \u2014 ' + ch.description);
+          desc.style.color = 'var(--color-text-muted)';
+          item.appendChild(desc);
+        }
+        changesDiv.appendChild(item);
+      }
+      pop.appendChild(changesDiv);
+    }
+
+    container.appendChild(pop);
   }
 
   /* ── notes ─────────────────────────────────────────── */

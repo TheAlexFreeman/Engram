@@ -803,6 +803,17 @@ button:active { transform: scale(0.97); }
     return s;
   }
 
+  async function countActivePlans(slug) {
+    var listing = await listDir(rootHandle, 'core/memory/working/projects/' + slug + '/plans');
+    var count = 0;
+    for (var i = 0; i < listing.files.length; i++) {
+      if (!listing.files[i].match(/\.ya?ml$/i)) continue;
+      var content = await readFile(rootHandle, 'core/memory/working/projects/' + slug + '/plans/' + listing.files[i]);
+      if (content && content.match(/^status:\s*active/m)) count++;
+    }
+    return count;
+  }
+
   async function loadProjects() {
     var body = document.getElementById('projects-body');
     body.innerHTML = '';
@@ -824,13 +835,14 @@ button:active { transform: scale(0.97); }
     var table = document.createElement('table');
     var thead = document.createElement('thead');
     var headRow = document.createElement('tr');
-    ['Project', 'Status', 'Mode', 'Open Qs', 'Focus'].forEach(function (h) {
+    ['Project', 'Status', 'Mode', 'Open Qs', 'Plans', 'Focus'].forEach(function (h) {
       headRow.appendChild(el('th', h));
     });
     thead.appendChild(headRow);
     table.appendChild(thead);
 
     var tbody = document.createElement('tbody');
+    var planCells = [];
     for (var i = 0; i < rows.length; i++) {
       var tr = document.createElement('tr');
       tr.style.cursor = 'pointer';
@@ -849,6 +861,11 @@ button:active { transform: scale(0.97); }
       tr.appendChild(el('td', rows[i]['Mode'] || ''));
       tr.appendChild(el('td', rows[i]['Open Qs'] || ''));
 
+      var plansTd = el('td', '\u2014');
+      plansTd.style.color = 'var(--color-text-muted)';
+      tr.appendChild(plansTd);
+      planCells.push({ td: plansTd, slug: name });
+
       var focusTd = el('td', (rows[i]['Focus'] || '').substring(0, 80));
       focusTd.style.maxWidth = '200px';
       focusTd.style.overflow = 'hidden';
@@ -865,6 +882,14 @@ button:active { transform: scale(0.97); }
     }
     table.appendChild(tbody);
     body.appendChild(table);
+
+    // Async-fill active plan counts
+    planCells.forEach(function (entry) {
+      countActivePlans(entry.slug).then(function (n) {
+        entry.td.textContent = n > 0 ? String(n) : '\u2014';
+        if (n > 0) entry.td.style.color = '';
+      });
+    });
   }
 
   async function loadActivity() {
