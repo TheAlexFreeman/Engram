@@ -10,7 +10,7 @@ Most systems answer this implicitly, by accident. The Operationalization Pyramid
 
 ## The four levels
 
-The pyramid has four levels. Each rests on the ones below it: judgment without analysis is arbitrary, analysis without optimization is idle, optimization without execution is abstract. But the pyramid is made of glass — the purpose and values at the top illuminate every level beneath.
+The pyramid has four levels. Each rests on the ones below it: judgment without analysis is arbitrary, analysis without optimization is idle, optimization without execution is effete. But the pyramid is made of glass — the purpose and values at the top illuminate every level beneath.
 
 ### Level 1 — Algorithmic execution
 
