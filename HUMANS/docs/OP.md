@@ -22,7 +22,7 @@ In Engram: git operations, file validation, access logging, aggregation triggers
 
 **Design principle:** Maximize the surface area of Level 1. Every operation that *can* be made deterministic *should* be, because determinism is free auditability.
 
-### Level 2 — Iterative optimization
+### Level 2 — Targeted optimization
 
 The target is specified, but the path is not. A system navigates toward a goal through repeated cycles of action and feedback.
 
@@ -56,7 +56,7 @@ In Engram: the human decides whether the system's knowledge matters, whether its
 
 If the pyramid were opaque, each level would be a self-contained domain. The database would not need to know *why* it is being queried. The optimizer would not need to know what the results are *for*.
 
-But the pyramid is made of glass, and the Eye at the apex — subjective judgment, the capacity to care — illuminates the whole structure. Like the Eye of Providence, it is enclosed by the triangle: bounded by the levels below it, yet radiating through them.
+But the pyramid is made of glass, and the Eye at its apex — subjective judgment, the capacity to care — illuminates the whole structure. Like the Eye of Providence, it floats above the bulk of the pyramid while conforming to its shape: bounded by the levels below it, yet radiating through them.
 
 This is not mysticism. It is a design argument: **human purpose should remain visible at every level of the system.** An optimization loop that cannot see the judgment above it will Goodhart its way into local optima that satisfy the metric while violating the intent. A glass pyramid is one where teleological context — the *why* — propagates downward, so that even Level 1 execution is legible as execution in service of something someone cares about.
 
