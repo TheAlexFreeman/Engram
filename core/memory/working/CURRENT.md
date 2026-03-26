@@ -8,11 +8,11 @@ See `core/governance/scratchpad-guidelines.md` for the full write protocol, prom
 
 ## Active threads
 
-_None_
+- **Codebase survey** — All 6 phases complete. All knowledge files at `trust: medium`. Pending human review for promotion from IN/ to `knowledge/codebase/` via OUT/. See `core/memory/working/projects/codebase-survey/plans/survey-plan.yaml`.
 
 ## Immediate next actions
 
-_None_
+- Review codebase survey knowledge files for accuracy and promote to `knowledge/codebase/` if verified.
 
 ## Open questions
 
