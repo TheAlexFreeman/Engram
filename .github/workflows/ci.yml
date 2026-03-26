@@ -57,3 +57,39 @@ jobs:
           python -m pytest
           HUMANS/tooling/tests/test_setup_flows.py::SetupFlowTests::test_init_worktree_creates_orphan_branch_with_committed_memory_worktree
           -v
+
+  sync-manifest:
+    name: Sync Initial Commit Manifest
+    runs-on: ubuntu-latest
+    needs: validate
+    if: >-
+      github.event_name == 'push' && (
+        github.ref == 'refs/heads/master' ||
+        github.ref == 'refs/heads/main' ||
+        github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/alex'
+      )
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Regenerate manifest from tracked files
+        run: |
+          {
+            grep '^#' HUMANS/setup/initial-commit-paths.txt
+            echo ""
+            git ls-files | sort
+          } > HUMANS/setup/initial-commit-paths.txt.tmp
+          mv HUMANS/setup/initial-commit-paths.txt.tmp HUMANS/setup/initial-commit-paths.txt
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add HUMANS/setup/initial-commit-paths.txt
+          git diff --cached --quiet || git commit -m "chore: sync initial-commit-paths.txt with tracked files [skip ci]"
+          git push

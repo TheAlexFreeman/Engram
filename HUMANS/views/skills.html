@@ -385,7 +385,9 @@ button:active { transform: scale(0.97); }
   /* ── Main data loader ────────────────────────────── */
   async function loadData() {
     hideError();
-    setStatus(true, rootHandle.name);
+    var sourceLabel = E.isGitHubHandle(rootHandle)
+      ? 'GitHub: ' + rootHandle.name : rootHandle.name;
+    setStatus(true, sourceLabel);
     document.getElementById('open-btn').textContent = 'Change Folder';
     document.getElementById('refresh-btn').style.display = '';
 

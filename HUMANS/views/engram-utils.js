@@ -9,6 +9,8 @@
  *   openDB, loadSavedHandle, saveHandle, clearSavedHandle,
  *   requestReadPermission, requestWritePermission,
  *   restoreSavedHandle, readTextWithFallback,
+ *   isGitHubHandle, makeGitHubHandle, detectGitHubRepo,
+ *   saveGitHubConfig, loadGitHubConfig, clearGitHubConfig, countFilesGitHub,
  *   buildFileIndex,
  *   DB_NAME, STORE, HANDLE_KEY,
  *   renderMarkdown
@@ -88,6 +90,7 @@
 
   /** Read a text file from a directory handle. Returns null if not found. */
   async function readFile(dirHandle, path) {
+    if (_isGitHub(dirHandle)) return _readFileGitHub(dirHandle, path);
     var parts = path.split('/').filter(Boolean);
     var current = dirHandle;
     for (var i = 0; i < parts.length - 1; i++) {
@@ -103,6 +106,7 @@
 
   /** List immediate children of a sub-directory. Returns {dirs:[], files:[]}. */
   async function listDir(dirHandle, path) {
+    if (_isGitHub(dirHandle)) return _listDirGitHub(dirHandle, path);
     var current = dirHandle;
     if (path) {
       var parts = path.split('/').filter(Boolean);
@@ -122,6 +126,7 @@
 
   /** Write text content to a file via the File System Access API. Returns true on success. */
   async function writeFile(dirHandle, path, content) {
+    if (_isGitHub(dirHandle)) return false;
     var parts = path.split('/').filter(Boolean);
     var current = dirHandle;
     for (var i = 0; i < parts.length - 1; i++) {
@@ -135,6 +140,147 @@
       await writable.close();
       return true;
     } catch (_) { return false; }
+  }
+
+  /* ── GitHub API helpers ────────────────────────────── */
+
+  var GITHUB_CONFIG_KEY = 'engram-github-config';
+
+  function _isGitHub(handle) {
+    return handle != null && handle._github === true;
+  }
+
+  /** Create a virtual handle that reads from a GitHub repo via API. */
+  function makeGitHubHandle(owner, repo, branch) {
+    return {
+      _github: true,
+      owner: String(owner),
+      repo: String(repo),
+      branch: String(branch || 'main'),
+      name: owner + '/' + repo
+    };
+  }
+
+  /** Auto-detect owner/repo when hosted on GitHub Pages. */
+  function detectGitHubRepo() {
+    if (typeof location === 'undefined') return null;
+    var host = location.hostname || '';
+    var m = host.match(/^([a-z0-9_-]+)\.github\.io$/i);
+    if (!m) return null;
+    var pathParts = location.pathname.split('/').filter(Boolean);
+    if (pathParts.length === 0) return null;
+    return makeGitHubHandle(m[1], pathParts[0], 'main');
+  }
+
+  function saveGitHubConfig(config) {
+    if (!config) return;
+    try {
+      localStorage.setItem(GITHUB_CONFIG_KEY, JSON.stringify({
+        owner: config.owner, repo: config.repo, branch: config.branch
+      }));
+    } catch (_) {}
+  }
+
+  function loadGitHubConfig() {
+    try {
+      var raw = localStorage.getItem(GITHUB_CONFIG_KEY);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (obj && obj.owner && obj.repo) {
+        return makeGitHubHandle(obj.owner, obj.repo, obj.branch);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function clearGitHubConfig() {
+    try { localStorage.removeItem(GITHUB_CONFIG_KEY); } catch (_) {}
+  }
+
+  var _ghTreeCache = {};
+
+  async function _fetchGitHubTree(config) {
+    var key = config.owner + '/' + config.repo + '/' + config.branch;
+    if (_ghTreeCache[key]) return _ghTreeCache[key];
+    var url = 'https://api.github.com/repos/' +
+      encodeURIComponent(config.owner) + '/' +
+      encodeURIComponent(config.repo) + '/git/trees/' +
+      encodeURIComponent(config.branch) + '?recursive=1';
+    var resp = await fetch(url);
+    if (!resp.ok) throw new Error('GitHub API ' + resp.status);
+    var data = await resp.json();
+    if (!data.tree) throw new Error('No tree data from GitHub');
+    _ghTreeCache[key] = data.tree;
+    return data.tree;
+  }
+
+  async function _readFileGitHub(config, path) {
+    var url = 'https://raw.githubusercontent.com/' +
+      config.owner + '/' + config.repo + '/' +
+      config.branch + '/' + path;
+    try {
+      var resp = await fetch(url);
+      if (!resp.ok) return null;
+      return await resp.text();
+    } catch (_) { return null; }
+  }
+
+  async function _listDirGitHub(config, path) {
+    var tree = await _fetchGitHubTree(config);
+    var prefix = path ? path.replace(/\/+$/, '') + '/' : '';
+    var dirs = [], files = [];
+    var seen = {};
+    for (var i = 0; i < tree.length; i++) {
+      var entry = tree[i];
+      if (prefix && !entry.path.startsWith(prefix)) continue;
+      var rest = prefix ? entry.path.substring(prefix.length) : entry.path;
+      if (!rest) continue;
+      var slash = rest.indexOf('/');
+      if (slash >= 0) {
+        var dirName = rest.substring(0, slash);
+        if (!seen['d:' + dirName]) { seen['d:' + dirName] = true; dirs.push(dirName); }
+      } else if (entry.type === 'tree') {
+        if (!seen['d:' + rest]) { seen['d:' + rest] = true; dirs.push(rest); }
+      } else {
+        files.push(rest);
+      }
+    }
+    dirs.sort(); files.sort();
+    return { dirs: dirs, files: files };
+  }
+
+  async function _buildFileIndexGitHub(config, basePath) {
+    var tree = await _fetchGitHubTree(config);
+    var prefix = basePath ? basePath.replace(/\/+$/, '') + '/' : '';
+    var baseParts = basePath ? basePath.split('/').filter(Boolean) : [];
+    var results = [];
+    for (var i = 0; i < tree.length; i++) {
+      var entry = tree[i];
+      if (entry.type !== 'blob') continue;
+      if (prefix && !entry.path.startsWith(prefix)) continue;
+      var fname = entry.path.split('/').pop();
+      if (fname === 'NAMES.md' || fname === 'SUMMARY.md') continue;
+      if (!fname.endsWith('.md')) continue;
+      var entryParts = entry.path.split('/').filter(Boolean);
+      var relParts = entryParts.slice(baseParts.length);
+      results.push({
+        path: relParts.join('/'),
+        label: fname.replace(/\.md$/, ''),
+        domain: relParts.length > 1 ? relParts[0] : ''
+      });
+    }
+    return results;
+  }
+
+  /** Count files under a path using the cached GitHub tree. */
+  async function countFilesGitHub(config, path) {
+    var tree = await _fetchGitHubTree(config);
+    var prefix = path ? path.replace(/\/+$/, '') + '/' : '';
+    var count = 0;
+    for (var i = 0; i < tree.length; i++) {
+      if (tree[i].type === 'blob' && (!prefix || tree[i].path.startsWith(prefix))) count++;
+    }
+    return count;
   }
 
   /* ── Parsing helpers ───────────────────────────────── */
@@ -316,6 +462,7 @@
 
   /** Recursively list all .md files under a directory. Returns [{path, label, domain}]. */
   async function buildFileIndex(dirHandle, basePath) {
+    if (_isGitHub(dirHandle)) return _buildFileIndexGitHub(dirHandle, basePath);
     var results = [];
     async function walk(handle, prefix) {
       var listing = await listDir(handle, prefix);
@@ -388,6 +535,7 @@
 
   async function requestReadPermission(handle, opts) {
     if (!handle) return 'denied';
+    if (_isGitHub(handle)) return 'granted';
     opts = opts || {};
     var mode = opts.mode || 'read';
     var prompt = opts.prompt !== false;
@@ -410,6 +558,7 @@
   /** Request read-write permission on a directory handle. */
   async function requestWritePermission(handle) {
     if (!handle) return 'denied';
+    if (_isGitHub(handle)) return 'denied';
     try {
       if (typeof handle.queryPermission === 'function') {
         var current = await handle.queryPermission({ mode: 'readwrite' });
@@ -428,19 +577,26 @@
     opts = opts || {};
     var loadHandle = opts.loadSavedHandle || loadSavedHandle;
     var handle = opts.handle || await loadHandle();
-    if (!handle) {
-      return { status: 'missing', handle: null };
+    var status = 'missing';
+
+    if (handle) {
+      var permission = await requestReadPermission(handle, {
+        mode: opts.mode || 'read',
+        prompt: opts.prompt !== false
+      });
+      if (permission === 'granted') {
+        return { status: 'granted', handle: handle };
+      }
+      status = permission || 'denied';
     }
 
-    var permission = await requestReadPermission(handle, {
-      mode: opts.mode || 'read',
-      prompt: opts.prompt !== false
-    });
-    if (permission !== 'granted') {
-      return { status: permission || 'denied', handle: null };
+    // Fallback: try saved GitHub config or auto-detect from GitHub Pages URL
+    var gh = loadGitHubConfig() || detectGitHubRepo();
+    if (gh) {
+      return { status: 'granted', handle: gh, source: 'github' };
     }
 
-    return { status: 'granted', handle: handle };
+    return { status: status, handle: null };
   }
 
   async function readTextWithFallback(dirHandle, path, fallbackUrl) {
@@ -877,6 +1033,13 @@
     requestWritePermission: requestWritePermission,
     restoreSavedHandle: restoreSavedHandle,
     readTextWithFallback: readTextWithFallback,
+    isGitHubHandle: _isGitHub,
+    makeGitHubHandle: makeGitHubHandle,
+    detectGitHubRepo: detectGitHubRepo,
+    saveGitHubConfig: saveGitHubConfig,
+    loadGitHubConfig: loadGitHubConfig,
+    clearGitHubConfig: clearGitHubConfig,
+    countFilesGitHub: countFilesGitHub,
     DB_NAME: DB_NAME,
     STORE: STORE,
     HANDLE_KEY: HANDLE_KEY,

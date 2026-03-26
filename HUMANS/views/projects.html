@@ -923,28 +923,14 @@
   /* ── initialization ────────────────────────────────── */
 
   (async function init() {
-    if (!window.showDirectoryPicker) {
-      var ph = document.getElementById('placeholder');
-      ph.textContent = '';
-      ph.appendChild(el('div', '\u26A0', 'icon'));
-      var p1 = el('p');
-      p1.appendChild(el('strong', 'Browser not supported.'));
-      p1.appendChild(document.createTextNode(' The File System Access API is required.'));
-      var p2 = el('p', 'Please open this page in Chrome, Edge, Brave, or Arc.');
-      p2.style.marginTop = '0.5rem';
-      ph.appendChild(p1);
-      ph.appendChild(p2);
-      return;
-    }
-
     var restored = await restoreSavedHandle({ prompt: true });
     if (restored.status === 'missing') {
-      showError('No memory repo loaded. Please open the dashboard first and load your repo folder.');
+      showError('No memory repo loaded. Open the dashboard to load your repo folder or connect to GitHub.');
       return;
     }
 
     if (restored.status !== 'granted') {
-      showError('Permission denied. Please open the dashboard and re-open your repo folder.');
+      showError('Permission denied. Open the dashboard to re-open your repo folder or connect to GitHub.');
       return;
     }
 
