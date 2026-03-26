@@ -17,6 +17,10 @@ PLAN_STATUSES = {"draft", "active", "blocked", "completed", "abandoned"}
 PHASE_STATUSES = {"pending", "blocked", "in-progress", "completed", "skipped"}
 PLAN_OUTCOMES = {"completed", "partial", "abandoned"}
 CHANGE_ACTIONS = {"create", "rewrite", "update", "delete", "rename"}
+SOURCE_TYPES = {"internal", "external", "mcp"}
+POSTCONDITION_TYPES = {"check", "grep", "test", "manual"}
+
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def project_plan_path(project_id: str, plan_id: str) -> str:
@@ -93,12 +97,96 @@ class ChangeSpec:
 
 
 @dataclass(slots=True)
+class SourceSpec:
+    """A source to read/analyze before executing phase changes."""
+
+    path: str
+    type: str
+    intent: str
+    uri: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.type not in SOURCE_TYPES:
+            raise ValidationError(
+                f"source type must be one of {sorted(SOURCE_TYPES)}: {self.type!r}"
+            )
+        if not isinstance(self.intent, str) or not self.intent.strip():
+            raise ValidationError("source intent must be a non-empty string")
+        self.intent = self.intent.strip()
+        if self.type == "internal":
+            self.path = _normalize_repo_relative_path(self.path, field_name="source path")
+        else:
+            if not isinstance(self.path, str) or not self.path.strip():
+                raise ValidationError("source path must be a non-empty string")
+            self.path = self.path.strip()
+        if self.type == "external" and not self.uri:
+            raise ValidationError("external sources must include a uri")
+
+    def validate_exists(self, root: Path) -> None:
+        """Raise if this is an internal source and the file does not exist."""
+        if self.type == "internal" and not (root / self.path).exists():
+            raise ValidationError(f"internal source does not exist: {self.path}")
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "path": self.path,
+            "type": self.type,
+            "intent": self.intent,
+        }
+        if self.uri is not None:
+            payload["uri"] = self.uri
+        return payload
+
+
+@dataclass(slots=True)
+class PostconditionSpec:
+    """A success criterion for a phase.
+
+    Always has a free-text description. Optionally includes a formal
+    validator type and target for automation.
+    """
+
+    description: str
+    type: str = "manual"
+    target: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.description, str) or not self.description.strip():
+            raise ValidationError("postcondition description must be a non-empty string")
+        self.description = self.description.strip()
+        if self.type not in POSTCONDITION_TYPES:
+            raise ValidationError(
+                f"postcondition type must be one of {sorted(POSTCONDITION_TYPES)}: {self.type!r}"
+            )
+        if self.type != "manual" and not self.target:
+            raise ValidationError(f"postcondition type '{self.type}' requires a non-empty target")
+        if self.target is not None:
+            if not isinstance(self.target, str) or not self.target.strip():
+                raise ValidationError("postcondition target must be a non-empty string")
+            self.target = self.target.strip()
+
+    def to_dict(self) -> dict[str, Any]:
+        if self.type == "manual" and self.target is None:
+            return {"description": self.description}
+        payload: dict[str, Any] = {
+            "description": self.description,
+            "type": self.type,
+        }
+        if self.target is not None:
+            payload["target"] = self.target
+        return payload
+
+
+@dataclass(slots=True)
 class PlanPhase:
     id: str
     title: str
     status: str = "pending"
     commit: str | None = None
     blockers: list[str] = field(default_factory=list)
+    sources: list[SourceSpec] = field(default_factory=list)
+    postconditions: list[PostconditionSpec] = field(default_factory=list)
+    requires_approval: bool = False
     changes: list[ChangeSpec] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -126,8 +214,14 @@ class PlanPhase:
             "status": self.status,
             "commit": self.commit,
             "blockers": list(self.blockers),
-            "changes": [change.to_dict() for change in self.changes],
         }
+        if self.sources:
+            payload["sources"] = [source.to_dict() for source in self.sources]
+        if self.postconditions:
+            payload["postconditions"] = [pc.to_dict() for pc in self.postconditions]
+        if self.requires_approval:
+            payload["requires_approval"] = True
+        payload["changes"] = [change.to_dict() for change in self.changes]
         return payload
 
 
@@ -206,6 +300,35 @@ class PlanReview:
 
 
 @dataclass(slots=True)
+class PlanBudget:
+    """Execution budget constraints for a plan."""
+
+    deadline: str | None = None
+    max_sessions: int | None = None
+    advisory: bool = True
+
+    def __post_init__(self) -> None:
+        if self.deadline is not None:
+            if not isinstance(self.deadline, str) or not _DATE_RE.match(self.deadline):
+                raise ValidationError(
+                    f"budget.deadline must be YYYY-MM-DD format: {self.deadline!r}"
+                )
+        if self.max_sessions is not None:
+            if not isinstance(self.max_sessions, int) or self.max_sessions < 1:
+                raise ValidationError("budget.max_sessions must be an integer >= 1")
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if self.deadline is not None:
+            payload["deadline"] = self.deadline
+        if self.max_sessions is not None:
+            payload["max_sessions"] = self.max_sessions
+        if not self.advisory:
+            payload["advisory"] = False
+        return payload
+
+
+@dataclass(slots=True)
 class PlanDocument:
     id: str
     project: str
@@ -215,6 +338,8 @@ class PlanDocument:
     purpose: PlanPurpose
     phases: list[PlanPhase]
     review: PlanReview | None = None
+    budget: PlanBudget | None = None
+    sessions_used: int = 0
 
     def __post_init__(self) -> None:
         self.id = validate_slug(self.id, field_name="plan_id")
@@ -233,16 +358,21 @@ class PlanDocument:
             raise ValidationError("work.phases ids must be unique within a plan")
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "id": self.id,
             "project": self.project,
             "created": self.created,
             "origin_session": self.origin_session,
             "status": self.status,
-            "purpose": self.purpose.to_dict(),
-            "work": {"phases": [phase.to_dict() for phase in self.phases]},
-            "review": None if self.review is None else self.review.to_dict(),
         }
+        if self.budget is not None:
+            payload["budget"] = self.budget.to_dict()
+        if self.sessions_used > 0:
+            payload["sessions_used"] = self.sessions_used
+        payload["purpose"] = self.purpose.to_dict()
+        payload["work"] = {"phases": [phase.to_dict() for phase in self.phases]}
+        payload["review"] = None if self.review is None else self.review.to_dict()
+        return payload
 
 
 def _coerce_change_specs(raw_changes: Any) -> list[ChangeSpec]:
@@ -260,6 +390,64 @@ def _coerce_change_specs(raw_changes: Any) -> list[ChangeSpec]:
             )
         )
     return changes
+
+
+def _coerce_source_specs(raw_sources: Any) -> list[SourceSpec]:
+    if raw_sources is None:
+        return []
+    if not isinstance(raw_sources, list):
+        raise ValidationError("phase sources must be a list when provided")
+    sources: list[SourceSpec] = []
+    for raw_source in raw_sources:
+        if not isinstance(raw_source, dict):
+            raise ValidationError("phase sources must contain mapping items")
+        sources.append(
+            SourceSpec(
+                path=str(raw_source.get("path", "")),
+                type=str(raw_source.get("type", "internal")),
+                intent=str(raw_source.get("intent", "")),
+                uri=raw_source.get("uri"),
+            )
+        )
+    return sources
+
+
+def _coerce_postconditions(raw_postconditions: Any) -> list[PostconditionSpec]:
+    if raw_postconditions is None:
+        return []
+    if not isinstance(raw_postconditions, list):
+        raise ValidationError("phase postconditions must be a list when provided")
+    specs: list[PostconditionSpec] = []
+    for item in raw_postconditions:
+        if isinstance(item, str):
+            # Bare string shorthand → manual postcondition
+            specs.append(PostconditionSpec(description=item))
+        elif isinstance(item, dict):
+            specs.append(
+                PostconditionSpec(
+                    description=str(item.get("description", "")),
+                    type=str(item.get("type", "manual")),
+                    target=item.get("target"),
+                )
+            )
+        else:
+            raise ValidationError("postconditions must contain strings or mapping items")
+    return specs
+
+
+def _coerce_budget(raw_budget: Any) -> PlanBudget | None:
+    if raw_budget is None:
+        return None
+    if not isinstance(raw_budget, dict):
+        raise ValidationError("budget must be null or a mapping")
+    deadline = raw_budget.get("deadline")
+    max_sessions = raw_budget.get("max_sessions")
+    advisory = raw_budget.get("advisory", True)
+    return PlanBudget(
+        deadline=None if deadline is None else str(deadline),
+        max_sessions=int(max_sessions) if max_sessions is not None else None,
+        advisory=bool(advisory),
+    )
 
 
 def _coerce_phases(raw_phases: Any) -> list[PlanPhase]:
@@ -283,6 +471,9 @@ def _coerce_phases(raw_phases: Any) -> list[PlanPhase]:
                 if raw_phase.get("commit") is None
                 else str(raw_phase.get("commit")),
                 blockers=[str(blocker) for blocker in blockers],
+                sources=_coerce_source_specs(raw_phase.get("sources")),
+                postconditions=_coerce_postconditions(raw_phase.get("postconditions")),
+                requires_approval=bool(raw_phase.get("requires_approval", False)),
                 changes=_coerce_change_specs(raw_phase.get("changes")),
             )
         )
@@ -337,6 +528,8 @@ def load_plan(abs_path: Path, root: Path | None = None) -> PlanDocument:
         ),
         phases=_coerce_phases(work.get("phases")),
         review=_coerce_review(raw.get("review")),
+        budget=_coerce_budget(raw.get("budget")),
+        sessions_used=int(raw.get("sessions_used", 0)),
     )
     if root is not None:
         validate_plan_references(plan, root)
@@ -378,6 +571,8 @@ def validate_plan_references(plan: PlanDocument, root: Path) -> None:
                 )
             other_plan = load_plan(other_plan_path)
             _resolve_phase(other_plan, other_phase_id)
+        for source in phase.sources:
+            source.validate_exists(root)
 
 
 def plan_title(plan: PlanDocument) -> str:
@@ -396,11 +591,25 @@ def next_phase(plan: PlanDocument) -> PlanPhase | None:
     return None
 
 
-def next_action(plan: PlanDocument) -> str | None:
+def next_action(plan: PlanDocument) -> dict[str, Any] | None:
+    """Return a structured directive for the next actionable phase.
+
+    Returns a dict with id, title, sources, requires_approval so the
+    calling agent knows what to read and whether to pause for approval.
+    """
     phase = next_phase(plan)
     if phase is None:
         return None
-    return phase.title
+    directive: dict[str, Any] = {
+        "id": phase.id,
+        "title": phase.title,
+        "requires_approval": phase.requires_approval,
+    }
+    if phase.sources:
+        directive["sources"] = [source.to_dict() for source in phase.sources]
+    if phase.postconditions:
+        directive["postconditions"] = [pc.to_dict() for pc in phase.postconditions]
+    return directive
 
 
 def phase_change_class(phase: PlanPhase) -> str:
@@ -483,22 +692,62 @@ def unresolved_blockers(plan: PlanDocument, phase: PlanPhase, root: Path) -> lis
     return [entry for entry in phase_blockers(plan, phase, root) if not entry["satisfied"]]
 
 
+def budget_status(plan: PlanDocument) -> dict[str, Any] | None:
+    """Return budget consumption info, or None if no budget is set."""
+    if plan.budget is None:
+        return None
+    status: dict[str, Any] = {
+        "sessions_used": plan.sessions_used,
+        "advisory": plan.budget.advisory,
+    }
+    if plan.budget.deadline is not None:
+        from datetime import date as date_type
+
+        try:
+            deadline = date_type.fromisoformat(plan.budget.deadline)
+            today = date_type.today()
+            status["deadline"] = plan.budget.deadline
+            status["days_remaining"] = (deadline - today).days
+            status["past_deadline"] = today > deadline
+        except ValueError:
+            status["deadline"] = plan.budget.deadline
+            status["days_remaining"] = None
+            status["past_deadline"] = False
+    if plan.budget.max_sessions is not None:
+        status["max_sessions"] = plan.budget.max_sessions
+        status["sessions_remaining"] = plan.budget.max_sessions - plan.sessions_used
+        status["over_session_budget"] = plan.sessions_used >= plan.budget.max_sessions
+    status["over_budget"] = status.get("past_deadline", False) or status.get(
+        "over_session_budget", False
+    )
+    return status
+
+
 def phase_payload(plan: PlanDocument, phase: PlanPhase, root: Path) -> dict[str, Any]:
     blockers = phase_blockers(plan, phase, root)
-    return {
+    phase_dict: dict[str, Any] = {
+        "id": phase.id,
+        "title": phase.title,
+        "status": phase.status,
+        "commit": phase.commit,
+        "blockers": blockers,
+        "changes": [change.to_dict() for change in phase.changes],
+        "change_class": phase_change_class(phase),
+        "approval_required": (
+            phase.requires_approval or phase_change_class(phase) in {"proposed", "protected"}
+        ),
+        "requires_approval": phase.requires_approval,
+    }
+    if phase.sources:
+        phase_dict["sources"] = [source.to_dict() for source in phase.sources]
+    if phase.postconditions:
+        phase_dict["postconditions"] = [pc.to_dict() for pc in phase.postconditions]
+
+    result: dict[str, Any] = {
         "plan_id": plan.id,
         "project_id": plan.project,
         "plan_status": plan.status,
-        "phase": {
-            "id": phase.id,
-            "title": phase.title,
-            "status": phase.status,
-            "commit": phase.commit,
-            "blockers": blockers,
-            "changes": [change.to_dict() for change in phase.changes],
-            "change_class": phase_change_class(phase),
-            "approval_required": phase_change_class(phase) in {"proposed", "protected"},
-        },
+        "phase": phase_dict,
         "purpose": plan.purpose.to_dict(),
         "progress": {
             "done": plan_progress(plan)[0],
@@ -506,6 +755,10 @@ def phase_payload(plan: PlanDocument, phase: PlanPhase, root: Path) -> dict[str,
             "next_action": next_action(plan),
         },
     }
+    bs = budget_status(plan)
+    if bs is not None:
+        result["budget_status"] = bs
+    return result
 
 
 def resolve_phase(plan: PlanDocument, phase_id: str | None = None) -> PlanPhase:
@@ -587,12 +840,18 @@ __all__ = [
     "CHANGE_ACTIONS",
     "PLAN_STATUSES",
     "PHASE_STATUSES",
+    "POSTCONDITION_TYPES",
+    "SOURCE_TYPES",
     "ChangeSpec",
+    "PlanBudget",
     "PlanDocument",
     "PlanPhase",
     "PlanPurpose",
     "PlanReview",
+    "PostconditionSpec",
+    "SourceSpec",
     "append_operations_log",
+    "budget_status",
     "build_review_from_input",
     "coerce_phase_inputs",
     "exportable_artifacts",

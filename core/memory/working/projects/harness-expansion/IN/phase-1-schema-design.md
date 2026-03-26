@@ -94,7 +94,7 @@ class SourceSpec:
 
 ### Validation rules
 
-- `internal` sources: validate that the path matches the repo-relative path format (same as `ChangeSpec.path`). **Do not** require the file to exist at plan-create time — the file may be created by an earlier phase.
+- `internal` sources: validate that the path matches the repo-relative path format (same as `ChangeSpec.path`). **Validate that the file exists at plan-create time** — if a source doesn't exist yet, it should be listed on a later phase after the phase that creates it.
 - `external` sources: require a non-empty `uri`. No reachability check at plan time.
 - `mcp` sources: `path` should be a tool name or `memory://` resource URI. No runtime validation at plan time.
 
@@ -137,21 +137,51 @@ phases:
 ### Schema
 
 ```python
+POSTCONDITION_TYPES = {"check", "grep", "test", "manual"}
+
+@dataclass(slots=True)
+class PostconditionSpec:
+    """A success criterion for a phase. Always has a free-text description.
+    Optionally includes a formal validator type and target for automation."""
+    description: str        # Free-text: what must be true (always required)
+    type: str = "manual"    # "check" | "grep" | "test" | "manual"
+    target: str | None = None  # validator-specific: file path, grep pattern, test command
+
 @dataclass(slots=True)
 class PlanPhase:
     # ... existing fields ...
     sources: list[SourceSpec] = field(default_factory=list)
-    postconditions: list[str] = field(default_factory=list)
+    postconditions: list[PostconditionSpec] = field(default_factory=list)
     requires_approval: bool = False
 ```
 
-Postconditions are free-text strings for now. A future iteration (Phase 2 of the harness expansion) could introduce typed postconditions with validator references, but that adds complexity without clear near-term value.
+Every postcondition must have a human-readable `description`. The `type` and `target` fields optionally enable formal validation:
+
+| Type | `target` contains | Validation behavior |
+|---|---|---|
+| `manual` | (omitted) | Agent self-checks against description. No automation. |
+| `check` | Repo-relative file path | Verify the file exists (and optionally matches a pattern in description). |
+| `grep` | `pattern::path` | Verify the pattern appears in the file. |
+| `test` | Shell command | Run the command; zero exit = pass. |
+
+In YAML, postconditions accept both a bare string (shorthand for `{description: "...", type: "manual"}`) and a full mapping:
+
+```yaml
+postconditions:
+  - SourceSpec dataclass exists with path, type, intent, uri fields    # bare string → manual
+  - description: pre-commit hooks pass
+    type: test
+    target: "pre-commit run --all-files"
+  - description: PlanPhase.sources field serializes to YAML correctly
+    type: grep
+    target: "sources::core/tools/agent_memory_mcp/plan_utils.py"
+```
 
 ### Behavioral contract
 
 - `memory_plan_execute` with `action: "inspect"` includes postconditions in the phase payload.
 - `memory_plan_execute` with `action: "complete"` does **not** automatically verify postconditions (no execution engine yet). Instead, it includes them in the response so the calling agent can self-verify.
-- A future `memory_plan_verify` tool could check postconditions against repo state.
+- A future `memory_plan_verify` tool could run `check`, `grep`, and `test` postconditions automatically and report results.
 
 ---
 
@@ -268,15 +298,13 @@ A phase execution cycle with all four extensions:
 
 ---
 
-## Migration and backward compatibility
+## Resolved design decisions
 
-All new fields are optional with sensible defaults:
-- `sources`: defaults to `[]` (empty list)
-- `postconditions`: defaults to `[]` (empty list)
-- `requires_approval`: defaults to `false`
-- `budget`: defaults to `null` (no budget)
-
-Existing plans load and operate without modification. The `load_plan` function should silently accept plans missing these fields. The `save_plan` function should omit empty/default fields to keep YAML clean.
+1. **Internal source path validation**: Validate that internal source paths exist at plan-create time. If a source won't exist until a later phase creates it, list it on that later phase instead.
+2. **Postcondition format**: Always free-text (`description` required), with optional `type`/`target` for formal validation. Bare strings accepted as shorthand for manual postconditions.
+3. **`requires_approval` interaction with change-class**: Additive. Change-class still derives from file paths; `requires_approval` adds a decisional gate independent of which files are touched.
+4. **Budget enforcement**: Implement both advisory and enforced modes now. Advisory is the default.
+5. **Backward compatibility**: Not a priority — single-user system. Existing plans can be updated to the new schema as needed.
 
 ---
 
