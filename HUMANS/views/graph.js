@@ -31,6 +31,29 @@
   };
   var DOMAIN_DEFAULT_COLOR = '#888888';
 
+  function parseHexColor(hex) {
+    hex = hex.replace('#', '');
+    return {
+      r: parseInt(hex.substring(0, 2), 16),
+      g: parseInt(hex.substring(2, 4), 16),
+      b: parseInt(hex.substring(4, 6), 16)
+    };
+  }
+  function lightenColor(hex, amount) {
+    var c = parseHexColor(hex);
+    return 'rgb(' +
+      Math.round(c.r + (255 - c.r) * amount) + ',' +
+      Math.round(c.g + (255 - c.g) * amount) + ',' +
+      Math.round(c.b + (255 - c.b) * amount) + ')';
+  }
+  function darkenColor(hex, amount) {
+    var c = parseHexColor(hex);
+    return 'rgb(' +
+      Math.round(c.r * (1 - amount)) + ',' +
+      Math.round(c.g * (1 - amount)) + ',' +
+      Math.round(c.b * (1 - amount)) + ')';
+  }
+
   function clearNode(node) {
     if (!node) return;
     while (node.firstChild) node.removeChild(node.firstChild);
@@ -853,8 +876,11 @@
       idxMap[nodes[n].id] = n;
       nodes[n].x = W / 2 + (Math.random() - 0.5) * W * 0.6;
       nodes[n].y = H / 2 + (Math.random() - 0.5) * H * 0.6;
+      nodes[n].z = (Math.random() - 0.5) * 2;  // depth layer: -1 (far) to 1 (near)
+      nodes[n].targetZ = 0;
       nodes[n].vx = 0;
       nodes[n].vy = 0;
+      nodes[n].vz = 0;
       nodes[n].degree = nodes[n].refs + nodes[n].refBy;
     }
 
@@ -876,6 +902,96 @@
     var hoveredNode = -1;
     var dragNode = -1;
 
+    // ── 3D perspective state ──────────────────────────
+    var depth3d = false;
+    var canvasWrap = document.getElementById('graph-canvas-wrap');
+    var depthBtn = document.getElementById('graph-3d-btn');
+
+    // 3D rotation angles (radians) — controlled by right-drag / middle-drag
+    var rotX = 0, rotY = 0;            // current view rotation
+    var rotating = false;
+    var rotStart = null, rotStartAngles = null;
+    var ROT_SENSITIVITY = 0.005;
+
+    // Precomputed sin/cos (updated each frame in draw)
+    var sinRX = 0, cosRX = 1, sinRY = 0, cosRY = 1;
+    // Z-front offset: shifts projected z so the nearest node is always at a
+    // fixed camera distance, making the graph rotate "in place".
+    var zFrontOffset = 0;
+    function updateRotTrig() {
+      sinRX = Math.sin(rotX); cosRX = Math.cos(rotX);
+      sinRY = Math.sin(rotY); cosRY = Math.cos(rotY);
+    }
+
+    // Project a node's 3D position (x, y, z) into screen-space 2D
+    // z is in [-1, 1]; x/y are world coords. Returns {px, py, scale}.
+    function project3D(x, y, z) {
+      if (!depth3d) return { px: x, py: y, scale: 1 };
+      // Centre the coords around the graph centre for rotation
+      var cx = x - W / 2, cy = y - H / 2, cz = z * 200; // scale z into world units
+      // Rotate around Y axis (left-right drag)
+      var x1 =  cx * cosRY + cz * sinRY;
+      var z1 = -cx * sinRY + cz * cosRY;
+      // Rotate around X axis (up-down drag)
+      var y1 =  cy * cosRX - z1 * sinRX;
+      var z2 =  cy * sinRX + z1 * cosRX;
+      // Perspective projection (virtual camera distance)
+      // Use a large fov relative to the max possible depth after rotation
+      var fov = 1600;
+      var denom = fov + z2 + zFrontOffset;
+      // Clamp near-plane: never let the denominator go below a small positive
+      // value. Nodes "behind" the camera are projected as very small/far.
+      if (denom < 50) denom = 50;
+      var scale = fov / denom;
+      return {
+        px: x1 * scale + W / 2,
+        py: y1 * scale + H / 2,
+        scale: scale
+      };
+    }
+
+    // Compute sphere-surface target z for each node based on radial distance
+    // from graph centroid.  Half the nodes go front, half go back.
+    function computeSphereTargets() {
+      var cx = 0, cy = 0;
+      for (var i = 0; i < nodes.length; i++) { cx += nodes[i].x; cy += nodes[i].y; }
+      cx /= nodes.length || 1;
+      cy /= nodes.length || 1;
+
+      // Collect radial distances
+      var dists = [];
+      for (var i = 0; i < nodes.length; i++) {
+        var dx = nodes[i].x - cx, dy = nodes[i].y - cy;
+        dists.push(Math.sqrt(dx * dx + dy * dy));
+      }
+      // Use 85th-percentile distance as the sphere radius so outliers aren't
+      // forced flat.  Fall back to 1 to avoid division by zero.
+      var sorted = dists.slice().sort(function (a, b) { return a - b; });
+      var R = sorted[Math.floor(sorted.length * 0.85)] || 1;
+
+      for (var i = 0; i < nodes.length; i++) {
+        var d = Math.min(dists[i] / R, 1);          // normalised, capped at 1
+        var zMag = Math.sqrt(1 - d * d);             // sphere surface
+        // Deterministic hemisphere: even index → front, odd → back
+        nodes[i].targetZ = (i % 2 === 0 ? 1 : -1) * zMag;
+      }
+    }
+
+    function toggle3D(on) {
+      depth3d = typeof on === 'boolean' ? on : !depth3d;
+      canvasWrap.classList.toggle('perspective-3d', depth3d);
+      depthBtn.classList.toggle('active', depth3d);
+      if (depth3d) {
+        computeSphereTargets();
+      } else {
+        // Flatten: targets go to zero, rotation resets
+        for (var i = 0; i < nodes.length; i++) nodes[i].targetZ = 0;
+        rotX = 0; rotY = 0;
+        canvas.style.transform = '';
+      }
+    }
+    depthBtn.addEventListener('click', function () { toggle3D(); });
+
     var analysisResult = null;
     var analysisHighlight = { bridges: false, hubs: false, orphans: false, domain: null };
     var bridgeSet = {}, hubSet = {}, orphanSet = {};
@@ -895,7 +1011,7 @@
       cam.x = (minX + maxX) / 2;
       cam.y = (minY + maxY) / 2;
       cam.zoom = Math.min(canvas.width / bw, canvas.height / bh, 1);
-      cam.zoom = Math.max(0.1, cam.zoom);
+      cam.zoom = Math.max(0.02, cam.zoom);
     }
 
     function screenToWorld(sx, sy) {
@@ -909,7 +1025,12 @@
       var pad = Math.max(6, 12 / cam.zoom);
       for (var i = nodes.length - 1; i >= 0; i--) {
         var r = nodeRadius(nodes[i]) / cam.zoom;
-        var dx = nodes[i].x - wx, dy = nodes[i].y - wy;
+        var nx = nodes[i].x, ny = nodes[i].y;
+        if (depth3d && nodes[i]._px !== undefined) {
+          nx = nodes[i]._px; ny = nodes[i]._py;
+          r = r * nodes[i]._ps;
+        }
+        var dx = nx - wx, dy = ny - wy;
         if (dx * dx + dy * dy < (r + pad) * (r + pad)) return i;
       }
       return -1;
@@ -921,6 +1042,15 @@
 
     // Interaction
     canvas.addEventListener('mousedown', function (ev) {
+      // Right-click or middle-click: start 3D rotation
+      if (depth3d && (ev.button === 2 || ev.button === 1)) {
+        ev.preventDefault();
+        rotating = true;
+        rotStart = { x: ev.clientX, y: ev.clientY };
+        rotStartAngles = { x: rotX, y: rotY };
+        canvas.style.cursor = 'move';
+        return;
+      }
       var rect = canvas.getBoundingClientRect();
       var sx = ev.clientX - rect.left, sy = ev.clientY - rect.top;
       var w = screenToWorld(sx, sy);
@@ -935,7 +1065,18 @@
       }
     });
 
+    canvas.addEventListener('contextmenu', function (ev) {
+      if (depth3d) ev.preventDefault();
+    });
+
     canvas.addEventListener('mousemove', function (ev) {
+      if (rotating) {
+        var dx = ev.clientX - rotStart.x;
+        var dy = ev.clientY - rotStart.y;
+        rotY = rotStartAngles.y + dx * ROT_SENSITIVITY;
+        rotX = rotStartAngles.x + dy * ROT_SENSITIVITY;
+        return;
+      }
       var rect = canvas.getBoundingClientRect();
       var sx = ev.clientX - rect.left, sy = ev.clientY - rect.top;
       if (dragNode >= 0) {
@@ -954,7 +1095,7 @@
       var w = screenToWorld(sx, sy);
       var hit = nodeAt(w.x, w.y);
       hoveredNode = hit;
-      canvas.style.cursor = hit >= 0 ? 'pointer' : 'grab';
+      canvas.style.cursor = hit >= 0 ? 'pointer' : (depth3d ? 'grab' : 'grab');
 
       if (hit >= 0) {
         var node = nodes[hit];
@@ -971,6 +1112,11 @@
     });
 
     canvas.addEventListener('mouseup', function () {
+      if (rotating) {
+        rotating = false;
+        canvas.style.cursor = 'grab';
+        return;
+      }
       if (dragNode >= 0) {
         nodes[dragNode].pinned = false;
         dragNode = -1;
@@ -1379,7 +1525,7 @@
       var wx = (sx - canvas.width / 2) / cam.zoom + cam.x;
       var wy = (sy - canvas.height / 2) / cam.zoom + cam.y;
       var factor = ev.deltaY < 0 ? 1.12 : 1 / 1.12;
-      var newZoom = Math.max(0.1, Math.min(8, cam.zoom * factor));
+      var newZoom = Math.max(0.02, Math.min(8, cam.zoom * factor));
       cam.x = wx - (sx - canvas.width / 2) / newZoom;
       cam.y = wy - (sy - canvas.height / 2) / newZoom;
       cam.zoom = newZoom;
@@ -1393,6 +1539,8 @@
       var springK = 0.015;
       var centerK = 0.002;
       var damping = 0.88;
+      var zDamping = 0.92;
+      var zDrift = 0.0003;  // gentle z drift for ambient motion
 
       for (var i = 0; i < nodes.length; i++) {
         if (nodes[i].pinned) continue;
@@ -1436,6 +1584,16 @@
         nodes[i].vy *= damping;
         nodes[i].x += nodes[i].vx * alpha;
         nodes[i].y += nodes[i].vy * alpha;
+
+        // Spring z toward sphere-surface target (or 0 when flattening)
+        if (depth3d || Math.abs(nodes[i].z) > 0.001) {
+          var tz = nodes[i].targetZ || 0;
+          nodes[i].vz += (tz - nodes[i].z) * 0.04;   // spring toward target
+          nodes[i].vz += (Math.random() - 0.5) * zDrift; // tiny ambient jitter
+          nodes[i].vz *= zDamping;
+          nodes[i].z += nodes[i].vz;
+          nodes[i].z = Math.max(-1, Math.min(1, nodes[i].z));
+        }
       }
     }
 
@@ -1446,6 +1604,23 @@
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.scale(cam.zoom, cam.zoom);
       ctx.translate(-cam.x, -cam.y);
+
+      // Update 3D rotation trig and z-front offset
+      if (depth3d) {
+        updateRotTrig();
+        // Pre-pass: find the minimum rotated-z across all nodes so we can
+        // offset the projection to keep the nearest surface at a fixed depth.
+        var minZ2 = Infinity;
+        for (var zi = 0; zi < nodes.length; zi++) {
+          var zcx = nodes[zi].x - W / 2, zcy = nodes[zi].y - H / 2, zcz = nodes[zi].z * 200;
+          var zz1 = -zcx * sinRY + zcz * cosRY;
+          var zz2 =  zcy * sinRX + zz1 * cosRX;
+          if (zz2 < minZ2) minZ2 = zz2;
+        }
+        zFrontOffset = -minZ2;
+      } else {
+        zFrontOffset = 0;
+      }
 
       var highlightSet = {};
       var hoverActive = hoveredNode >= 0;
@@ -1473,19 +1648,36 @@
       // Edges
       for (var e = 0; e < edgeIdx.length; e++) {
         var a = nodes[edgeIdx[e].s], b = nodes[edgeIdx[e].t];
+        var pa = project3D(a.x, a.y, a.z), pb = project3D(b.x, b.y, b.z);
         var edgeHover = hoverActive && highlightSet[edgeIdx[e].s] && highlightSet[edgeIdx[e].t];
         var edgeDomain = !hoverActive && domainActive && (domainSet[edgeIdx[e].s] || domainSet[edgeIdx[e].t]);
         var highlighted = edgeHover || edgeDomain;
+        var edgeDepthAlpha = depth3d ? 0.3 + 0.35 * ((pa.scale + pb.scale) / 2) : 1;
         ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.strokeStyle = highlighted ? 'rgba(194,180,154,0.6)' : 'rgba(194,180,154,0.1)';
-        ctx.lineWidth = highlighted ? 1.5 / cam.zoom : 0.5 / cam.zoom;
+        ctx.moveTo(pa.px, pa.py);
+        ctx.lineTo(pb.px, pb.py);
+        var baseAlpha = highlighted ? 0.6 : 0.1;
+        ctx.strokeStyle = 'rgba(194,180,154,' + (baseAlpha * edgeDepthAlpha).toFixed(3) + ')';
+        ctx.lineWidth = (highlighted ? 1.5 : 0.5) / cam.zoom;
         ctx.stroke();
       }
 
-      // Nodes
-      for (var i = 0; i < nodes.length; i++) {
+      // Nodes — sort back-to-front when in 3D mode for proper layering
+      var drawOrder;
+      if (depth3d) {
+        // Pre-project all nodes
+        for (var pi = 0; pi < nodes.length; pi++) {
+          var pp = project3D(nodes[pi].x, nodes[pi].y, nodes[pi].z);
+          nodes[pi]._px = pp.px; nodes[pi]._py = pp.py; nodes[pi]._ps = pp.scale;
+        }
+        drawOrder = [];
+        for (var di3 = 0; di3 < nodes.length; di3++) drawOrder.push(di3);
+        drawOrder.sort(function (a, b) { return nodes[a]._ps - nodes[b]._ps; });
+      } else {
+        drawOrder = null;
+      }
+      for (var _di = 0; _di < nodes.length; _di++) {
+        var i = drawOrder ? drawOrder[_di] : _di;
         var node = nodes[i];
         var r = nodeRadius(node);
         var color = DOMAIN_COLORS[node.domain] || DOMAIN_DEFAULT_COLOR;
@@ -1495,11 +1687,18 @@
         var dimmed = dimmedByHover || dimmedByDomain;
         var isExternal = node.external;
 
-        var drawR = r;
-        if (analysisHighlight.hubs && hubSet[i]) drawR = r * 1.5;
+        var nx = depth3d ? node._px : node.x;
+        var ny = depth3d ? node._py : node.y;
+        var nScale = depth3d ? node._ps : 1;
 
+        // 3D depth scaling via perspective projection
+        var drawR = r * nScale;
+        if (analysisHighlight.hubs && hubSet[i]) drawR = r * nScale * 1.5;
+        var depthAlpha = depth3d ? Math.max(0.25, Math.min(1, 0.3 + nScale * 0.7)) : 1;
+
+        if (depth3d) ctx.globalAlpha = depthAlpha;
         ctx.beginPath();
-        ctx.arc(node.x, node.y, drawR / cam.zoom, 0, Math.PI * 2);
+        ctx.arc(nx, ny, drawR / cam.zoom, 0, Math.PI * 2);
         if (isExternal) {
           ctx.fillStyle = 'rgba(60,55,50,0.3)';
           ctx.fill();
@@ -1508,6 +1707,18 @@
           ctx.lineWidth = 1.5 / cam.zoom;
           ctx.stroke();
           ctx.setLineDash([]);
+        } else if (depth3d && !dimmed) {
+          // Spherical radial gradient: specular highlight offset up-left
+          var screenR = drawR / cam.zoom;
+          var grad = ctx.createRadialGradient(
+            nx - screenR * 0.3, ny - screenR * 0.35, screenR * 0.1,
+            nx, ny, screenR
+          );
+          grad.addColorStop(0, lightenColor(color, 0.6));
+          grad.addColorStop(0.45, color);
+          grad.addColorStop(1, darkenColor(color, 0.5));
+          ctx.fillStyle = grad;
+          ctx.fill();
         } else {
           ctx.fillStyle = dimmed ? 'rgba(60,55,50,0.5)' : color;
           ctx.fill();
@@ -1522,7 +1733,7 @@
 
         if (matchedLegendHover && !hoverActive && !domainActive) {
           ctx.beginPath();
-          ctx.arc(node.x, node.y, (drawR + 4.5) / cam.zoom, 0, Math.PI * 2);
+          ctx.arc(nx, ny, (drawR + 4.5) / cam.zoom, 0, Math.PI * 2);
           ctx.strokeStyle = color;
           ctx.lineWidth = 2 / cam.zoom;
           ctx.globalAlpha = 0.55;
@@ -1534,7 +1745,7 @@
         // Persistent ring for the node open in the sidebar
         if (i === previewNodeIdx && i !== hoveredNode) {
           ctx.beginPath();
-          ctx.arc(node.x, node.y, (drawR + 3.5) / cam.zoom, 0, Math.PI * 2);
+          ctx.arc(nx, ny, (drawR + 3.5) / cam.zoom, 0, Math.PI * 2);
           ctx.strokeStyle = 'rgba(255,255,255,0.55)';
           ctx.lineWidth = 1.5 / cam.zoom;
           ctx.setLineDash([4 / cam.zoom, 3 / cam.zoom]);
@@ -1545,7 +1756,7 @@
         // Analysis: bridge halo
         if (analysisHighlight.bridges && bridgeSet[i]) {
           ctx.beginPath();
-          ctx.arc(node.x, node.y, (drawR + 5) / cam.zoom, 0, Math.PI * 2);
+          ctx.arc(nx, ny, (drawR + 5) / cam.zoom, 0, Math.PI * 2);
           ctx.strokeStyle = '#42a5f5';
           ctx.lineWidth = 2 / cam.zoom;
           ctx.setLineDash([]);
@@ -1554,7 +1765,7 @@
         // Analysis: hub glow
         if (analysisHighlight.hubs && hubSet[i]) {
           ctx.beginPath();
-          ctx.arc(node.x, node.y, (drawR + 6) / cam.zoom, 0, Math.PI * 2);
+          ctx.arc(nx, ny, (drawR + 6) / cam.zoom, 0, Math.PI * 2);
           ctx.strokeStyle = '#ab47bc';
           ctx.lineWidth = 2.5 / cam.zoom;
           ctx.setLineDash([]);
@@ -1563,13 +1774,14 @@
         // Analysis: orphan red outline
         if (analysisHighlight.orphans && orphanSet[i]) {
           ctx.beginPath();
-          ctx.arc(node.x, node.y, (drawR + 4) / cam.zoom, 0, Math.PI * 2);
+          ctx.arc(nx, ny, (drawR + 4) / cam.zoom, 0, Math.PI * 2);
           ctx.strokeStyle = '#ef5350';
           ctx.lineWidth = 1.5 / cam.zoom;
           ctx.setLineDash([4 / cam.zoom, 3 / cam.zoom]);
           ctx.stroke();
           ctx.setLineDash([]);
         }
+        if (depth3d) ctx.globalAlpha = 1;
       }
 
       // Analysis: domain edge highlighting
@@ -1587,9 +1799,11 @@
           for (var e = 0; e < edgeIdx.length; e++) {
             if (hlSet[edgeIdx[e].s] && hlSet[edgeIdx[e].t]) {
               var a = nodes[edgeIdx[e].s], b = nodes[edgeIdx[e].t];
+              var ha = depth3d ? { px: a._px, py: a._py } : { px: a.x, py: a.y };
+              var hb = depth3d ? { px: b._px, py: b._py } : { px: b.x, py: b.y };
               ctx.beginPath();
-              ctx.moveTo(a.x, a.y);
-              ctx.lineTo(b.x, b.y);
+              ctx.moveTo(ha.px, ha.py);
+              ctx.lineTo(hb.px, hb.py);
               ctx.strokeStyle = hlColor;
               ctx.lineWidth = 2.5 / cam.zoom;
               ctx.stroke();
@@ -1612,11 +1826,25 @@
         if (!showByHover && !showByDomain && !showByLegendHover && !showByDegree && !showByPreview) continue;
         var node = nodes[i];
         var r = nodeRadius(node);
-        ctx.fillStyle = 'rgba(232,226,217,0.9)';
-        ctx.fillText(node.label, node.x, node.y + r / cam.zoom + 3 / cam.zoom);
+        var lnx = depth3d ? node._px : node.x;
+        var lny = depth3d ? node._py : node.y;
+        var lScale = depth3d ? node._ps : 1;
+        var labelAlpha = depth3d ? Math.max(0.2, 0.3 + lScale * 0.6) : 0.9;
+        ctx.fillStyle = 'rgba(232,226,217,' + labelAlpha.toFixed(2) + ')';
+        ctx.fillText(node.label, lnx, lny + r * lScale / cam.zoom + 3 / cam.zoom);
       }
 
       ctx.restore();
+
+      // Update rotation indicator
+      if (depth3d) {
+        var rotHint = document.getElementById('graph-rotation-values');
+        if (rotHint) {
+          var degX = (rotX * 180 / Math.PI).toFixed(1);
+          var degY = (rotY * 180 / Math.PI).toFixed(1);
+          rotHint.textContent = 'X ' + degX + '\u00b0  Y ' + degY + '\u00b0';
+        }
+      }
     }
 
     var running = true;
@@ -1635,9 +1863,14 @@
       for (var i = 0; i < nodes.length; i++) {
         nodes[i].x = W / 2 + (Math.random() - 0.5) * W * 0.6;
         nodes[i].y = H / 2 + (Math.random() - 0.5) * H * 0.6;
+        nodes[i].z = depth3d ? (Math.random() - 0.5) * 2 : 0;
         nodes[i].vx = 0;
         nodes[i].vy = 0;
+        nodes[i].vz = 0;
+        nodes[i].targetZ = 0;
       }
+      if (depth3d) computeSphereTargets();
+      rotX = 0; rotY = 0;
       frameCount = 0;
     };
 
@@ -1904,13 +2137,44 @@
       analysisBackdrop.classList.add('visible');
     });
 
+    // ── Keyboard navigation ──────────────────────────
+    var PAN_STEP = 30;     // pixels per arrow-key press
+    var ROT_STEP = 0.05;   // radians per Ctrl+arrow press
+
     function onOverlayKeydown(ev) {
-      if (ev.key !== 'Escape') return;
-      if (analysisBackdrop.classList.contains('visible')) {
-        closeAnalysis();
+      if (ev.key === 'Escape') {
+        if (analysisBackdrop.classList.contains('visible')) {
+          closeAnalysis();
+          return;
+        }
+        closeOverlay();
         return;
       }
-      closeOverlay();
+
+      var isArrow = ev.key === 'ArrowUp' || ev.key === 'ArrowDown' ||
+                    ev.key === 'ArrowLeft' || ev.key === 'ArrowRight';
+      if (!isArrow) return;
+      ev.preventDefault();
+
+      // Ctrl+Arrow in 3D mode → rotate
+      if (ev.ctrlKey && depth3d) {
+        switch (ev.key) {
+          case 'ArrowUp':    rotX -= ROT_STEP; break;
+          case 'ArrowDown':  rotX += ROT_STEP; break;
+          case 'ArrowLeft':  rotY -= ROT_STEP; break;
+          case 'ArrowRight': rotY += ROT_STEP; break;
+        }
+        return;
+      }
+
+      // Plain arrows → pan camera
+      var step = PAN_STEP / cam.zoom;
+      switch (ev.key) {
+        case 'ArrowUp':    cam.y -= step; break;
+        case 'ArrowDown':  cam.y += step; break;
+        case 'ArrowLeft':  cam.x -= step; break;
+        case 'ArrowRight': cam.x += step; break;
+      }
     }
     overlay.addEventListener('keydown', onOverlayKeydown);
 
@@ -1919,6 +2183,7 @@
     graphSim = {
       stop: function () {
         running = false;
+        toggle3D(false);
         window.removeEventListener('resize', resize);
         overlay.removeEventListener('keydown', onOverlayKeydown);
         closeAnalysis();

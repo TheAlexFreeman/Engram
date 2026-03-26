@@ -330,11 +330,12 @@ body { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
     <span class="graph-stats" id="graph-stats"></span>
     <span class="graph-scope" id="graph-scope" style="display:none"></span>
     <span class="spacer"></span>
+    <button id="graph-3d-btn" title="Toggle 3D perspective">&#9674; 3D</button>
     <button id="graph-analyze-btn" title="Network analysis">&#128202; Analyze</button>
     <button id="graph-reset-btn" title="Reset zoom / re-layout">Reset</button>
     <button id="graph-close-btn">&#10005; Close</button>
   </div>
-  <div style="position:relative;flex:1;overflow:hidden;">
+  <div class="graph-canvas-wrap" id="graph-canvas-wrap" style="position:relative;flex:1;overflow:hidden;">
     <canvas id="graph-canvas" aria-describedby="graph-accessible-summary">Interactive knowledge graph</canvas>
     <div class="graph-progress" id="graph-progress" style="display:none;">
       <div class="spinner"></div>
@@ -343,6 +344,11 @@ body { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
     <section class="graph-accessible-summary" id="graph-accessible-summary" aria-live="polite"></section>
     <div class="graph-legend" id="graph-legend"></div>
     <div class="graph-tooltip" id="graph-tooltip"></div>
+    <div class="graph-rotation-hint" id="graph-rotation-hint">
+      <kbd>Right-drag</kbd> or <kbd>Middle-drag</kbd> to rotate<br>
+      <kbd>Ctrl</kbd>+<kbd>←↑→↓</kbd> rotate &ensp; <kbd>←↑→↓</kbd> pan
+      <div class="graph-rotation-values" id="graph-rotation-values"></div>
+    </div>
     <div class="graph-preview" id="graph-preview">
       <div class="graph-preview-resize" id="graph-preview-resize"></div>
       <div class="graph-preview-header">
