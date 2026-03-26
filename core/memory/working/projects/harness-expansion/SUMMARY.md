@@ -1,16 +1,17 @@
 ---
-source: agent-generated
-origin_session: memory/activity/2026/03/26/chat-001
+active_plans: 1
+cognitive_mode: exploration
 created: 2026-03-26
+current_focus: 'Phase 1 design: extend plan schema with sources, postconditions, approval
+  gates, and budgets to support orchestration-lite.'
+last_activity: '2026-03-26'
+open_questions: 4
+origin_session: memory/activity/2026/03/26/chat-001
+plans: 1
+source: agent-generated
+status: ongoing
 trust: medium
 type: project
-status: ongoing
-cognitive_mode: exploration
-open_questions: 4
-active_plans: 0
-plans: 0
-last_activity: 2026-03-26
-current_focus: "Phase 1 design: extend plan schema with sources, postconditions, approval gates, and budgets to support orchestration-lite."
 ---
 
 # Project: Harness Expansion
