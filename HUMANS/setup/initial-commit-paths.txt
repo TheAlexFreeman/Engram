@@ -7,7 +7,9 @@
 .editorconfig
 .gitattributes
 .github/workflows/ci.yml
+.github/workflows/pages.yml
 .gitignore
+.nojekyll
 .pre-commit-config.yaml
 .vscode/extensions.json
 .vscode/mcp.json
@@ -582,6 +584,7 @@ core/tools/tests/test_link_tools_engine.py
 core/tools/tests/test_memory_mcp.py
 core/tools/tests/test_surface_unlinked.py
 extract_names.py
+index.html
 pyproject.toml
 setup.html
 setup.sh
@@ -603,6 +606,8 @@ HUMANS/setup/templates/profiles/researcher.md
 HUMANS/setup/templates/profiles/software-developer.md
 HUMANS/setup/templates/profiles/student.md
 HUMANS/setup/templates/profiles/writer.md
+HUMANS/views/.nojekyll
+HUMANS/views/index.html
 HUMANS/views/setup.html
 HUMANS/views/setup-utils.js
 HUMANS/views/dashboard.html
