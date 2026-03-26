@@ -789,6 +789,11 @@ def coerce_phase_inputs(phases: list[dict[str, Any]]) -> list[PlanPhase]:
     return _coerce_phases(phases)
 
 
+def coerce_budget_input(raw_budget: dict[str, Any] | None) -> PlanBudget | None:
+    """Public wrapper for budget coercion from tool-layer dicts."""
+    return _coerce_budget(raw_budget)
+
+
 def exportable_artifacts(root: Path, plan: PlanDocument) -> list[str]:
     plan_path = project_plan_path(plan.project, plan.id)
     artifacts: list[str] = []
@@ -853,6 +858,7 @@ __all__ = [
     "append_operations_log",
     "budget_status",
     "build_review_from_input",
+    "coerce_budget_input",
     "coerce_phase_inputs",
     "exportable_artifacts",
     "load_plan",

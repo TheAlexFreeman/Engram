@@ -12,7 +12,9 @@ from ...plan_utils import (
     PlanDocument,
     PlanPurpose,
     append_operations_log,
+    budget_status,
     build_review_from_input,
+    coerce_budget_input,
     coerce_phase_inputs,
     exportable_artifacts,
     load_plan,
@@ -240,10 +242,20 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         phases: list[dict[str, Any]],
         session_id: str,
         questions: list[str] | None = None,
+        budget: dict[str, Any] | None = None,
         status: str = "active",
         preview: bool = False,
     ) -> str:
-        """Create a structured YAML plan file inside a project."""
+        """Create a structured YAML plan file inside a project.
+
+        Phases may include sources (list of {path, type, intent, uri?}),
+        postconditions (list of strings or {description, type?, target?}),
+        and requires_approval (bool). These flow through to the plan schema
+        and are surfaced in execution directives.
+
+        budget is an optional dict with keys: deadline (YYYY-MM-DD),
+        max_sessions (int >= 1), advisory (bool, default true).
+        """
         from ...errors import ValidationError
         from ...frontmatter_utils import today_str
         from ...models import MemoryWriteResult
@@ -257,6 +269,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             raise ValidationError("memory_plan_create status must be 'draft' or 'active'")
 
         plan_path, resolved_project_id = _resolve_new_plan_path(root, plan_id, project_id)
+        coerced_budget = coerce_budget_input(budget)
         plan = PlanDocument(
             id=plan_id,
             project=resolved_project_id,
@@ -270,6 +283,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             ),
             phases=coerce_phase_inputs(phases),
             review=None,
+            budget=coerced_budget,
         )
 
         files_changed = [
@@ -278,13 +292,16 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             "memory/working/projects/SUMMARY.md",
             f"memory/working/projects/{resolved_project_id}/operations.jsonl",
         ]
-        new_state = {
+        new_state: dict[str, Any] = {
             "plan_path": plan_path,
             "project_id": resolved_project_id,
             "status": plan.status,
             "phase_count": len(plan.phases),
             "next_action": next_action(plan),
         }
+        bs = budget_status(plan)
+        if bs is not None:
+            new_state["budget_status"] = bs
         commit_msg = f"[plan] Create {plan_id}"
         preview_payload = _create_preview(
             mode="preview" if preview else "apply",
@@ -403,13 +420,16 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             if phase.status == "pending":
                 phase.status = "blocked"
             commit_msg = f"[plan] Block {plan.id}:{phase.id}"
-            blocked_state = {
+            blocked_state: dict[str, Any] = {
                 "plan_status": plan.status,
                 "phase_status": phase.status,
                 "phase_id": phase.id,
                 "blocked_by": blockers,
                 "next_action": next_action(plan),
             }
+            bs = budget_status(plan)
+            if bs is not None:
+                blocked_state["budget_status"] = bs
             preview_payload = _create_preview(
                 mode="preview" if preview else "apply",
                 change_class=change_class,
@@ -474,13 +494,24 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             plan.status = "active"
             phase.status = "in-progress"
             commit_msg = f"[plan] Start {plan.id}:{phase.id}"
-            start_state = {
+            start_state: dict[str, Any] = {
                 "plan_status": plan.status,
                 "phase_status": phase.status,
                 "phase_id": phase.id,
                 "next_action": phase.title,
                 "change_class": change_class,
+                "requires_approval": phase.requires_approval,
+                "approval_required": (
+                    phase.requires_approval or change_class in {"proposed", "protected"}
+                ),
             }
+            if phase.sources:
+                start_state["sources"] = [s.to_dict() for s in phase.sources]
+            if phase.postconditions:
+                start_state["postconditions"] = [pc.to_dict() for pc in phase.postconditions]
+            bs = budget_status(plan)
+            if bs is not None:
+                start_state["budget_status"] = bs
             preview_payload = _create_preview(
                 mode="preview" if preview else "apply",
                 change_class=change_class,
@@ -549,8 +580,24 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         phase.status = "completed"
         phase.commit = commit_sha.strip()
+        plan.sessions_used += 1
         done, total = plan_progress(plan)
         all_done = done == total
+
+        # Budget warnings
+        bs = budget_status(plan)
+        if bs is not None:
+            if bs.get("past_deadline"):
+                warnings.append(
+                    f"Budget warning: past deadline ({bs['deadline']})"
+                    + (" [advisory]" if bs.get("advisory") else " [ENFORCED]")
+                )
+            if bs.get("over_session_budget"):
+                warnings.append(
+                    f"Budget warning: session budget exhausted "
+                    f"({bs['sessions_used']}/{bs['max_sessions']})"
+                    + (" [advisory]" if bs.get("advisory") else " [ENFORCED]")
+                )
         if all_done:
             plan.status = "completed"
             if review is not None:
@@ -579,9 +626,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             "phase_id": phase.id,
             "phase_commit": phase.commit,
             "plan_progress": [done, total],
+            "sessions_used": plan.sessions_used,
             "next_action": next_action(plan),
             "review_written": plan.review is not None,
         }
+        if bs is not None:
+            completion_state["budget_status"] = bs
         preview_payload = _create_preview(
             mode="preview" if preview else "apply",
             change_class=change_class,
@@ -851,18 +901,20 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             if status is not None and plan.status != status:
                 continue
             done, total = plan_progress(plan)
-            plans.append(
-                {
-                    "plan_id": plan.id,
-                    "project_id": plan.project,
-                    "path": plan_file.relative_to(root).as_posix(),
-                    "title": plan_title(plan),
-                    "status": plan.status,
-                    "next_action": next_action(plan),
-                    "created": plan.created,
-                    "phase_progress": {"done": done, "total": total},
-                }
-            )
+            entry: dict[str, Any] = {
+                "plan_id": plan.id,
+                "project_id": plan.project,
+                "path": plan_file.relative_to(root).as_posix(),
+                "title": plan_title(plan),
+                "status": plan.status,
+                "next_action": next_action(plan),
+                "created": plan.created,
+                "phase_progress": {"done": done, "total": total},
+            }
+            bs = budget_status(plan)
+            if bs is not None:
+                entry["budget_status"] = bs
+            plans.append(entry)
 
         return _json.dumps(plans, indent=2)
 

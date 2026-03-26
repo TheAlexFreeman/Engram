@@ -36,8 +36,8 @@ work:
 
     - id: source-spec-dataclass
       title: Add SourceSpec dataclass and sources field to PlanPhase
-      status: pending
-      commit: null
+      status: completed
+      commit: fc0156f
       blockers: []
       sources:
         - path: core/tools/agent_memory_mcp/plan_utils.py
@@ -75,8 +75,8 @@ work:
 
     - id: postconditions-and-approval
       title: Add postconditions list and requires_approval flag to PlanPhase
-      status: pending
-      commit: null
+      status: completed
+      commit: fc0156f
       blockers: []
       sources:
         - path: core/tools/agent_memory_mcp/plan_utils.py
@@ -107,8 +107,8 @@ work:
 
     - id: plan-budget
       title: Add PlanBudget dataclass and budget field to PlanDocument
-      status: pending
-      commit: null
+      status: completed
+      commit: fc0156f
       blockers: []
       sources:
         - path: core/tools/agent_memory_mcp/plan_utils.py
@@ -145,8 +145,8 @@ work:
 
     - id: phase-payload-enrichment
       title: Enrich phase_payload and next_action to surface new fields
-      status: pending
-      commit: null
+      status: completed
+      commit: fc0156f
       blockers: []
       sources:
         - path: core/tools/agent_memory_mcp/plan_utils.py
