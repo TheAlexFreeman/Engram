@@ -171,6 +171,44 @@ button:active { transform: scale(0.97); }
 .next-steps ol { padding-left: 1.25rem; }
 .next-steps li { margin-bottom: 0.35rem; }
 .next-steps code { background: var(--color-code-bg); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85em; }
+
+/* ── GitHub clone banner ───────────────────────────── */
+.clone-banner {
+  display: none;
+  background: linear-gradient(135deg, var(--color-surface) 0%, var(--color-hover-bg) 100%);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-card);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-lg);
+  box-shadow: var(--shadow-hover);
+}
+.clone-banner.visible { display: block; }
+.clone-banner h3 {
+  font-size: var(--text-base); font-weight: 700;
+  margin-bottom: var(--space-xs); display: flex; align-items: center; gap: 0.5rem;
+}
+.clone-banner p { font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: var(--space-sm); }
+.clone-banner .clone-cmd {
+  display: flex; align-items: center; gap: 0.5rem;
+  background: var(--color-code-bg); border: 1px solid var(--color-border);
+  border-radius: var(--radius-button); padding: 0.6rem 1rem;
+  margin-bottom: var(--space-sm);
+}
+.clone-banner .clone-cmd code {
+  flex: 1; font-size: var(--text-sm); word-break: break-all;
+  background: none; padding: 0;
+}
+.clone-banner .clone-cmd .btn-small { flex-shrink: 0; }
+.clone-banner .clone-or {
+  text-align: center; color: var(--color-text-muted);
+  font-size: var(--text-xs); margin: var(--space-sm) 0;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.clone-banner .browse-link {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  color: var(--color-primary); text-decoration: none; font-size: var(--text-sm); font-weight: 500;
+}
+.clone-banner .browse-link:hover { color: var(--color-primary-hover); text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -178,12 +216,25 @@ button:active { transform: scale(0.97); }
 <div class="setup-header">
   <div style="max-width:720px;margin:0 auto;">
     <h1>Starter File Generator</h1>
-    <p class="subtitle">Generate local starter files for your memory repo in three steps. Everything runs in your browser &#8212; nothing is sent anywhere.</p>
+    <p class="subtitle">Set up your own memory repo. Everything runs in your browser &#8212; nothing is sent anywhere.</p>
   </div>
 </div>
 
 <div class="setup-body">
 <main>
+
+<!-- GitHub Pages clone banner (shown when served from *.github.io) -->
+<div class="clone-banner" id="clone-banner">
+  <h3>&#128640; You&#8217;re viewing this on GitHub Pages</h3>
+  <p>To use Engram, you need your own copy of this repository. Clone it to your machine, then run this wizard locally or continue here to generate starter files you can download.</p>
+  <div class="clone-cmd">
+    <code id="clone-cmd-text">git clone https://github.com/TheAlexFreeman/Engram.git</code>
+    <button class="btn-small" id="copy-clone-btn">Copy</button>
+  </div>
+  <p style="font-size:var(--text-xs);color:var(--color-text-muted);margin-bottom:var(--space-xs);">After cloning, <code>cd Engram</code> and open <code>HUMANS/views/setup.html</code> in your browser, or continue below to generate and download files.</p>
+  <div class="clone-or">or</div>
+  <a class="browse-link" href="dashboard.html">&#128202; Browse this repo read-only on the dashboard</a>
+</div>
 
 <div class="progress">
   <div class="progress-step active" id="prog-1"><span class="num">1</span><span class="label">About You</span></div>
@@ -854,6 +905,48 @@ button:active { transform: scale(0.97); }
 
   bindWizardEvents();
   if (typeof toggleCodexAbsoluteFields === 'function') toggleCodexAbsoluteFields();
+
+  /* ── GitHub Pages detection ──────────────────────── */
+  (function detectGitHub() {
+    var host = location.hostname || '';
+    var m = host.match(/^([a-z0-9_-]+)\.github\.io$/i);
+    if (!m) return;
+    var pathParts = location.pathname.split('/').filter(Boolean);
+    var repoName = pathParts[0] || '';
+    var owner = m[1];
+    var cloneUrl = 'https://github.com/' + owner + '/' + repoName + '.git';
+
+    var banner = document.getElementById('clone-banner');
+    if (banner) banner.classList.add('visible');
+
+    var cmdText = document.getElementById('clone-cmd-text');
+    if (cmdText) cmdText.textContent = 'git clone ' + cloneUrl;
+
+    var copyBtn = document.getElementById('copy-clone-btn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function () {
+        var text = cmdText ? cmdText.textContent : '';
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () {
+            copyBtn.textContent = 'Copied \u2713';
+            setTimeout(function () { copyBtn.textContent = 'Copy'; }, 2000);
+          });
+        } else {
+          // Fallback for non-HTTPS or older browsers
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          copyBtn.textContent = 'Copied \u2713';
+          setTimeout(function () { copyBtn.textContent = 'Copy'; }, 2000);
+        }
+      });
+    }
+  })();
 }());
 </script>
 
