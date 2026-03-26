@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from datetime import date
 from pathlib import Path
@@ -4834,6 +4835,259 @@ Load compact context.
         self.assertRegex(payload["publication"]["published_at"], r"\+00:00$")
         self.assertRegex(payload["publication"]["parent_sha"], r"^[0-9a-f]{40}$")
         self.assertIn("degraded plumbing path", payload["warnings"][0])
+
+    def test_memory_commit_cleans_stale_head_lock_for_dead_pid(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        _, tools, _, repo = self.server.create_mcp(
+            repo_root=repo_root,
+            enable_raw_write_tools=True,
+        )
+
+        asyncio.run(
+            tools["memory_write"](
+                path="memory/knowledge/_unverified/test.md",
+                content="# Note\n",
+            )
+        )
+
+        head_lock_path = repo.git_dir / getattr(self.git_repo_module, "_HEAD_LOCK_NAME")
+        head_lock_path.write_text("pid=424242\npurpose=stale\n", encoding="utf-8")
+        stale_timestamp = time.time() - 120.0
+        os.utime(head_lock_path, (stale_timestamp, stale_timestamp))
+
+        original_is_pid_alive = repo._is_pid_alive
+        repo._is_pid_alive = lambda pid: False
+        self.addCleanup(setattr, repo, "_is_pid_alive", original_is_pid_alive)
+
+        def cleanup_head_lock() -> None:
+            if head_lock_path.exists():
+                head_lock_path.unlink()
+
+        self.addCleanup(cleanup_head_lock)
+
+        original_run = repo._run
+        commit_attempts = {"count": 0}
+        update_ref_attempts = {"count": 0}
+
+        def fail_porcelain_commit(
+            args: list[str],
+            check: bool = True,
+            capture: bool = True,
+            *,
+            cwd: Path | None = None,
+            env: dict[str, str] | None = None,
+        ):
+            if args[:2] == ["git", "commit"]:
+                commit_attempts["count"] += 1
+                raise self.errors.StagingError(
+                    "`git commit -m` failed (exit 128): fatal: Unable to create '.git/index.lock': File exists.",
+                    stderr="fatal: Unable to create '.git/index.lock': File exists.",
+                )
+            if args[:2] == ["git", "update-ref"]:
+                update_ref_attempts["count"] += 1
+                if head_lock_path.exists():
+                    raise self.errors.StagingError(
+                        "`git update-ref` failed (exit 128): fatal: Unable to create '.git/HEAD.lock': File exists.",
+                        stderr="fatal: Unable to create '.git/HEAD.lock': File exists.",
+                    )
+            return original_run(args, check=check, capture=capture, cwd=cwd, env=env)
+
+        repo._run = fail_porcelain_commit
+        self.addCleanup(setattr, repo, "_run", original_run)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_commit"](message="[knowledge] Add test note"))
+        )
+
+        self.assertEqual(commit_attempts["count"], 1)
+        self.assertEqual(update_ref_attempts["count"], 1)
+        self.assertFalse(head_lock_path.exists())
+        self.assertEqual(payload["publication"]["mode"], "plumbing")
+        self.assertTrue(payload["publication"]["degraded"])
+
+    def test_memory_commit_does_not_remove_stale_head_lock_without_pid(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        _, tools, _, repo = self.server.create_mcp(
+            repo_root=repo_root,
+            enable_raw_write_tools=True,
+        )
+
+        asyncio.run(
+            tools["memory_write"](
+                path="memory/knowledge/_unverified/test.md",
+                content="# Note\n",
+            )
+        )
+
+        head_lock_path = repo.git_dir / getattr(self.git_repo_module, "_HEAD_LOCK_NAME")
+        head_lock_path.write_text("owner=unknown\n", encoding="utf-8")
+        stale_timestamp = time.time() - 120.0
+        os.utime(head_lock_path, (stale_timestamp, stale_timestamp))
+
+        def cleanup_head_lock() -> None:
+            if head_lock_path.exists():
+                head_lock_path.unlink()
+
+        self.addCleanup(cleanup_head_lock)
+
+        original_run = repo._run
+        update_ref_attempts = {"count": 0}
+
+        def fail_on_lock_errors(
+            args: list[str],
+            check: bool = True,
+            capture: bool = True,
+            *,
+            cwd: Path | None = None,
+            env: dict[str, str] | None = None,
+        ):
+            if args[:2] == ["git", "commit"]:
+                raise self.errors.StagingError(
+                    "`git commit -m` failed (exit 128): fatal: Unable to create '.git/index.lock': File exists.",
+                    stderr="fatal: Unable to create '.git/index.lock': File exists.",
+                )
+            if args[:2] == ["git", "update-ref"]:
+                update_ref_attempts["count"] += 1
+                if head_lock_path.exists():
+                    raise self.errors.StagingError(
+                        "`git update-ref` failed (exit 128): fatal: Unable to create '.git/HEAD.lock': File exists.",
+                        stderr="fatal: Unable to create '.git/HEAD.lock': File exists.",
+                    )
+            return original_run(args, check=check, capture=capture, cwd=cwd, env=env)
+
+        repo._run = fail_on_lock_errors
+        self.addCleanup(setattr, repo, "_run", original_run)
+
+        with self.assertRaises(self.errors.StagingError):
+            asyncio.run(tools["memory_commit"](message="[knowledge] Add test note"))
+
+        self.assertEqual(update_ref_attempts["count"], 1)
+        self.assertTrue(head_lock_path.exists())
+
+    def test_memory_commit_does_not_remove_stale_head_lock_for_live_pid(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        _, tools, _, repo = self.server.create_mcp(
+            repo_root=repo_root,
+            enable_raw_write_tools=True,
+        )
+
+        asyncio.run(
+            tools["memory_write"](
+                path="memory/knowledge/_unverified/test.md",
+                content="# Note\n",
+            )
+        )
+
+        head_lock_path = repo.git_dir / getattr(self.git_repo_module, "_HEAD_LOCK_NAME")
+        head_lock_path.write_text("pid=321\npurpose=live\n", encoding="utf-8")
+        stale_timestamp = time.time() - 120.0
+        os.utime(head_lock_path, (stale_timestamp, stale_timestamp))
+
+        original_is_pid_alive = repo._is_pid_alive
+        repo._is_pid_alive = lambda pid: True
+        self.addCleanup(setattr, repo, "_is_pid_alive", original_is_pid_alive)
+
+        def cleanup_head_lock() -> None:
+            if head_lock_path.exists():
+                head_lock_path.unlink()
+
+        self.addCleanup(cleanup_head_lock)
+
+        original_run = repo._run
+        update_ref_attempts = {"count": 0}
+
+        def fail_on_lock_errors(
+            args: list[str],
+            check: bool = True,
+            capture: bool = True,
+            *,
+            cwd: Path | None = None,
+            env: dict[str, str] | None = None,
+        ):
+            if args[:2] == ["git", "commit"]:
+                raise self.errors.StagingError(
+                    "`git commit -m` failed (exit 128): fatal: Unable to create '.git/index.lock': File exists.",
+                    stderr="fatal: Unable to create '.git/index.lock': File exists.",
+                )
+            if args[:2] == ["git", "update-ref"]:
+                update_ref_attempts["count"] += 1
+                if head_lock_path.exists():
+                    raise self.errors.StagingError(
+                        "`git update-ref` failed (exit 128): fatal: Unable to create '.git/HEAD.lock': File exists.",
+                        stderr="fatal: Unable to create '.git/HEAD.lock': File exists.",
+                    )
+            return original_run(args, check=check, capture=capture, cwd=cwd, env=env)
+
+        repo._run = fail_on_lock_errors
+        self.addCleanup(setattr, repo, "_run", original_run)
+
+        with self.assertRaises(self.errors.StagingError):
+            asyncio.run(tools["memory_commit"](message="[knowledge] Add test note"))
+
+        self.assertEqual(update_ref_attempts["count"], 1)
+        self.assertTrue(head_lock_path.exists())
+
+    def test_memory_commit_retries_plumbing_once_after_stale_head_lock_cleanup(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        _, tools, _, repo = self.server.create_mcp(
+            repo_root=repo_root,
+            enable_raw_write_tools=True,
+        )
+
+        asyncio.run(
+            tools["memory_write"](
+                path="memory/knowledge/_unverified/test.md",
+                content="# Note\n",
+            )
+        )
+
+        original_cleanup_stale_head_lock = repo._try_cleanup_stale_head_lock
+        cleanup_calls = {"count": 0}
+
+        def always_cleanup_stale_head_lock() -> bool:
+            cleanup_calls["count"] += 1
+            return True
+
+        repo._try_cleanup_stale_head_lock = always_cleanup_stale_head_lock
+        self.addCleanup(
+            setattr, repo, "_try_cleanup_stale_head_lock", original_cleanup_stale_head_lock
+        )
+
+        original_run = repo._run
+        commit_attempts = {"count": 0}
+        update_ref_attempts = {"count": 0}
+
+        def fail_porcelain_and_update_ref(
+            args: list[str],
+            check: bool = True,
+            capture: bool = True,
+            *,
+            cwd: Path | None = None,
+            env: dict[str, str] | None = None,
+        ):
+            if args[:2] == ["git", "commit"]:
+                commit_attempts["count"] += 1
+                raise self.errors.StagingError(
+                    "`git commit -m` failed (exit 128): fatal: Unable to create '.git/index.lock': File exists.",
+                    stderr="fatal: Unable to create '.git/index.lock': File exists.",
+                )
+            if args[:2] == ["git", "update-ref"]:
+                update_ref_attempts["count"] += 1
+                raise self.errors.StagingError(
+                    "`git update-ref` failed (exit 128): fatal: Unable to create '.git/HEAD.lock': File exists.",
+                    stderr="fatal: Unable to create '.git/HEAD.lock': File exists.",
+                )
+            return original_run(args, check=check, capture=capture, cwd=cwd, env=env)
+
+        repo._run = fail_porcelain_and_update_ref
+        self.addCleanup(setattr, repo, "_run", original_run)
+
+        with self.assertRaises(self.errors.StagingError):
+            asyncio.run(tools["memory_commit"](message="[knowledge] Add test note"))
+
+        self.assertEqual(commit_attempts["count"], 1)
+        self.assertEqual(update_ref_attempts["count"], 2)
+        self.assertGreaterEqual(cleanup_calls["count"], 2)
 
     def test_memory_commit_blocks_when_single_writer_lock_is_held(self) -> None:
         repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})

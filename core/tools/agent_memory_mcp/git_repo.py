@@ -14,6 +14,7 @@ Design notes:
 
 from __future__ import annotations
 
+import errno
 import os
 import subprocess
 import tempfile
@@ -30,6 +31,8 @@ _FALLBACK_AUTHOR_EMAIL = "agent@agent-memory"
 _WRITE_LOCK_NAME = "agent-memory-write.lock"
 _WRITE_LOCK_TIMEOUT_SECONDS = 5.0
 _WRITE_LOCK_POLL_INTERVAL_SECONDS = 0.05
+_HEAD_LOCK_NAME = "HEAD.lock"
+_STALE_HEAD_LOCK_MAX_AGE_SECONDS = 30.0
 
 
 def _preserve_input_root_spelling(candidate_root: Path, reported_root: Path) -> Path:
@@ -335,6 +338,77 @@ class GitRepo:
     def _write_lock_path(self) -> Path:
         return self.git_dir / _WRITE_LOCK_NAME
 
+    def _head_lock_path(self) -> Path:
+        return self.git_dir / _HEAD_LOCK_NAME
+
+    def _is_lock_older_than(self, lock_path: Path, threshold_seconds: float) -> bool:
+        try:
+            lock_mtime = lock_path.stat().st_mtime
+        except OSError:
+            return False
+        lock_age_seconds = time.time() - lock_mtime
+        return lock_age_seconds > threshold_seconds
+
+    def _extract_pid_from_lock(self, lock_path: Path) -> int | None:
+        try:
+            lock_contents = lock_path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+
+        for raw_line in lock_contents.splitlines():
+            line = raw_line.strip()
+            if not line.lower().startswith("pid="):
+                continue
+            pid_token = line.split("=", 1)[1].strip()
+            if not pid_token:
+                return None
+            try:
+                pid = int(pid_token)
+            except ValueError:
+                return None
+            return pid if pid > 0 else None
+        return None
+
+    def _is_pid_alive(self, pid: int) -> bool:
+        if pid <= 0:
+            return False
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            # Process exists but we may not have permission to signal it.
+            return True
+        except OSError as error:
+            if error.errno == errno.ESRCH:
+                return False
+            if getattr(error, "winerror", None) == 87:
+                return False
+            # Treat unknown errors as alive to avoid unsafe lock removal.
+            return True
+
+    def _try_cleanup_stale_head_lock(self) -> bool:
+        lock_path = self._head_lock_path()
+        if not lock_path.exists():
+            return False
+        if not self._is_lock_older_than(lock_path, _STALE_HEAD_LOCK_MAX_AGE_SECONDS):
+            return False
+
+        pid = self._extract_pid_from_lock(lock_path)
+        if pid is None:
+            return False
+        if self._is_pid_alive(pid):
+            return False
+
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            return False
+        except OSError:
+            return False
+        return True
+
     @contextmanager
     def write_lock(self, purpose: str):
         """Serialize publication so each worktree has a single active writer."""
@@ -373,6 +447,7 @@ class GitRepo:
         stderr = (error.stderr or str(error)).lower()
         markers = (
             "index.lock",
+            "head.lock",
             "could not lock index",
             "unable to create",
             "another git process",
@@ -493,7 +568,28 @@ class GitRepo:
             except StagingError as error:
                 if not self._should_fallback_to_plumbing(error):
                     raise
-                return self._commit_with_plumbing(message, paths=git_paths, allow_empty=allow_empty)
+
+                cleaned_stale_head_lock = self._try_cleanup_stale_head_lock()
+
+                try:
+                    return self._commit_with_plumbing(
+                        message,
+                        paths=git_paths,
+                        allow_empty=allow_empty,
+                    )
+                except StagingError as plumbing_error:
+                    if not self._should_fallback_to_plumbing(plumbing_error):
+                        raise
+                    cleaned_stale_head_lock = (
+                        self._try_cleanup_stale_head_lock() or cleaned_stale_head_lock
+                    )
+                    if not cleaned_stale_head_lock:
+                        raise
+                    return self._commit_with_plumbing(
+                        message,
+                        paths=git_paths,
+                        allow_empty=allow_empty,
+                    )
 
     # ------------------------------------------------------------------
     # Inspection
