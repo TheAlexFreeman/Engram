@@ -227,6 +227,36 @@ class PostconditionSpec:
 
 
 @dataclass(slots=True)
+class PhaseFailure:
+    """Record of a failed attempt on a phase."""
+
+    timestamp: str
+    reason: str
+    verification_results: list[dict[str, Any]] | None = None
+    attempt: int = 1
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.timestamp, str) or not self.timestamp.strip():
+            raise ValidationError("failure timestamp must be a non-empty string")
+        if not isinstance(self.reason, str) or not self.reason.strip():
+            raise ValidationError("failure reason must be a non-empty string")
+        self.timestamp = self.timestamp.strip()
+        self.reason = self.reason.strip()
+        if not isinstance(self.attempt, int) or self.attempt < 1:
+            raise ValidationError("failure attempt must be an integer >= 1")
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "timestamp": self.timestamp,
+            "reason": self.reason,
+            "attempt": self.attempt,
+        }
+        if self.verification_results is not None:
+            payload["verification_results"] = self.verification_results
+        return payload
+
+
+@dataclass(slots=True)
 class PlanPhase:
     id: str
     title: str
@@ -237,6 +267,7 @@ class PlanPhase:
     postconditions: list[PostconditionSpec] = field(default_factory=list)
     requires_approval: bool = False
     changes: list[ChangeSpec] = field(default_factory=list)
+    failures: list[PhaseFailure] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.id = validate_slug(self.id, field_name="phase_id")
@@ -271,6 +302,8 @@ class PlanPhase:
         if self.requires_approval:
             payload["requires_approval"] = True
         payload["changes"] = [change.to_dict() for change in self.changes]
+        if self.failures:
+            payload["failures"] = [f.to_dict() for f in self.failures]
         return payload
 
 
@@ -484,6 +517,26 @@ def _coerce_postconditions(raw_postconditions: Any) -> list[PostconditionSpec]:
     return specs
 
 
+def _coerce_failures(raw_failures: Any) -> list[PhaseFailure]:
+    if raw_failures is None:
+        return []
+    if not isinstance(raw_failures, list):
+        raise ValidationError("phase failures must be a list when provided")
+    failures: list[PhaseFailure] = []
+    for item in raw_failures:
+        if not isinstance(item, dict):
+            raise ValidationError("phase failures must contain mapping items")
+        failures.append(
+            PhaseFailure(
+                timestamp=str(item.get("timestamp", "")),
+                reason=str(item.get("reason", "")),
+                verification_results=item.get("verification_results"),
+                attempt=int(item.get("attempt", len(failures) + 1)),
+            )
+        )
+    return failures
+
+
 def _coerce_budget(raw_budget: Any) -> PlanBudget | None:
     if raw_budget is None:
         return None
@@ -524,6 +577,7 @@ def _coerce_phases(raw_phases: Any) -> list[PlanPhase]:
                 postconditions=_coerce_postconditions(raw_phase.get("postconditions")),
                 requires_approval=bool(raw_phase.get("requires_approval", False)),
                 changes=_coerce_change_specs(raw_phase.get("changes")),
+                failures=_coerce_failures(raw_phase.get("failures")),
             )
         )
     return phases
@@ -1070,6 +1124,7 @@ __all__ = [
     "POSTCONDITION_TYPES",
     "SOURCE_TYPES",
     "ChangeSpec",
+    "PhaseFailure",
     "PlanBudget",
     "PlanDocument",
     "PlanPhase",

@@ -381,13 +381,18 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         commit_sha: str | None = None,
         review: dict[str, Any] | None = None,
         verify: bool = False,
+        reason: str | None = None,
+        verification_results: list[dict[str, Any]] | None = None,
         preview: bool = False,
     ) -> str:
-        """Inspect, start, block, or complete a structured plan phase.
+        """Inspect, start, block, complete, or record failure on a plan phase.
 
         When action="complete" and verify=True, postconditions are evaluated
         before completion. If any fail or error, the phase stays in-progress
         and verification_results are returned instead.
+
+        When action="record_failure", appends a PhaseFailure to the phase.
+        Requires reason (free text). Optional verification_results to attach.
         """
         from ...errors import AlreadyDoneError, ValidationError
         from ...frontmatter_utils import today_str
@@ -408,10 +413,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         if action == "inspect":
             return json.dumps(payload, indent=2)
 
-        if action not in {"start", "complete"}:
-            raise ValidationError("action must be one of: inspect, start, complete")
+        if action not in {"start", "complete", "record_failure"}:
+            raise ValidationError("action must be one of: inspect, start, complete, record_failure")
         if session_id is None:
-            raise ValidationError("session_id is required for start and complete actions")
+            raise ValidationError(
+                "session_id is required for start, complete, and record_failure actions"
+            )
         validate_session_id(session_id)
 
         change_class = phase_change_class(phase)
@@ -571,6 +578,96 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 commit_result=commit_result,
                 commit_message=commit_msg,
                 new_state=start_state,
+                warnings=warnings,
+                preview=preview_payload,
+            ).to_json()
+
+        if action == "record_failure":
+            from datetime import datetime, timezone
+
+            from ...plan_utils import PhaseFailure
+
+            if not reason or not reason.strip():
+                raise ValidationError("reason is required when recording a failure")
+            if phase.status not in {"in-progress", "pending"}:
+                raise ValidationError(
+                    f"Cannot record failure on phase '{phase.id}' with status '{phase.status}'"
+                )
+            failure = PhaseFailure(
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                reason=reason.strip(),
+                verification_results=verification_results,
+                attempt=len(phase.failures) + 1,
+            )
+            phase.failures.append(failure)
+
+            commit_msg = f"[plan] Record failure {plan.id}:{phase.id} (attempt {failure.attempt})"
+            failure_state: dict[str, Any] = {
+                "plan_status": plan.status,
+                "phase_status": phase.status,
+                "phase_id": phase.id,
+                "failure_recorded": failure.to_dict(),
+                "total_failures": len(phase.failures),
+                "attempt_number": len(phase.failures) + 1,
+            }
+            preview_payload = _create_preview(
+                mode="preview" if preview else "apply",
+                change_class=change_class,
+                summary=f"Record failure on phase {phase.id} in plan {plan.id}.",
+                reasoning=(
+                    "Recording failures provides structured context for retry "
+                    "attempts and enables agents to learn from prior mistakes."
+                ),
+                target_files=[
+                    (plan_path, "update"),
+                    (
+                        _project_summary_path(resolved_project_id),
+                        "update",
+                    ),
+                    ("memory/working/projects/SUMMARY.md", "update"),
+                    (
+                        f"memory/working/projects/{resolved_project_id}/operations.jsonl",
+                        "append",
+                    ),
+                ],
+                invariant_effects=[
+                    "Appends a PhaseFailure record to the phase.",
+                    "Logs the failure event in the project operations log.",
+                ],
+                commit_message=commit_msg,
+                resulting_state=failure_state,
+                warnings=warnings,
+            )
+            if preview:
+                return MemoryWriteResult(
+                    files_changed=files_changed,
+                    commit_sha=None,
+                    commit_message=None,
+                    new_state=failure_state,
+                    warnings=warnings,
+                    preview=preview_payload,
+                ).to_json()
+
+            save_plan(abs_plan, plan, root)
+            repo.add(plan_path)
+            _append_plan_log(
+                root,
+                repo,
+                resolved_project_id,
+                files_changed,
+                session_id=session_id,
+                action="phase-failure",
+                plan_id=plan.id,
+                phase_id=phase.id,
+                detail=reason.strip(),
+            )
+            _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+            commit_result = repo.commit(commit_msg)
+            return MemoryWriteResult.from_commit(
+                files_changed=files_changed,
+                commit_result=commit_result,
+                commit_message=commit_msg,
+                new_state=failure_state,
                 warnings=warnings,
                 preview=preview_payload,
             ).to_json()
