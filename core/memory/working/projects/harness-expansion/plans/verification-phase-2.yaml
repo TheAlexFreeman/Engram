@@ -63,7 +63,7 @@ work:
         partial-result handling. Record rationale for each decision.'
   - id: verify-tool-impl
     title: Implement memory_plan_verify tool with check/grep/test validators
-    status: pending
+    status: in-progress
     commit: null
     blockers:
     - verify-tool-design
