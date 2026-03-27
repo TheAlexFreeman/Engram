@@ -1,8 +1,8 @@
 # Session Init
 
-**Read this file after `README.md` when you need live routing, active thresholds, or maintenance triggers. If a platform opens this file first, continue here before applying thresholds or curation rules.**
+**Read after `README.md` for live routing, active thresholds, and maintenance triggers. If a platform opens this file first, continue here before applying thresholds or curation rules.**
 
-This is the single authoritative source for live operational parameters. Thresholds elsewhere are reference-only.
+The single authoritative source for live operational parameters. Thresholds elsewhere are reference-only.
 
 ---
 
@@ -36,7 +36,7 @@ Load files in the listed order. Skip files marked _(skip if empty)_ when they co
 | **ACCESS aggregation** | This file + `core/governance/curation-algorithms.md` (load only when aggregation threshold is reached) |
 | **Stage transition** | Periodic review files + `core/governance/curation-algorithms.md` |
 
-**Do not load** `HUMANS/docs/*` (human reference only) or `core/governance/curation-algorithms.md` (on-demand only). `core/governance/session-checklists.md`, `core/governance/scratchpad-guidelines.md`, and `core/governance/content-boundaries.md` are also on-demand — load when their specific content is needed.
+**Do not load** `HUMANS/docs/*` (human reference) or `core/governance/curation-algorithms.md` (on-demand). `core/governance/session-checklists.md`, `core/governance/scratchpad-guidelines.md`, and `core/governance/content-boundaries.md` are also on-demand.
 
 **Do not load** `FIATLUX.md` in normal sessions — the operational documents are self-sufficient. Consult it only when a decision touches foundational principles and no operational document resolves it.
 
@@ -70,7 +70,7 @@ Compact startup files are live-state surfaces, not archives. They should answer 
 | `core/memory/working/USER.md` | User-authored current constraints | Historical notes that no longer affect current work | ~400 tokens |
 | `core/memory/working/CURRENT.md` | Active threads, immediate next actions, open questions, drill-down refs | Extended analysis and large tables | ~650 tokens |
 
-These targets intentionally leave reserve headroom inside the 7k returning-session ceiling. If a startup file needs sustained depth beyond its target, move that depth into a plan, dated scratchpad, or dated chat summary and link to it from the compact surface.
+These targets leave reserve headroom inside the 7k returning-session ceiling. If a file exceeds its target, move depth into a plan, scratchpad, or chat summary and link from the compact surface.
 
 ## Compact file success criteria
 
@@ -80,7 +80,7 @@ These targets intentionally leave reserve headroom inside the 7k returning-sessi
 
 ## Current active stage: Exploration
 
-_Last assessed: 2026-03-19 — Exploration retained (all 6 signals within bounds)_
+_Last assessed: 2026-03-19 — Exploration retained (all signals within bounds)_
 
 **Exploration defaults apply** — use the threshold values in the Active thresholds table below until a periodic review triggers a stage transition.
 
@@ -109,22 +109,22 @@ _Last assessed: 2026-03-19 — Exploration retained (all 6 signals within bounds
 
 **Grouping precedence:** Group ACCESS entries by `session_id` when present. If an entry predates `session_id`, fall back to `date` for backward compatibility.
 
-**Default before first assessment:** Treat the system as Exploration and use the values recorded in this file.
+**Default before first assessment:** Treat as Exploration; use values in this file.
 
-**Full algorithm details:** See `core/governance/curation-algorithms.md` (load only when running aggregation or a stage transition).
+**Full algorithm:** See `core/governance/curation-algorithms.md` (load only for aggregation or stage transition).
 
 ---
 
 ## Decision guide: trust decay
 
-Trust sets the decay threshold; freshness comes from the effective verification date (`last_verified` if present, otherwise `created`).
+Trust sets the decay threshold; freshness comes from the effective date (`last_verified` if present, else `created`).
 
 - `trust: low` — older than **120 days** without re-verification: archive to `core/memory/knowledge/_archive/` and remove from SUMMARY.md.
 - `trust: medium` — older than **180 days** without re-verification: flag in `core/governance/review-queue.md` for review or demotion.
 - `trust: high` — older than **365 days**: mention during periodic review for a freshness check only.
 - Files without frontmatter are treated as `trust: medium` until fixed.
 
-See `core/governance/security-signals.md` for the full freshness-vs-confidence rationale and retroactive-frontmatter guidance.
+See `core/governance/security-signals.md` for freshness-vs-confidence rationale and retroactive-frontmatter guidance.
 
 ## Decision guide: anomaly detection
 
@@ -145,7 +145,7 @@ Aggregate when entries accumulated since the last aggregation reach **15**.
 4. Scan for cross-folder co-retrieval clusters using the active task similarity method.
 5. Archive processed entries to `ACCESS.archive.jsonl` and reset the live `ACCESS.jsonl`.
 
-Entry counting rule: count entries in the current `ACCESS.jsonl`, not the archive. For the full aggregation procedure, load `core/governance/curation-algorithms.md`.
+Entry counting: count entries in current `ACCESS.jsonl`, not the archive. For full procedure, load `core/governance/curation-algorithms.md`.
 
 ## How to update this file
 
