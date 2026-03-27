@@ -712,6 +712,11 @@ def next_action(plan: PlanDocument) -> dict[str, Any] | None:
         directive["sources"] = [source.to_dict() for source in phase.sources]
     if phase.postconditions:
         directive["postconditions"] = [pc.to_dict() for pc in phase.postconditions]
+    attempt_number = len(phase.failures) + 1
+    directive["attempt_number"] = attempt_number
+    directive["has_prior_failures"] = bool(phase.failures)
+    if len(phase.failures) >= 3:
+        directive["suggest_revision"] = True
     return directive
 
 
@@ -845,6 +850,8 @@ def phase_payload(plan: PlanDocument, phase: PlanPhase, root: Path) -> dict[str,
         phase_dict["sources"] = [source.to_dict() for source in phase.sources]
     if phase.postconditions:
         phase_dict["postconditions"] = [pc.to_dict() for pc in phase.postconditions]
+    phase_dict["failures"] = [f.to_dict() for f in phase.failures]
+    phase_dict["attempt_number"] = len(phase.failures) + 1
 
     result: dict[str, Any] = {
         "plan_id": plan.id,
