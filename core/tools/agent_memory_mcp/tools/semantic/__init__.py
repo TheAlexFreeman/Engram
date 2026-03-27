@@ -10,6 +10,7 @@ from . import (
     graph_tools,
     knowledge_tools,
     plan_tools,
+    search_tools,
     session_tools,
     skill_tools,
     user_tools,
@@ -28,6 +29,7 @@ def register(mcp, get_repo, get_root):
     tools.update(skill_tools.register_tools(mcp, get_repo))
     tools.update(session_tools.register_tools(mcp, get_repo, get_root))
     tools.update(graph_tools.register_tools(mcp, get_repo, get_root))
+    tools.update(search_tools.register_tools(mcp, get_repo, get_root))
     return tools
 
 
@@ -37,6 +39,7 @@ __all__ = [
     "graph_tools",
     "plan_tools",
     "knowledge_tools",
+    "search_tools",
     "user_tools",
     "skill_tools",
     "session_tools",

@@ -263,7 +263,11 @@ def _display_rel_path(path: Path, root: Path) -> str:
         return f"{_HUMANS_DIRNAME}/{humans_rel}" if humans_rel not in {"", "."} else _HUMANS_DIRNAME
 
 
-def _build_capabilities_summary(manifest: dict[str, Any]) -> dict[str, Any]:
+def _build_capabilities_summary(
+    manifest: dict[str, Any],
+    *,
+    runtime_tool_names: set[str] | None = None,
+) -> dict[str, Any]:
     tool_sets = manifest.get("tool_sets") if isinstance(manifest.get("tool_sets"), dict) else {}
     read_support = tool_sets.get("read_support") if isinstance(tool_sets, dict) else []
     raw_fallback = tool_sets.get("raw_fallback") if isinstance(tool_sets, dict) else []
@@ -289,14 +293,20 @@ def _build_capabilities_summary(manifest: dict[str, Any]) -> dict[str, Any]:
         if value.get("preview_support") is True or isinstance(value.get("preview_mode"), str)
     )
 
+    declared_tools = {
+        *[tool for tool in read_tools if isinstance(tool, str)],
+        *[tool for tool in raw_tools if isinstance(tool, str)],
+        *[tool for tool in semantic_tools if isinstance(tool, str)],
+    }
+    runtime_tools = set(runtime_tool_names or set())
+    runtime_not_in_manifest = sorted(runtime_tools - declared_tools)
+    declared_not_in_runtime = sorted(declared_tools - runtime_tools) if runtime_tools else []
+    total_tools = len(runtime_tools) if runtime_tools else len(declared_tools)
+
     return {
-        "total_tools": len(
-            {
-                *[tool for tool in read_tools if isinstance(tool, str)],
-                *[tool for tool in raw_tools if isinstance(tool, str)],
-                *[tool for tool in semantic_tools if isinstance(tool, str)],
-            }
-        ),
+        "total_tools": total_tools,
+        "declared_total_tools": len(declared_tools),
+        "runtime_total_tools": len(runtime_tools) if runtime_tools else None,
         "read_tools": len([tool for tool in read_tools if isinstance(tool, str)]),
         "raw_tools": len([tool for tool in raw_tools if isinstance(tool, str)]),
         "semantic_tools": len([tool for tool in semantic_tools if isinstance(tool, str)]),
@@ -312,7 +322,20 @@ def _build_capabilities_summary(manifest: dict[str, Any]) -> dict[str, Any]:
         "list_changed_supported": tool_profile_contract.get("list_changed_supported") is True,
         "resource_count": len(resources),
         "prompt_count": len(prompts),
+        "runtime_not_in_manifest_count": len(runtime_not_in_manifest),
+        "runtime_not_in_manifest": runtime_not_in_manifest[:25],
+        "declared_not_in_runtime_count": len(declared_not_in_runtime),
+        "declared_not_in_runtime": declared_not_in_runtime[:25],
     }
+
+
+async def _list_registered_tool_names(mcp: "FastMCP") -> set[str]:
+    """Best-effort registered tool listing for capability-summary reconciliation."""
+    try:
+        tools = await mcp.list_tools()
+    except Exception:
+        return set()
+    return {str(tool.name) for tool in tools}
 
 
 def _capability_manifest_error_payload(root: Path, message: str, raw: str | None) -> dict[str, Any]:
@@ -2970,7 +2993,11 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             return json.dumps(error_payload, indent=2)
 
         payload = dict(cast(dict[str, Any], manifest))
-        payload["summary"] = _build_capabilities_summary(payload)
+        runtime_tool_names = await _list_registered_tool_names(mcp)
+        payload["summary"] = _build_capabilities_summary(
+            payload,
+            runtime_tool_names=runtime_tool_names,
+        )
         return json.dumps(payload, indent=2, default=str)
 
     # ------------------------------------------------------------------
@@ -3441,6 +3468,7 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         max_results: int = 30,
         context_lines: int = 0,
         include_humans: bool = False,
+        freshness_weight: float = 0.0,
     ) -> str:
         """Search for a pattern across files in the memory repository.
 
@@ -3450,16 +3478,25 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         to that many surrounding lines before and after each match. Context
         lines do not count toward max_results.
 
+        When freshness_weight > 0, results are re-ranked by a combined score
+        that blends match density with temporal freshness. Freshness is
+        computed from ``last_verified`` (preferred) or ``created`` frontmatter
+        dates using exponential decay (180-day half-life).
+
         Args:
-            query:          Search string or Python regex (POSIX ERE via git grep).
-            path:           Folder to search within (default: '.').
-            glob_pattern:   File glob filter (default: '**/*.md').
-            case_sensitive: Case-sensitive match (default: False).
-            max_results:    Max matching lines to return (default: 30, max 100).
-            context_lines:  Number of surrounding lines to include before and
-                            after each match (default: 0, max: 10).
-            include_humans: Include the human-facing HUMANS/ tree when searching
-                            broad scopes like '.' (default: False).
+            query:            Search string or Python regex (POSIX ERE via git grep).
+            path:             Folder to search within (default: '.').
+            glob_pattern:     File glob filter (default: '**/*.md').
+            case_sensitive:   Case-sensitive match (default: False).
+            max_results:      Max matching lines to return (default: 30, max 100).
+            context_lines:    Number of surrounding lines to include before and
+                              after each match (default: 0, max: 10).
+            include_humans:   Include the human-facing HUMANS/ tree when searching
+                              broad scopes like '.' (default: False).
+            freshness_weight: Blend weight for temporal freshness (0.0–1.0).
+                              0.0 = pure text order (default), 1.0 = pure recency.
+                              When > 0, file groups are re-sorted by
+                              ``(1 - freshness_weight) * text_score + freshness_weight * freshness``.
 
         Returns:
             Matching lines grouped by file with line numbers, or a not-found message.
@@ -3475,6 +3512,8 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             raise ValidationError("context_lines must be >= 0")
         if context_lines > 10:
             raise ValidationError("context_lines must be <= 10")
+
+        freshness_weight = max(0.0, min(1.0, float(freshness_weight)))
 
         # Validate regex early so we can report a helpful error before spawning git
         flags = 0 if case_sensitive else re.IGNORECASE
@@ -3521,6 +3560,8 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         # Build per-file match groups from git grep output
         results: list[str] = []
+        # Per-file groups: list of (file_rel, match_count, output_lines, suffix)
+        file_groups: list[tuple[str, int, list[str], str]] = []
         total_matches = 0
         seen_files: set[str] = set()
         file_line_cache: dict[str, list[str]] = {}
@@ -3585,6 +3626,7 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
                 seen_files.add(file_rel)
                 file_output: list[str] = []
+                file_match_count = 0
                 for _, line_no, line_text in grouped_matches:
                     _append_match_lines(
                         file_output,
@@ -3593,17 +3635,14 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                         line_text=line_text,
                     )
                     total_matches += 1
+                    file_match_count += 1
                     if total_matches >= max_results:
                         break
 
                 if file_output:
-                    results.append(f"\n**{file_rel}**")
-                    results.extend(file_output)
+                    file_groups.append((file_rel, file_match_count, file_output, ""))
 
                 if total_matches >= max_results:
-                    results.append(
-                        f"\n_(truncated at {max_results} matches — use a narrower query or path)_"
-                    )
                     break
 
         # Python fallback: search untracked files git grep wouldn't see
@@ -3633,6 +3672,7 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 cached_lines = _get_file_lines(file_rel, untracked_text=text)
 
                 file_output = []
+                file_match_count = 0
                 for line_no, line in enumerate(cached_lines, 1):
                     if python_pattern.search(line):
                         _append_match_lines(
@@ -3643,15 +3683,14 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                             untracked_text=text,
                         )
                         total_matches += 1
+                        file_match_count += 1
                         if total_matches >= max_results:
                             break
 
                 if file_output:
-                    results.append(f"\n**{file_rel}** _(untracked)_")
-                    results.extend(file_output)
+                    file_groups.append((file_rel, file_match_count, file_output, " _(untracked)_"))
 
                 if total_matches >= max_results:
-                    results.append(f"\n_(truncated at {max_results} matches)_")
                     break
 
         if (
@@ -3678,6 +3717,7 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                     cached_lines = _get_file_lines(file_rel, untracked_text=text)
 
                     file_output = []
+                    file_match_count = 0
                     for line_no, line in enumerate(cached_lines, 1):
                         if python_pattern.search(line):
                             _append_match_lines(
@@ -3688,19 +3728,63 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                                 untracked_text=text,
                             )
                             total_matches += 1
+                            file_match_count += 1
                             if total_matches >= max_results:
                                 break
 
                     if file_output:
-                        results.append(f"\n**{file_rel}** _(untracked)_")
-                        results.extend(file_output)
+                        file_groups.append(
+                            (file_rel, file_match_count, file_output, " _(untracked)_")
+                        )
 
                     if total_matches >= max_results:
-                        results.append(f"\n_(truncated at {max_results} matches)_")
                         break
 
-        if not results:
+        if not file_groups:
             return f"No matches found for {query!r} in {path!r}."
+
+        # --- Freshness re-ranking -------------------------------------------
+        if freshness_weight > 0 and file_groups:
+            from ..freshness import effective_date
+            from ..freshness import freshness_score as _fs
+            from ..frontmatter_utils import read_with_frontmatter
+
+            max_matches = max(mc for _, mc, _, _ in file_groups)
+            scored: list[tuple[float, float, int, str, int, list[str], str]] = []
+            for idx, (frel, mc, lines, suffix) in enumerate(file_groups):
+                text_score = mc / max_matches if max_matches else 0.0
+                try:
+                    fm_dict, _ = read_with_frontmatter(root / frel)
+                    f_score = _fs(effective_date(fm_dict))
+                except Exception:
+                    f_score = 0.0
+                combined = (1 - freshness_weight) * text_score + freshness_weight * f_score
+                # Negate combined for descending sort; use idx for stable tie-break
+                scored.append((-combined, f_score, idx, frel, mc, lines, suffix))
+            scored.sort()
+
+            results: list[str] = []
+            truncated = total_matches >= max_results
+            for neg_combined, f_score, _, frel, mc, lines, suffix in scored:
+                header = f"\n**{frel}**{suffix}"
+                if freshness_weight > 0:
+                    header += f"  _(freshness: {f_score:.2f})_"
+                results.append(header)
+                results.extend(lines)
+            if truncated:
+                results.append(
+                    f"\n_(truncated at {max_results} matches — use a narrower query or path)_"
+                )
+        else:
+            results = []
+            truncated = total_matches >= max_results
+            for frel, mc, lines, suffix in file_groups:
+                results.append(f"\n**{frel}**{suffix}")
+                results.extend(lines)
+            if truncated:
+                results.append(
+                    f"\n_(truncated at {max_results} matches — use a narrower query or path)_"
+                )
 
         return "\n".join(results)
 
@@ -6344,23 +6428,27 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                     elif trust == "medium":
                         threshold = medium_threshold
                         warn = medium_warn
-                    approaching_warn = threshold * warn_pct
-                    entry["days_until_threshold"] = max(0, threshold - days)
-                    if days >= threshold:
-                        if freshness_status == "fresh":
-                            entry["action_required"] = "review"
+                        approaching_warn = threshold * warn_pct
+                        entry["days_until_threshold"] = max(0, threshold - days)
+                        if days >= threshold:
+                            if freshness_status == "fresh":
+                                entry["action_required"] = "review"
+                                upcoming_medium.append(entry)
+                            else:
+                                entry["action_required"] = "flag"
+                                overdue_medium.append(entry)
+                        elif days >= warn or freshness_status == "stale":
+                            entry["action_required"] = (
+                                "reverify" if freshness_status == "stale" else "review"
+                            )
                             upcoming_medium.append(entry)
-                        else:
-                            entry["action_required"] = "flag"
-                            overdue_medium.append(entry)
-                    elif days >= warn or freshness_status == "stale":
-                        entry["action_required"] = (
-                            "reverify" if freshness_status == "stale" else "review"
-                        )
-                        upcoming_medium.append(entry)
-                    elif days >= approaching_warn:
-                        entry["action_required"] = "review"
-                        approaching.append(entry)
+                        elif days >= approaching_warn:
+                            entry["action_required"] = "review"
+                            approaching.append(entry)
+                    else:
+                        # High-trust files are tracked for `files_checked` but are
+                        # intentionally excluded from low/medium decay buckets.
+                        continue
 
         result = {
             "expired": expired_files,
@@ -6404,13 +6492,17 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             Validation report with errors and warnings, or a clean-pass message.
         """
         root = get_root()
-        validator_path = root / "HUMANS" / "tooling" / "scripts" / "validate_memory_repo.py"
+        repo = get_repo()
+        repo_root = repo.root
+        validator_path = (
+            _resolve_humans_root(root) / "tooling" / "scripts" / "validate_memory_repo.py"
+        )
         if not validator_path.exists():
             return "Validator not found at HUMANS/tooling/scripts/validate_memory_repo.py"
         try:
             result = subprocess.run(
-                [sys.executable, str(validator_path), str(root)],
-                cwd=str(root),
+                [sys.executable, str(validator_path), str(repo_root)],
+                cwd=str(repo_root),
                 capture_output=True,
                 text=True,
                 timeout=30,
@@ -6510,8 +6602,12 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             return json.dumps(error_payload, indent=2)
 
         manifest_dict = cast(dict[str, Any], manifest)
+        runtime_tool_names = await _list_registered_tool_names(mcp)
         payload = {
-            "summary": _build_capabilities_summary(manifest_dict),
+            "summary": _build_capabilities_summary(
+                manifest_dict,
+                runtime_tool_names=runtime_tool_names,
+            ),
             "tool_profiles": _build_tool_profile_payload(manifest_dict),
         }
         return json.dumps(payload, indent=2)

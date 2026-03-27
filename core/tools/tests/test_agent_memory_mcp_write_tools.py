@@ -1703,7 +1703,11 @@ declared_gaps = []
 
         self.assertEqual(payload["kind"], "agent-memory-capabilities")
         self.assertEqual(payload["contract_versions"]["capabilities"], 1)
-        self.assertEqual(payload["summary"]["total_tools"], 4)
+        self.assertEqual(payload["summary"]["declared_total_tools"], 4)
+        self.assertGreaterEqual(payload["summary"]["total_tools"], 4)
+        self.assertEqual(
+            payload["summary"]["runtime_total_tools"], payload["summary"]["total_tools"]
+        )
         self.assertEqual(payload["summary"]["read_tools"], 2)
         self.assertEqual(payload["summary"]["semantic_tools"], 1)
 
@@ -6133,6 +6137,57 @@ current_focus: Example project.
         self.assertEqual(payload["approaching"], [])
         self.assertEqual(payload["upcoming_medium"], [])
         self.assertEqual(payload["unevaluable"], [])
+
+    def test_memory_audit_trust_handles_high_trust_without_medium_bucket_contamination(
+        self,
+    ) -> None:
+        repo_root = self._init_repo(
+            {
+                "core/INIT.md": (
+                    "Low-trust retirement threshold | 120-day\n"
+                    "Medium-trust flagging threshold | 180-day\n"
+                ),
+                "memory/knowledge/high-trust.md": (
+                    "---\ntrust: high\nlast_verified: 2025-01-01\n---\n\n# High Trust\n"
+                ),
+            },
+            initial_commit_date="2025-01-01T00:00:00+00:00",
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
+        )
+
+        self.assertEqual(payload["files_checked"], 1)
+        self.assertEqual(payload["overdue_medium"], [])
+        self.assertEqual(payload["upcoming_medium"], [])
+        self.assertEqual(payload["approaching"], [])
+
+    def test_memory_audit_trust_keeps_low_trust_entries_out_of_medium_buckets(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "core/INIT.md": (
+                    "Low-trust retirement threshold | 120-day\n"
+                    "Medium-trust flagging threshold | 180-day\n"
+                ),
+                "memory/knowledge/low-trust.md": (
+                    "---\ntrust: low\nlast_verified: 2025-01-01\n---\n\n# Low Trust\n"
+                ),
+            },
+            initial_commit_date="2025-01-01T00:00:00+00:00",
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
+        )
+
+        self.assertEqual(payload["files_checked"], 1)
+        self.assertEqual(payload["overdue_medium"], [])
+        self.assertEqual(payload["upcoming_medium"], [])
+        self.assertGreaterEqual(len(payload["overdue_low"]), 1)
+        self.assertEqual(payload["overdue_low"][0]["path"], "memory/knowledge/low-trust.md")
 
     def test_memory_audit_trust_reports_approaching_bucket_before_upcoming_window(self) -> None:
         repo_root = self._init_repo(

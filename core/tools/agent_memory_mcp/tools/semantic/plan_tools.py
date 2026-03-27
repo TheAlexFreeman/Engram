@@ -1841,6 +1841,16 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
     # ── Approval workflow MCP tools ──────────────────────────────────────────
 
+    @mcp.tool(
+        name="memory_request_approval",
+        annotations=_tool_annotations(
+            title="Request Plan Approval",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
     async def memory_request_approval(
         plan_id: str,
         phase_id: str,
@@ -1985,6 +1995,16 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             warnings=[],
         ).to_json()
 
+    @mcp.tool(
+        name="memory_resolve_approval",
+        annotations=_tool_annotations(
+            title="Resolve Plan Approval",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
     async def memory_resolve_approval(
         plan_id: str,
         phase_id: str,
@@ -2069,13 +2089,14 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             f"memory/working/projects/{resolved_project_id}/operations.jsonl",
             approvals_summary_path(),
         ]
+        resolution_event = "approved" if resolution == "approve" else "rejected"
         _append_plan_log(
             root,
             repo,
             resolved_project_id,
             files_res,
             session_id=None,
-            action=f"approval-{resolution}d",
+            action=f"approval-{resolution_event}",
             plan_id=plan.id,
             phase_id=phase.id,
             detail=comment or "",
@@ -2085,7 +2106,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             root,
             None,
             span_type="plan_action",
-            name=f"approval-{resolution}d",
+            name=f"approval-{resolution_event}",
             status="ok",
             metadata={"plan_id": plan.id, "phase_id": phase.id, "resolution": resolution},
         )
@@ -2110,6 +2131,16 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
     # ── Tool Registry MCP tools ──────────────────────────────────────────────
 
+    @mcp.tool(
+        name="memory_register_tool",
+        annotations=_tool_annotations(
+            title="Register External Tool",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
     async def memory_register_tool(
         name: str,
         description: str,
@@ -2178,6 +2209,16 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         }
         return _json.dumps(result, indent=2)
 
+    @mcp.tool(
+        name="memory_get_tool_policy",
+        annotations=_tool_annotations(
+            title="Get Tool Policy",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
     async def memory_get_tool_policy(
         tool_name: str | None = None,
         provider: str | None = None,

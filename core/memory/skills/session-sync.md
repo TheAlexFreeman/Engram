@@ -53,3 +53,33 @@ Briefly confirm what was captured. One or two sentences — not a full recap.
 - **Don't checkpoint trivially.** A two-message exchange about a typo doesn't need a sync.
 - **Don't duplicate the final session summary.** Checkpoints are mid-session snapshots, not premature wrap-ups.
 - **Don't block the user.** The sync should take seconds, not interrupt the flow of work.
+
+---
+
+## Context-pressure flush
+
+This is an automatic variant of the checkpoint protocol above. It triggers without a user request when context loss is imminent.
+
+### When to trigger
+
+- The agent estimates it has consumed **>75%** of its effective context window.
+- The platform signals that compaction, summarization, or context truncation is imminent.
+- The agent detects that it can no longer recall details from earlier in the session that it previously had access to.
+
+### What to do
+
+1. Execute Steps 1–2 of the manual checkpoint protocol above (summarize progress, persist `checkpoint.md`).
+2. If the chat folder does not yet exist, create it before writing.
+3. If a `checkpoint.md` already exists from an earlier sync, append a new timestamped section rather than overwriting.
+4. Commit with message: `[chat] Context-pressure flush — <brief description>`.
+5. If read-only, present the checkpoint summary to the user immediately.
+
+### What not to do
+
+- Do not attempt a full session wrap-up — this is a checkpoint, not an ending.
+- Do not interrupt the user's active request to announce the flush. Complete the current response first, then flush.
+- Do not flush if the session has produced no decisions, artifacts, or meaningful context since the last checkpoint.
+
+### Advisory note
+
+Most current platforms do not expose context-usage metrics to agents. This protocol documents the intended behavior so that agents which can detect context pressure know what to do, and platforms that add this capability have a target protocol to trigger. See `agent-bootstrap.toml` § `[compaction_flush]` for the machine-readable configuration.

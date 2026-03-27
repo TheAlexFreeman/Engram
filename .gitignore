@@ -26,6 +26,9 @@ __pycache__/
 
 # Windows reserved name (accidental creation)
 nul
+
+# Semantic search embedding cache
+.engram/
 # Setuptools build files
 *.egg-info/
 =*

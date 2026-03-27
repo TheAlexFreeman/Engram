@@ -27,6 +27,15 @@ ultimate_authority_policy = "on_demand_only"
 # extensions = [".md", ".txt", ".pdf"]
 # recursive = false
 
+[behavioral_directives]
+retrieval_discipline = "When asked about prior conversations, decisions, or stored knowledge, query the relevant SUMMARY files, ACCESS.jsonl, or memory_search before answering from loaded context alone. Do not claim to remember something that is not in the loaded or searched files."
+
+[compaction_flush]
+trigger = "context_pressure"
+threshold_pct = 75
+action = "auto_checkpoint"
+skill_ref = "core/memory/skills/session-sync.md"
+
 [mode_detection]
 automation = "scheduled_or_recurring_run"
 periodic_review = "explicit_or_scheduled_governance_review"

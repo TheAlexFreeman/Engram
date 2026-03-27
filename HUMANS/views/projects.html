@@ -461,6 +461,7 @@
 
 <noscript><p style="text-align:center;margin-top:3rem;color:#f87171;">JavaScript is required for the projects viewer.</p></noscript>
 
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
 <script src="engram-utils.js"></script>
 <script>
 (function () {
@@ -476,6 +477,7 @@
   var parseMarkdownTable = E.parseMarkdownTable;
   var restoreSavedHandle = E.restoreSavedHandle;
   var makeActivatable = E.makeActivatable;
+  var yamlApi = window.jsyaml;
 
   var PROJECTS_ROOT = 'core/memory/working/projects';
   var rootHandle = null;
@@ -483,6 +485,7 @@
   var planViewMode = localStorage.getItem('engram-plan-view') || 'timeline';
   var cachedPlanData = [];  // [{yamlText, filename, plan}]
   var cachedMdData = [];    // [{filename, bodyMarkdown}]
+  var flowchartRenderCount = 0;
 
   /* ── helpers ───────────────────────────────────────── */
 
@@ -507,7 +510,9 @@
     for (var i = 0; i < listing.files.length; i++) {
       if (!listing.files[i].match(/\.ya?ml$/i)) continue;
       var content = await readFile(rootHandle, PROJECTS_ROOT + '/' + slug + '/plans/' + listing.files[i]);
-      if (content && content.match(/^status:\s*active/m)) count++;
+      if (!content) continue;
+      var parsedPlan = parsePlanYaml(content, listing.files[i]);
+      if (parsedPlan.status === 'active') count++;
     }
     return count;
   }
@@ -856,7 +861,7 @@
       if (!content) continue;
 
       if (filename.match(/\.ya?ml$/i)) {
-        var plan = parsePlanYaml(content);
+        var plan = parsePlanYaml(content, filename);
         cachedPlanData.push({ yamlText: content, filename: filename, plan: plan });
       } else if (filename.match(/\.md$/i)) {
         var parsed = parseFrontmatter(content);
@@ -902,7 +907,7 @@
       if (planViewMode === 'flowchart') {
         container.appendChild(buildFlowchartView(entry.plan, entry.filename));
       } else {
-        container.appendChild(buildPlanCard(entry.yamlText, entry.filename));
+        container.appendChild(buildPlanCard(entry.plan, entry.filename));
       }
     }
     for (var j = 0; j < cachedMdData.length; j++) {
@@ -920,8 +925,7 @@
     }
   }
 
-  function buildPlanCard(yamlText, filename) {
-    var plan = parsePlanYaml(yamlText);
+  function buildPlanCard(plan, filename) {
     var card = el('div', '', 'plan-card');
 
     var header = el('div', '', 'plan-header');
@@ -978,74 +982,194 @@
     return card;
   }
 
-  /**
-   * Schema-specific YAML parser for plan files.
-   * Extracts: id, project, status, purpose.summary, work.phases[].
-   * Not a general YAML parser — only handles the known plan schema.
-   */
-  function parsePlanYaml(text) {
-    var result = { id: '', project: '', status: '', summary: '', phases: [] };
-    var lines = text.split(/\r?\n/);
+  function normalizeString(value) {
+    if (value == null) return '';
+    return String(value).trim();
+  }
 
-    // Extract top-level flat fields
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-      if (line.match(/^id:\s/)) result.id = line.replace(/^id:\s*/, '').trim();
-      else if (line.match(/^project:\s/)) result.project = line.replace(/^project:\s*/, '').trim();
-      else if (line.match(/^status:\s/)) result.status = line.replace(/^status:\s*/, '').trim();
+  function normalizeToken(value) {
+    return normalizeString(value).toLowerCase();
+  }
+
+  function normalizePlanStatus(value) {
+    return normalizeToken(value);
+  }
+
+  function normalizePlanId(value, fallback) {
+    var raw = normalizeString(value);
+    if (raw) return raw;
+    var fb = normalizeString(fallback);
+    return fb || 'plan';
+  }
+
+  function normalizeStringList(value) {
+    if (Array.isArray(value)) {
+      return value.map(function (item) { return normalizeString(item); }).filter(Boolean);
+    }
+    var raw = normalizeString(value);
+    if (!raw) return [];
+    if (raw.indexOf(',') >= 0) {
+      return raw.split(',').map(function (item) { return normalizeString(item); }).filter(Boolean);
+    }
+    return [raw];
+  }
+
+  function uniqueList(values) {
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < values.length; i++) {
+      var token = values[i];
+      if (!token || seen[token]) continue;
+      seen[token] = true;
+      out.push(token);
+    }
+    return out;
+  }
+
+  function normalizeChangeEntry(raw) {
+    if (typeof raw === 'string') {
+      var pathOnly = normalizeString(raw);
+      return pathOnly ? { path: pathOnly, action: '', description: '' } : null;
+    }
+    if (!raw || typeof raw !== 'object') return null;
+    var path = normalizeString(raw.path || raw.file || raw.target || raw.name);
+    var action = normalizeToken(raw.action || raw.kind || raw.type);
+    var description = normalizeString(raw.description || raw.summary || raw.note || raw.details);
+    if (!path && !action && !description) return null;
+    return { path: path, action: action, description: description };
+  }
+
+  function normalizeChangesList(value) {
+    var source = [];
+    if (Array.isArray(value)) {
+      source = value;
+    } else if (value && typeof value === 'object') {
+      source = [value];
+    } else if (typeof value === 'string') {
+      source = [value];
     }
 
-    // Extract purpose.summary
+    var out = [];
+    var seen = {};
+    for (var i = 0; i < source.length; i++) {
+      var normalized = normalizeChangeEntry(source[i]);
+      if (!normalized) continue;
+      var key = normalized.path + '|' + normalized.action + '|' + normalized.description;
+      if (seen[key]) continue;
+      seen[key] = true;
+      out.push(normalized);
+    }
+    return out;
+  }
+
+  function normalizePhaseEntry(raw, index) {
+    var phase = raw && typeof raw === 'object' ? raw : {};
+    var id = normalizePlanId(phase.id || phase.phase || phase.key, 'phase-' + (index + 1));
+    return {
+      id: id,
+      title: normalizeString(phase.title || phase.name || phase.summary || id),
+      status: normalizePlanStatus(phase.status || phase.state),
+      blockers: uniqueList(normalizeStringList(phase.blockers || phase.depends_on || phase.dependencies)),
+      changes: normalizeChangesList(phase.changes || phase.change_set || phase.files || phase.edits)
+    };
+  }
+
+  function normalizePlanModel(raw, fallbackId) {
+    var obj = raw && typeof raw === 'object' ? raw : {};
+    var purpose = obj.purpose && typeof obj.purpose === 'object' ? obj.purpose : {};
+    var work = obj.work && typeof obj.work === 'object' ? obj.work : {};
+    var phaseSource = [];
+    if (Array.isArray(work.phases)) {
+      phaseSource = work.phases;
+    } else if (Array.isArray(obj.phases)) {
+      phaseSource = obj.phases;
+    }
+
+    var phases = [];
+    for (var i = 0; i < phaseSource.length; i++) {
+      phases.push(normalizePhaseEntry(phaseSource[i], i));
+    }
+
+    var aggregateBlockers = normalizeStringList(obj.blockers || work.blockers);
+    var aggregateChanges = normalizeChangesList(obj.changes || work.changes);
+    for (var p = 0; p < phases.length; p++) {
+      aggregateBlockers = aggregateBlockers.concat(phases[p].blockers);
+      aggregateChanges = aggregateChanges.concat(phases[p].changes);
+    }
+
+    return {
+      id: normalizePlanId(obj.id, fallbackId),
+      project: normalizeString(obj.project),
+      status: normalizePlanStatus(obj.status),
+      summary: normalizeString(purpose.summary || obj.summary || obj.description),
+      phases: phases,
+      changes: normalizeChangesList(aggregateChanges),
+      blockers: uniqueList(aggregateBlockers)
+    };
+  }
+
+  function parsePlanYaml(text, filename) {
+    var fallbackId = normalizePlanId(filename ? filename.replace(/\.ya?ml$/i, '') : '', 'plan');
+    if (!text) return normalizePlanModel({}, fallbackId);
+
+    if (yamlApi && typeof yamlApi.load === 'function') {
+      try {
+        return normalizePlanModel(yamlApi.load(text), fallbackId);
+      } catch (_) {}
+    }
+
+    // Graceful fallback if the YAML parser is unavailable or parsing fails.
+    // Extracts enough structure for plan cards and flowcharts to render.
+    var minimal = {};
+    var idMatch = text.match(/^\s*id:\s*(.+)\s*$/m);
+    var statusMatch = text.match(/^\s*status:\s*(.+)\s*$/m);
+    if (idMatch) minimal.id = idMatch[1];
+    if (statusMatch) minimal.status = statusMatch[1];
+
     var summaryMatch = text.match(/purpose:\s*\n\s+summary:\s*(.+)/);
-    if (summaryMatch) result.summary = summaryMatch[1].trim();
+    if (summaryMatch) minimal.summary = summaryMatch[1];
 
-    // Extract phases
+    // Extract phases from indented blocks
     var phasesStart = text.indexOf('phases:');
-    if (phasesStart < 0) return result;
-
-    var phasesText = text.substring(phasesStart);
-    var phaseBlocks = phasesText.split(/\n\s{4}- id:\s*/);
-    phaseBlocks.shift(); // remove "phases:" leader
-
-    for (var p = 0; p < phaseBlocks.length; p++) {
-      var block = phaseBlocks[p];
-      var phase = { id: '', title: '', status: '', blockers: [], changes: [] };
-
-      var idLine = block.split(/\r?\n/)[0];
-      phase.id = idLine.trim();
-
-      var titleM = block.match(/title:\s*(.+)/);
-      if (titleM) phase.title = titleM[1].trim();
-
-      var statusM = block.match(/status:\s*(.+)/);
-      if (statusM) phase.status = statusM[1].trim();
-
-      // Extract blockers
-      var blockersM = block.match(/blockers:\s*\[([^\]]*)\]/);
-      if (blockersM && blockersM[1].trim()) {
-        phase.blockers = blockersM[1].split(',').map(function (b) {
-          return b.trim().replace(/^["']|["']$/g, '');
-        }).filter(Boolean);
+    if (phasesStart >= 0) {
+      var phasesText = text.substring(phasesStart);
+      var phaseBlocks = phasesText.split(/\n\s{4}- id:\s*/);
+      phaseBlocks.shift();
+      var phases = [];
+      for (var pi = 0; pi < phaseBlocks.length; pi++) {
+        var block = phaseBlocks[pi];
+        var phase = {};
+        phase.id = block.split(/\r?\n/)[0].trim();
+        var titleM = block.match(/title:\s*(.+)/);
+        if (titleM) phase.title = titleM[1].trim();
+        var statusM = block.match(/status:\s*(.+)/);
+        if (statusM) phase.status = statusM[1].trim();
+        var blockersM = block.match(/blockers:\s*\[([^\]]*)\]/);
+        if (blockersM && blockersM[1].trim()) {
+          phase.blockers = blockersM[1].split(',').map(function (b) {
+            return b.trim().replace(/^["']|["']$/g, '');
+          }).filter(Boolean);
+        }
+        var changeBlocks = block.split(/\n\s{8}- path:\s*/);
+        changeBlocks.shift();
+        if (changeBlocks.length > 0) {
+          phase.changes = [];
+          for (var ci = 0; ci < changeBlocks.length; ci++) {
+            var cb = changeBlocks[ci];
+            var change = { path: cb.split(/\r?\n/)[0].trim() };
+            var actionM = cb.match(/action:\s*(.+)/);
+            if (actionM) change.action = actionM[1].trim();
+            var descM = cb.match(/description:\s*(.+)/);
+            if (descM) change.description = descM[1].trim();
+            phase.changes.push(change);
+          }
+        }
+        phases.push(phase);
       }
-
-      // Extract changes
-      var changeBlocks = block.split(/\n\s{8}- path:\s*/);
-      changeBlocks.shift(); // remove pre-changes content
-      for (var c = 0; c < changeBlocks.length; c++) {
-        var cb = changeBlocks[c];
-        var change = { path: '', action: '', description: '' };
-        change.path = cb.split(/\r?\n/)[0].trim();
-        var actionM = cb.match(/action:\s*(.+)/);
-        if (actionM) change.action = actionM[1].trim();
-        var descM = cb.match(/description:\s*(.+)/);
-        if (descM) change.description = descM[1].trim();
-        phase.changes.push(change);
-      }
-
-      result.phases.push(phase);
+      minimal.work = { phases: phases };
     }
 
-    return result;
+    return normalizePlanModel(minimal, fallbackId);
   }
 
   /* ── flowchart ─────────────────────────────────────── */
@@ -1248,6 +1372,13 @@
     return text.substring(0, max - 1) + '\u2026';
   }
 
+  function sanitizeSvgId(value, fallback) {
+    var raw = normalizeString(value).toLowerCase();
+    var safe = raw.replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!safe) safe = normalizeString(fallback) || 'item';
+    return safe;
+  }
+
   /**
    * Build the complete flowchart view for a single plan.
    */
@@ -1288,9 +1419,12 @@
     });
 
     // Defs — arrowheads
+    var markerSuffix = sanitizeSvgId((plan.id || filename) + '-' + (flowchartRenderCount++), 'plan');
+    var implicitMarkerId = 'fc-arrow-implicit-' + markerSuffix;
+    var explicitMarkerId = 'fc-arrow-explicit-' + markerSuffix;
     var defs = svgEl('defs');
     var mkImplicit = svgEl('marker', {
-      id: 'fc-arrow-implicit-' + plan.id,
+      id: implicitMarkerId,
       viewBox: '0 0 10 8', refX: '10', refY: '4',
       markerWidth: '8', markerHeight: '6', orient: 'auto-start-reverse'
     });
@@ -1301,7 +1435,7 @@
     defs.appendChild(mkImplicit);
 
     var mkExplicit = svgEl('marker', {
-      id: 'fc-arrow-explicit-' + plan.id,
+      id: explicitMarkerId,
       viewBox: '0 0 10 8', refX: '10', refY: '4',
       markerWidth: '8', markerHeight: '6', orient: 'auto-start-reverse'
     });
@@ -1336,7 +1470,7 @@
       var path = svgEl('path', {
         d: 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + cpOff) + ' ' + y1 + ', ' + (x2 - cpOff) + ' ' + y2 + ', ' + x2 + ' ' + y2,
         class: 'fc-edge fc-edge-' + edge.type,
-        'marker-end': 'url(#fc-arrow-' + edge.type + '-' + plan.id + ')'
+        'marker-end': 'url(#' + (edge.type === 'explicit' ? explicitMarkerId : implicitMarkerId) + ')'
       });
       svg.appendChild(path);
     }

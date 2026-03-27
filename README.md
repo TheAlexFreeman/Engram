@@ -204,7 +204,7 @@ The MCP server registers 95+ tools organized into three tiers:
 
 The server also exposes 4 MCP resources (`memory://` URIs for capability summaries, policy state, session health, and active plans) and 4 MCP prompts (workflow scaffolds for session start, periodic review, knowledge promotion, and plan creation).
 
-Three tool profiles control which tools are available: `full` (all tiers), `guided_write` (Tier 0 + Tier 1), and `read_only` (Tier 0 only).
+Three tool profiles are defined as advisory host-side narrowing metadata: `full` (all tiers), `guided_write` (Tier 0 + Tier 1), and `read_only` (Tier 0 only). The MCP runtime itself exports a static surface; hosts should apply profile filtering client-side when desired.
 
 For the complete tool inventory and architecture details, see [HUMANS/docs/MCP.md](HUMANS/docs/MCP.md).
 
@@ -215,7 +215,6 @@ For the complete tool inventory and architecture details, see [HUMANS/docs/MCP.m
 | `MEMORY_REPO_ROOT` | Path to the memory repository root |
 | `HOST_REPO_ROOT` | Path to the host repository root (worktree mode only) |
 | `MEMORY_ENABLE_RAW_WRITE_TOOLS` | Enable Tier 2 raw fallback tools (default: disabled) |
-| `MEMORY_TOOL_PROFILE` | Tool profile: `full`, `guided_write`, or `read_only` |
 
 ## Memory curation
 

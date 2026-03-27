@@ -1,4 +1,5 @@
 # Canonical allowlist for the first setup commit.
+# Refresh with: python HUMANS/tooling/scripts/generate_initial_commit_manifest.py
 # Generated repo-local files such as chatgpt-instructions.txt and system-prompt.txt
 # are intentionally excluded so they remain local artifacts.
 
@@ -51,6 +52,7 @@ HUMANS/tooling/agent-memory-capabilities.toml
 HUMANS/tooling/agent-task-readiness.toml
 HUMANS/tooling/mcp-config-example.json
 HUMANS/tooling/onboard-export-template.md
+HUMANS/tooling/scripts/generate_initial_commit_manifest.py
 HUMANS/tooling/scripts/inspect_compact_budget.py
 HUMANS/tooling/scripts/onboard-export.sh
 HUMANS/tooling/scripts/resolve_bootstrap_manifest.py
@@ -71,6 +73,7 @@ HUMANS/tooling/tests/test_setup_flows.py
 HUMANS/tooling/tests/test_task_readiness.py
 HUMANS/tooling/tests/test_validate_memory_repo.py
 HUMANS/tooling/tests/test_validate_memory_repo_project_plans.py
+HUMANS/tooling/tests/test_views_hardening.py
 HUMANS/views/.nojekyll
 HUMANS/views/approvals.html
 HUMANS/views/dashboard-utils.js
@@ -698,6 +701,7 @@ core/tools/agent_memory_mcp/core/models.py
 core/tools/agent_memory_mcp/core/path_policy.py
 core/tools/agent_memory_mcp/errors.py
 core/tools/agent_memory_mcp/eval_utils.py
+core/tools/agent_memory_mcp/freshness.py
 core/tools/agent_memory_mcp/frontmatter_utils.py
 core/tools/agent_memory_mcp/git_repo.py
 core/tools/agent_memory_mcp/models.py
@@ -716,6 +720,7 @@ core/tools/agent_memory_mcp/tools/semantic/_session.py
 core/tools/agent_memory_mcp/tools/semantic/graph_tools.py
 core/tools/agent_memory_mcp/tools/semantic/knowledge_tools.py
 core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+core/tools/agent_memory_mcp/tools/semantic/search_tools.py
 core/tools/agent_memory_mcp/tools/semantic/session_tools.py
 core/tools/agent_memory_mcp/tools/semantic/skill_tools.py
 core/tools/agent_memory_mcp/tools/semantic/user_tools.py
@@ -730,9 +735,12 @@ core/tools/tests/test_link_scoring.py
 core/tools/tests/test_link_tools_engine.py
 core/tools/tests/test_memory_mcp.py
 core/tools/tests/test_plan_schema_extensions.py
+core/tools/tests/test_search_freshness.py
+core/tools/tests/test_semantic_search.py
 core/tools/tests/test_surface_unlinked.py
 extract_names.py
 index.html
+openclaw-report.md
 prune_links.py
 pyproject.toml
 setup.html
