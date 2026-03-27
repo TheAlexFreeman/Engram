@@ -1,5 +1,6 @@
 ---
 source: agent-generated
+origin_session: memory/activity/2026/03/27/chat-001
 trust: medium
 created: 2026-03-27
 title: "Phase 8 Design: Context Assembly (Briefing Packet)"

@@ -1,3 +1,11 @@
+---
+source: external-research
+origin_session: memory/activity/2026/03/26/chat-001
+created: 2026-03-26
+trust: medium
+title: "Best Practices for LLM Agent Harnesses and Long-Horizon Generative AI Work"
+---
+
 # Best Practices for LLM Agent Harnesses and Long-Horizon Generative AI Work
 
 ## Executive summary
@@ -26,13 +34,13 @@ A practical definition of an agent is: **an LLM system that iteratively selects 
 
 An **LLM agent harness** is the **application and infrastructure layer that operationalizes that loop** safely and reliably. Concretely, a harness typically includes:
 
-- **Orchestration**: a control structure for multi-step execution (simple loop, state machine/graph, workflow engine), plus retries and stop conditions. citeturn7search2turn10search3  
-- **Tool interface + execution runtime**: tool definitions/schemas, routing, timeouts, sandboxing, and error normalization so the model receives consistent feedback. citeturn0search0turn0search4turn0search1  
-- **State and memory**: short-term context management (what fits in the model context) plus persisted run state and long-term recall. citeturn3search3turn7search2turn10search0turn3search1  
-- **Retrieval augmentation**: connecting the agent to external knowledge (documents/DB/search) and passing retrieved context into decisions to reduce hallucination and keep information fresh. citeturn3search0  
-- **Reliability mechanisms**: verification, validators, self-checks, consensus, and human approvals for sensitive actions. citeturn10search0turn6search1turn10search3  
-- **Evaluation + observability**: offline evals, production monitoring, and traceability of every step. citeturn2search0turn2search4turn4search0turn4search2  
-- **Safety guardrails**: policies and enforcement around what the agent is allowed to do, what data it can access, and what actions require explicit review. citeturn5search0turn4search3turn5search20  
+- **Orchestration**: a control structure for multi-step execution (simple loop, state machine/graph, workflow engine), plus retries and stop conditions. citeturn7search2turn10search3
+- **Tool interface + execution runtime**: tool definitions/schemas, routing, timeouts, sandboxing, and error normalization so the model receives consistent feedback. citeturn0search0turn0search4turn0search1
+- **State and memory**: short-term context management (what fits in the model context) plus persisted run state and long-term recall. citeturn3search3turn7search2turn10search0turn3search1
+- **Retrieval augmentation**: connecting the agent to external knowledge (documents/DB/search) and passing retrieved context into decisions to reduce hallucination and keep information fresh. citeturn3search0
+- **Reliability mechanisms**: verification, validators, self-checks, consensus, and human approvals for sensitive actions. citeturn10search0turn6search1turn10search3
+- **Evaluation + observability**: offline evals, production monitoring, and traceability of every step. citeturn2search0turn2search4turn4search0turn4search2
+- **Safety guardrails**: policies and enforcement around what the agent is allowed to do, what data it can access, and what actions require explicit review. citeturn5search0turn4search3turn5search20
 
 This scope is intentionally broader than an “agent prompt.” The key insight from modern guidance is that **agent behavior emerges from the coupled system** (model + tools + state + control flow + feedback), so correctness and safety must be designed at the harness level. citeturn10search3turn2search4
 
@@ -117,9 +125,9 @@ Planning in agent harnesses is best framed as: **choose the next action under un
 
 Concrete recommendations for long-horizon planning:
 
-- Use **budgeted planning**: explicitly cap planning depth/branches and store the plan as state so it can be reviewed, diffed, and resumed. citeturn7search2turn10search0  
-- Prefer **tool-grounded milestones**: plans should name which tools will confirm progress (tests pass, record updated, document retrieved), not only natural-language intentions. citeturn10search3turn1search0  
-- Separate **planner vs executor** roles when tasks are large: one component generates/updates the plan; another executes with strict schemas and retries. This is often simpler than a full multi-agent crowd and improves debuggability. citeturn7search0turn10search3  
+- Use **budgeted planning**: explicitly cap planning depth/branches and store the plan as state so it can be reviewed, diffed, and resumed. citeturn7search2turn10search0
+- Prefer **tool-grounded milestones**: plans should name which tools will confirm progress (tests pass, record updated, document retrieved), not only natural-language intentions. citeturn10search3turn1search0
+- Separate **planner vs executor** roles when tasks are large: one component generates/updates the plan; another executes with strict schemas and retries. This is often simpler than a full multi-agent crowd and improves debuggability. citeturn7search0turn10search3
 
 ## Reliability techniques
 
@@ -162,9 +170,9 @@ flowchart TD
 
 Key implementation notes:
 
-- **Always encode explicit stopping conditions** (max iterations, time budget, max tool calls). This is consistently recommended to maintain control and avoid runaway loops. citeturn10search3turn9search12  
-- Treat tool failures as first-class outputs: return structured errors to the model so it can reason about recovery, rather than failing silently in logs. citeturn0search1turn10search8  
-- Use **selective escalation**: apply self-consistency, extra verification, or human review only when the risk/cost is justified by the action. citeturn6search1turn10search0turn5search0  
+- **Always encode explicit stopping conditions** (max iterations, time budget, max tool calls). This is consistently recommended to maintain control and avoid runaway loops. citeturn10search3turn9search12
+- Treat tool failures as first-class outputs: return structured errors to the model so it can reason about recovery, rather than failing silently in logs. citeturn0search1turn10search8
+- Use **selective escalation**: apply self-consistency, extra verification, or human review only when the risk/cost is justified by the action. citeturn6search1turn10search0turn5search0
 
 ## Evaluation and observability
 
@@ -174,8 +182,8 @@ Evaluation is not optional for long-horizon agents because these systems are sto
 
 For harnesses, you generally need **three layers** of metrics:
 
-- **Outcome metrics**: task success rate, correctness, user satisfaction.  
-- **Process metrics**: tool-call accuracy, steps-to-success, retry rates, human interventions, state corruption incidents.  
+- **Outcome metrics**: task success rate, correctness, user satisfaction.
+- **Process metrics**: tool-call accuracy, steps-to-success, retry rates, human interventions, state corruption incidents.
 - **Resource metrics**: latency, tokens, dollar cost, tool compute time, queue time.
 
 Benchmarks illustrate why agent evals must go beyond static QA: GAIA explicitly targets tool-use proficiency and real-world assistant behaviors; AgentBench evaluates LLMs as agents across multiple interactive environments; SWE-bench-style tasks evaluate repo-level software changes where correctness is measured by tests. citeturn2search2turn2search3turn2search20turn2search1
@@ -235,19 +243,19 @@ Tool-using agents expand safety and security risk because **natural language bec
 
 A risk-management-aligned harness typically incorporates:
 
-- **Access control and least privilege**: expose only the minimum tools and minimum data needed for the task; scope credentials per user/project; separate read vs write tools. This directly reduces the blast radius of injections and model mistakes. citeturn4search3turn5search20  
-- **Sandboxing for execution tools**: run code execution, shell, or file-system tools in isolated environments; normalize outputs; and treat timeouts as safe failures. citeturn0search4turn10search8  
-- **Guardrails as enforceable checks** on both input and output, including policy-based routing (cheap model checks before expensive actions) and structured validation. citeturn5search0turn5search3  
-- **Rate limiting and abuse resistance**: automatic retries with exponential backoff, token budgeting, and safeguards against “model denial of service” patterns. citeturn5search1turn5search8turn4search3  
-- **Human approvals for irreversible actions**: implement interrupt/resume with persisted run state, so sensitive tool calls require explicit approval and can be audited. citeturn10search0turn10search2  
-- **Governance and risk posture alignment**: map agent risks and mitigations to an organizational framework (e.g., generative AI risk profiles) and document controls and monitoring. citeturn5search10turn5search6  
+- **Access control and least privilege**: expose only the minimum tools and minimum data needed for the task; scope credentials per user/project; separate read vs write tools. This directly reduces the blast radius of injections and model mistakes. citeturn4search3turn5search20
+- **Sandboxing for execution tools**: run code execution, shell, or file-system tools in isolated environments; normalize outputs; and treat timeouts as safe failures. citeturn0search4turn10search8
+- **Guardrails as enforceable checks** on both input and output, including policy-based routing (cheap model checks before expensive actions) and structured validation. citeturn5search0turn5search3
+- **Rate limiting and abuse resistance**: automatic retries with exponential backoff, token budgeting, and safeguards against “model denial of service” patterns. citeturn5search1turn5search8turn4search3
+- **Human approvals for irreversible actions**: implement interrupt/resume with persisted run state, so sensitive tool calls require explicit approval and can be audited. citeturn10search0turn10search2
+- **Governance and risk posture alignment**: map agent risks and mitigations to an organizational framework (e.g., generative AI risk profiles) and document controls and monitoring. citeturn5search10turn5search6
 
 A concise safety checklist aligned with current guidance:
 
-1) Assume **every tool output is untrusted input** (especially web content, retrieved documents, emails/tickets). citeturn5search20turn5search2  
-2) Enforce a **tool policy layer** that can block or require approval based on tool type, arguments, and context. citeturn10search8turn10search0  
-3) Log and trace everything needed for incident response (which prompt, which retrieval results, which tool args, which outputs). citeturn4search2turn4search0  
-4) Evaluate adversarially: red-team prompt injection and tool misuse because “prompt injection is far from a solved problem,” especially as models take real-world actions. citeturn5search2turn4search3  
+1) Assume **every tool output is untrusted input** (especially web content, retrieved documents, emails/tickets). citeturn5search20turn5search2
+2) Enforce a **tool policy layer** that can block or require approval based on tool type, arguments, and context. citeturn10search8turn10search0
+3) Log and trace everything needed for incident response (which prompt, which retrieval results, which tool args, which outputs). citeturn4search2turn4search0
+4) Evaluate adversarially: red-team prompt injection and tool misuse because “prompt injection is far from a solved problem,” especially as models take real-world actions. citeturn5search2turn4search3
 
 In this area, it is worth explicitly anchoring to community standards and guidance such as entity["organization","OWASP","security foundation"] recommendations for LLM application risks, and to cross-sector risk frameworks such as the entity["organization","NIST","us standards agency"] generative AI profile. citeturn4search3turn5search10turn5search21
 
@@ -257,18 +265,18 @@ In this area, it is worth explicitly anchoring to community standards and guidan
 
 Long-horizon agents behave more like distributed systems than chatbots: they have retries, external dependencies, queuing, and partial failures. Deployment best practices therefore center on concurrency, idempotency, and cost control.
 
-- **Concurrency and async I/O**: agent runtimes that perform many tool/LLM calls benefit from asynchronous execution and correct concurrency configuration, otherwise infrastructure is underutilized and latency spikes. citeturn0search15  
-- **Durable execution and resumability**: persist step state so failures do not cause full restarts, and so long-running tasks can resume after hours/days. citeturn7search2turn10search0  
-- **Cost optimization**: reduce prompt bloat (trim tool outputs, compress context), keep tool definitions small, and minimize tool count; some tool-use guidance explicitly recommends small tool libraries used frequently rather than large tool catalogs. citeturn0search5turn0search11turn0search0  
-- **Model selection and routing**: use cheaper models for guardrails or lightweight checks and reserve expensive reasoning for steps where it changes outcomes; guardrail docs explicitly present this as a cost/safety pattern. citeturn5search0  
+- **Concurrency and async I/O**: agent runtimes that perform many tool/LLM calls benefit from asynchronous execution and correct concurrency configuration, otherwise infrastructure is underutilized and latency spikes. citeturn0search15
+- **Durable execution and resumability**: persist step state so failures do not cause full restarts, and so long-running tasks can resume after hours/days. citeturn7search2turn10search0
+- **Cost optimization**: reduce prompt bloat (trim tool outputs, compress context), keep tool definitions small, and minimize tool count; some tool-use guidance explicitly recommends small tool libraries used frequently rather than large tool catalogs. citeturn0search5turn0search11turn0search0
+- **Model selection and routing**: use cheaper models for guardrails or lightweight checks and reserve expensive reasoning for steps where it changes outcomes; guardrail docs explicitly present this as a cost/safety pattern. citeturn5search0
 
 ### Fine-tuning vs prompting vs retrieval
 
 Current consensus guidance emphasizes: **set up evals first**, then choose the adaptation lever based on what you need.
 
-- Retrieval (RAG) is a strong default when you need grounding in private or frequently-updated data and want provenance; this is a core motivation in both RAG research and industry guidance. citeturn3search0turn11search4  
-- Supervised fine-tuning can help when you need consistent behavior for a well-defined format/task, but official guidance warns to establish evals first so you can prove improvement over a base model. citeturn12search5turn12search0  
-- Model optimization guidance frames fine-tuning as a way to make a model excel at your application’s expected inputs/outputs, but it does not remove the need for harness reliability (tools, state, guardrails). citeturn12search3turn2search4  
+- Retrieval (RAG) is a strong default when you need grounding in private or frequently-updated data and want provenance; this is a core motivation in both RAG research and industry guidance. citeturn3search0turn11search4
+- Supervised fine-tuning can help when you need consistent behavior for a well-defined format/task, but official guidance warns to establish evals first so you can prove improvement over a base model. citeturn12search5turn12search0
+- Model optimization guidance frames fine-tuning as a way to make a model excel at your application’s expected inputs/outputs, but it does not remove the need for harness reliability (tools, state, guardrails). citeturn12search3turn2search4
 
 ### Framework landscape comparison
 
@@ -296,18 +304,18 @@ GAIA and AgentBench highlight that general assistant competence is not just “a
 
 Despite best practices, several gaps remain active:
 
-- **Benchmark contamination and overestimation**: recent work argues that public benchmarks can overestimate real performance due to contamination and benchmark artifacts, implying that harness builders should invest in private eval sets and telemetry-derived tasks. citeturn2search9turn2search5  
-- **Prompt injection remains unsolved at tool scale**: defenses are improving, but credible guidance stresses that indirect prompt injection is still a major risk as models take real-world actions. citeturn5search2turn5search20turn4search3  
-- **Self-evaluation and calibration limitations**: confidence estimation and calibration remain active research areas; surveys emphasize challenges and diverse methods, and long-form calibration is particularly hard. citeturn13search0turn13search2  
-- **Multi-agent complexity tax**: multi-agent orchestration can help, but it also complicates shared state, retries, conditional branches, and evaluation—often pushing teams toward graph-based orchestration and durable state as a stabilizing abstraction. citeturn7search8turn7search2turn10search9  
+- **Benchmark contamination and overestimation**: recent work argues that public benchmarks can overestimate real performance due to contamination and benchmark artifacts, implying that harness builders should invest in private eval sets and telemetry-derived tasks. citeturn2search9turn2search5
+- **Prompt injection remains unsolved at tool scale**: defenses are improving, but credible guidance stresses that indirect prompt injection is still a major risk as models take real-world actions. citeturn5search2turn5search20turn4search3
+- **Self-evaluation and calibration limitations**: confidence estimation and calibration remain active research areas; surveys emphasize challenges and diverse methods, and long-form calibration is particularly hard. citeturn13search0turn13search2
+- **Multi-agent complexity tax**: multi-agent orchestration can help, but it also complicates shared state, retries, conditional branches, and evaluation—often pushing teams toward graph-based orchestration and durable state as a stabilizing abstraction. citeturn7search8turn7search2turn10search9
 
 ### Concrete “current best practice” recommendations
 
 A rigorous, implementation-oriented baseline for 2026 production harnesses looks like:
 
-1) A workflow/orchestration layer with durable execution and a formal run-state schema. citeturn7search2turn10search0  
-2) A minimal, well-designed toolset with strict schemas, compact outputs, and explicit timeouts/errors. citeturn0search1turn0search0turn10search8  
-3) Tiered memory: compressed short-term + persisted run state + retrieval-based long-term recall, with clear separation between “truth state” and “recall memory.” citeturn3search3turn0search11turn3search1turn7search2  
-4) Verification loops: evidence retrieval, tool-grounded checks, selective self-consistency for high-impact decisions, and reflection-style repair when verification fails. citeturn1search0turn6search1turn1search3turn10search3  
-5) Human approval interrupts for irreversible actions and a policy layer that can block/require approval based on tool + args + context. citeturn10search0turn10search8  
+1) A workflow/orchestration layer with durable execution and a formal run-state schema. citeturn7search2turn10search0
+2) A minimal, well-designed toolset with strict schemas, compact outputs, and explicit timeouts/errors. citeturn0search1turn0search0turn10search8
+3) Tiered memory: compressed short-term + persisted run state + retrieval-based long-term recall, with clear separation between “truth state” and “recall memory.” citeturn3search3turn0search11turn3search1turn7search2
+4) Verification loops: evidence retrieval, tool-grounded checks, selective self-consistency for high-impact decisions, and reflection-style repair when verification fails. citeturn1search0turn6search1turn1search3turn10search3
+5) Human approval interrupts for irreversible actions and a policy layer that can block/require approval based on tool + args + context. citeturn10search0turn10search8
 6) Evals and observability from the start: offline eval suites (including your own private tasks) plus tracing/metrics emitted for every run and step. Adopt standard telemetry semantics where possible for long-term operability. citeturn2search4turn10search6turn4search2turn4search0

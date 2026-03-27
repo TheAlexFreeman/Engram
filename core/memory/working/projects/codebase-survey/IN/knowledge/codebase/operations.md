@@ -1,6 +1,6 @@
 ---
 source: agent-generated
-origin_session: codebase-survey-phase-4
+origin_session: manual
 created: 2026-03-23
 last_verified: 2026-03-26
 trust: medium

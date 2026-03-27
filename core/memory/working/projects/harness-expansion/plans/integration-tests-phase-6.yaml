@@ -2,8 +2,8 @@ id: integration-tests-phase-6
 project: harness-expansion
 created: '2026-03-27'
 origin_session: memory/activity/2026/03/27/chat-001
-status: draft
-sessions_used: 0
+status: active
+sessions_used: 1
 budget:
   deadline: '2026-06-01'
   max_sessions: 6
@@ -32,7 +32,7 @@ work:
   phases:
   - id: lifecycle-fixtures
     title: Build rich test fixtures for cross-phase scenarios
-    status: pending
+    status: completed
     blockers: []
     requires_approval: true
     sources:
@@ -65,7 +65,7 @@ work:
 
   - id: approval-lifecycle-e2e
     title: Test approval lifecycle end-to-end with traces
-    status: pending
+    status: in-progress
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-6-integration-tests-design.md
@@ -94,7 +94,7 @@ work:
 
   - id: verify-fail-retry-e2e
     title: Test verify → failure → retry cycle end-to-end
-    status: pending
+    status: in-progress
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-6-integration-tests-design.md
@@ -123,7 +123,7 @@ work:
 
   - id: trace-coverage-e2e
     title: Test trace completeness across full plan lifecycle
-    status: pending
+    status: in-progress
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-6-integration-tests-design.md
@@ -151,7 +151,7 @@ work:
 
   - id: tool-policy-e2e
     title: Test tool policy resolution with postcondition verification
-    status: pending
+    status: in-progress
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-6-integration-tests-design.md
@@ -180,7 +180,7 @@ work:
 
   - id: regression-suite
     title: Add cross-cutting regression tests and validate full suite
-    status: pending
+    status: in-progress
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-6-integration-tests-design.md

@@ -119,6 +119,157 @@ def _write_minimal_plan_at(root: Path, project: str, plan_id: str, **overrides: 
     return dest
 
 
+def _approval_ready_plan(**overrides: Any) -> PlanDocument:
+    """Build a plan suited for approval and verification lifecycle tests."""
+    defaults = {
+        "id": "approval-plan",
+        "project": "test-project",
+        "created": "2026-03-27",
+        "origin_session": "memory/activity/2026/03/27/chat-001",
+        "status": "active",
+        "purpose": PlanPurpose(
+            summary="Approval-ready plan",
+            context="Exercise approval, verification, and budget interactions.",
+        ),
+        "budget": PlanBudget(
+            deadline=(date.today() + timedelta(days=30)).isoformat(),
+            max_sessions=2,
+        ),
+        "phases": [
+            PlanPhase(
+                id="approval-phase",
+                title="Approval phase",
+                requires_approval=True,
+                sources=[
+                    SourceSpec(
+                        path="core/context.md",
+                        type="internal",
+                        intent="Read the implementation context.",
+                    )
+                ],
+                postconditions=[
+                    PostconditionSpec(
+                        description="Output file exists",
+                        type="check",
+                        target="artifacts/result.txt",
+                    ),
+                    PostconditionSpec(
+                        description="Output contains success marker",
+                        type="grep",
+                        target="phase complete::artifacts/result.txt",
+                    ),
+                ],
+                changes=[
+                    ChangeSpec(
+                        path="memory/working/notes/result.md",
+                        action="update",
+                        description="Record lifecycle result",
+                    )
+                ],
+            ),
+        ],
+        "review": None,
+    }
+    if "phases" in overrides:
+        phases = overrides.pop("phases")
+        if phases and isinstance(phases[0], dict):
+            phases = coerce_phase_inputs(phases)
+        defaults["phases"] = phases
+    defaults.update(overrides)
+    return PlanDocument(**defaults)
+
+
+def _full_harness_plan(**overrides: Any) -> PlanDocument:
+    """Build a plan that exercises sources, postconditions, approval, and budgets."""
+    defaults = {
+        "id": "full-harness-plan",
+        "project": "test-project",
+        "created": "2026-03-27",
+        "origin_session": "memory/activity/2026/03/27/chat-002",
+        "status": "active",
+        "purpose": PlanPurpose(
+            summary="Full harness plan",
+            context="Exercise composed harness behaviors across multiple subsystems.",
+        ),
+        "budget": PlanBudget(
+            deadline=(date.today() + timedelta(days=45)).isoformat(),
+            max_sessions=3,
+        ),
+        "phases": [
+            PlanPhase(
+                id="harness-phase",
+                title="Harness phase",
+                requires_approval=True,
+                sources=[
+                    SourceSpec(
+                        path="core/context.md",
+                        type="internal",
+                        intent="Read the harness context.",
+                    )
+                ],
+                postconditions=[
+                    PostconditionSpec(
+                        description="Harness artifact exists",
+                        type="check",
+                        target="artifacts/harness.txt",
+                    ),
+                    PostconditionSpec(
+                        description="Harness artifact contains marker",
+                        type="grep",
+                        target="ready::artifacts/harness.txt",
+                    ),
+                    PostconditionSpec(
+                        description="Harness tests pass",
+                        type="test",
+                        target="python -m pytest core/tools/tests/test_plan_schema_extensions.py -q",
+                    ),
+                ],
+                changes=[
+                    ChangeSpec(
+                        path="memory/working/notes/harness.md",
+                        action="update",
+                        description="Capture harness execution notes",
+                    )
+                ],
+            ),
+        ],
+        "review": None,
+    }
+    if "phases" in overrides:
+        phases = overrides.pop("phases")
+        if phases and isinstance(phases[0], dict):
+            phases = coerce_phase_inputs(phases)
+        defaults["phases"] = phases
+    defaults.update(overrides)
+    return PlanDocument(**defaults)
+
+
+def _setup_approval_dirs(root: Path) -> None:
+    """Create the standard approval queue directory layout for tests."""
+    (root / "memory" / "working" / "approvals" / "pending").mkdir(parents=True, exist_ok=True)
+    (root / "memory" / "working" / "approvals" / "resolved").mkdir(parents=True, exist_ok=True)
+
+
+def _setup_registry(root: Path, tools: list[ToolDefinition] | None = None) -> None:
+    """Seed the tool registry for integration tests."""
+    registry_tools = tools or [
+        ToolDefinition(
+            name="pytest-run",
+            description="Run pytest",
+            provider="shell",
+            timeout_seconds=120,
+        ),
+        ToolDefinition(
+            name="pre-commit-run",
+            description="Run pre-commit",
+            provider="shell",
+            timeout_seconds=60,
+        ),
+    ]
+    save_registry(root, "shell", registry_tools)
+    regenerate_registry_summary(root)
+
+
 # ===========================================================================
 # SourceSpec
 # ===========================================================================
@@ -1734,7 +1885,6 @@ class TestSessionSummaryEnrichment(unittest.TestCase):
     """Verify that session summaries include trace metrics when a trace file exists."""
 
     def test_summary_includes_metrics_when_traces_exist(self) -> None:
-
         from engram_mcp.agent_memory_mcp.plan_utils import record_trace
         from engram_mcp.agent_memory_mcp.tools.semantic.session_tools import (
             _compute_trace_metrics,
@@ -2648,6 +2798,496 @@ class TestPlanPauseStatus(unittest.TestCase):
     def test_phase_without_requires_approval_defaults_false(self) -> None:
         phase = PlanPhase(id="no-review", title="No review needed")
         self.assertFalse(phase.requires_approval)
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: Cross-phase integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestApprovalLifecycleE2E(unittest.TestCase):
+    def test_pending_approval_resolves_then_phase_verifies_and_completes(self) -> None:
+        import json
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_approval_dirs(root)
+            (root / "core").mkdir(parents=True, exist_ok=True)
+            (root / "core" / "context.md").write_text("approval context\n", encoding="utf-8")
+            (root / "artifacts").mkdir(parents=True, exist_ok=True)
+            (root / "artifacts" / "result.txt").write_text("phase complete\n", encoding="utf-8")
+
+            plan = _approval_ready_plan()
+            phase = plan.phases[0]
+            plan_path = root / "approval-plan.yaml"
+            save_plan(plan_path, plan, root)
+
+            directive = next_action(plan)
+            assert directive is not None
+            self.assertTrue(directive["requires_approval"])
+            self.assertEqual(directive["attempt_number"], 1)
+            self.assertFalse(directive["has_prior_failures"])
+
+            pending = ApprovalDocument(
+                plan_id=plan.id,
+                phase_id=phase.id,
+                project_id=plan.project,
+                status="pending",
+                requested="2026-03-27T10:00:00Z",
+                expires="2026-04-03T10:00:00Z",
+                context={"phase_title": phase.title},
+            )
+            plan.status = "paused"
+            save_approval(root, pending)
+            save_plan(plan_path, plan, root)
+
+            loaded_pending = load_approval(root, plan.id, phase.id)
+            assert loaded_pending is not None
+            self.assertEqual(loaded_pending.status, "pending")
+
+            record_trace(
+                root,
+                plan.origin_session,
+                span_type="plan_action",
+                name="approval-requested",
+                status="ok",
+                metadata={"plan_id": plan.id, "phase_id": phase.id},
+            )
+
+            pending_path = (
+                root
+                / "memory"
+                / "working"
+                / "approvals"
+                / "pending"
+                / approval_filename(plan.id, phase.id)
+            )
+            self.assertTrue(pending_path.exists())
+            pending_path.unlink()
+
+            approved = ApprovalDocument(
+                plan_id=plan.id,
+                phase_id=phase.id,
+                project_id=plan.project,
+                status="approved",
+                requested=pending.requested,
+                expires=pending.expires,
+                context=pending.context,
+                resolution="approve",
+                reviewer="alex",
+                resolved_at="2026-03-27T10:05:00Z",
+                comment="Approved for execution.",
+            )
+            save_approval(root, approved)
+
+            loaded_approved = load_approval(root, plan.id, phase.id)
+            assert loaded_approved is not None
+            self.assertEqual(loaded_approved.status, "approved")
+            self.assertEqual(loaded_approved.reviewer, "alex")
+
+            plan.status = "active"
+            phase.status = "in-progress"
+            verification = verify_postconditions(plan, phase, root)
+            self.assertTrue(verification["all_passed"])
+
+            record_trace(
+                root,
+                plan.origin_session,
+                span_type="verification",
+                name=f"verify:{phase.id}",
+                status="ok",
+                metadata={"plan_id": plan.id, "phase_id": phase.id},
+            )
+            record_trace(
+                root,
+                plan.origin_session,
+                span_type="plan_action",
+                name="complete",
+                status="ok",
+                metadata={"plan_id": plan.id, "phase_id": phase.id},
+            )
+
+            phase.status = "completed"
+            phase.commit = "abc1234"
+            plan.sessions_used += 1
+            save_plan(plan_path, plan, root)
+
+            reloaded = load_plan(plan_path, root)
+            self.assertEqual(reloaded.phases[0].status, "completed")
+            self.assertEqual(reloaded.sessions_used, 1)
+            budget = budget_status(reloaded)
+            assert budget is not None
+            self.assertEqual(budget["sessions_used"], 1)
+
+            trace_path = root / trace_file_path(plan.origin_session)
+            trace_spans = [
+                json.loads(line)
+                for line in trace_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            approval_spans = [span for span in trace_spans if span["name"] == "approval-requested"]
+            self.assertEqual(len(approval_spans), 1)
+            self.assertEqual(approval_spans[0]["metadata"]["phase_id"], phase.id)
+
+
+class TestVerifyFailRetryE2E(unittest.TestCase):
+    def test_failure_round_trip_informs_retry_then_verification_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "core").mkdir(parents=True, exist_ok=True)
+            (root / "core" / "context.md").write_text("retry context\n", encoding="utf-8")
+            (root / "artifacts").mkdir(parents=True, exist_ok=True)
+            (root / "artifacts" / "retry.txt").write_text("not yet\n", encoding="utf-8")
+
+            plan = _approval_ready_plan(
+                id="retry-plan",
+                phases=[
+                    PlanPhase(
+                        id="retry-phase",
+                        title="Retry phase",
+                        sources=[
+                            SourceSpec(
+                                path="core/context.md",
+                                type="internal",
+                                intent="Read retry context.",
+                            )
+                        ],
+                        postconditions=[
+                            PostconditionSpec(
+                                description="Expected marker is present",
+                                type="grep",
+                                target="needle::artifacts/retry.txt",
+                            )
+                        ],
+                        changes=[
+                            ChangeSpec(
+                                path="memory/working/notes/retry.md",
+                                action="update",
+                                description="Track retry flow",
+                            )
+                        ],
+                    )
+                ],
+            )
+            phase = plan.phases[0]
+            phase.status = "in-progress"
+
+            first_verification = verify_postconditions(plan, phase, root)
+            self.assertFalse(first_verification["all_passed"])
+            self.assertEqual(first_verification["verification_results"][0]["status"], "fail")
+
+            phase.failures.append(
+                PhaseFailure(
+                    timestamp="2026-03-27T11:00:00Z",
+                    reason="Missing retry artifact",
+                    verification_results=first_verification["verification_results"],
+                    attempt=1,
+                )
+            )
+            plan_path = root / "retry-plan.yaml"
+            save_plan(plan_path, plan, root)
+
+            reloaded = load_plan(plan_path, root)
+            retry_phase = reloaded.phases[0]
+            directive = next_action(reloaded)
+            assert directive is not None
+            self.assertTrue(directive["has_prior_failures"])
+            self.assertEqual(directive["attempt_number"], 2)
+
+            payload = phase_payload(reloaded, retry_phase, root)
+            self.assertEqual(len(payload["phase"]["failures"]), 1)
+            self.assertEqual(payload["phase"]["attempt_number"], 2)
+
+            (root / "artifacts" / "retry.txt").write_text("needle found\n", encoding="utf-8")
+            second_verification = verify_postconditions(reloaded, retry_phase, root)
+            self.assertTrue(second_verification["all_passed"])
+            self.assertEqual(second_verification["summary"]["passed"], 1)
+
+            span_id = record_trace(
+                root,
+                reloaded.origin_session,
+                span_type="verification",
+                name=f"verify:{retry_phase.id}",
+                status="ok",
+                metadata={"plan_id": reloaded.id, "phase_id": retry_phase.id, "attempt": 2},
+            )
+            self.assertIsNotNone(span_id)
+
+    def test_three_failures_escalate_retry_directive(self) -> None:
+        plan = _approval_ready_plan(
+            id="retry-escalation-plan",
+            phases=[
+                PlanPhase(
+                    id="retry-phase",
+                    title="Retry escalation phase",
+                    failures=[
+                        PhaseFailure(
+                            timestamp=f"2026-03-27T0{i}:00:00Z",
+                            reason=f"Attempt {i + 1} failed",
+                            attempt=i + 1,
+                        )
+                        for i in range(3)
+                    ],
+                )
+            ],
+        )
+
+        directive = next_action(plan)
+        assert directive is not None
+        self.assertTrue(directive["has_prior_failures"])
+        self.assertEqual(directive["attempt_number"], 4)
+        self.assertTrue(directive["suggest_revision"])
+
+
+class TestTraceCoverageE2E(unittest.TestCase):
+    def test_recorded_spans_cover_lifecycle_without_duplicate_ids(self) -> None:
+        import json
+        from datetime import datetime
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = _full_harness_plan(
+                phases=[
+                    PlanPhase(id="phase-a", title="Phase A"),
+                    PlanPhase(id="phase-b", title="Phase B"),
+                ]
+            )
+            session_id = plan.origin_session
+
+            for span_type, name, phase_id in (
+                ("plan_action", "start", "phase-a"),
+                ("verification", "verify:phase-a", "phase-a"),
+                ("plan_action", "complete", "phase-a"),
+                ("plan_action", "start", "phase-b"),
+                ("plan_action", "complete", "phase-b"),
+            ):
+                record_trace(
+                    root,
+                    session_id,
+                    span_type=span_type,
+                    name=name,
+                    status="ok",
+                    metadata={"plan_id": plan.id, "phase_id": phase_id},
+                )
+
+            trace_path = root / trace_file_path(session_id)
+            spans = [
+                json.loads(line)
+                for line in trace_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+            self.assertGreaterEqual(len(spans), 5)
+            self.assertEqual(len({span["span_id"] for span in spans}), len(spans))
+            self.assertIn("plan_action", {span["span_type"] for span in spans})
+            self.assertIn("verification", {span["span_type"] for span in spans})
+            for span in spans:
+                datetime.fromisoformat(span["timestamp"].replace("Z", "+00:00"))
+                self.assertTrue(span["name"])
+                self.assertEqual(span["session_id"], session_id)
+            for span in spans:
+                if span["span_type"] == "plan_action":
+                    self.assertEqual(span["metadata"]["plan_id"], plan.id)
+                    self.assertIn("phase_id", span["metadata"])
+
+    def test_trace_metrics_align_with_lifecycle_spans(self) -> None:
+        from engram_mcp.agent_memory_mcp.tools.semantic.session_tools import (
+            _compute_trace_metrics,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session_id = "memory/activity/2026/03/27/chat-101"
+
+            record_trace(root, session_id, span_type="plan_action", name="start", status="ok")
+            record_trace(root, session_id, span_type="plan_action", name="complete", status="ok")
+            record_trace(
+                root, session_id, span_type="verification", name="verify:phase-a", status="ok"
+            )
+            record_trace(root, session_id, span_type="retrieval", name="read", status="ok")
+            record_trace(root, session_id, span_type="tool_call", name="tool", status="error")
+
+            metrics = _compute_trace_metrics(root, session_id)
+            assert metrics is not None
+            self.assertEqual(metrics["plan_actions"], 2)
+            self.assertEqual(metrics["retrievals"], 1)
+            self.assertEqual(metrics["tool_calls"], 1)
+            self.assertEqual(metrics["errors"], 1)
+
+    def test_trace_metrics_count_approval_lifecycle_as_plan_actions(self) -> None:
+        from engram_mcp.agent_memory_mcp.tools.semantic.session_tools import (
+            _compute_trace_metrics,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session_id = "memory/activity/2026/03/27/chat-approval"
+
+            record_trace(
+                root,
+                session_id,
+                span_type="plan_action",
+                name="approval-requested",
+                status="ok",
+            )
+            record_trace(
+                root,
+                session_id,
+                span_type="plan_action",
+                name="approval-approved",
+                status="ok",
+            )
+            record_trace(root, session_id, span_type="plan_action", name="start", status="ok")
+            record_trace(
+                root, session_id, span_type="verification", name="verify:phase-a", status="ok"
+            )
+
+            metrics = _compute_trace_metrics(root, session_id)
+            assert metrics is not None
+            self.assertEqual(metrics["plan_actions"], 3)
+            self.assertEqual(metrics["retrievals"], 0)
+            self.assertEqual(metrics["tool_calls"], 0)
+            self.assertEqual(metrics["errors"], 0)
+
+
+class TestToolPolicyE2E(unittest.TestCase):
+    def test_suggest_revision_coexists_with_tool_policies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_registry(root)
+            plan = _full_harness_plan()
+            phase = plan.phases[0]
+            phase.failures = [
+                PhaseFailure(
+                    timestamp=f"2026-03-27T1{i}:00:00Z",
+                    reason=f"Attempt {i + 1} failed",
+                    attempt=i + 1,
+                )
+                for i in range(3)
+            ]
+
+            directive = next_action(plan)
+            assert directive is not None
+            self.assertTrue(directive["suggest_revision"])
+
+            payload = phase_payload(plan, phase, root)
+            self.assertTrue(payload["phase"]["approval_required"])
+            self.assertEqual(payload["phase"]["attempt_number"], 4)
+            self.assertEqual(len(payload["tool_policies"]), 1)
+            self.assertEqual(payload["tool_policies"][0]["tool_name"], "pytest-run")
+
+    def test_missing_registry_degrades_to_empty_tool_policies(self) -> None:
+        plan = _full_harness_plan()
+        phase = plan.phases[0]
+        phase.failures = [
+            PhaseFailure(
+                timestamp=f"2026-03-27T1{i}:00:00Z",
+                reason=f"Attempt {i + 1} failed",
+                attempt=i + 1,
+            )
+            for i in range(3)
+        ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            payload = phase_payload(plan, phase, Path(tmp))
+
+        self.assertTrue(payload["phase"]["approval_required"])
+        self.assertEqual(payload["phase"]["attempt_number"], 4)
+        self.assertEqual(payload["tool_policies"], [])
+
+    def test_multiple_test_postconditions_collect_multiple_policies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_registry(root)
+            plan = _full_harness_plan(
+                phases=[
+                    PlanPhase(
+                        id="tool-phase",
+                        title="Tool phase",
+                        requires_approval=True,
+                        postconditions=[
+                            PostconditionSpec(
+                                description="pytest passes",
+                                type="test",
+                                target="python -m pytest core/tools/tests/test_plan_schema_extensions.py -q",
+                            ),
+                            PostconditionSpec(
+                                description="pre-commit passes",
+                                type="test",
+                                target="pre-commit run --all-files",
+                            ),
+                        ],
+                    )
+                ]
+            )
+
+            payload = phase_payload(plan, plan.phases[0], root)
+            policy_names = {entry["tool_name"] for entry in payload["tool_policies"]}
+
+            self.assertEqual(policy_names, {"pytest-run", "pre-commit-run"})
+            self.assertTrue(payload["phase"]["approval_required"])
+
+
+class TestCrossCuttingRegression(unittest.TestCase):
+    def test_expired_approval_does_not_prevent_postcondition_verification(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_approval_dirs(root)
+            (root / "core").mkdir(parents=True, exist_ok=True)
+            (root / "core" / "context.md").write_text("regression context\n", encoding="utf-8")
+            (root / "artifacts").mkdir(parents=True, exist_ok=True)
+            (root / "artifacts" / "result.txt").write_text("phase complete\n", encoding="utf-8")
+
+            plan = _approval_ready_plan(sessions_used=1, budget=PlanBudget(max_sessions=1))
+            plan.status = "paused"
+            phase = plan.phases[0]
+
+            expired = ApprovalDocument(
+                plan_id=plan.id,
+                phase_id=phase.id,
+                project_id=plan.project,
+                status="pending",
+                requested="2026-03-01T09:00:00Z",
+                expires="2026-03-02T09:00:00Z",
+                context={"phase_title": phase.title},
+            )
+            save_approval(root, expired)
+
+            loaded = load_approval(root, plan.id, phase.id)
+            assert loaded is not None
+            self.assertEqual(loaded.status, "expired")
+
+            verification = verify_postconditions(plan, phase, root)
+            self.assertTrue(verification["all_passed"])
+
+            budget = budget_status(plan)
+            assert budget is not None
+            self.assertTrue(budget["over_budget"])
+            self.assertTrue(budget["over_session_budget"])
+
+    def test_revision_signal_tool_policies_and_approval_requirement_surface_together(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_registry(root)
+            plan = _full_harness_plan()
+            phase = plan.phases[0]
+            phase.failures = [
+                PhaseFailure(
+                    timestamp=f"2026-03-27T1{i}:00:00Z",
+                    reason=f"Attempt {i + 1} failed",
+                    attempt=i + 1,
+                )
+                for i in range(3)
+            ]
+
+            directive = next_action(plan)
+            assert directive is not None
+            payload = phase_payload(plan, phase, root)
+
+            self.assertTrue(directive["suggest_revision"])
+            self.assertTrue(payload["phase"]["approval_required"])
+            self.assertEqual(payload["phase"]["attempt_number"], 4)
+            self.assertEqual(payload["tool_policies"][0]["tool_name"], "pytest-run")
 
 
 if __name__ == "__main__":
