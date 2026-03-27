@@ -156,6 +156,10 @@ class SourceSpec:
         the content prefix, e.g. ``core/tools/file.py``).  When *root* is the
         content root and the path redundantly starts with the content-prefix
         directory name we strip the prefix before checking.
+
+        Also checks the repository root (root.parent) when root is a known
+        content-prefix directory, so paths like ``HUMANS/docs/DESIGN.md``
+        that live outside the content prefix are found.
         """
         if self.type != "internal":
             return
@@ -165,6 +169,10 @@ class SourceSpec:
         # already incorporates (e.g. root="…/core", path="core/tools/…").
         first, _, rest = self.path.partition("/")
         if first and rest and root.name == first and (root / rest).exists():
+            return
+        # Repo-root fallback: when root is a content-prefix directory, check
+        # the parent (repo root) for paths that live outside the prefix.
+        if root.name in _CONTENT_PREFIXES and (root.parent / self.path).exists():
             return
         raise ValidationError(f"internal source does not exist: {self.path}")
 
