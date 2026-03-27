@@ -1,8 +1,8 @@
 ---
-active_plans: 3
+active_plans: 0
 cognitive_mode: implementation
 created: 2026-03-26
-current_focus: 'Phase 6 remains active while Phase 7 is now complete; Phases 8-9 remain planned.'
+current_focus: 'Phases 1-7 are complete; Phases 8-9 remain planned.'
 last_activity: '2026-03-27'
 open_questions: 0
 origin_session: memory/activity/2026/03/26/chat-001
@@ -35,7 +35,7 @@ Implementation mode. Phase 1 (schema extensions) is complete. Phases 2–5 have 
 | observability-phase-3 | 3: Observability | completed | 8/8 | 2/8 sessions |
 | tool-registry-phase-4 | 4: External Tool Registry | completed | 7/7 | 1/5 sessions |
 | hitl-phase-5 | 5: Structured HITL | completed | 8/8 | 1/8 sessions |
-| integration-tests-phase-6 | 6: Integration Tests | active | 1/6 | 1/6 sessions |
+| integration-tests-phase-6 | 6: Integration Tests | completed | 6/6 | 2/6 sessions |
 | eval-framework-phase-7 | 7: Eval Framework | completed | 7/7 | 3/8 sessions |
 | context-assembly-phase-8 | 8: Context Assembly | draft | 0/5 | 0/5 sessions |
 | external-ingestion-phase-9 | 9: External Ingestion | draft | 0/6 | 0/6 sessions |
@@ -70,8 +70,8 @@ All 8 observability sub-phases implemented in a single commit (15ca0d8): `TraceS
 ## Phase 5 outcome (completed 2026-03-26)
 All 8 sub-phases implemented in a single commit (daa3c50): `ApprovalDocument` dataclass + `APPROVAL_STATUSES`/`APPROVAL_RESOLUTIONS` constants, `load_approval()`/`save_approval()`/`regenerate_approvals_summary()` helpers with lazy expiry, `memory_request_approval` and `memory_resolve_approval` MCP tools, `paused` status added to `PLAN_STATUSES`, auto-pause logic in `memory_plan_execute` start action (handles all approval states), paused-plan guard blocking start/complete, `working/approvals/` directory structure, `approvals.html` UI (File System Access API, no server), 38 new tests (190 total). Ruff clean. Design decisions: auto-create on start, 7-day default expiry with lazy evaluation, rejection allows re-request, UI writes directly via File System Access API, `{plan_id}--{phase_id}.yaml` double-dash naming convention.
 
-## Phase 6 outcome (in progress)
-Cross-phase integration tests. Design doc: IN/phase-6-integration-tests-design.md. Plan: plans/integration-tests-phase-6.yaml. Initial batch landed: rich lifecycle fixtures in the shared schema test module, expanded direct integration coverage for retry escalation, trace metrics, multi-policy matching, and missing-registry degradation, plus write-tool E2E tests for approval pause/resume, repeated pending starts, rejection, expiry, and verify=true success/failure branches. Target remains 30-40 new tests bringing total to 220+. Six sub-phases: lifecycle fixtures, approval lifecycle E2E, verify-fail-retry E2E, trace coverage E2E, tool policy E2E, regression suite.
+## Phase 6 outcome (completed 2026-03-27)
+Cross-phase integration tests. Design doc: IN/phase-6-integration-tests-design.md. Plan: plans/integration-tests-phase-6.yaml. The shared schema test module now includes the rich lifecycle helpers plus full direct integration classes for approval lifecycle, verify-fail-retry, trace coverage, tool-policy resolution, and cross-cutting regression cases. This batch expanded coverage for approval queue transitions, approval summary regeneration, paused-plan budget visibility, failure serialization round-trips, retry escalation, completion after retry, trace append order, trace metadata sanitization, parent/child span linkage, registry field propagation, unmatched command degradation, expired-approval queue moves, and inter-plan blockers combined with tool policies. Combined with the earlier write-tool E2E tests, `test_plan_schema_extensions.py` now passes at 220 tests and the Phase 6 plan is complete.
 
 ## Phase 7 outcome (completed 2026-03-27)
 Offline evaluation framework. Design doc: IN/phase-7-eval-framework-design.md. Plan: plans/eval-framework-phase-7.yaml. `eval_utils.py` now provides EvalScenario/EvalStep/EvalAssertion plus StepResult/AssertionResult/ScenarioResult dataclasses, YAML loading/validation, a direct plan-utils runner (`run_scenario` / `run_suite`), standard metrics computation, scenario selection helpers, aggregated reporting, and trace-backed history loading. The semantic tool layer exposes `memory_run_eval` (Tier 2 gated, scenario/tag selection, summary trace emission) and `memory_eval_report` (historical runs and trends from eval trace spans). The seeded suite now lives under `skills/eval-scenarios/` with five scenarios covering lifecycle, verification/retry, trace coverage, tool-registry bootstrap, and approval pause/resume. Documentation and changelog wiring are complete, and the eval test suite now validates the real seeded scenarios end to end.

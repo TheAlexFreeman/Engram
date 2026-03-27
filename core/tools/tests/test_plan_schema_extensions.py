@@ -2929,8 +2929,207 @@ class TestApprovalLifecycleE2E(unittest.TestCase):
             self.assertEqual(len(approval_spans), 1)
             self.assertEqual(approval_spans[0]["metadata"]["phase_id"], phase.id)
 
+    def test_pending_approval_round_trip_preserves_context_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_approval_dirs(root)
+            plan = _approval_ready_plan()
+            phase = plan.phases[0]
+
+            pending = ApprovalDocument(
+                plan_id=plan.id,
+                phase_id=phase.id,
+                project_id=plan.project,
+                status="pending",
+                requested="2026-03-27T12:00:00Z",
+                expires="2026-04-03T12:00:00Z",
+                context={"phase_title": phase.title, "change_class": "proposed"},
+            )
+
+            pending_path = save_approval(root, pending)
+            loaded = load_approval(root, plan.id, phase.id)
+
+            assert loaded is not None
+            self.assertEqual(
+                pending_path,
+                root
+                / "memory"
+                / "working"
+                / "approvals"
+                / "pending"
+                / approval_filename(plan.id, phase.id),
+            )
+            self.assertEqual(loaded.status, "pending")
+            self.assertEqual(loaded.context["phase_title"], phase.title)
+            self.assertEqual(loaded.context["change_class"], "proposed")
+
+    def test_approved_approval_round_trip_uses_resolved_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_approval_dirs(root)
+            plan = _approval_ready_plan()
+            phase = plan.phases[0]
+
+            approved = ApprovalDocument(
+                plan_id=plan.id,
+                phase_id=phase.id,
+                project_id=plan.project,
+                status="approved",
+                requested="2026-03-27T12:00:00Z",
+                expires="2026-04-03T12:00:00Z",
+                context={"phase_title": phase.title},
+                resolution="approve",
+                reviewer="alex",
+                resolved_at="2026-03-27T12:10:00Z",
+                comment="Looks good.",
+            )
+
+            resolved_path = save_approval(root, approved)
+            loaded = load_approval(root, plan.id, phase.id)
+
+            assert loaded is not None
+            self.assertEqual(
+                resolved_path,
+                root
+                / "memory"
+                / "working"
+                / "approvals"
+                / "resolved"
+                / approval_filename(plan.id, phase.id),
+            )
+            self.assertEqual(loaded.status, "approved")
+            self.assertEqual(loaded.resolution, "approve")
+            self.assertEqual(loaded.reviewer, "alex")
+
+    def test_approval_summary_moves_entry_from_pending_to_resolved(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_approval_dirs(root)
+            plan = _approval_ready_plan()
+            phase = plan.phases[0]
+            pending = ApprovalDocument(
+                plan_id=plan.id,
+                phase_id=phase.id,
+                project_id=plan.project,
+                status="pending",
+                requested="2026-03-27T12:00:00Z",
+                expires="2026-04-03T12:00:00Z",
+                context={"phase_title": phase.title},
+            )
+            pending_path = save_approval(root, pending)
+
+            regenerate_approvals_summary(root)
+            summary_path = root / approvals_summary_path()
+            pending_summary = summary_path.read_text(encoding="utf-8")
+            self.assertIn(plan.id, pending_summary)
+            self.assertIn("## Pending", pending_summary)
+            self.assertIn(phase.title, pending_summary)
+
+            pending_path.unlink()
+            approved = ApprovalDocument(
+                plan_id=plan.id,
+                phase_id=phase.id,
+                project_id=plan.project,
+                status="approved",
+                requested=pending.requested,
+                expires=pending.expires,
+                context=pending.context,
+                resolution="approve",
+                reviewer="alex",
+                resolved_at="2026-03-27T12:10:00Z",
+            )
+            save_approval(root, approved)
+            regenerate_approvals_summary(root)
+
+            resolved_summary = summary_path.read_text(encoding="utf-8")
+            self.assertIn("## Resolved", resolved_summary)
+            self.assertIn("approved", resolved_summary)
+            self.assertIn(phase.title, resolved_summary)
+
+    def test_paused_plan_payload_surfaces_budget_while_approval_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_approval_dirs(root)
+            (root / "core").mkdir(parents=True, exist_ok=True)
+            (root / "core" / "context.md").write_text("approval context\n", encoding="utf-8")
+
+            plan = _approval_ready_plan()
+            plan.status = "paused"
+            phase = plan.phases[0]
+            save_approval(
+                root,
+                ApprovalDocument(
+                    plan_id=plan.id,
+                    phase_id=phase.id,
+                    project_id=plan.project,
+                    status="pending",
+                    requested="2026-03-27T12:00:00Z",
+                    expires="2026-04-03T12:00:00Z",
+                    context={"phase_title": phase.title},
+                ),
+            )
+
+            payload = phase_payload(plan, phase, root)
+
+            self.assertEqual(payload["plan_status"], "paused")
+            self.assertTrue(payload["phase"]["approval_required"])
+            self.assertTrue(payload["phase"]["requires_approval"])
+            self.assertEqual(payload["budget_status"]["sessions_used"], 0)
+            self.assertEqual(payload["progress"]["next_action"]["id"], phase.id)
+
 
 class TestVerifyFailRetryE2E(unittest.TestCase):
+    def _build_retry_plan(
+        self,
+        root: Path,
+        *,
+        artifact_content: str = "not yet\n",
+        failures: list[PhaseFailure] | None = None,
+        budget: PlanBudget | None = None,
+    ) -> tuple[PlanDocument, PlanPhase, Path]:
+        (root / "core").mkdir(parents=True, exist_ok=True)
+        (root / "core" / "context.md").write_text("retry context\n", encoding="utf-8")
+        (root / "artifacts").mkdir(parents=True, exist_ok=True)
+        (root / "artifacts" / "retry.txt").write_text(artifact_content, encoding="utf-8")
+
+        plan = _approval_ready_plan(
+            id="retry-plan",
+            budget=budget,
+            phases=[
+                PlanPhase(
+                    id="retry-phase",
+                    title="Retry phase",
+                    sources=[
+                        SourceSpec(
+                            path="core/context.md",
+                            type="internal",
+                            intent="Read retry context.",
+                        )
+                    ],
+                    postconditions=[
+                        PostconditionSpec(
+                            description="Expected marker is present",
+                            type="grep",
+                            target="needle::artifacts/retry.txt",
+                        )
+                    ],
+                    changes=[
+                        ChangeSpec(
+                            path="memory/working/notes/retry.md",
+                            action="update",
+                            description="Track retry flow",
+                        )
+                    ],
+                    failures=list(failures or []),
+                )
+            ],
+        )
+        phase = plan.phases[0]
+        phase.status = "in-progress"
+        plan_path = root / "retry-plan.yaml"
+        save_plan(plan_path, plan, root)
+        return plan, phase, plan_path
+
     def test_failure_round_trip_informs_retry_then_verification_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -3037,6 +3236,125 @@ class TestVerifyFailRetryE2E(unittest.TestCase):
         self.assertTrue(directive["has_prior_failures"])
         self.assertEqual(directive["attempt_number"], 4)
         self.assertTrue(directive["suggest_revision"])
+
+    def test_failure_payload_retains_verification_results_after_reload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _, phase, plan_path = self._build_retry_plan(root)
+            plan = load_plan(plan_path, root)
+            phase = plan.phases[0]
+
+            verification = verify_postconditions(plan, phase, root)
+            phase.failures.append(
+                PhaseFailure(
+                    timestamp="2026-03-27T12:30:00Z",
+                    reason="Retry marker missing",
+                    verification_results=verification["verification_results"],
+                    attempt=1,
+                )
+            )
+            save_plan(plan_path, plan, root)
+
+            reloaded = load_plan(plan_path, root)
+            payload = phase_payload(reloaded, reloaded.phases[0], root)
+
+            self.assertEqual(payload["phase"]["failures"][0]["reason"], "Retry marker missing")
+            self.assertEqual(
+                payload["phase"]["failures"][0]["verification_results"][0]["status"],
+                "fail",
+            )
+
+    def test_multiple_failures_round_trip_preserves_attempt_sequence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            failures = [
+                PhaseFailure(
+                    timestamp="2026-03-27T12:00:00Z",
+                    reason="First attempt failed",
+                    attempt=1,
+                ),
+                PhaseFailure(
+                    timestamp="2026-03-27T12:05:00Z",
+                    reason="Second attempt failed",
+                    attempt=2,
+                ),
+            ]
+            _, _, plan_path = self._build_retry_plan(root, failures=failures)
+
+            reloaded = load_plan(plan_path, root)
+            payload = phase_payload(reloaded, reloaded.phases[0], root)
+
+            self.assertEqual([entry["attempt"] for entry in payload["phase"]["failures"]], [1, 2])
+            self.assertEqual(payload["phase"]["attempt_number"], 3)
+            self.assertEqual(payload["phase"]["failures"][1]["reason"], "Second attempt failed")
+
+    def test_second_failed_retry_advances_attempt_number_to_three(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            failures = [
+                PhaseFailure(
+                    timestamp="2026-03-27T12:00:00Z",
+                    reason="First attempt failed",
+                    attempt=1,
+                )
+            ]
+            _, _, plan_path = self._build_retry_plan(root, failures=failures)
+
+            reloaded = load_plan(plan_path, root)
+            retry_phase = reloaded.phases[0]
+            verification = verify_postconditions(reloaded, retry_phase, root)
+            self.assertFalse(verification["all_passed"])
+            retry_phase.failures.append(
+                PhaseFailure(
+                    timestamp="2026-03-27T12:15:00Z",
+                    reason="Second attempt failed",
+                    verification_results=verification["verification_results"],
+                    attempt=2,
+                )
+            )
+            save_plan(plan_path, reloaded, root)
+
+            final_plan = load_plan(plan_path, root)
+            directive = next_action(final_plan)
+            assert directive is not None
+            self.assertTrue(directive["has_prior_failures"])
+            self.assertEqual(directive["attempt_number"], 3)
+
+    def test_successful_retry_completion_clears_next_action_and_updates_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            budget = PlanBudget(max_sessions=2)
+            _, _, plan_path = self._build_retry_plan(root, budget=budget)
+
+            reloaded = load_plan(plan_path, root)
+            retry_phase = reloaded.phases[0]
+            failed = verify_postconditions(reloaded, retry_phase, root)
+            self.assertFalse(failed["all_passed"])
+            retry_phase.failures.append(
+                PhaseFailure(
+                    timestamp="2026-03-27T12:30:00Z",
+                    reason="Missing marker",
+                    verification_results=failed["verification_results"],
+                    attempt=1,
+                )
+            )
+            (root / "artifacts" / "retry.txt").write_text("needle found\n", encoding="utf-8")
+
+            passed = verify_postconditions(reloaded, retry_phase, root)
+            self.assertTrue(passed["all_passed"])
+
+            retry_phase.status = "completed"
+            retry_phase.commit = "retry-commit-001"
+            reloaded.status = "completed"
+            reloaded.sessions_used += 1
+            save_plan(plan_path, reloaded, root)
+
+            completed_plan = load_plan(plan_path, root)
+            self.assertIsNone(next_action(completed_plan))
+            budget_info = budget_status(completed_plan)
+            assert budget_info is not None
+            self.assertEqual(budget_info["sessions_used"], 1)
+            self.assertEqual(budget_info["sessions_remaining"], 1)
 
 
 class TestTraceCoverageE2E(unittest.TestCase):
@@ -3149,6 +3467,89 @@ class TestTraceCoverageE2E(unittest.TestCase):
             self.assertEqual(metrics["tool_calls"], 0)
             self.assertEqual(metrics["errors"], 0)
 
+    def test_trace_parent_span_and_duration_round_trip(self) -> None:
+        import json
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session_id = "memory/activity/2026/03/27/chat-parent"
+            parent_span = record_trace(
+                root,
+                session_id,
+                span_type="plan_action",
+                name="start",
+                status="ok",
+                duration_ms=15,
+            )
+            child_span = record_trace(
+                root,
+                session_id,
+                span_type="verification",
+                name="verify:phase-a",
+                status="ok",
+                duration_ms=30,
+                parent_span_id=parent_span,
+            )
+
+            trace_path = root / trace_file_path(session_id)
+            spans = [
+                json.loads(line)
+                for line in trace_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+            self.assertEqual(spans[0]["duration_ms"], 15)
+            self.assertEqual(spans[1]["parent_span_id"], parent_span)
+            self.assertEqual(spans[1]["duration_ms"], 30)
+            self.assertEqual(spans[1]["span_id"], child_span)
+
+    def test_trace_metadata_sanitization_redacts_and_truncates_nested_fields(self) -> None:
+        import json
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session_id = "memory/activity/2026/03/27/chat-sanitize"
+            record_trace(
+                root,
+                session_id,
+                span_type="plan_action",
+                name="approval-requested",
+                status="ok",
+                metadata={
+                    "api_key": "super-secret",
+                    "detail": "x" * 250,
+                    "context": {"phase": "phase-a", "token": "hide-me"},
+                },
+            )
+
+            trace_path = root / trace_file_path(session_id)
+            span = json.loads(trace_path.read_text(encoding="utf-8").splitlines()[0])
+
+            self.assertEqual(span["metadata"]["api_key"], "[redacted]")
+            self.assertTrue(span["metadata"]["detail"].endswith("[truncated]"))
+            self.assertEqual(span["metadata"]["context"]["phase"], "phase-a")
+            self.assertEqual(span["metadata"]["context"]["token"], "[redacted]")
+
+    def test_trace_file_preserves_append_order_for_lifecycle_spans(self) -> None:
+        import json
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session_id = "memory/activity/2026/03/27/chat-order"
+            for name in ["approval-requested", "start", "complete"]:
+                record_trace(root, session_id, span_type="plan_action", name=name, status="ok")
+
+            trace_path = root / trace_file_path(session_id)
+            spans = [
+                json.loads(line)
+                for line in trace_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+            self.assertEqual(
+                [span["name"] for span in spans], ["approval-requested", "start", "complete"]
+            )
+
 
 class TestToolPolicyE2E(unittest.TestCase):
     def test_suggest_revision_coexists_with_tool_policies(self) -> None:
@@ -3227,6 +3628,139 @@ class TestToolPolicyE2E(unittest.TestCase):
             self.assertEqual(policy_names, {"pytest-run", "pre-commit-run"})
             self.assertTrue(payload["phase"]["approval_required"])
 
+    def test_policy_fields_match_registered_definition(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_registry(
+                root,
+                tools=[
+                    ToolDefinition(
+                        name="pytest-run",
+                        description="Run pytest",
+                        provider="shell",
+                        approval_required=True,
+                        cost_tier="medium",
+                        timeout_seconds=90,
+                        tags=["test"],
+                    )
+                ],
+            )
+            plan = _full_harness_plan(
+                phases=[
+                    PlanPhase(
+                        id="tool-phase",
+                        title="Tool phase",
+                        requires_approval=True,
+                        postconditions=[
+                            PostconditionSpec(
+                                description="pytest passes",
+                                type="test",
+                                target="python -m pytest core/tools/tests/test_plan_schema_extensions.py -q",
+                            )
+                        ],
+                    )
+                ]
+            )
+
+            payload = phase_payload(plan, plan.phases[0], root)
+            policy = payload["tool_policies"][0]
+
+            self.assertEqual(policy["tool_name"], "pytest-run")
+            self.assertTrue(policy["approval_required"])
+            self.assertEqual(policy["cost_tier"], "medium")
+            self.assertEqual(policy["timeout_seconds"], 90)
+
+    def test_unmatched_test_target_yields_empty_tool_policies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_registry(root)
+            plan = _full_harness_plan(
+                phases=[
+                    PlanPhase(
+                        id="tool-phase",
+                        title="Tool phase",
+                        postconditions=[
+                            PostconditionSpec(
+                                description="custom command passes",
+                                type="test",
+                                target="python -m custom_runner tests",
+                            )
+                        ],
+                    )
+                ]
+            )
+
+            payload = phase_payload(plan, plan.phases[0], root)
+            self.assertEqual(payload["tool_policies"], [])
+
+    def test_non_test_postconditions_do_not_emit_tool_policies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_registry(root)
+            plan = _full_harness_plan(
+                phases=[
+                    PlanPhase(
+                        id="tool-phase",
+                        title="Tool phase",
+                        postconditions=[
+                            PostconditionSpec(
+                                description="artifact exists",
+                                type="check",
+                                target="artifacts/harness.txt",
+                            ),
+                            PostconditionSpec(
+                                description="artifact contains marker",
+                                type="grep",
+                                target="ready::artifacts/harness.txt",
+                            ),
+                        ],
+                    )
+                ]
+            )
+
+            payload = phase_payload(plan, plan.phases[0], root)
+            self.assertEqual(payload["tool_policies"], [])
+
+    def test_updated_registry_definition_changes_phase_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            save_registry(
+                root,
+                "shell",
+                [
+                    ToolDefinition(
+                        name="pytest-run",
+                        description="Run pytest",
+                        provider="shell",
+                        approval_required=False,
+                        cost_tier="high",
+                        timeout_seconds=45,
+                    )
+                ],
+            )
+            plan = _full_harness_plan(
+                phases=[
+                    PlanPhase(
+                        id="tool-phase",
+                        title="Tool phase",
+                        postconditions=[
+                            PostconditionSpec(
+                                description="pytest passes",
+                                type="test",
+                                target="python -m pytest core/tools/tests/test_plan_schema_extensions.py -q",
+                            )
+                        ],
+                    )
+                ]
+            )
+
+            payload = phase_payload(plan, plan.phases[0], root)
+            policy = payload["tool_policies"][0]
+
+            self.assertFalse(policy["approval_required"])
+            self.assertEqual(policy["cost_tier"], "high")
+            self.assertEqual(policy["timeout_seconds"], 45)
+
 
 class TestCrossCuttingRegression(unittest.TestCase):
     def test_expired_approval_does_not_prevent_postcondition_verification(self) -> None:
@@ -3288,6 +3822,168 @@ class TestCrossCuttingRegression(unittest.TestCase):
             self.assertTrue(payload["phase"]["approval_required"])
             self.assertEqual(payload["phase"]["attempt_number"], 4)
             self.assertEqual(payload["tool_policies"][0]["tool_name"], "pytest-run")
+
+    def test_expired_approval_moves_file_from_pending_to_resolved_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_approval_dirs(root)
+            plan = _approval_ready_plan()
+            phase = plan.phases[0]
+            pending = ApprovalDocument(
+                plan_id=plan.id,
+                phase_id=phase.id,
+                project_id=plan.project,
+                status="pending",
+                requested="2026-03-01T09:00:00Z",
+                expires="2026-03-02T09:00:00Z",
+                context={"phase_title": phase.title},
+            )
+            pending_path = save_approval(root, pending)
+            resolved_path = (
+                root
+                / "memory"
+                / "working"
+                / "approvals"
+                / "resolved"
+                / approval_filename(plan.id, phase.id)
+            )
+
+            loaded = load_approval(root, plan.id, phase.id)
+
+            assert loaded is not None
+            self.assertEqual(loaded.status, "expired")
+            self.assertFalse(pending_path.exists())
+            self.assertTrue(resolved_path.exists())
+
+    def test_expired_approval_summary_lists_resolved_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_approval_dirs(root)
+            plan = _approval_ready_plan()
+            phase = plan.phases[0]
+            save_approval(
+                root,
+                ApprovalDocument(
+                    plan_id=plan.id,
+                    phase_id=phase.id,
+                    project_id=plan.project,
+                    status="pending",
+                    requested="2026-03-01T09:00:00Z",
+                    expires="2026-03-02T09:00:00Z",
+                    context={"phase_title": phase.title},
+                ),
+            )
+
+            expired = load_approval(root, plan.id, phase.id)
+            assert expired is not None
+            self.assertEqual(expired.status, "expired")
+
+            regenerate_approvals_summary(root)
+            summary = (root / approvals_summary_path()).read_text(encoding="utf-8")
+            self.assertIn("expired", summary)
+            self.assertIn(phase.title, summary)
+
+    def test_inter_plan_blockers_and_tool_policies_surface_together(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_registry(root)
+            _write_minimal_plan_at(
+                root,
+                "test-project",
+                "upstream-plan",
+                phases=[
+                    PlanPhase(
+                        id="upstream-phase",
+                        title="Upstream phase",
+                        status="completed",
+                        commit="upstream-commit-001",
+                        changes=[
+                            ChangeSpec(
+                                path="memory/working/notes/upstream.md",
+                                action="create",
+                                description="Upstream artifact",
+                            )
+                        ],
+                    )
+                ],
+            )
+            plan = _full_harness_plan(
+                phases=[
+                    PlanPhase(
+                        id="blocked-phase",
+                        title="Blocked phase",
+                        blockers=["upstream-plan:upstream-phase"],
+                        requires_approval=True,
+                        postconditions=[
+                            PostconditionSpec(
+                                description="pytest passes",
+                                type="test",
+                                target="python -m pytest core/tools/tests/test_plan_schema_extensions.py -q",
+                            )
+                        ],
+                        changes=[
+                            ChangeSpec(
+                                path="memory/working/notes/blocked.md",
+                                action="update",
+                                description="Blocked phase note",
+                            )
+                        ],
+                    )
+                ]
+            )
+
+            payload = phase_payload(plan, plan.phases[0], root)
+
+            self.assertEqual(
+                payload["phase"]["blockers"][0]["reference"], "upstream-plan:upstream-phase"
+            )
+            self.assertTrue(payload["phase"]["blockers"][0]["satisfied"])
+            self.assertEqual(payload["tool_policies"][0]["tool_name"], "pytest-run")
+
+    def test_suggest_revision_survives_with_blockers_and_missing_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = _full_harness_plan(
+                phases=[
+                    PlanPhase(
+                        id="blocked-phase",
+                        title="Blocked phase",
+                        blockers=["missing-plan:missing-phase"],
+                        requires_approval=True,
+                        failures=[
+                            PhaseFailure(
+                                timestamp=f"2026-03-27T1{i}:00:00Z",
+                                reason=f"Attempt {i + 1} failed",
+                                attempt=i + 1,
+                            )
+                            for i in range(3)
+                        ],
+                        postconditions=[
+                            PostconditionSpec(
+                                description="pytest passes",
+                                type="test",
+                                target="python -m pytest core/tools/tests/test_plan_schema_extensions.py -q",
+                            )
+                        ],
+                        changes=[
+                            ChangeSpec(
+                                path="memory/working/notes/blocked.md",
+                                action="update",
+                                description="Blocked phase note",
+                            )
+                        ],
+                    )
+                ]
+            )
+
+            directive = next_action(plan)
+            assert directive is not None
+            payload = phase_payload(plan, plan.phases[0], root)
+
+            self.assertTrue(directive["suggest_revision"])
+            self.assertEqual(payload["phase"]["attempt_number"], 4)
+            self.assertEqual(payload["phase"]["blockers"][0]["status"], "missing-plan")
+            self.assertEqual(payload["tool_policies"], [])
 
 
 if __name__ == "__main__":
