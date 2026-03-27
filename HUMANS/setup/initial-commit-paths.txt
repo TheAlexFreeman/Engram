@@ -623,6 +623,10 @@ core/memory/skills/codebase-survey.md
 core/memory/skills/eval-scenarios/SUMMARY.md
 core/memory/skills/eval-scenarios/approval-pause-resume.yaml
 core/memory/skills/eval-scenarios/basic-plan-lifecycle.yaml
+core/memory/skills/eval-scenarios/guard-pipeline-blocking.yaml
+core/memory/skills/eval-scenarios/policy-enforcement-eval.yaml
+core/memory/skills/eval-scenarios/run-state-checkpoint-resume.yaml
+core/memory/skills/eval-scenarios/run-state-failure-recovery.yaml
 core/memory/skills/eval-scenarios/tool-policy-integration.yaml
 core/memory/skills/eval-scenarios/trace-recording-validation.yaml
 core/memory/skills/eval-scenarios/verification-failure-retry.yaml
@@ -672,6 +676,7 @@ core/memory/working/projects/harness-expansion/IN/phase-1-schema-design.md
 core/memory/working/projects/harness-expansion/IN/phase-10-run-state-design.md
 core/memory/working/projects/harness-expansion/IN/phase-11-tool-policy-enforcement-design.md
 core/memory/working/projects/harness-expansion/IN/phase-12-runtime-guardrails-design.md
+core/memory/working/projects/harness-expansion/IN/phase-13-eval-hardening-design.md
 core/memory/working/projects/harness-expansion/IN/phase-2-verification-design.md
 core/memory/working/projects/harness-expansion/IN/phase-3-observability-design.md
 core/memory/working/projects/harness-expansion/IN/phase-4-tool-registry-design.md
@@ -739,6 +744,7 @@ core/tools/memory_mcp.py
 core/tools/tests/__init__.py
 core/tools/tests/test_agent_memory_mcp_write_tools.py
 core/tools/tests/test_core_boundary.py
+core/tools/tests/test_eval_scenarios.py
 core/tools/tests/test_eval_utils.py
 core/tools/tests/test_graph_tools.py
 core/tools/tests/test_guard_pipeline.py

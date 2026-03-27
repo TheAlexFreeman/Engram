@@ -2296,6 +2296,22 @@ def trace_file_path(session_id: str) -> str:
     return f"{session_id}.traces.jsonl"
 
 
+_CHARS_PER_TOKEN = 4
+
+
+def estimate_cost(
+    *,
+    input_chars: int = 0,
+    output_chars: int = 0,
+    chars_per_token: int = _CHARS_PER_TOKEN,
+) -> dict[str, int]:
+    """Estimate token cost from character counts.  Returns ``{tokens_in, tokens_out}``."""
+    return {
+        "tokens_in": max(0, (input_chars + chars_per_token - 1) // chars_per_token),
+        "tokens_out": max(0, (output_chars + chars_per_token - 1) // chars_per_token),
+    }
+
+
 def record_trace(
     root: Path,
     session_id: str | None,
@@ -3295,6 +3311,7 @@ __all__ = [
     "check_tool_policy",
     "coerce_budget_input",
     "coerce_phase_inputs",
+    "estimate_cost",
     "exportable_artifacts",
     "load_approval",
     "load_plan",

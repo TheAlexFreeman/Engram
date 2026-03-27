@@ -5257,5 +5257,116 @@ class TestToolPolicyEnforcement(unittest.TestCase):
             self.assertEqual(result["verification_results"][0]["status"], "fail")
 
 
+class TestTraceEnrichment(unittest.TestCase):
+    """Tests for trace cost estimation, parent-child spans, and aggregate metrics."""
+
+    def test_estimate_cost_basic(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import estimate_cost
+
+        cost = estimate_cost(input_chars=400, output_chars=200)
+        self.assertEqual(cost["tokens_in"], 100)
+        self.assertEqual(cost["tokens_out"], 50)
+
+    def test_estimate_cost_zero(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import estimate_cost
+
+        cost = estimate_cost()
+        self.assertEqual(cost["tokens_in"], 0)
+        self.assertEqual(cost["tokens_out"], 0)
+
+    def test_estimate_cost_rounding(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import estimate_cost
+
+        cost = estimate_cost(input_chars=5)
+        self.assertEqual(cost["tokens_in"], 2)
+
+    def test_record_trace_returns_span_id(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sid = "memory/activity/2026/03/27/chat-001"
+            span_id = record_trace(root, sid, span_type="tool_call", name="test", status="ok")
+            self.assertIsNotNone(span_id)
+            self.assertEqual(len(span_id), 12)
+
+    def test_record_trace_with_cost(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import estimate_cost
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sid = "memory/activity/2026/03/27/chat-001"
+            cost = estimate_cost(input_chars=100, output_chars=200)
+            record_trace(
+                root,
+                sid,
+                span_type="tool_call",
+                name="test-with-cost",
+                status="ok",
+                cost=cost,
+            )
+            import json
+
+            trace_file = root / "memory/activity/2026/03/27/chat-001.traces.jsonl"
+            self.assertTrue(trace_file.exists())
+            spans = [
+                json.loads(line)
+                for line in trace_file.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertEqual(len(spans), 1)
+            self.assertEqual(spans[0]["cost"]["tokens_in"], 25)
+            self.assertEqual(spans[0]["cost"]["tokens_out"], 50)
+
+    def test_parent_child_span_linkage(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sid = "memory/activity/2026/03/27/chat-001"
+            parent_id = record_trace(root, sid, span_type="plan_action", name="start", status="ok")
+            record_trace(
+                root,
+                sid,
+                span_type="tool_call",
+                name="child-op",
+                status="ok",
+                parent_span_id=parent_id,
+            )
+            import json
+
+            trace_file = root / "memory/activity/2026/03/27/chat-001.traces.jsonl"
+            spans = [
+                json.loads(line)
+                for line in trace_file.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertEqual(len(spans), 2)
+            self.assertIsNone(spans[0].get("parent_span_id"))
+            self.assertEqual(spans[1]["parent_span_id"], parent_id)
+
+    def test_policy_violation_span_type_accepted(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sid = "memory/activity/2026/03/27/chat-001"
+            span_id = record_trace(
+                root,
+                sid,
+                span_type="policy_violation",
+                name="check_tool_policy",
+                status="denied",
+            )
+            self.assertIsNotNone(span_id)
+
+    def test_guardrail_check_span_type_accepted(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sid = "memory/activity/2026/03/27/chat-001"
+            span_id = record_trace(
+                root,
+                sid,
+                span_type="guardrail_check",
+                name="guard_pipeline",
+                status="ok",
+            )
+            self.assertIsNotNone(span_id)
+
+
 if __name__ == "__main__":
     unittest.main()

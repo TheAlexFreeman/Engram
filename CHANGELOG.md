@@ -18,6 +18,14 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-27] Trace enrichment (Phase 14)
+
+**Changed:** Added `estimate_cost()` helper to `plan_utils.py` for character-to-token cost estimation (4 chars/token default). Plan execution traces (start, complete, record_failure) now include `cost: {tokens_in, tokens_out}`. `memory_query_traces` aggregates now include `total_cost` with summed token counts. `record_trace()` return value (`span_id`) supports parent-child span chaining via `parent_span_id`. 8 new tests in `TestTraceEnrichment`. Updated DESIGN.md.
+
+**Reasoning:** Phase 3 traces had empty cost fields and unused parent-child relationships. The deep research report recommends end-to-end traces with latency/cost as critical operational metrics. Cost estimation and span hierarchy make the observability layer production-ready for periodic reviews.
+
+**Approved by:** user
+
 ## [2026-03-27] Eval hardening (Phase 13)
 
 **Changed:** Added isolated eval execution (`run_scenario(isolated=True)`), pytest CI runner (`test_eval_scenarios.py` with `@pytest.mark.eval`), result history tracking (`append_eval_history`, `load_eval_history` with `eval-history.jsonl`), and regression detection (`compare_eval_runs()` with 10% threshold). Created 4 new eval scenarios for Phases 10-12: run state checkpoint/resume, run state failure recovery, guard pipeline blocking, and policy enforcement. Updated seed scenario tests. Updated DESIGN.md.

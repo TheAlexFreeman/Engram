@@ -2,8 +2,8 @@ id: trace-enrichment-phase-14
 project: harness-expansion
 created: '2026-03-27'
 origin_session: memory/activity/2026/03/27/chat-002
-status: draft
-sessions_used: 0
+status: completed
+sessions_used: 1
 budget:
   deadline: '2026-06-01'
   max_sessions: 5
@@ -38,7 +38,7 @@ work:
   phases:
   - id: cost-tracking-impl
     title: Populate cost fields on trace spans
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: core/tools/agent_memory_mcp/plan_utils.py
@@ -67,7 +67,7 @@ work:
 
   - id: parent-child-spans
     title: Instrument parent-child span relationships for call trees
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: core/tools/agent_memory_mcp/plan_utils.py
@@ -93,7 +93,7 @@ work:
 
   - id: aggregate-dashboard
     title: Build aggregate metrics dashboard for periodic reviews
-    status: pending
+    status: completed
     blockers:
     - cost-tracking-impl
     - parent-child-spans
@@ -123,7 +123,7 @@ work:
 
   - id: trace-enrichment-tests
     title: Add test coverage for trace enrichment features
-    status: pending
+    status: completed
     blockers:
     - cost-tracking-impl
     - parent-child-spans
@@ -151,7 +151,7 @@ work:
 
   - id: trace-enrichment-docs
     title: Document trace enrichment in DESIGN.md
-    status: pending
+    status: completed
     blockers:
     - trace-enrichment-tests
     sources:

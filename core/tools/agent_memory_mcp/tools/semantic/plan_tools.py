@@ -28,6 +28,7 @@ from ...plan_utils import (
     check_run_state_staleness,
     coerce_budget_input,
     coerce_phase_inputs,
+    estimate_cost,
     exportable_artifacts,
     load_approval,
     load_plan,
@@ -828,13 +829,17 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 detail=phase.title,
             )
             _sync_project_navigation(root, repo, resolved_project_id, files_changed)
-            record_trace(
+            _start_span_id = record_trace(
                 root,
                 session_id,
                 span_type="plan_action",
                 name="start",
                 status="ok",
                 metadata={"plan_id": plan.id, "phase_id": phase.id, "action": "start"},
+                cost=estimate_cost(
+                    input_chars=len(json.dumps(start_state)),
+                    output_chars=len(json.dumps(start_state)),
+                ),
             )
             commit_result = repo.commit(commit_msg)
             return MemoryWriteResult.from_commit(
@@ -949,6 +954,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                     "action": "record_failure",
                     "attempt": failure.attempt,
                 },
+                cost=estimate_cost(
+                    input_chars=len(reason.strip()),
+                    output_chars=len(json.dumps(failure_state)),
+                ),
             )
             commit_result = repo.commit(commit_msg)
             return MemoryWriteResult.from_commit(
@@ -1126,6 +1135,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 "commit": phase.commit,
                 "plan_done": all_done,
             },
+            cost=estimate_cost(
+                input_chars=len(json.dumps(completion_state)),
+                output_chars=len(json.dumps(completion_state)),
+            ),
         )
         commit_result = repo.commit(commit_msg)
         return MemoryWriteResult.from_commit(
@@ -1570,6 +1583,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         limited_spans = all_spans[: max(1, limit)]
 
         total_duration_ms = sum(s.get("duration_ms") or 0 for s in all_spans)
+        total_tokens_in = 0
+        total_tokens_out = 0
         by_type: dict[str, int] = {}
         by_status: dict[str, int] = {}
         error_count = 0
@@ -1580,12 +1595,20 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             by_status[ss] = by_status.get(ss, 0) + 1
             if ss == "error":
                 error_count += 1
+            span_cost = span.get("cost")
+            if isinstance(span_cost, dict):
+                total_tokens_in += int(span_cost.get("tokens_in", 0))
+                total_tokens_out += int(span_cost.get("tokens_out", 0))
 
         result: dict[str, Any] = {
             "spans": limited_spans,
             "total_matched": total_matched,
             "aggregates": {
                 "total_duration_ms": total_duration_ms,
+                "total_cost": {
+                    "tokens_in": total_tokens_in,
+                    "tokens_out": total_tokens_out,
+                },
                 "by_type": by_type,
                 "by_status": by_status,
                 "error_rate": round(error_count / total_matched, 3) if total_matched > 0 else 0.0,

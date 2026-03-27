@@ -410,6 +410,16 @@ Phase 7 delivered the eval framework (schema, runner, metrics, MCP tools). Phase
 
 **Expanded scenarios.** Nine scenarios covering: basic lifecycle, approval workflows, verification retries, trace recording, tool policy integration, run state checkpoint/resume, run state failure recovery, guard pipeline blocking, and policy enforcement.
 
+## Part IX: Trace Enrichment
+
+Phase 3 delivered structured traces with `TraceSpan`, `TRACES.jsonl`, and querying. Phase 14 fills in the operational metrics gaps.
+
+**Cost tracking.** `estimate_cost()` converts character counts to approximate token counts (4 chars/token default). Plan execution traces (`start`, `complete`, `record_failure`) now include `cost: {tokens_in, tokens_out}`. `memory_query_traces` aggregates include `total_cost` with summed token counts.
+
+**Parent-child spans.** `record_trace()` returns a `span_id` that can be passed as `parent_span_id` to child operations, enabling call-tree reconstruction. The plan `start` action returns its span ID for downstream use.
+
+**Aggregate metrics.** `memory_query_traces` response now includes `total_cost` in its `aggregates` block alongside `total_duration_ms`, `by_type`, `by_status`, and `error_rate`.
+
 ---
 
 ## Summary
