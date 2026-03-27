@@ -8,12 +8,12 @@ See `core/governance/scratchpad-guidelines.md` for the full write protocol, prom
 
 ## Active threads
 
-- **Harness expansion** — Phases 1, 2, and 3 complete. Phase 4 (External Tool Registry) is next; its plan draft (`tool-registry-phase-4.yaml`) is ready to start. See `core/memory/working/projects/harness-expansion/SUMMARY.md`.
+- **Harness expansion** — Phases 1–4 complete. Phase 5 (Structured HITL) is next; its plan draft (`hitl-phase-5.yaml`) is ready. See `core/memory/working/projects/harness-expansion/SUMMARY.md`.
 - **Codebase survey** — All 6 phases complete. All knowledge files at `trust: medium`. Pending human review for promotion from IN/ to `knowledge/codebase/` via OUT/. See `core/memory/working/projects/codebase-survey/plans/survey-plan.yaml`.
 
 ## Immediate next actions
 
-- Begin Phase 4 (External Tool Registry): read `IN/phase-4-tool-registry-design.md` and `plans/tool-registry-phase-4.yaml`, then implement.
+- Begin Phase 5 (Structured HITL): read `IN/phase-5-hitl-design.md` and `plans/hitl-phase-5.yaml`, then implement.
 - Codebase survey: promote IN/ files to knowledge/codebase/ after user reviews them.
 
 ## Open questions

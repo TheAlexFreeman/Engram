@@ -2,8 +2,7 @@
 active_plans: 0
 cognitive_mode: implementation
 created: 2026-03-26
-current_focus: 'Phase 3 complete (commit 15ca0d8). Phase 4 (External Tool Registry)
-  is next; its plan draft is ready.'
+current_focus: 'Phase 4 complete (commit ce466aa). Phase 5 (Structured HITL) is next.'
 last_activity: '2026-03-26'
 open_questions: 0
 origin_session: memory/activity/2026/03/26/chat-001
@@ -34,7 +33,7 @@ Implementation mode. Phase 1 (schema extensions) is complete. Phases 2–5 have 
 | active-plans-phase-1 | 1: Active Plans | completed | 7/7 | 5/8 sessions |
 | verification-phase-2 | 2: Inline Verification | completed | 7/7 | 7/6 sessions |
 | observability-phase-3 | 3: Observability | completed | 8/8 | 2/8 sessions |
-| tool-registry-phase-4 | 4: External Tool Registry | draft | 0/7 | 0/5 sessions |
+| tool-registry-phase-4 | 4: External Tool Registry | completed | 7/7 | 1/5 sessions |
 | hitl-phase-5 | 5: Structured HITL | draft | 0/8 | 0/8 sessions |
 
 ## Inter-plan dependencies
@@ -53,6 +52,9 @@ All four schema extensions are implemented and tested: `SourceSpec`, `Postcondit
 
 ## Phase 2 outcome (completed 2026-03-26)
 All four verification extensions implemented: `memory_plan_verify` tool (check/grep/test/manual validators), `verify=true` parameter on `memory_plan_execute` complete action (blocking), `PhaseFailure` dataclass + `record_failure` action, and retry context in `phase_payload`/`next_action`. 7 sessions used (1 over budget). Documentation updated in DESIGN.md, MCP.md, CHANGELOG.md.
+
+## Phase 4 outcome (completed 2026-03-26)
+All 7 sub-phases implemented in a single commit (ce466aa): `ToolDefinition` dataclass, `load_registry`/`save_registry`/`_all_registry_tools`/`regenerate_registry_summary` helpers, `memory_register_tool` and `memory_get_tool_policy` MCP tools, `_resolve_tool_policies` + `phase_payload` integration, seed registry (`shell.yaml` with `pre-commit-run`/`pytest-run`/`ruff-check`), 29 new tests (152 total). Ruff clean. Design decisions: immediate writes (no async approval gate), provider-grouped YAML files, `approval_required` describes invocation policy, `tool_policies` in `phase_payload` uses slug-normalized command matching.
 
 ## Phase 3 outcome (completed 2026-03-26)
 All 8 observability sub-phases implemented in a single commit (15ca0d8): `TraceSpan` dataclass + `record_trace()` helper, `memory_record_trace` and `memory_query_traces` MCP tools, internal plan instrumentation (create/execute/verify emit spans automatically), `event_type: retrieval` on ACCESS.jsonl entries, `_compute_trace_metrics()` for session summary enrichment, `traces.html` viewer with timeline/waterfall layout, 25 new tests (123 total). Ruff clean. Design decisions: always-on tracing, field-level credential redaction + 200-char string truncation + 2KB metadata cap, retention follows session summaries, trace viewer reads files directly (no server).
