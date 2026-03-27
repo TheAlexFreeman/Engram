@@ -126,6 +126,17 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertGreaterEqual(payload["summary"]["resource_count"], 4)
         self.assertGreaterEqual(payload["summary"]["prompt_count"], 4)
 
+    def test_get_capabilities_summary_reports_registered_tool_count(self) -> None:
+        async def run_call() -> tuple[dict[str, Any], int]:
+            raw = await self.module.memory_get_capabilities()
+            payload = cast(dict[str, Any], json.loads(raw))
+            listed = await self.module.mcp.list_tools()
+            return payload, len(listed)
+
+        payload, registered_count = asyncio.run(run_call())
+        self.assertEqual(payload["summary"]["total_tools"], registered_count)
+        self.assertEqual(payload["summary"]["runtime_total_tools"], registered_count)
+
     def test_get_tool_profiles_returns_expanded_advisory_profiles(self) -> None:
         raw = asyncio.run(self.module.memory_get_tool_profiles())
         payload = json.loads(raw)
@@ -139,6 +150,29 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertIn("memory_get_capabilities", payload["profiles"]["read_only"]["tools"])
         self.assertNotIn("memory_write", payload["profiles"]["guided_write"]["tools"])
         self.assertIn("memory_write", payload["profiles"]["full"]["tools"])
+
+    def test_mcp_registration_includes_approval_and_registry_tools(self) -> None:
+        async def run_call() -> set[str]:
+            listed = await self.module.mcp.list_tools()
+            return {str(tool.name) for tool in listed}
+
+        names = asyncio.run(run_call())
+        for tool_name in (
+            "memory_request_approval",
+            "memory_resolve_approval",
+            "memory_register_tool",
+            "memory_get_tool_policy",
+        ):
+            self.assertIn(tool_name, names)
+
+    def test_memory_validate_finds_validator_from_content_prefix_root(self) -> None:
+        output = asyncio.run(self.module.memory_validate())
+        self.assertNotEqual(output, "Validator not found at HUMANS/tooling/scripts/validate_memory_repo.py")
+
+    def test_readme_profile_contract_matches_advisory_runtime(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("advisory host-side narrowing metadata", readme)
+        self.assertNotIn("`MEMORY_TOOL_PROFILE`", readme)
 
     def test_read_file_works_over_stdio_transport(self) -> None:
         if not VENV_PYTHON.exists():
@@ -254,6 +288,10 @@ class MemoryMCPTests(unittest.TestCase):
             "memory_plan_execute",
             "memory_plan_create",
             "memory_plan_review",
+            "memory_request_approval",
+            "memory_resolve_approval",
+            "memory_register_tool",
+            "memory_get_tool_policy",
         ):
             self.assertTrue(callable(getattr(self.module, name)))
         self.assertFalse(hasattr(self.module, "memory_write"))
