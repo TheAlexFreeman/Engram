@@ -131,7 +131,7 @@ work:
         without changing phase status.
   - id: failure-recording
     title: Add PhaseFailure dataclass and record_failure action
-    status: pending
+    status: in-progress
     commit: null
     blockers:
     - verify-integration
