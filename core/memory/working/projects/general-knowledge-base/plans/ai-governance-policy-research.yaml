@@ -1,0 +1,263 @@
+id: ai-governance-policy-research
+project: general-knowledge-base
+created: '2026-03-26'
+origin_session: memory/activity/2026/03/26/chat-003
+status: not_started
+sessions_used: 0
+budget:
+  deadline: '2026-05-31'
+  max_sessions: 5
+  advisory: true
+purpose:
+  summary: >-
+    Build a governance/ subdomain under ai/frontier/ covering the regulatory
+    landscape, technical governance mechanisms, and governance theory — a
+    cross-domain gap that bridges the rationalist AI discourse, social science,
+    and software engineering domains.
+  context: |
+    Engram's AI domain is heavily weighted toward capability research (31
+    frontier files) but has almost nothing on how AI is governed externally.
+    The rationalist-community/ domain covers alignment theory; the social-
+    science/collective-action/ domain covers institutional design in the
+    abstract; but there is no file that synthesises the 2024-2026 regulatory
+    wave (EU AI Act, US EOs, NIST AI RMF, voluntary commitments), the
+    technical artefacts that governance relies on (model cards, red-teaming
+    standards, evals), or the political economy of why governance takes the
+    shape it does.
+
+    This gap is systemically important: Engram is used in professional
+    software-engineering and AI-engineering contexts where governance
+    awareness is practically required. The plan creates
+    core/memory/knowledge/ai/frontier/governance/ with 6–8 files.
+  questions:
+    - Is the EU AI Act a workable compliance template, or will it be reformed
+      before full enforcement?
+    - How do voluntary responsible scaling policies (Anthropic ASL, OpenAI
+      Preparedness) relate to regulatory frameworks — are they a substitute,
+      a preview, or independent?
+    - What does the principal-agent framing add to AI governance theory that
+      collective action framing alone does not capture?
+    - Should governance failures (cases where frameworks clearly didn't work)
+      be their own file, or distributed across the regulatory and technical
+      governance files?
+work:
+  phases:
+    - id: orientation
+      title: Orient to existing governance-adjacent coverage and map the regulatory landscape
+      status: not_started
+      blockers: []
+      sources:
+        - path: core/memory/knowledge/ai/frontier/foundation-model-governance.md
+          type: internal
+          intent: >-
+            Understand what governance coverage already exists — foundation-model-
+            governance.md is the only current file; the new governance/ subdomain
+            must extend and complement it without duplicating.
+        - path: core/memory/knowledge/rationalist-community/ai-discourse/canonical-ideas/corrigibility-shutdown-problem-value-loading.md
+          type: internal
+          intent: >-
+            Ground the governance files in the alignment theory context already
+            established in the rationalist-community/ domain — governance is
+            one answer to the corrigibility and value-alignment problems.
+        - path: core/memory/knowledge/social-science/collective-action/collective-action-synthesis-ai-governance.md
+          type: internal
+          intent: >-
+            Use the existing collective-action synthesis as the social-science
+            underpinning for the governance theory phase — avoid re-explaining
+            Ostrom's work in the governance files.
+        - path: core/memory/knowledge/rationalist-community/ai-discourse/industry-influence/
+          type: internal
+          intent: >-
+            Survey what the rationalist-community domain already says about
+            industry influence on AI governance, to avoid duplicating that
+            treatment in the new governance files.
+      postconditions:
+        - Scope note written to IN/ defining 6–8 target files and their one-paragraph summaries
+        - Clear boundary drawn between foundation-model-governance.md and new governance/ files
+        - Confirmed target subdirectory (ai/frontier/governance/)
+      requires_approval: false
+      changes:
+        - path: core/memory/working/projects/general-knowledge-base/IN/governance-scope-note.md
+          action: create
+          description: >-
+            Scope note defining governance/ subdomain, target file list with
+            one-paragraph scopes, boundary clarification vis-à-vis existing
+            foundation-model-governance.md, and cross-domain connection map.
+
+    - id: regulatory-landscape
+      title: Write files on AI regulatory frameworks
+      status: not_started
+      blockers:
+        - orientation
+      sources:
+        - path: core/memory/working/projects/general-knowledge-base/IN/governance-scope-note.md
+          type: internal
+          intent: Follow the finalized scope for this phase's files.
+        - path: core/memory/knowledge/ai/frontier/foundation-model-governance.md
+          type: internal
+          intent: >-
+            Check what EU AI Act detail already exists so the new file can go
+            deeper on implementation mechanics rather than repeating the overview.
+        - path: core/memory/knowledge/social-science/collective-action/acemoglu-robinson-inclusive-institutions.md
+          type: internal
+          intent: >-
+            Use the institutional design framing from Acemoglu/Robinson to
+            situate why different jurisdictions produce different regulatory
+            approaches.
+      postconditions:
+        - eu-ai-act-risk-tiers-compliance.md created (trust medium)
+        - us-ai-policy-executive-orders-nist.md created (trust medium)
+        - global-ai-regulatory-comparison.md created (trust medium)
+        - Each file has correct YAML frontmatter and related cross-references
+        - pre-commit hooks pass
+      requires_approval: false
+      changes:
+        - path: core/memory/knowledge/ai/frontier/governance/eu-ai-act-risk-tiers-compliance.md
+          action: create
+          description: >-
+            EU AI Act (2024): risk-tier framework (unacceptable, high, limited,
+            minimal risk); prohibited applications; high-risk system obligations
+            (conformity assessment, transparency, human oversight, logging);
+            GPAI model obligations and systemic risk thresholds; enforcement
+            via national market surveillance; timeline to full applicability.
+            Compliance implications for software teams.
+        - path: core/memory/knowledge/ai/frontier/governance/us-ai-policy-executive-orders-nist.md
+          action: create
+          description: >-
+            Biden EO 14110 (Oct 2023): dual-use safety reporting, NIST AI
+            Safety Institute mandate, immigration for AI talent, watermarking.
+            NIST AI Risk Management Framework (AI RMF 1.0): Govern/Map/Measure/
+            Manage functions; profiles and tiers. Voluntary commitments (July
+            2023 White House commitments from major labs). Trump administration
+            2025 course correction. Federal agency implementation divergence.
+        - path: core/memory/knowledge/ai/frontier/governance/global-ai-regulatory-comparison.md
+          action: create
+          description: >-
+            Comparative table: EU (risk-based ex ante), UK (sector-led
+            principles), China (algorithm regulations, generative AI rules,
+            CAC), Canada (AIDA), OECD AI Principles as baseline. Regulatory
+            arbitrage risks; Brussels Effect in AI; the race-to-the-bottom vs
+            coordination equilibria. WTO implications for model access as trade.
+
+    - id: technical-governance-mechanisms
+      title: Write files on technical artefacts that governance relies on
+      status: not_started
+      blockers:
+        - regulatory-landscape
+      sources:
+        - path: core/memory/knowledge/ai/frontier/governance/eu-ai-act-risk-tiers-compliance.md
+          type: internal
+          intent: >-
+            Connect technical mechanisms to the compliance requirements
+            established in the regulatory files — model cards serve EU AI Act
+            transparency obligations, evals serve capability thresholds.
+        - path: core/memory/knowledge/software-engineering/testing/ml-evaluation-methodology.md
+          type: internal
+          intent: >-
+            Leverage existing ML evaluation methodology file when writing about
+            evaluation frameworks — avoid repeating what's already covered on
+            held-out sets, metrics selection, and benchmark contamination.
+        - path: core/memory/knowledge/software-engineering/testing/behavioral-testing-and-red-teaming.md
+          type: internal
+          intent: >-
+            Cross-reference the existing red-teaming file — the governance
+            red-teaming file should add the governance and standardisation
+            angle, not re-explain red-teaming technique basics.
+      postconditions:
+        - model-cards-datasheets-transparency-artefacts.md created (trust medium)
+        - red-teaming-standards-and-eval-frameworks.md created (trust medium)
+        - responsible-scaling-policies-anthropic-openai.md created (trust medium)
+        - pre-commit hooks pass
+      requires_approval: false
+      changes:
+        - path: core/memory/knowledge/ai/frontier/governance/model-cards-datasheets-transparency-artefacts.md
+          action: create
+          description: >-
+            Mitchell et al. model cards (2019): intended use, performance
+            metrics, limitations, ethical considerations. Gebru et al.
+            datasheets for datasets: motivation, composition, collection
+            process, uses, maintenance. Deployment and post-deployment
+            artefacts: system cards (Meta), usage policies, transparency
+            reports. Critique: when disclosure is performative vs substantive.
+        - path: core/memory/knowledge/ai/frontier/governance/red-teaming-standards-and-eval-frameworks.md
+          action: create
+          description: >-
+            NVIDIA / Anthropic / OpenAI red-teaming approaches; MITRE ATLAS
+            (adversarial threat landscape for AI systems); NIST AI RMF measure
+            function. Eval frameworks: HELM (Holistic Evaluation of Language
+            Models), BIG-bench, MMLU, GPQA. Responsible capability evaluation:
+            uplift measurement for CBRN, cyberweapons. UK AI Safety Institute
+            pre-deployment evaluation model.
+        - path: core/memory/knowledge/ai/frontier/governance/responsible-scaling-policies-anthropic-openai.md
+          action: create
+          description: >-
+            Anthropic Responsible Scaling Policy: AI Safety Levels (ASL-1 to
+            ASL-4+); capability thresholds that trigger enhanced mitigations;
+            commitments on deployment vs training pause. OpenAI Preparedness
+            Framework: risk scorecard (CBRN, cyberweapons, persuasion,
+            autonomy); safety levels; board oversight. DeepMind Frontier Safety
+            Framework. How voluntary commitments relate to (and differ from)
+            regulation.
+
+    - id: governance-theory-and-synthesis
+      title: Write governance theory file and domain synthesis
+      status: not_started
+      blockers:
+        - technical-governance-mechanisms
+      sources:
+        - path: core/memory/knowledge/social-science/collective-action/ostrom-governing-the-commons.md
+          type: internal
+          intent: >-
+            Use Ostrom's design principles as the institutional backdrop for
+            the governance theory file — AI governance as a commons problem.
+        - path: core/memory/knowledge/mathematics/game-theory/mechanism-design-revelation-principle.md
+          type: internal
+          intent: >-
+            Connect mechanism design theory to AI governance — governance
+            mechanisms as mechanism design problems (eliciting honest capability
+            disclosure from labs).
+        - path: core/memory/knowledge/rationalist-community/ai-discourse/canonical-ideas/goodharts-law-reward-hacking-alignment-tax.md
+          type: internal
+          intent: >-
+            Connect Goodhart's Law to governance evaluation — metrics used
+            in compliance become targets that can be gamed; this is the
+            technical failure mode of evaluation-based governance.
+        - path: core/memory/knowledge/ai/frontier-synthesis.md
+          type: internal
+          intent: >-
+            Ensure the governance synthesis is coherent with and extends the
+            frontier-level picture.
+      postconditions:
+        - ai-governance-theory-principal-agent-auditing.md created (trust medium)
+        - ai-governance-synthesis.md created (trust medium)
+        - governance/ SUMMARY.md created listing all 8 files
+        - All 8 files have correct frontmatter; pre-commit hooks pass
+        - IN/ scope note archived
+      requires_approval: true
+      changes:
+        - path: core/memory/knowledge/ai/frontier/governance/ai-governance-theory-principal-agent-auditing.md
+          action: create
+          description: >-
+            AI governance as principal-agent problem: labs as agents with
+            capability information asymmetry; regulators as principals with
+            monitoring costs. Metatransparency (Floridi): disclosure to
+            regulators as substitute for public disclosure. AI auditing models:
+            technical audits vs process audits vs outcome audits; third-party
+            audit independence. Governance failure modes: regulatory capture,
+            Goodharting on eval metrics, voluntary commitment drift.
+        - path: core/memory/knowledge/ai/frontier/governance/ai-governance-synthesis.md
+          action: create
+          description: >-
+            Synthesis: the governance landscape as of 2026; where regulatory,
+            voluntary, and technical mechanisms complement and conflict; the
+            collective action dynamic driving regulatory divergence; implications
+            for practitioners (compliance posture, documentation obligations,
+            eval programme design). Connects to foundation-model-governance.md,
+            rationalist-community alignment discourse, and SE security domain.
+        - path: core/memory/knowledge/ai/frontier/governance/SUMMARY.md
+          action: create
+          description: >-
+            Domain summary listing all 8 files with one-line descriptions,
+            recommended reading order, and cross-references to
+            foundation-model-governance.md, rationalist-community/, social-
+            science/collective-action/, and software-engineering/testing/.

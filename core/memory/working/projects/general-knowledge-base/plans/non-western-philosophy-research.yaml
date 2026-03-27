@@ -1,0 +1,305 @@
+id: non-western-philosophy-research
+project: general-knowledge-base
+created: '2026-03-26'
+origin_session: memory/activity/2026/03/26/chat-003
+status: not_started
+sessions_used: 0
+budget:
+  deadline: '2026-06-30'
+  max_sessions: 5
+  advisory: true
+purpose:
+  summary: >-
+    Build a dedicated non-western/ subdomain under philosophy/ with depth
+    coverage of Indian and Chinese philosophical traditions, replacing
+    the three survey-level history/ files that currently represent the
+    entire non-Western philosophical corpus.
+  context: |
+    The philosophy/ domain has 86 files and excellent coverage of Western
+    analytic and continental traditions, but non-Western philosophy is
+    represented by only three survey-level files under philosophy/history/
+    non-western/ (chinese-philosophy.md, indian-philosophy.md, islamic-
+    modern-philosophy.md). These are orientation files, not substantive
+    coverage.
+
+    This is a meaningful gap for two reasons. First, intellectual honesty:
+    Indian and Chinese philosophical traditions predate the Western canon in
+    many areas and have well-developed epistemologies, logics, and
+    philosophies of mind that are independently interesting. Second, AI
+    relevance: Buddhist epistemology (Dignāga on perception and inference),
+    Advaita non-dualism (consciousness as fundamental), Daoist process
+    metaphysics (wu-wei as non-forced action), and Wang Yangming's unity-of-
+    knowledge-and-action all have direct implications for how to think about
+    machine cognition, identity, and the mind-body relationship.
+
+    This plan creates core/memory/knowledge/philosophy/non-western/ with
+    8–10 files. The existing survey files will be cross-referenced as
+    orientation, not replaced.
+  questions:
+    - Should the Buddhist logic files focus on classical Indian logic
+      (Dignāga/Dharmakīrti) or on Zen/Chan epistemology, or both?
+    - How should non-Western views on personal identity connect to the existing
+      philosophy/personal-identity/ domain? (Anattā directly disputes the
+      Western substance view.)
+    - Is there a principled cross-tradition synthesis, or does the synthesis
+      have to be modestly comparative rather than integrative?
+    - Should Islamic philosophy get its own set of depth files, or does it
+      fit better as a continuation of the existing history/ treatment?
+work:
+  phases:
+    - id: orientation
+      title: Orient to existing non-Western coverage and define non-western/ scope
+      status: not_started
+      blockers: []
+      sources:
+        - path: core/memory/knowledge/philosophy/history/non-western/chinese-philosophy.md
+          type: internal
+          intent: >-
+            Establish what is already covered at survey level — the depth files
+            should extend beyond this material, not repeat it.
+        - path: core/memory/knowledge/philosophy/history/non-western/indian-philosophy.md
+          type: internal
+          intent: >-
+            Same as above for Indian philosophy — survey the existing survey
+            to identify where depth is most needed.
+        - path: core/memory/knowledge/philosophy/history/non-western/islamic-modern-philosophy.md
+          type: internal
+          intent: >-
+            Determine whether Islamic philosophy should be extended in this
+            plan or deferred — assess whether the existing treatment is
+            adequate as a cross-reference.
+        - path: core/memory/knowledge/philosophy/personal-identity/parfit-reductionism.md
+          type: internal
+          intent: >-
+            Review how personal identity is framed in the West so that the
+            anattā treatment correctly contrasts with rather than talks past
+            the Western accounts.
+        - path: core/memory/knowledge/philosophy/phenomenology/embedded-enacted-ecological-4e.md
+          type: internal
+          intent: >-
+            Check how embodied cognition is treated — Daoist and Buddhist
+            process philosophy has structural similarities to 4E cognition
+            that the synthesis should note.
+      postconditions:
+        - Scope note written to IN/ defining the 8–10 target files and their one-paragraph summaries
+        - Decision on Islamic philosophy scope (in or out of this plan) documented
+        - Confirmed target subdirectory (philosophy/non-western/)
+      requires_approval: false
+      changes:
+        - path: core/memory/working/projects/general-knowledge-base/IN/non-western-scope-note.md
+          action: create
+          description: >-
+            Scope note defining the non-western/ subdomain, target file list
+            with one-paragraph scopes, the decision on Islamic philosophy
+            scope, and a map of connections to existing philosophy/ subdomains.
+
+    - id: indian-philosophy-depth
+      title: Write depth files on Indian philosophical traditions
+      status: not_started
+      blockers:
+        - orientation
+      sources:
+        - path: core/memory/working/projects/general-knowledge-base/IN/non-western-scope-note.md
+          type: internal
+          intent: Follow the finalized scope for this phase's files.
+        - path: core/memory/knowledge/philosophy/history/non-western/indian-philosophy.md
+          type: internal
+          intent: >-
+            Use the survey as a structural guide — depth files should go
+            substantially beyond what is summarized there.
+        - path: core/memory/knowledge/philosophy/emergence-consciousness-iit.md
+          type: internal
+          intent: >-
+            Connect the Advaita non-dualism file to the Western consciousness
+            debate already covered — IIT and Advaita share commitments to
+            consciousness as fundamental.
+      postconditions:
+        - advaita-vedanta-shankara-nonduality.md created (trust medium)
+        - buddhist-logic-dignaga-dharmakirti.md created (trust medium)
+        - nyaya-vaisheshika-epistemology.md created (trust medium)
+        - jain-epistemology-anekantavada.md created (trust medium)
+        - Each file has correct YAML frontmatter and related cross-references
+        - pre-commit hooks pass
+      requires_approval: false
+      changes:
+        - path: core/memory/knowledge/philosophy/non-western/advaita-vedanta-shankara-nonduality.md
+          action: create
+          description: >-
+            Shankara's Advaita Vedanta (8th c.): Brahman as the sole reality;
+            ātman-Brahman identity; māyā (illusion) and avidyā (ignorance);
+            the three levels of reality (pāramārthika, vyāvahārika, prātibhāsika).
+            The two-truths doctrine; superimposition (adhyāsa). Post-Shankara
+            developments: Rāmānuja's Viśiṣṭādvaita critique; Madhva's dvaita
+            response. Relevance to consciousness debates: non-dualism as
+            alternative to the hard problem; comparison with IIT's phi.
+        - path: core/memory/knowledge/philosophy/non-western/buddhist-logic-dignaga-dharmakirti.md
+          action: create
+          description: >-
+            Dignāga (5th c.): two valid sources of knowledge (pramāṇa) —
+            perception and inference; the apoha theory of meaning (concepts as
+            exclusion rather than extension). Dharmakīrti's elaboration:
+            the causal theory of perception; svabhāvahetu and kāryahetu
+            (identity and causation inferences); the three-aspect criterion
+            for valid inference. Buddhist phenomenology: the
+            first-moment-perception (nirvikalpaka) vs. conceptual perception
+            (savikalpaka). Influence on later Tibetan logic; comparison with
+            Nyāya epistemology.
+        - path: core/memory/knowledge/philosophy/non-western/nyaya-vaisheshika-epistemology.md
+          action: create
+          description: >-
+            Nyāya school: four pramāṇas (perception, inference, analogy,
+            testimony); the syllogism (five-membered anumāna) vs Aristotelian
+            syllogism; the theory of inherence (samavāya). Vaiśeṣika ontology:
+            seven categories (padārthas) including substance, quality, action,
+            generality, particularity, inherence, absence. Udayana's proofs
+            for the existence of God. Synthesis with Buddhist epistemology:
+            Nyāya realism vs Buddhist anti-realism debate. Connection to
+            Western analytic philosophy of language (universal/particular).
+        - path: core/memory/knowledge/philosophy/non-western/jain-epistemology-anekantavada.md
+          action: create
+          description: >-
+            Jain doctrine of many-sidedness (anekāntavāda): all complex truths
+            have multiple valid aspects; no single perspective is absolutely
+            true. Syādvāda (conditional predication): the seven-fold predication
+            (saptabhaṅgī) with the qualifier syāt (in some respect). Nayavāda:
+            partial standpoints and their legitimate use. Epistemological
+            implications: formal fallibilism, perspective-taking, rejection of
+            absolute views. Contemporary relevance: anekāntavāda as a model
+            for handling semantic ambiguity and conflicting evidence.
+
+    - id: chinese-philosophy-depth
+      title: Write depth files on Chinese philosophical traditions
+      status: not_started
+      blockers:
+        - indian-philosophy-depth
+      sources:
+        - path: core/memory/knowledge/philosophy/history/non-western/chinese-philosophy.md
+          type: internal
+          intent: >-
+            Use the survey as a structural baseline — depth files should develop
+            the Confucian and Daoist materials substantially beyond the survey.
+        - path: core/memory/knowledge/philosophy/ethics/virtue-ethics.md
+          type: internal
+          intent: >-
+            Connect the Confucian moral psychology files to the existing virtue
+            ethics coverage — Confucian ren and ritual have structural
+            parallels to Aristotelian virtue that should be noted.
+        - path: core/memory/knowledge/philosophy/phenomenology/merleau-ponty-perception-as-skill.md
+          type: internal
+          intent: >-
+            Connect Daoist wu-wei and skill-cultivation to Merleau-Ponty's
+            skilled body — both resist the deliberative action model that
+            dominates Western practical philosophy.
+      postconditions:
+        - confucian-moral-psychology-mencius-xunzi.md created (trust medium)
+        - daoist-metaphysics-zhuangzi-wuwei.md created (trust medium)
+        - wang-yangming-unity-knowledge-action.md created (trust medium)
+        - pre-commit hooks pass
+      requires_approval: false
+      changes:
+        - path: core/memory/knowledge/philosophy/non-western/confucian-moral-psychology-mencius-xunzi.md
+          action: create
+          description: >-
+            Mencius on human nature (xìng): four moral sprouts (compassion,
+            shame, modesty, moral approval); the extension (kuò) of moral
+            feeling; the Great Mind (dàxīn). Xunzi's contrary view: human
+            nature as bad (è xìng), requiring ritual propriety (lǐ) and
+            accumulated effort (wěi) for moral cultivation. The Mencius-Xunzi
+            debate as a precursor to Western nature-nurture debates. The
+            concept of rén (benevolence/humaneness) as the cardinal virtue.
+            Ritual propriety (lǐ) as moral practice, not mere convention.
+        - path: core/memory/knowledge/philosophy/non-western/daoist-metaphysics-zhuangzi-wuwei.md
+          action: create
+          description: >-
+            The Dào (道): the unnameable ground of being; Laozi's paradoxical
+            characterization. Zhuangzi's perspectivism: the story of Cook
+            Ding; skill without deliberation as the model of wu-wei. The
+            leveling of things (qí wù lùn): rejection of fixed distinctions
+            and conventional hierarchies. Zhuangzi's dream butterfly and the
+            problem of identity. Neo-Daoist (xuánxué) synthesis with
+            Confucianism. Comparison with Heidegger's ready-to-hand and
+            Merleau-Ponty's skilled action.
+        - path: core/memory/knowledge/philosophy/non-western/wang-yangming-unity-knowledge-action.md
+          action: create
+          description: >-
+            Wang Yangming (1472–1529): the unity of knowledge and action
+            (zhī xíng hé yī) — genuine knowing is already a form of doing;
+            the critique of mere book learning. Innate moral knowing (liáng zhī):
+            conscience as direct access to moral truth; the project of
+            "investigating things" located in the mind rather than external
+            objects. Contrast with Zhu Xi's Neo-Confucian programme. Wang's
+            influence on Japanese Confucianism and bushidō ethics. Contemporary
+            relevance: unity of knowledge and action as a model for agent
+            reasoning that does not separate deliberation from execution.
+
+    - id: cross-tradition-synthesis
+      title: Write cross-tradition synthesis and non-western/ SUMMARY
+      status: not_started
+      blockers:
+        - chinese-philosophy-depth
+      sources:
+        - path: core/memory/knowledge/philosophy/non-western/advaita-vedanta-shankara-nonduality.md
+          type: internal
+          intent: Draw from all preceding non-western/ files to build the synthesis.
+        - path: core/memory/knowledge/philosophy/personal-identity/parfit-reductionism.md
+          type: internal
+          intent: >-
+            Ground the cross-tradition personal identity comparison in the most
+            developed Western treatment — Parfit's reductionism is structurally
+            closest to Buddhist anattā and Daoist process views.
+        - path: core/memory/knowledge/philosophy/synthesis-intelligence-as-dynamical-regime.md
+          type: internal
+          intent: >-
+            Connect the cross-tradition synthesis to the central philosophical
+            thread of the KB — does Daoist process metaphysics or Advaita
+            non-dualism support or complicate the intelligence-as-dynamical-
+            regime thesis?
+        - path: core/memory/knowledge/philosophy/phenomenology/synthesis-phenomenology-dynamical-systems.md
+          type: internal
+          intent: >-
+            Use the phenomenology synthesis as a Western interlocutor for the
+            non-Western synthesis — map where phenomenology and non-Western
+            accounts converge and diverge.
+      postconditions:
+        - comparative-epistemology-east-west.md created (trust medium)
+        - non-western-synthesis-ai-implications.md created (trust medium)
+        - non-western/ SUMMARY.md created listing all 9 files
+        - All 9 files have correct frontmatter; pre-commit hooks pass
+        - IN/ scope note archived
+      requires_approval: true
+      changes:
+        - path: core/memory/knowledge/philosophy/non-western/comparative-epistemology-east-west.md
+          action: create
+          description: >-
+            Structured comparison across four axes: (1) Valid sources of
+            knowledge — Western pramāṇa equivalents (empiricism vs rationalism)
+            vs. Nyāya / Buddhist / Daoist epistemic pluralism; (2) The status
+            of perception — direct realism, indirect realism, constructionism,
+            and the Dharmakīrti svasaṃvedana (self-awareness); (3) Testimony
+            and tradition — Brahmanical śabda vs. post-Enlightenment empiricism;
+            (4) The limits of knowledge — Jain anekāntavāda, Buddhist apoha,
+            Pyrrhonian scepticism, Kantian noumena, Zhuangzi's dissolution
+            of the question. What each tradition does and does not attempt to
+            explain.
+        - path: core/memory/knowledge/philosophy/non-western/non-western-synthesis-ai-implications.md
+          action: create
+          description: >-
+            Synthesis: what non-Western philosophy adds to the KB's intellectual
+            picture. Key contributions: (1) Advaita non-dualism as an alternative
+            to the hard problem of consciousness; (2) Buddhist anattā as a
+            challenge to substance-based personal identity (connects to
+            philosophy/personal-identity/ domain); (3) Jain anekāntavāda as
+            a formal model for epistemic humility and multi-perspective reasoning
+            in AI systems; (4) Daoist wu-wei as a model for non-deliberative
+            skilled action; (5) Wang Yangming's unity of knowledge-action as
+            a challenge to the planner-executor split in agent architectures.
+        - path: core/memory/knowledge/philosophy/non-western/SUMMARY.md
+          action: create
+          description: >-
+            Domain summary listing all 9 files with one-line descriptions,
+            recommended reading order (start with comparative-epistemology
+            if coming from Western background; start with advaita or daoist
+            files if coming from AI angle), and cross-references to
+            philosophy/personal-identity/, philosophy/phenomenology/,
+            philosophy/history/non-western/ (as prerequisites), and
+            philosophy/synthesis-intelligence-as-dynamical-regime.md.

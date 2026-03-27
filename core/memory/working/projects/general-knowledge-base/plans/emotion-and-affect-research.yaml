@@ -1,0 +1,252 @@
+id: emotion-and-affect-research
+project: general-knowledge-base
+created: '2026-03-26'
+origin_session: memory/activity/2026/03/26/chat-003
+status: not_started
+sessions_used: 0
+budget:
+  deadline: '2026-05-15'
+  max_sessions: 5
+  advisory: true
+purpose:
+  summary: >-
+    Fill the zero-file gap in affective cognition by building a dedicated
+    emotion/ subdomain, covering core emotion science, cognitive-emotion
+    integration, and AI-welfare implications.
+  context: |
+    The cognitive-science/ domain has 59 files spanning memory, attention,
+    metacognition, and concepts — but contains zero files on emotion or
+    affect. This is a critical omission: affect shapes attention allocation,
+    memory consolidation, decision-making, and metacognitive monitoring, all
+    of which are directly relevant to agent design. It also underpins the
+    AI welfare debate (is affect necessary for moral status?).
+
+    This plan creates core/memory/knowledge/cognitive-science/emotion/ with
+    8–10 files covering the canonical debates (basic emotions vs
+    constructionism), appraisal theory, affective neuroscience, the
+    cognitive-emotion interface, and a synthesis file grounding it in agent
+    design implications.
+  questions:
+    - Is emotion a distinct cognitive module or a distributed property of
+      all cognitive processing?
+    - What does the constructionist account (Barrett) imply for whether AI
+      systems can have genuine affect?
+    - How does emotion regulation interact with metacognitive control — is
+      the emotion/cognition boundary principled?
+    - What is the minimum account of affect needed to ground the AI welfare
+      and moral status debate?
+work:
+  phases:
+    - id: orientation
+      title: Orient to existing cog-sci coverage and define affective scope
+      status: not_started
+      blockers: []
+      sources:
+        - path: core/memory/knowledge/cognitive-science/cognitive-science-synthesis.md
+          type: internal
+          intent: >-
+            Understand the existing framing of cognitive science in this KB —
+            what assumptions underlie the memory/attention/metacognition coverage
+            so the new emotion/ files extend the existing synthesis coherently.
+        - path: core/memory/knowledge/cognitive-science/attention/attention-synthesis-agent-implications.md
+          type: internal
+          intent: >-
+            Review the attention synthesis to identify where affect already
+            appears (e.g., emotional salience, mood-congruent allocation) and
+            avoid duplicating those treatments; scope the emotion/ domain
+            by contrast.
+        - path: core/memory/knowledge/cognitive-science/metacognition/metacognitive-monitoring-control.md
+          type: internal
+          intent: >-
+            Check how metacognitive monitoring is framed — emotion regulation
+            and metacognition share mechanisms (conflict monitoring, error
+            signals) that the new files should cross-reference rather than
+            re-explain.
+        - path: core/memory/knowledge/philosophy/ethics/moral-status-ai-welfare.md
+          type: internal
+          intent: >-
+            Understand what the ethics domain already says about AI moral status
+            and welfare so the emotion synthesis can provide the missing
+            empirical grounding for that debate without repeating it.
+      postconditions:
+        - Scope note written to IN/ deciding boundaries between emotion/ and attention/, metacognition/, ethics/
+        - List of 8–10 target file titles and their one-paragraph scopes finalized
+        - No duplicate coverage with existing files confirmed
+      requires_approval: false
+      changes:
+        - path: core/memory/working/projects/general-knowledge-base/IN/emotion-scope-note.md
+          action: create
+          description: >-
+            Scope note defining the boundaries of the emotion/ subdomain, the
+            target file list with one-paragraph scope summaries, and a note on
+            cross-references to existing files.
+
+    - id: core-emotion-science
+      title: Write files on foundational theories of emotion
+      status: not_started
+      blockers:
+        - orientation
+      sources:
+        - path: core/memory/working/projects/general-knowledge-base/IN/emotion-scope-note.md
+          type: internal
+          intent: Follow the finalized scope note for this phase's file list.
+        - path: core/memory/knowledge/cognitive-science/memory/hippocampus-memory-formation.md
+          type: internal
+          intent: >-
+            Check formatting and depth conventions for cognitive-science knowledge
+            files before writing new ones.
+      postconditions:
+        - basic-emotions-ekman-russell-constructionism.md created (trust medium)
+        - appraisal-theory-lazarus-scherer.md created (trust medium)
+        - somatic-marker-hypothesis-damasio.md created (trust medium)
+        - affective-neuroscience-ledoux-panksepp.md created (trust medium)
+        - Each file has correct YAML frontmatter (trust, related, type fields)
+        - pre-commit hooks pass
+      requires_approval: false
+      changes:
+        - path: core/memory/knowledge/cognitive-science/emotion/basic-emotions-ekman-russell-constructionism.md
+          action: create
+          description: >-
+            The three major accounts: Ekman's six basic emotions (universality
+            thesis, FACS evidence); Russell's circumplex model (valence +
+            arousal dimensions); Barrett's constructed emotion theory (core
+            affect + conceptual categorisation). Evidence for and against each;
+            implications for cross-cultural and cross-species emotion.
+        - path: core/memory/knowledge/cognitive-science/emotion/appraisal-theory-lazarus-scherer.md
+          action: create
+          description: >-
+            Lazarus's cognitive-motivational-relational theory (primary and
+            secondary appraisal, core relational themes per emotion). Scherer's
+            component process model (five appraisal checks: novelty, intrinsic
+            pleasantness, goal relevance, coping potential, norm compatibility).
+            Appraisal as the interface between cognition and emotion generation.
+        - path: core/memory/knowledge/cognitive-science/emotion/somatic-marker-hypothesis-damasio.md
+          action: create
+          description: >-
+            Damasio's somatic marker hypothesis: body states as decision-relevant
+            signals; the Iowa Gambling Task; vmPFC patients and the paradox of
+            intact reasoning + impaired decisions. Relation to embodied cognition
+            and the emotion-as-information debate.
+        - path: core/memory/knowledge/cognitive-science/emotion/affective-neuroscience-ledoux-panksepp.md
+          action: create
+          description: >-
+            LeDoux on fear circuits (amygdala low road vs high road; the
+            survival circuit reframe). Panksepp's seven primary emotional systems
+            (SEEKING, FEAR, RAGE, LUST, CARE, PANIC/GRIEF, PLAY). The debate
+            between subcortical affect and cortical construction. Implications
+            for animal and AI welfare.
+
+    - id: cognitive-emotion-interface
+      title: Write files on emotion-cognition integration
+      status: not_started
+      blockers:
+        - core-emotion-science
+      sources:
+        - path: core/memory/knowledge/cognitive-science/emotion/basic-emotions-ekman-russell-constructionism.md
+          type: internal
+          intent: >-
+            Ensure cognitive-emotion integration files build on the foundational
+            accounts established in the previous phase.
+        - path: core/memory/knowledge/cognitive-science/attention/dual-process-system1-system2.md
+          type: internal
+          intent: >-
+            Check how System 1/System 2 is framed here to ensure emotion
+            regulation files cross-reference the dual-process model correctly.
+      postconditions:
+        - emotion-regulation-gross-process-model.md created (trust medium)
+        - mood-congruent-memory-affect-retrieval.md created (trust medium)
+        - affect-labeling-emotional-granularity.md created (trust medium)
+        - alexithymia-interoception-body-affect.md created (trust medium)
+        - Each file correctly cross-references existing attention and metacognition files
+        - pre-commit hooks pass
+      requires_approval: false
+      changes:
+        - path: core/memory/knowledge/cognitive-science/emotion/emotion-regulation-gross-process-model.md
+          action: create
+          description: >-
+            Gross's process model of emotion regulation: five strategy families
+            (situation selection, modification, attentional deployment, cognitive
+            change, response modulation). Reappraisal vs suppression (diverging
+            downstream effects on memory and social outcomes). Regulation as
+            executive function interaction.
+        - path: core/memory/knowledge/cognitive-science/emotion/mood-congruent-memory-affect-retrieval.md
+          action: create
+          description: >-
+            Bower's mood-state-dependent and mood-congruent memory effects;
+            Eich and Macaulay experimental replications. Affect as retrieval
+            cue; implications for episodic memory formation. Links to the
+            Ebbinghaus forgetting curve and memory consolidation files.
+        - path: core/memory/knowledge/cognitive-science/emotion/affect-labeling-emotional-granularity.md
+          action: create
+          description: >-
+            Lieberman's affect labeling (putting feelings into words reduces
+            amygdala activation). Barrett's emotional granularity construct:
+            individual differences in precision of emotion concepts. Connections
+            to Kashdan et al., meta-awareness, and therapeutic applications.
+        - path: core/memory/knowledge/cognitive-science/emotion/alexithymia-interoception-body-affect.md
+          action: create
+          description: >-
+            Alexithymia (difficulty identifying and describing feelings): its
+            structure, measurement (TAS-20), neural correlates. Interoception
+            as a foundational capacity for affect: Craig's interoceptive hierarchy,
+            predictive coding of body states. Relevance to debate over whether
+            AI systems can have bodily affect.
+
+    - id: synthesis-and-ai-relevance
+      title: Write emotion synthesis and AI-welfare implications file
+      status: not_started
+      blockers:
+        - cognitive-emotion-interface
+      sources:
+        - path: core/memory/knowledge/cognitive-science/emotion/basic-emotions-ekman-russell-constructionism.md
+          type: internal
+          intent: Draw from all preceding files to build the synthesis.
+        - path: core/memory/knowledge/cognitive-science/cognitive-science-synthesis.md
+          type: internal
+          intent: >-
+            Ensure the emotion synthesis updates and extends the domain-level
+            synthesis — note what the emotion files add to the overall cog-sci
+            picture.
+        - path: core/memory/knowledge/philosophy/ethics/moral-status-ai-welfare.md
+          type: internal
+          intent: >-
+            Connect the empirical emotion science to the AI welfare debate that
+            already exists in the ethics domain.
+        - path: core/memory/knowledge/ai/frontier/multi-agent/human-in-the-loop.md
+          type: internal
+          intent: >-
+            Check how human-AI interaction is framed; the synthesis should
+            address how affect science informs human-AI teaming and emotional
+            communication design.
+      postconditions:
+        - affective-computing-emotion-ai-systems.md created (trust medium)
+        - emotion-synthesis-agent-design-implications.md created (trust medium)
+        - emotion/ SUMMARY.md created listing the 10 files with one-line descriptions
+        - Synthesis file nominated for update of cognitive-science-synthesis.md (noted as follow-on)
+        - All 10 files have correct frontmatter; pre-commit hooks pass
+        - IN/ scope note archived (marked superseded)
+      requires_approval: true
+      changes:
+        - path: core/memory/knowledge/cognitive-science/emotion/affective-computing-emotion-ai-systems.md
+          action: create
+          description: >-
+            Picard's affective computing framework; emotion recognition (facial
+            action coding, speech prosody, physiological signals); sentiment
+            analysis limitations; synthetic emotion in LLMs (simulation vs
+            experience); Floridi and Cowls on AI sentience criteria. Grounds
+            the welfare debate in engineering realities.
+        - path: core/memory/knowledge/cognitive-science/emotion/emotion-synthesis-agent-design-implications.md
+          action: create
+          description: >-
+            System-level synthesis: what the emotion/ subdomain adds to the
+            cognitive science picture; implications for agent memory systems
+            (affect as retrieval cue, mood-congruent forgetting), attention
+            management (emotional salience signals), and welfare considerations
+            (sentience criteria, affective signals in error states). Connects
+            to self/security/ and philosophy/ethics/ domains.
+        - path: core/memory/knowledge/cognitive-science/emotion/SUMMARY.md
+          action: create
+          description: >-
+            Domain summary listing all 10 files with one-line descriptions,
+            recommended reading order, and cross-references to attention/,
+            metacognition/, philosophy/ethics/, and self/security/.
