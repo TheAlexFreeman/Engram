@@ -6,7 +6,7 @@ status: active
 budget:
   deadline: '2026-05-01'
   max_sessions: 6
-sessions_used: 2
+sessions_used: 3
 purpose:
   summary: Add inline postcondition verification, failure recording, and retry-with-context
     to make plan execution self-correcting.
@@ -103,8 +103,8 @@ work:
         with pass/fail per postcondition.
   - id: verify-integration
     title: Wire verification into memory_plan_execute complete action
-    status: in-progress
-    commit: null
+    status: completed
+    commit: 1722efd
     blockers:
     - verify-tool-impl
     sources:
