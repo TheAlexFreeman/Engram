@@ -6,7 +6,7 @@ status: active
 budget:
   deadline: '2026-05-01'
   max_sessions: 6
-sessions_used: 4
+sessions_used: 5
 purpose:
   summary: Add inline postcondition verification, failure recording, and retry-with-context
     to make plan execution self-correcting.
@@ -171,8 +171,8 @@ work:
         phase, commit to git.
   - id: retry-context
     title: Surface failure history in phase_payload and next_action
-    status: in-progress
-    commit: null
+    status: completed
+    commit: 4515f83
     blockers:
     - failure-recording
     sources:
