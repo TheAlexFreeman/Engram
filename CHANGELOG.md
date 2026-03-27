@@ -18,6 +18,14 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-27] Run state layer (Phase 10)
+
+**Changed:** Added a formal RunState JSON schema and persistence layer for plan execution. New `RunState`, `RunStatePhase`, and `RunStateError` dataclasses in `plan_utils.py` with `save_run_state()`, `load_run_state()`, `update_run_state()`, `validate_run_state_against_plan()`, `check_run_state_staleness()`, and `prune_run_state()` helpers. Wired auto-save into `memory_plan_execute` (start, complete, record_failure). Integrated run state into `assemble_briefing()` output. Added new `memory_plan_resume` MCP tool for single-call plan resumption with run state context. 33 new tests in `TestRunState`. Updated DESIGN.md and MCP.md.
+
+**Reasoning:** Plan execution state was distributed across plan YAML files, git commits, and operations.jsonl, requiring agents to re-derive progress on resumption. The deep research report's strongest recommendation is to separate "correctness state" (run state) from "recall memory" to prevent state drift. RunState provides explicit checkpoints with intermediate outputs, task position, and resumption hints, making multi-session plan execution reliable and context-efficient.
+
+**Approved by:** user
+
 ## [2026-03-28] Retrieval discipline directive
 
 **Changed:** Added a "Retrieval discipline" paragraph to `core/INIT.md` and a `[behavioral_directives]` section to `agent-bootstrap.toml` requiring agents to search memory before answering recall-type questions.

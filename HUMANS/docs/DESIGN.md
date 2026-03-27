@@ -344,6 +344,26 @@ See [MCP.md](MCP.md) for the full human-facing guide to the tool surface.
 
 ---
 
+## Part V: Run State and Resumability
+
+Long-horizon plan execution depends on reliable state persistence across sessions. The deep research report's strongest recommendation: "Run state is for correctness and resumability; memory is for recall and personalization. Mixing them tends to cause state drift."
+
+Engram addresses this through a dedicated **RunState** layer that separates execution state from plan definitions:
+
+**Separation of concerns.** Plan YAML files define *what* needs to happen (phases, sources, changes, postconditions). RunState JSON files track *where execution is* (current task position, intermediate outputs, error context, resumption hints). Plan YAML remains authoritative for phase status; run state is additive.
+
+**Persistence model.** Run state is persisted as a JSON file alongside each plan YAML (`{plan_id}.run-state.json`). It is auto-saved after every `memory_plan_execute` action (start, complete, record_failure) for crash recovery, and git-committed at phase boundaries for durability.
+
+**Resumption.** The `memory_plan_resume` MCP tool provides single-call resumption: it loads run state, validates it against the plan, detects session staleness, and assembles a minimal restart context including intermediate outputs and a phase briefing. When no run state exists, it degrades gracefully to plan-only context.
+
+**Context integration.** The `assemble_briefing()` system automatically includes run state data (current task, next action hint, error context, intermediate outputs) when available, accounting for it in the context budget.
+
+**Concurrency.** Last-writer-wins with a 60-minute staleness warning. No file locking, consistent with Engram's git-based patterns.
+
+**Pruning.** Run state files are capped at 50 KB. Completed phase entries are summarized when the limit approaches; active phases are never pruned.
+
+---
+
 ## Summary
 
 Engram is a system built on the conviction that AI memory should be a user-owned, human-readable, model-portable artifact — not a platform feature that locks users in or an opaque embedding store that defies inspection. Its architecture draws from version control (git as the audit trail), information retrieval (progressive compression and trust-weighted retrieval), immune systems (quarantine, decay, anomaly detection), and developmental biology (maturity stages with adaptive parameters).
