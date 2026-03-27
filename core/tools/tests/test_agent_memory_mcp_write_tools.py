@@ -8315,6 +8315,24 @@ trust: high
             json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()
         ]
         self.assertTrue(any(span["name"] == "approval-requested" for span in trace_spans))
+        git_root = self._git_root(repo_root)
+        approval_git_path = (
+            "core/memory/working/approvals/pending/tracked-plan--phase-a.yaml"
+            if (git_root / "core").is_dir()
+            else "memory/working/approvals/pending/tracked-plan--phase-a.yaml"
+        )
+        subprocess.run(
+            [
+                "git",
+                "ls-files",
+                "--error-unmatch",
+                approval_git_path,
+            ],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
     def test_memory_plan_execute_start_returns_pending_approval_when_already_waiting(self) -> None:
         plan_yaml = self._plan_yaml_with_budget()
@@ -8536,6 +8554,42 @@ trust: high
                 / "tracked-plan--phase-a.yaml"
             ).exists()
         )
+        git_root = self._git_root(repo_root)
+        resolved_git_path = (
+            "core/memory/working/approvals/resolved/tracked-plan--phase-a.yaml"
+            if (git_root / "core").is_dir()
+            else "memory/working/approvals/resolved/tracked-plan--phase-a.yaml"
+        )
+        pending_git_path = (
+            "core/memory/working/approvals/pending/tracked-plan--phase-a.yaml"
+            if (git_root / "core").is_dir()
+            else "memory/working/approvals/pending/tracked-plan--phase-a.yaml"
+        )
+        subprocess.run(
+            [
+                "git",
+                "ls-files",
+                "--error-unmatch",
+                resolved_git_path,
+            ],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        pending_lookup = subprocess.run(
+            [
+                "git",
+                "ls-files",
+                "--error-unmatch",
+                pending_git_path,
+            ],
+            cwd=git_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(pending_lookup.returncode, 0)
 
     def test_memory_resolve_approval_cannot_resolve_twice(self) -> None:
         plan_yaml = self._plan_yaml_with_budget()

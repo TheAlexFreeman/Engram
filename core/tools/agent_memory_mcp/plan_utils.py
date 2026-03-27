@@ -1745,7 +1745,7 @@ def _validate_test(root: Path, target: str) -> dict[str, Any]:
     import os
     import subprocess
 
-    if not os.environ.get("ENGRAM_TIER2"):
+    if os.environ.get("ENGRAM_TIER2", "").strip().lower() not in {"1", "true", "yes", "on"}:
         return {
             "status": "error",
             "detail": "test-type postconditions require ENGRAM_TIER2=1",

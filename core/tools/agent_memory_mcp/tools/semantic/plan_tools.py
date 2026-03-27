@@ -648,15 +648,18 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                         context=approval_context,
                     )
                     plan.status = "paused"
-                    approval_files_changed = list(files_changed) + [approvals_summary_path()]
+                    approval_file = (
+                        f"memory/working/approvals/pending/{approval_filename(plan.id, phase.id)}"
+                    )
+                    approval_files_changed = list(files_changed) + [
+                        approval_file,
+                        approvals_summary_path(),
+                    ]
                     commit_msg_pause = f"[plan] Pause {plan.id}:{phase.id} pending approval"
                     paused_state: dict[str, Any] = {
                         "plan_status": "paused",
                         "phase_id": phase.id,
-                        "approval_file": (
-                            f"memory/working/approvals/pending/"
-                            f"{approval_filename(plan.id, phase.id)}"
-                        ),
+                        "approval_file": approval_file,
                         "expires": expires_str,
                         "message": (
                             f"Phase '{phase.id}' requires human approval. "
@@ -669,6 +672,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                         regenerate_approvals_summary(root)
                         save_plan(abs_plan, plan, root)
                         repo.add(plan_path)
+                        repo.add(approval_file)
                         repo.add(approvals_summary_path())
                         _append_plan_log(
                             root,
@@ -1926,13 +1930,18 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         )
         plan.status = "paused"
         save_approval(root, new_approval)
+        approval_file_req = (
+            f"memory/working/approvals/pending/{approval_filename(plan.id, phase.id)}"
+        )
         regenerate_approvals_summary(root)
         save_plan(abs_plan, plan, root)
         repo.add(plan_path_r)
+        repo.add(approval_file_req)
         repo.add(approvals_summary_path())
 
         files_req = [
             plan_path_r,
+            approval_file_req,
             _project_summary_path(resolved_project_id),
             "memory/working/projects/SUMMARY.md",
             f"memory/working/projects/{resolved_project_id}/operations.jsonl",
@@ -2030,6 +2039,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         approvals_root = _find_approvals_root(root)
         filename_r = approval_filename(plan.id, phase.id)
+        approval_pending_file = f"memory/working/approvals/pending/{filename_r}"
+        approval_resolved_file = f"memory/working/approvals/resolved/{filename_r}"
         pending_path_r = approvals_root / "pending" / filename_r
         resolved_dir_r = approvals_root / "resolved"
         resolved_dir_r.mkdir(parents=True, exist_ok=True)
@@ -2045,10 +2056,14 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         regenerate_approvals_summary(root)
         save_plan(abs_plan, plan, root)
         repo.add(plan_path_r)
+        repo.add(approval_pending_file)
+        repo.add(approval_resolved_file)
         repo.add(approvals_summary_path())
 
         files_res = [
             plan_path_r,
+            approval_pending_file,
+            approval_resolved_file,
             _project_summary_path(resolved_project_id),
             "memory/working/projects/SUMMARY.md",
             f"memory/working/projects/{resolved_project_id}/operations.jsonl",

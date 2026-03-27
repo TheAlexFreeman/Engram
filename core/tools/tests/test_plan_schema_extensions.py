@@ -1447,6 +1447,27 @@ class TestVerifyPostconditions(unittest.TestCase):
         self.assertFalse(result["all_passed"])
         self.assertIn("ENGRAM_TIER2", result["verification_results"][0]["detail"])
 
+    def test_test_postcondition_rejects_engram_tier2_zero(self) -> None:
+        import os
+
+        plan = _minimal_plan()
+        plan.phases[0].postconditions = [
+            PostconditionSpec(description="Tests pass", type="test", target="pytest -q"),
+        ]
+        old_val = os.environ.get("ENGRAM_TIER2")
+        os.environ["ENGRAM_TIER2"] = "0"
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                result = verify_postconditions(plan, plan.phases[0], Path(tmpdir))
+        finally:
+            if old_val is None:
+                os.environ.pop("ENGRAM_TIER2", None)
+            else:
+                os.environ["ENGRAM_TIER2"] = old_val
+        self.assertFalse(result["all_passed"])
+        self.assertEqual(result["verification_results"][0]["status"], "error")
+        self.assertIn("ENGRAM_TIER2", result["verification_results"][0]["detail"])
+
     def test_test_postcondition_rejects_non_allowlisted(self) -> None:
         import os
 
