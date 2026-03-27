@@ -194,7 +194,7 @@ work:
         Include has_prior_failures (bool) and attempt_number in next_action().
   - id: test-coverage-verification
     title: Add test coverage for verification, failure recording, and retry
-    status: pending
+    status: in-progress
     commit: null
     blockers:
     - retry-context
