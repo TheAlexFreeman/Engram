@@ -3,7 +3,7 @@ project: general-knowledge-base
 created: '2026-03-26'
 origin_session: memory/activity/2026/03/26/chat-003
 status: active
-sessions_used: 1
+sessions_used: 3
 budget:
   deadline: '2026-05-15'
   max_sessions: 3
@@ -86,7 +86,7 @@ work:
 
     - id: modern-generalization-theory
       title: Write files on post-classical generalization theory
-      status: not_started
+      status: complete
       blockers:
         - orientation
       sources:
@@ -154,7 +154,7 @@ work:
 
     - id: scale-and-synthesis
       title: Write files on scale, in-context learning theory, and synthesis
-      status: not_started
+      status: complete
       blockers:
         - modern-generalization-theory
       sources:

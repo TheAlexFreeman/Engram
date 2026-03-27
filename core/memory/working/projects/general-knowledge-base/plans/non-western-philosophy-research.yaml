@@ -3,7 +3,7 @@ project: general-knowledge-base
 created: '2026-03-26'
 origin_session: memory/activity/2026/03/26/chat-003
 status: active
-sessions_used: 1
+sessions_used: 4
 budget:
   deadline: '2026-06-30'
   max_sessions: 5
@@ -95,7 +95,7 @@ work:
 
     - id: indian-philosophy-depth
       title: Write depth files on Indian philosophical traditions
-      status: not_started
+      status: complete
       blockers:
         - orientation
       sources:
@@ -169,7 +169,7 @@ work:
 
     - id: chinese-philosophy-depth
       title: Write depth files on Chinese philosophical traditions
-      status: not_started
+      status: complete
       blockers:
         - indian-philosophy-depth
       sources:
@@ -234,7 +234,7 @@ work:
 
     - id: cross-tradition-synthesis
       title: Write cross-tradition synthesis and non-western/ SUMMARY
-      status: not_started
+      status: complete
       blockers:
         - chinese-philosophy-depth
       sources:

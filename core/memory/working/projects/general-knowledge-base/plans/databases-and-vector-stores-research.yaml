@@ -3,7 +3,7 @@ project: general-knowledge-base
 created: '2026-03-26'
 origin_session: memory/activity/2026/03/26/chat-003
 status: active
-sessions_used: 1
+sessions_used: 4
 budget:
   deadline: '2026-05-15'
   max_sessions: 4
@@ -83,7 +83,7 @@ work:
 
     - id: vector-databases
       title: Write files on vector database internals and the market landscape
-      status: not_started
+      status: complete
       blockers:
         - orientation
       sources:
@@ -145,7 +145,7 @@ work:
 
     - id: graph-and-document-stores
       title: Write files on graph databases and document stores
-      status: not_started
+      status: complete
       blockers:
         - vector-databases
       sources:
@@ -197,7 +197,7 @@ work:
 
     - id: synthesis-polyglot-persistence
       title: Write polyglot persistence synthesis and databases/ SUMMARY
-      status: not_started
+      status: complete
       blockers:
         - graph-and-document-stores
       sources:

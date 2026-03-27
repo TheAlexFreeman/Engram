@@ -657,6 +657,12 @@ core/memory/working/projects/codebase-survey/OUT/.gitkeep
 core/memory/working/projects/codebase-survey/SUMMARY.md
 core/memory/working/projects/codebase-survey/plans/survey-plan.yaml
 core/memory/working/projects/codebase-survey/questions.md
+core/memory/working/projects/general-knowledge-base/IN/databases-scope-note.md
+core/memory/working/projects/general-knowledge-base/IN/emotion-scope-note.md
+core/memory/working/projects/general-knowledge-base/IN/governance-scope-note.md
+core/memory/working/projects/general-knowledge-base/IN/learning-theory-scope-note.md
+core/memory/working/projects/general-knowledge-base/IN/multimodal-scope-note.md
+core/memory/working/projects/general-knowledge-base/IN/non-western-scope-note.md
 core/memory/working/projects/general-knowledge-base/SUMMARY.md
 core/memory/working/projects/general-knowledge-base/plans/ai-governance-policy-research.yaml
 core/memory/working/projects/general-knowledge-base/plans/databases-and-vector-stores-research.yaml
@@ -740,7 +746,6 @@ core/tools/tests/test_semantic_search.py
 core/tools/tests/test_surface_unlinked.py
 extract_names.py
 index.html
-openclaw-report.md
 prune_links.py
 pyproject.toml
 setup.html

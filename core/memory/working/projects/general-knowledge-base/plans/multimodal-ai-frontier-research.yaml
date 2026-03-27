@@ -3,7 +3,7 @@ project: general-knowledge-base
 created: '2026-03-26'
 origin_session: memory/activity/2026/03/26/chat-003
 status: active
-sessions_used: 1
+sessions_used: 4
 budget:
   deadline: '2026-05-31'
   max_sessions: 4
@@ -82,7 +82,7 @@ work:
 
     - id: vision-language-models
       title: Write files on vision-language models and generative vision
-      status: not_started
+      status: complete
       blockers:
         - orientation
       sources:
@@ -136,7 +136,7 @@ work:
 
     - id: audio-and-embodied
       title: Write files on audio-language models and embodied AI
-      status: not_started
+      status: complete
       blockers:
         - vision-language-models
       sources:
@@ -177,7 +177,7 @@ work:
 
     - id: synthesis-multimodal-rag
       title: Write multimodal synthesis and RAG extension file
-      status: not_started
+      status: complete
       blockers:
         - audio-and-embodied
       sources:
