@@ -18,6 +18,19 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-27] Phase 7: Offline evaluation framework
+
+**Changed:** Added the Phase 7 offline evaluation layer for harness workflows.
+
+- **`core/tools/agent_memory_mcp/eval_utils.py`** — new eval runtime with `EvalScenario`, `EvalStep`, `EvalAssertion`, `StepResult`, `AssertionResult`, and `ScenarioResult`; YAML loading/validation; direct `run_scenario()` / `run_suite()` execution; metrics aggregation; scenario selection; trace-backed historical report helpers.
+- **`memory_run_eval` / `memory_eval_report`** — new MCP tools in `plan_tools.py`. `memory_run_eval` runs seeded YAML scenarios from `memory/skills/eval-scenarios/`, records compact `eval:{scenario_id}` verification spans, and is gated behind `ENGRAM_TIER2=1`. `memory_eval_report` summarizes historical eval runs and trend deltas from those trace spans.
+- **Seeded scenario suite** — added `core/memory/skills/eval-scenarios/` with five scenario YAMLs and a navigator: basic plan lifecycle, verification failure + retry, trace coverage validation, tool-registry bootstrap, and approval pause/resume.
+- **Tests and docs** — expanded eval-focused test coverage to execute the seeded suite directly, documented both MCP tools in `HUMANS/docs/MCP.md`, and indexed the scenario suite from `core/memory/skills/SUMMARY.md`.
+
+**Reasoning:** Phase 3 provided traces, but Engram still lacked a declarative way to define expected workflows, execute them against isolated fixtures, and compare results over time. The Phase 7 eval framework closes that gap with a reusable scenario format, an execution/runtime surface, a minimal reporting loop, and seeded coverage for the core harness behaviors that previous phases introduced.
+
+**Approved by:** user
+
 ## [2026-03-26] Phase 5: Structured HITL (ApprovalDocument, memory_request_approval, memory_resolve_approval, paused plan status)
 
 **Changed:** Operationalized `requires_approval` as a full interrupt/resume workflow:

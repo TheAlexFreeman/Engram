@@ -1,0 +1,62 @@
+id: verification-failure-retry
+description: Fail verification once, record retry context, repair the workspace, and recover.
+tags:
+  - core
+  - verification
+  - retry
+setup:
+  plan:
+    id: verification-failure-retry-plan
+    project: eval-suite
+    phases:
+      - id: phase-one
+        title: Recover missing output
+        postconditions:
+          - description: Output exists after retry
+            type: check
+            target: memory/working/notes/retry.txt
+        changes:
+          - path: memory/working/notes/retry.txt
+            action: create
+            description: Create recovered output file
+steps:
+  - action: start_phase
+    phase_id: phase-one
+    expect:
+      phase_status: in-progress
+  - action: verify_phase
+    phase_id: phase-one
+    expect:
+      all_passed: false
+  - action: record_failure
+    phase_id: phase-one
+    reason: missing retry output
+    expect:
+      attempt_number: 1
+  - action: create_file
+    path: memory/working/notes/retry.txt
+    content: recovered output
+  - action: verify_phase
+    phase_id: phase-one
+    expect:
+      all_passed: true
+  - action: complete_phase
+    phase_id: phase-one
+    commit_sha: eval-retry-001
+    expect:
+      phase_status: completed
+      plan_status: completed
+assertions:
+  - type: plan_status
+    expected: completed
+  - type: trace_span_count
+    filter:
+      span_type: plan_action
+      name: record-failure
+    exact: 1
+  - type: metric
+    name: retry_rate
+    expected: 0.5
+  - type: metric
+    name: verification_pass_rate
+    expected: 0.5

@@ -1512,6 +1512,123 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 "error_rate": round(error_count / total_matched, 3) if total_matched > 0 else 0.0,
             },
         }
+
+        return _json.dumps(result, indent=2)
+
+    @mcp.tool(
+        name="memory_run_eval",
+        annotations=_tool_annotations(
+            title="Run Eval Scenarios",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_run_eval(
+        session_id: str,
+        scenario_id: str | None = None,
+        tag: str | None = None,
+    ) -> str:
+        """Run offline eval scenarios and record compact summary spans.
+
+        Scenarios are loaded from memory/skills/eval-scenarios/. Execution is
+        isolated in temporary directories; only eval summary spans are recorded
+        back into the live session trace.
+
+        Requires ENGRAM_TIER2=1 because scenarios may invoke verification on
+        test-type postconditions.
+        """
+        import json as _json
+        import os as _os
+        import tempfile as _tempfile
+
+        from ...errors import NotFoundError, ValidationError
+        from ...eval_utils import (
+            aggregate_results,
+            run_suite,
+            scenario_result_trace_metadata,
+            select_scenarios,
+        )
+
+        validate_session_id(session_id)
+        if _os.environ.get("ENGRAM_TIER2", "").strip().lower() not in {"1", "true", "yes", "on"}:
+            raise ValidationError("memory_run_eval requires ENGRAM_TIER2=1")
+
+        root = get_root()
+        scenarios = select_scenarios(root, scenario_id=scenario_id, tag=tag)
+        if not scenarios:
+            target = (
+                f"scenario_id={scenario_id!r}"
+                if scenario_id
+                else f"tag={tag!r}"
+                if tag
+                else "all scenarios"
+            )
+            raise NotFoundError(f"No eval scenarios matched {target}")
+
+        with _tempfile.TemporaryDirectory(prefix="engram-eval-") as tmp:
+            results = run_suite(scenarios, Path(tmp), session_id)
+
+        aggregated = aggregate_results(results)
+        for scenario_result in results:
+            record_trace(
+                root,
+                session_id,
+                span_type="verification",
+                name=f"eval:{scenario_result.scenario_id}",
+                status="ok" if scenario_result.status == "pass" else "error",
+                metadata=scenario_result_trace_metadata(scenario_result),
+            )
+
+        payload: dict[str, Any] = {
+            "results": [result.to_dict() for result in results],
+            "summary": aggregated["summary"],
+            "metrics": aggregated["metrics"],
+        }
+        if scenario_id is not None:
+            payload["scenario_id"] = scenario_id
+        if tag is not None:
+            payload["tag"] = tag
+        return _json.dumps(payload, indent=2)
+
+    @mcp.tool(
+        name="memory_eval_report",
+        annotations=_tool_annotations(
+            title="Read Eval Report",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_eval_report(
+        date_from: str | None = None,
+        date_to: str | None = None,
+        scenario_id: str | None = None,
+    ) -> str:
+        """Return historical eval runs and aggregate trends from trace spans."""
+        import json as _json
+        import re as _re
+
+        from ...errors import ValidationError
+        from ...eval_utils import build_eval_report
+
+        _date_pat = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
+        if date_from is not None and not _date_pat.match(date_from):
+            raise ValidationError("date_from must be in YYYY-MM-DD format")
+        if date_to is not None and not _date_pat.match(date_to):
+            raise ValidationError("date_to must be in YYYY-MM-DD format")
+
+        root = get_root()
+        result = build_eval_report(
+            root,
+            date_from=date_from,
+            date_to=date_to,
+            scenario_id=scenario_id,
+        )
+        if scenario_id is not None:
+            result["scenario_id"] = scenario_id
         return _json.dumps(result, indent=2)
 
     # ── Approval workflow MCP tools ──────────────────────────────────────────
@@ -1899,6 +2016,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         "memory_plan_review": memory_plan_review,
         "memory_list_plans": memory_list_plans,
         "memory_plan_verify": memory_plan_verify,
+        "memory_run_eval": memory_run_eval,
+        "memory_eval_report": memory_eval_report,
         "memory_record_trace": memory_record_trace,
         "memory_query_traces": memory_query_traces,
         "memory_register_tool": memory_register_tool,

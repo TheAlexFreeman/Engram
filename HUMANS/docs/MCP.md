@@ -257,6 +257,8 @@ These are the normal write path. Each tool represents a bounded operation with b
 | `memory_plan_review` | Scan completed plans or export completed-plan artifacts. |
 | `memory_record_trace` | Emit a trace span to the session's TRACES.jsonl file. Non-blocking; always returns span_id on success. |
 | `memory_query_traces` | Query trace spans across sessions or date ranges. Returns spans (newest-first) with aggregates. |
+| `memory_run_eval` | Run declarative offline eval scenarios from `memory/skills/eval-scenarios/` and record compact eval summary spans. |
+| `memory_eval_report` | Read historical eval runs from trace spans and aggregate summary metrics and trends. |
 | `memory_register_tool` | Register or update an external tool definition in the tool registry. Returns action ("created"\|"updated") and registry_file path. |
 | `memory_get_tool_policy` | Query the tool registry by tool name, provider, tags, or cost tier. Returns matching definitions. |
 | `memory_request_approval` | Create a pending approval document for a plan phase and pause the plan. Returns approval_file, expires, and plan_status. |
@@ -320,6 +322,28 @@ Returns `{span_id, trace_file, status}`. `trace_file` is the TRACES.jsonl path f
 | `limit` | int | Max spans to return (default 100). |
 
 Returns `{spans, total_matched, aggregates: {total_duration_ms, by_type, by_status, error_rate}}`.
+
+**`memory_run_eval` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `session_id` | str | Session path where eval summary spans should be recorded. |
+| `scenario_id` | str \| null | Optional single scenario slug to run. |
+| `tag` | str \| null | Optional tag filter; runs all matching scenarios. |
+
+Scenarios are loaded from `memory/skills/eval-scenarios/` and executed in isolated temporary directories. Only compact summary spans are written back to the live trace tree, one per scenario, with `name: eval:{scenario_id}` and metric metadata.
+
+`memory_run_eval` is gated behind `ENGRAM_TIER2=1` because scenarios may invoke verification on `test`-type postconditions. Returns `{results, summary, metrics}` and echoes `scenario_id` or `tag` when provided.
+
+**`memory_eval_report` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `date_from` | str \| null | Start date (YYYY-MM-DD, inclusive). |
+| `date_to` | str \| null | End date (YYYY-MM-DD, inclusive). |
+| `scenario_id` | str \| null | Optional single scenario slug filter. |
+
+Returns `{runs, summary, metrics, trends}` sourced from existing `eval:*` trace spans. `summary` reports total/pass/fail/error counts, `metrics` reports mean values across matching runs, and `trends` includes `{first, last, delta}` for metrics when at least two runs are available.
 
 **`memory_register_tool` parameters and response**
 

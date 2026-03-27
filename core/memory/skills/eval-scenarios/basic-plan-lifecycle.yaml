@@ -1,0 +1,50 @@
+id: basic-plan-lifecycle
+description: Run a basic one-phase plan lifecycle and verify the output file exists.
+tags:
+  - core
+  - lifecycle
+setup:
+  plan:
+    id: basic-plan-lifecycle-plan
+    project: eval-suite
+    phases:
+      - id: phase-one
+        title: Create output
+        postconditions:
+          - description: Output exists
+            type: check
+            target: memory/working/notes/eval.txt
+        changes:
+          - path: memory/working/notes/eval.txt
+            action: create
+            description: Create eval output file
+  files:
+    - path: memory/working/notes/eval.txt
+      content: hello from eval
+steps:
+  - action: start_phase
+    phase_id: phase-one
+    expect:
+      phase_status: in-progress
+  - action: verify_phase
+    phase_id: phase-one
+    expect:
+      all_passed: true
+  - action: complete_phase
+    phase_id: phase-one
+    commit_sha: eval-basic-001
+    verify: true
+    expect:
+      phase_status: completed
+      plan_status: completed
+assertions:
+  - type: plan_status
+    expected: completed
+  - type: phase_status
+    phase_id: phase-one
+    expected: completed
+  - type: file_exists
+    path: memory/working/notes/eval.txt
+  - type: metric
+    name: task_success
+    expected: 1.0

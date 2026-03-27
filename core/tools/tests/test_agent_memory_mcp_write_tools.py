@@ -8097,6 +8097,74 @@ trust: high
             "review: null\n"
         )
 
+    def _eval_scenario_yaml(
+        self,
+        *,
+        scenario_id: str = "basic-plan-lifecycle",
+        tags: list[str] | None = None,
+    ) -> str:
+        payload = {
+            "id": scenario_id,
+            "description": "Run a basic lifecycle scenario.",
+            "tags": tags or ["lifecycle"],
+            "setup": {
+                "plan": {
+                    "id": f"{scenario_id}-plan",
+                    "project": "eval-suite",
+                    "phases": [
+                        {
+                            "id": "phase-one",
+                            "title": "Create output",
+                            "postconditions": [
+                                {
+                                    "description": "Output exists",
+                                    "type": "check",
+                                    "target": "memory/working/notes/eval.txt",
+                                }
+                            ],
+                            "changes": [
+                                {
+                                    "path": "memory/working/notes/eval.txt",
+                                    "action": "create",
+                                    "description": "Create eval file",
+                                }
+                            ],
+                        }
+                    ],
+                },
+                "files": [
+                    {
+                        "path": "memory/working/notes/eval.txt",
+                        "content": "hello from eval\n",
+                    }
+                ],
+            },
+            "steps": [
+                {
+                    "action": "start_phase",
+                    "phase_id": "phase-one",
+                    "expect": {"phase_status": "in-progress"},
+                },
+                {
+                    "action": "verify_phase",
+                    "phase_id": "phase-one",
+                    "expect": {"all_passed": True},
+                },
+                {
+                    "action": "complete_phase",
+                    "phase_id": "phase-one",
+                    "commit_sha": "eval-001",
+                    "verify": True,
+                    "expect": {"phase_status": "completed", "plan_status": "completed"},
+                },
+            ],
+            "assertions": [
+                {"type": "plan_status", "expected": "completed"},
+                {"type": "metric", "name": "task_success", "expected": 1.0},
+            ],
+        }
+        return yaml.dump(payload, sort_keys=False, allow_unicode=False)
+
     def _plan_repo_files(self, plan_yaml: str) -> dict[str, str]:
         return {
             "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-26\nproject_count: 1\n---\n\n# Projects\n\n_No active or ongoing projects._\n",
@@ -8642,6 +8710,108 @@ trust: high
 
         self.assertTrue(any("session budget" in w.lower() for w in payload["warnings"]))
         self.assertTrue(payload["new_state"]["budget_status"]["over_session_budget"])
+
+    def test_memory_run_eval_requires_tier2(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/skills/eval-scenarios/basic-plan-lifecycle.yaml": self._eval_scenario_yaml(),
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        old_val = os.environ.pop("ENGRAM_TIER2", None)
+        try:
+            with self.assertRaises(self.errors.ValidationError) as exc_info:
+                asyncio.run(
+                    tools["memory_run_eval"](
+                        session_id="memory/activity/2026/03/27/chat-201",
+                        scenario_id="basic-plan-lifecycle",
+                    )
+                )
+        finally:
+            if old_val is not None:
+                os.environ["ENGRAM_TIER2"] = old_val
+
+        self.assertIn("ENGRAM_TIER2", str(exc_info.exception))
+
+    def test_memory_run_eval_runs_scenario_and_records_trace(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/skills/eval-scenarios/basic-plan-lifecycle.yaml": self._eval_scenario_yaml(),
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        old_val = os.environ.get("ENGRAM_TIER2")
+        os.environ["ENGRAM_TIER2"] = "1"
+        try:
+            raw = asyncio.run(
+                tools["memory_run_eval"](
+                    session_id="memory/activity/2026/03/27/chat-202",
+                    scenario_id="basic-plan-lifecycle",
+                )
+            )
+        finally:
+            if old_val is None:
+                os.environ.pop("ENGRAM_TIER2", None)
+            else:
+                os.environ["ENGRAM_TIER2"] = old_val
+
+        payload = json.loads(raw)
+        self.assertEqual(payload["summary"]["passed"], 1)
+        self.assertEqual(payload["results"][0]["scenario_id"], "basic-plan-lifecycle")
+        self.assertEqual(payload["metrics"]["task_success"], 1.0)
+
+        trace_path = (
+            repo_root / "memory" / "activity" / "2026" / "03" / "27" / "chat-202.traces.jsonl"
+        )
+        trace_spans = [
+            json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()
+        ]
+        eval_spans = [span for span in trace_spans if span["name"] == "eval:basic-plan-lifecycle"]
+        self.assertEqual(len(eval_spans), 1)
+        self.assertEqual(eval_spans[0]["metadata"]["eval_status"], "pass")
+
+    def test_memory_eval_report_returns_runs_for_scenario(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/skills/eval-scenarios/basic-plan-lifecycle.yaml": self._eval_scenario_yaml(),
+                "memory/skills/eval-scenarios/secondary-lifecycle.yaml": self._eval_scenario_yaml(
+                    scenario_id="secondary-lifecycle",
+                    tags=["secondary"],
+                ),
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        old_val = os.environ.get("ENGRAM_TIER2")
+        os.environ["ENGRAM_TIER2"] = "1"
+        try:
+            asyncio.run(
+                tools["memory_run_eval"](
+                    session_id="memory/activity/2026/03/27/chat-203",
+                    tag="lifecycle",
+                )
+            )
+            raw = asyncio.run(
+                tools["memory_eval_report"](
+                    scenario_id="basic-plan-lifecycle",
+                    date_from="2026-03-27",
+                    date_to="2026-03-27",
+                )
+            )
+        finally:
+            if old_val is None:
+                os.environ.pop("ENGRAM_TIER2", None)
+            else:
+                os.environ["ENGRAM_TIER2"] = old_val
+
+        payload = json.loads(raw)
+        self.assertEqual(payload["scenario_id"], "basic-plan-lifecycle")
+        self.assertEqual(payload["summary"]["total"], 1)
+        self.assertEqual(payload["summary"]["passed"], 1)
+        self.assertEqual(payload["runs"][0]["scenario_id"], "basic-plan-lifecycle")
+        self.assertEqual(payload["metrics"]["task_success"], 1.0)
 
 
 if __name__ == "__main__":

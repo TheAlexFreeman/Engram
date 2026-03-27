@@ -2,8 +2,8 @@ id: eval-framework-phase-7
 project: harness-expansion
 created: '2026-03-27'
 origin_session: memory/activity/2026/03/27/chat-001
-status: draft
-sessions_used: 0
+status: completed
+sessions_used: 3
 budget:
   deadline: '2026-07-01'
   max_sessions: 8
@@ -39,7 +39,7 @@ work:
   phases:
   - id: eval-schema-design
     title: Finalize eval scenario schema and storage conventions
-    status: pending
+    status: completed
     blockers: []
     requires_approval: true
     sources:
@@ -70,7 +70,7 @@ work:
 
   - id: eval-scenario-dataclass
     title: Implement EvalScenario, EvalStep, and EvalAssertion dataclasses
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-7-eval-framework-design.md
@@ -103,7 +103,7 @@ work:
 
   - id: eval-runner-impl
     title: Implement eval runner with run_scenario and run_suite functions
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-7-eval-framework-design.md
@@ -138,7 +138,7 @@ work:
 
   - id: metrics-computation
     title: Implement metrics computation from eval results and traces
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-7-eval-framework-design.md
@@ -170,7 +170,7 @@ work:
 
   - id: eval-mcp-tools
     title: Implement memory_run_eval and memory_eval_report MCP tools
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-7-eval-framework-design.md
@@ -202,7 +202,7 @@ work:
 
   - id: seed-scenarios
     title: Create seed eval scenarios for core harness workflows
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-7-eval-framework-design.md
@@ -228,7 +228,7 @@ work:
 
   - id: eval-docs-and-tests
     title: Add eval framework tests and documentation
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: core/tools/tests/test_plan_schema_extensions.py

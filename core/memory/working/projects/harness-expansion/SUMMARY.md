@@ -1,8 +1,8 @@
 ---
-active_plans: 4
+active_plans: 3
 cognitive_mode: implementation
 created: 2026-03-26
-current_focus: 'Phase 6 is active with initial cross-phase integration coverage landed; Phases 7-9 remain planned.'
+current_focus: 'Phase 6 remains active while Phase 7 is now complete; Phases 8-9 remain planned.'
 last_activity: '2026-03-27'
 open_questions: 0
 origin_session: memory/activity/2026/03/26/chat-001
@@ -36,7 +36,7 @@ Implementation mode. Phase 1 (schema extensions) is complete. Phases 2–5 have 
 | tool-registry-phase-4 | 4: External Tool Registry | completed | 7/7 | 1/5 sessions |
 | hitl-phase-5 | 5: Structured HITL | completed | 8/8 | 1/8 sessions |
 | integration-tests-phase-6 | 6: Integration Tests | active | 1/6 | 1/6 sessions |
-| eval-framework-phase-7 | 7: Eval Framework | draft | 0/7 | 0/8 sessions |
+| eval-framework-phase-7 | 7: Eval Framework | completed | 7/7 | 3/8 sessions |
 | context-assembly-phase-8 | 8: Context Assembly | draft | 0/5 | 0/5 sessions |
 | external-ingestion-phase-9 | 9: External Ingestion | draft | 0/6 | 0/6 sessions |
 
@@ -73,8 +73,8 @@ All 8 sub-phases implemented in a single commit (daa3c50): `ApprovalDocument` da
 ## Phase 6 outcome (in progress)
 Cross-phase integration tests. Design doc: IN/phase-6-integration-tests-design.md. Plan: plans/integration-tests-phase-6.yaml. Initial batch landed: rich lifecycle fixtures in the shared schema test module, expanded direct integration coverage for retry escalation, trace metrics, multi-policy matching, and missing-registry degradation, plus write-tool E2E tests for approval pause/resume, repeated pending starts, rejection, expiry, and verify=true success/failure branches. Target remains 30-40 new tests bringing total to 220+. Six sub-phases: lifecycle fixtures, approval lifecycle E2E, verify-fail-retry E2E, trace coverage E2E, tool policy E2E, regression suite.
 
-## Phase 7 outcome (pending)
-Offline evaluation framework. Design doc: IN/phase-7-eval-framework-design.md. Plan: plans/eval-framework-phase-7.yaml. New eval_utils.py module with EvalScenario/EvalStep/EvalAssertion dataclasses, run_scenario/run_suite runner, metrics computation, memory_run_eval and memory_eval_report MCP tools, 5-8 seed scenarios in skills/eval-scenarios/.
+## Phase 7 outcome (completed 2026-03-27)
+Offline evaluation framework. Design doc: IN/phase-7-eval-framework-design.md. Plan: plans/eval-framework-phase-7.yaml. `eval_utils.py` now provides EvalScenario/EvalStep/EvalAssertion plus StepResult/AssertionResult/ScenarioResult dataclasses, YAML loading/validation, a direct plan-utils runner (`run_scenario` / `run_suite`), standard metrics computation, scenario selection helpers, aggregated reporting, and trace-backed history loading. The semantic tool layer exposes `memory_run_eval` (Tier 2 gated, scenario/tag selection, summary trace emission) and `memory_eval_report` (historical runs and trends from eval trace spans). The seeded suite now lives under `skills/eval-scenarios/` with five scenarios covering lifecycle, verification/retry, trace coverage, tool-registry bootstrap, and approval pause/resume. Documentation and changelog wiring are complete, and the eval test suite now validates the real seeded scenarios end to end.
 
 ## Phase 8 outcome (pending)
 Context assembly briefing tool. Design doc: IN/phase-8-context-assembly-design.md. Plan: plans/context-assembly-phase-8.yaml. assemble_briefing() helper + memory_plan_briefing MCP tool. Single-call context packet with source file contents, failure summaries, traces, approval status, tool policies, and configurable budget (default ~8000 chars).

@@ -10,6 +10,10 @@ This folder contains procedural knowledge — instructions for how the agent sho
 - **[session-sync.md](session-sync.md)** — Mid-session checkpoint. Captures decisions, open threads, and key artifacts without ending the session. Trigger: user says "sync" or "checkpoint".
 - **[session-wrapup.md](session-wrapup.md)** — Session closer. Writes chat summary, reflection note, ACCESS entries, and flags pending system maintenance. Produces deferred actions on read-only platforms.
 
+## Scenario suites
+
+- **[eval-scenarios/SUMMARY.md](eval-scenarios/SUMMARY.md)** — Declarative harness evaluation fixtures consumed by `memory_run_eval` and `memory_eval_report`. Covers lifecycle, verification/retry, traces, tool-policy bootstrap, and approval pause/resume flows.
+
 ## Archived fallbacks
 
 - **[_archive/onboarding-v1.md](_archive/onboarding-v1.md)** — Legacy interview-style onboarding retained as an explicit fallback when the collaborative seed-task flow is not appropriate.
