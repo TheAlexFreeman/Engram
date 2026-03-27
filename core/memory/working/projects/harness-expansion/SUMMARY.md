@@ -1,11 +1,10 @@
 ---
-active_plans: 1
+active_plans: 0
 cognitive_mode: exploration
 created: 2026-03-26
-current_focus: 'Phase 1 design: extend plan schema with sources, postconditions, approval
-  gates, and budgets to support orchestration-lite.'
+current_focus: 'Phase 1 complete. Next: Phase 2 (enforced budget, postcondition automation, or agent-loop integration).'
 last_activity: '2026-03-26'
-open_questions: 4
+open_questions: 0
 origin_session: memory/activity/2026/03/26/chat-001
 plans: 1
 source: agent-generated
@@ -27,8 +26,14 @@ Exploration mode. The schema extensions are design-first: each implementation ph
 - plans/: the implementation plan YAML that sequences the work
 - notes in `working/notes/harness-expansion-analysis.md`: the grounding analysis from the deep research report
 
+## Phase 1 outcome (completed 2026-03-26)
+All four schema extensions are implemented and tested: `SourceSpec`, `PostconditionSpec`, `requires_approval`, and `PlanBudget`. The MCP tool surface (`memory_plan_create`, `memory_plan_execute`) surfaces all new fields. 64 tests pass. Documentation updated in DESIGN.md, MCP.md, and CHANGELOG.md.
+
+## Resolved questions
+1. **Sources validated at create time?** Yes — enforced via `save_plan`/`validate_plan_references`.
+2. **Postconditions free-text or typed?** Both — bare strings coerce to `manual`; typed specs support `check`/`grep`/`test`/`manual`.
+3. **`requires_approval` + change-class interaction?** Composed — `approval_required` is true if either flag is set.
+4. **Budget enforced or advisory?** Advisory model now; enforced budgets deferred to a future harness phase.
+
 ## Open questions
-1. Should `sources` be validated at plan-create time (check that internal paths exist)?
-2. Should `postconditions` be free-text or structured (with a validator type field)?
-3. How should `requires_approval` interact with the existing change-class system?
-4. Should budget fields be enforced by the MCP server or advisory-only?
+_None. All Phase 1 questions resolved._
