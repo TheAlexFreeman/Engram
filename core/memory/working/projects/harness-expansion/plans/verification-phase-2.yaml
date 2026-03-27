@@ -222,7 +222,7 @@ work:
         phase_payload and next_action.
   - id: docs-verification
     title: Update documentation for verification and failure recording
-    status: pending
+    status: in-progress
     commit: null
     blockers:
     - test-coverage-verification
