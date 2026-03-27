@@ -215,6 +215,27 @@ This is best-effort: unregistered tools are silently skipped. The field is empty
 
 ---
 
+---
+
+## Finalized design decisions (2026-03-26)
+
+**Decision 1: Storage — one file per provider (confirmed)**
+`core/memory/skills/tool-registry/` with `shell.yaml`, `api.yaml`, `mcp-external.yaml`. Provider grouping rather than one-file-per-tool keeps the YAML scannable and makes bulk queries cheap (read one file to get all shell tools).
+
+**Decision 2: Default seed tools — seed `shell.yaml` with three definitions**
+Pre-populate with `pre-commit-run` (timeout 60s, tags [lint, format, validate]), `pytest-run` (timeout 120s, tags [test, validate]), `ruff-check` (timeout 30s, tags [lint, format]). All `free` tier, no approval required. Immediately useful for Phase 5 tool-policy integration.
+
+**Decision 3: Registration writes immediately (no async approval gate)**
+`memory_register_tool` writes on call and returns `action: "created" | "updated"`. The `approval_required` field in the tool definition describes invocation policy for orchestrators, not registration policy. Consistent with all other Tier 1 semantic tools.
+
+**Decision 4: `memory/skills/` path policy — Tier 1 semantic tool bypass**
+`memory/skills/` is in `_PROTECTED_ROOTS`, blocking raw Tier 2 writes. `memory_register_tool` writes directly to the filesystem as a Tier 1 semantic tool, the same pattern used by plan_tools.py and session_tools.py.
+
+**Decision 5: `phase_payload` tool policy matching — normalized slug comparison**
+For `test`-type postconditions, extract the command prefix from the target field and normalize to a slug (e.g., `"pre-commit run --all-files"` → `"pre-commit-run"`, `"pytest-run"`, `"ruff-check"`). Matching uses normalized slug comparison. Best-effort — no match yields `tool_policies: []`.
+
+---
+
 ## What this phase does NOT include
 
 - **Tool execution.** Engram stores tool metadata and policies. It does not execute external tools (except `test` postconditions in Phase 2).

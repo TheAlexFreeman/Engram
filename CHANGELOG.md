@@ -18,6 +18,22 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-26] Phase 4: External tool registry (ToolDefinition, memory_register_tool, memory_get_tool_policy)
+
+**Changed:** Added a policy storage layer for external tools so agents and orchestrators can query tool constraints before invoking them:
+
+- **`core/memory/skills/tool-registry/`** — new directory with YAML registry files grouped by provider (`shell.yaml`, `api.yaml`, `mcp-external.yaml`). Each entry captures `name` (slug), `description`, `approval_required`, `cost_tier` (free/low/medium/high), `timeout_seconds`, optional `rate_limit`, `tags`, `schema`, and `notes`.
+- **`ToolDefinition` dataclass** — added to `plan_utils.py` with full field validation (slug names, valid cost tiers, timeout ≥ 1, non-empty description/provider, dict schema). `load_registry()`, `save_registry()`, `_all_registry_tools()`, and `regenerate_registry_summary()` helpers handle YAML round-trips.
+- **`memory_register_tool`** — new MCP tool; creates a new definition or replaces an existing one (no duplicates). Regenerates SUMMARY.md on every call.
+- **`memory_get_tool_policy`** — new MCP tool; queries by tool_name, provider, tags (any-match), or cost_tier. Returns matching definitions with count. At least one filter required; empty results are not errors.
+- **`phase_payload()` integration** — now includes a `tool_policies` field that auto-resolves registry entries matching `test`-type postcondition targets. Matching is best-effort (command-prefix slug normalization); unregistered tools yield an empty list.
+- **Seed data** — `shell.yaml` ships with `pre-commit-run` (60s), `pytest-run` (120s), and `ruff-check` (30s) definitions, all free-tier and immediately useful for plan policy integration.
+- **Tests** — 29 new tests (152 total); ruff clean.
+
+**Reasoning:** The harness report identified the lack of tool policy metadata as a gap preventing the harness from advising agents on tool constraints. Engram knows about memory tools but nothing about the external tools agents actually invoke (shell commands, APIs). This phase closes that gap without adding execution — policy storage only. Phase 5 (HITL) can now use `approval_required` from registered tools in its approval-workflow design.
+
+**Approved by:** user
+
 ## [2026-03-26] Phase 3: Structured observability (TRACES.jsonl, trace recording, query, viewer)
 
 **Changed:** Added structured trace recording across the MCP server, enabling session-level observability:

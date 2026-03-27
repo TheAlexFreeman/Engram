@@ -1,0 +1,39 @@
+provider: shell
+tools:
+- name: pre-commit-run
+  description: Run pre-commit hooks on all files in the repository
+  approval_required: false
+  cost_tier: free
+  timeout_seconds: 60
+  tags:
+  - lint
+  - format
+  - validate
+  schema:
+    type: object
+    properties:
+      args:
+        type: string
+        description: Additional pre-commit arguments (e.g. '--files path/to/file')
+- name: pytest-run
+  description: Run the pytest test suite
+  approval_required: false
+  cost_tier: free
+  timeout_seconds: 120
+  tags:
+  - test
+  - validate
+  schema:
+    type: object
+    properties:
+      args:
+        type: string
+        description: Additional pytest arguments (e.g. 'core/tools/tests/ -q')
+- name: ruff-check
+  description: Run ruff linter and formatter checks on Python source files
+  approval_required: false
+  cost_tier: free
+  timeout_seconds: 30
+  tags:
+  - lint
+  - format

@@ -24,15 +24,21 @@ from engram_mcp.agent_memory_mcp.plan_utils import (
     PlanPurpose,
     PostconditionSpec,
     SourceSpec,
+    ToolDefinition,
+    _all_registry_tools,
     budget_status,
     coerce_budget_input,
     coerce_phase_inputs,
     load_plan,
+    load_registry,
     next_action,
     phase_blockers,
     phase_payload,
     project_plan_path,
+    regenerate_registry_summary,
+    registry_file_path,
     save_plan,
+    save_registry,
     validate_plan_references,
     verify_postconditions,
 )
@@ -1782,6 +1788,469 @@ class TestSessionSummaryEnrichment(unittest.TestCase):
             post = fmlib.loads(content)
             self.assertIn("metrics", post.metadata)
             self.assertEqual(post.metadata["metrics"]["plan_actions"], 1)
+
+
+class TestToolDefinitionDataclass(unittest.TestCase):
+    """Validate ToolDefinition construction and field validation."""
+
+    def test_valid_construction_minimal(self) -> None:
+        t = ToolDefinition(name="my-tool", description="Does stuff", provider="shell")
+        self.assertEqual(t.name, "my-tool")
+        self.assertEqual(t.provider, "shell")
+        self.assertEqual(t.cost_tier, "free")
+        self.assertEqual(t.timeout_seconds, 30)
+        self.assertFalse(t.approval_required)
+        self.assertIsNone(t.schema)
+        self.assertEqual(t.tags, [])
+
+    def test_valid_construction_full(self) -> None:
+        t = ToolDefinition(
+            name="api-call",
+            description="Hit an external API",
+            provider="api",
+            approval_required=True,
+            cost_tier="medium",
+            rate_limit="100/day",
+            timeout_seconds=45,
+            tags=["external", "paid"],
+            notes="Use sparingly.",
+        )
+        self.assertTrue(t.approval_required)
+        self.assertEqual(t.cost_tier, "medium")
+        self.assertEqual(t.rate_limit, "100/day")
+        self.assertEqual(t.tags, ["external", "paid"])
+        self.assertEqual(t.notes, "Use sparingly.")
+
+    def test_invalid_name_not_slug(self) -> None:
+        with self.assertRaises(ValidationError):
+            ToolDefinition(name="My Tool", description="x", provider="shell")
+
+    def test_invalid_provider_not_slug(self) -> None:
+        with self.assertRaises(ValidationError):
+            ToolDefinition(name="my-tool", description="x", provider="Shell API")
+
+    def test_invalid_cost_tier(self) -> None:
+        with self.assertRaises(ValidationError):
+            ToolDefinition(name="t", description="x", provider="shell", cost_tier="expensive")
+
+    def test_invalid_timeout_zero(self) -> None:
+        with self.assertRaises(ValidationError):
+            ToolDefinition(name="t", description="x", provider="shell", timeout_seconds=0)
+
+    def test_invalid_timeout_negative(self) -> None:
+        with self.assertRaises(ValidationError):
+            ToolDefinition(name="t", description="x", provider="shell", timeout_seconds=-1)
+
+    def test_invalid_empty_description(self) -> None:
+        with self.assertRaises(ValidationError):
+            ToolDefinition(name="t", description="  ", provider="shell")
+
+    def test_invalid_tag_empty_string(self) -> None:
+        with self.assertRaises(ValidationError):
+            ToolDefinition(name="t", description="x", provider="shell", tags=["lint", ""])
+
+    def test_schema_must_be_dict(self) -> None:
+        with self.assertRaises(ValidationError):
+            ToolDefinition(name="t", description="x", provider="shell", schema="not-a-dict")
+
+    def test_to_dict_omits_none_fields(self) -> None:
+        t = ToolDefinition(name="t", description="x", provider="shell")
+        d = t.to_dict()
+        self.assertNotIn("schema", d)
+        self.assertNotIn("rate_limit", d)
+        self.assertNotIn("notes", d)
+        self.assertNotIn("tags", d)
+
+    def test_to_dict_includes_populated_fields(self) -> None:
+        t = ToolDefinition(
+            name="t",
+            description="x",
+            provider="shell",
+            tags=["a"],
+            notes="note",
+            rate_limit="10/min",
+        )
+        d = t.to_dict()
+        self.assertIn("tags", d)
+        self.assertIn("notes", d)
+        self.assertIn("rate_limit", d)
+
+    def test_all_cost_tiers_valid(self) -> None:
+        for tier in ("free", "low", "medium", "high"):
+            t = ToolDefinition(name="t", description="x", provider="shell", cost_tier=tier)
+            self.assertEqual(t.cost_tier, tier)
+
+
+class TestRegistryStorage(unittest.TestCase):
+    """Validate load_registry, save_registry, and round-trip fidelity."""
+
+    def _make_tool(self, name: str, **kwargs: object) -> ToolDefinition:
+        return ToolDefinition(name=name, description=f"Tool {name}", provider="shell", **kwargs)
+
+    def test_load_empty_when_file_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = load_registry(Path(tmp), "shell")
+            self.assertEqual(result, [])
+
+    def test_save_and_load_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tools = [
+                self._make_tool("pytest-run", cost_tier="free", timeout_seconds=120),
+                self._make_tool("pre-commit-run", tags=["lint"]),
+            ]
+            save_registry(root, "shell", tools)
+            loaded = load_registry(root, "shell")
+            self.assertEqual(len(loaded), 2)
+            names = [t.name for t in loaded]
+            self.assertIn("pytest-run", names)
+            self.assertIn("pre-commit-run", names)
+
+    def test_provider_grouping_separate_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            save_registry(root, "shell", [self._make_tool("sh-tool")])
+            save_registry(
+                root,
+                "api",
+                [ToolDefinition(name="api-tool", description="An API call", provider="api")],
+            )
+            shell_tools = load_registry(root, "shell")
+            api_tools = load_registry(root, "api")
+            self.assertEqual(len(shell_tools), 1)
+            self.assertEqual(shell_tools[0].name, "sh-tool")
+            self.assertEqual(len(api_tools), 1)
+            self.assertEqual(api_tools[0].name, "api-tool")
+
+    def test_create_new_tool(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tools = [self._make_tool("tool-a")]
+            save_registry(root, "shell", tools)
+            # "create" by loading, appending, saving
+            existing = load_registry(root, "shell")
+            existing.append(self._make_tool("tool-b"))
+            save_registry(root, "shell", existing)
+            result = load_registry(root, "shell")
+            self.assertEqual(len(result), 2)
+
+    def test_update_tool_no_duplicate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            save_registry(root, "shell", [self._make_tool("my-tool")])
+            existing = load_registry(root, "shell")
+            # Simulate update: replace matching tool
+            updated_tool = ToolDefinition(
+                name="my-tool", description="Updated description", provider="shell"
+            )
+            updated = [updated_tool if t.name == "my-tool" else t for t in existing]
+            save_registry(root, "shell", updated)
+            result = load_registry(root, "shell")
+            self.assertEqual(len(result), 1)
+            self.assertEqual(result[0].description, "Updated description")
+
+    def test_registry_file_path_format(self) -> None:
+        self.assertEqual(registry_file_path("shell"), "memory/skills/tool-registry/shell.yaml")
+        self.assertEqual(
+            registry_file_path("mcp-external"), "memory/skills/tool-registry/mcp-external.yaml"
+        )
+
+    def test_all_registry_tools_aggregates_providers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            save_registry(root, "shell", [self._make_tool("sh-tool")])
+            save_registry(
+                root,
+                "api",
+                [ToolDefinition(name="api-tool", description="API", provider="api")],
+            )
+            all_tools = _all_registry_tools(root)
+            self.assertEqual(len(all_tools), 2)
+
+    def test_all_registry_tools_empty_when_no_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(_all_registry_tools(Path(tmp)), [])
+
+
+class TestRegistrySummaryRegeneration(unittest.TestCase):
+    """Validate regenerate_registry_summary produces correct markdown."""
+
+    def test_summary_lists_all_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            save_registry(
+                root,
+                "shell",
+                [
+                    ToolDefinition(
+                        name="pytest-run", description="Run tests", provider="shell",
+                        tags=["test"],
+                    ),
+                    ToolDefinition(
+                        name="ruff-check", description="Lint", provider="shell",
+                    ),
+                ],
+            )
+            regenerate_registry_summary(root)
+            summary = (root / "memory/skills/tool-registry/SUMMARY.md").read_text()
+            self.assertIn("pytest-run", summary)
+            self.assertIn("ruff-check", summary)
+            self.assertIn("## shell", summary)
+
+    def test_summary_empty_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # create the directory so regenerate can write
+            (root / "memory/skills/tool-registry").mkdir(parents=True, exist_ok=True)
+            regenerate_registry_summary(root)
+            summary = (root / "memory/skills/tool-registry/SUMMARY.md").read_text()
+            self.assertIn("No tools registered yet", summary)
+
+
+class TestToolPolicyIntegration(unittest.TestCase):
+    """Validate that phase_payload includes tool_policies for test postconditions."""
+
+    def _write_shell_registry(self, root: Path) -> None:
+        save_registry(
+            root,
+            "shell",
+            [
+                ToolDefinition(
+                    name="pytest-run",
+                    description="Run pytest",
+                    provider="shell",
+                    timeout_seconds=120,
+                ),
+                ToolDefinition(
+                    name="pre-commit-run",
+                    description="Run pre-commit",
+                    provider="shell",
+                    timeout_seconds=60,
+                ),
+            ],
+        )
+
+    def test_tool_policies_present_for_test_postconditions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_shell_registry(root)
+            # Build a minimal plan with a test postcondition that matches pytest-run
+            from engram_mcp.agent_memory_mcp.plan_utils import (
+                PlanDocument,
+                PlanPhase,
+                PlanPurpose,
+                PostconditionSpec,
+                phase_payload,
+            )
+
+            phase = PlanPhase(
+                id="my-phase",
+                title="Test phase",
+                postconditions=[
+                    PostconditionSpec(
+                        description="tests pass",
+                        type="test",
+                        target="python -m pytest core/tools/tests/ -q",
+                    )
+                ],
+            )
+            plan = PlanDocument(
+                id="test-plan",
+                project="test-proj",
+                created="2026-03-26",
+                origin_session="memory/activity/2026/03/26/chat-001",
+                status="active",
+                purpose=PlanPurpose(
+                    summary="A test plan", context="testing", questions=[]
+                ),
+                phases=[phase],
+            )
+            payload = phase_payload(plan, phase, root)
+            self.assertIn("tool_policies", payload)
+            names = [p["tool_name"] for p in payload["tool_policies"]]
+            self.assertIn("pytest-run", names)
+
+    def test_tool_policies_empty_when_no_test_postconditions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_shell_registry(root)
+            from engram_mcp.agent_memory_mcp.plan_utils import (
+                PlanDocument,
+                PlanPhase,
+                PlanPurpose,
+                PostconditionSpec,
+                phase_payload,
+            )
+
+            phase = PlanPhase(
+                id="manual-phase",
+                title="Manual only",
+                postconditions=[PostconditionSpec(description="check this manually")],
+            )
+            plan = PlanDocument(
+                id="plan-b",
+                project="proj-b",
+                created="2026-03-26",
+                origin_session="memory/activity/2026/03/26/chat-001",
+                status="active",
+                purpose=PlanPurpose(summary="B", context="ctx", questions=[]),
+                phases=[phase],
+            )
+            payload = phase_payload(plan, phase, root)
+            self.assertEqual(payload["tool_policies"], [])
+
+    def test_tool_policies_empty_when_no_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            from engram_mcp.agent_memory_mcp.plan_utils import (
+                PlanDocument,
+                PlanPhase,
+                PlanPurpose,
+                PostconditionSpec,
+                phase_payload,
+            )
+
+            phase = PlanPhase(
+                id="phase-c",
+                title="Has test PC",
+                postconditions=[
+                    PostconditionSpec(
+                        description="run tests", type="test", target="pytest"
+                    )
+                ],
+            )
+            plan = PlanDocument(
+                id="plan-c",
+                project="proj-c",
+                created="2026-03-26",
+                origin_session="memory/activity/2026/03/26/chat-001",
+                status="active",
+                purpose=PlanPurpose(summary="C", context="ctx", questions=[]),
+                phases=[phase],
+            )
+            payload = phase_payload(plan, phase, root)
+            self.assertEqual(payload["tool_policies"], [])
+
+    def test_pre_commit_matches_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_shell_registry(root)
+            from engram_mcp.agent_memory_mcp.plan_utils import (
+                PlanDocument,
+                PlanPhase,
+                PlanPurpose,
+                PostconditionSpec,
+                phase_payload,
+            )
+
+            phase = PlanPhase(
+                id="pc-phase",
+                title="Pre-commit phase",
+                postconditions=[
+                    PostconditionSpec(
+                        description="hooks pass",
+                        type="test",
+                        target="pre-commit run --all-files",
+                    )
+                ],
+            )
+            plan = PlanDocument(
+                id="plan-d",
+                project="proj-d",
+                created="2026-03-26",
+                origin_session="memory/activity/2026/03/26/chat-001",
+                status="active",
+                purpose=PlanPurpose(summary="D", context="ctx", questions=[]),
+                phases=[phase],
+            )
+            payload = phase_payload(plan, phase, root)
+            names = [p["tool_name"] for p in payload["tool_policies"]]
+            self.assertIn("pre-commit-run", names)
+
+    def test_unregistered_tool_silently_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_shell_registry(root)
+            from engram_mcp.agent_memory_mcp.plan_utils import (
+                PlanDocument,
+                PlanPhase,
+                PlanPurpose,
+                PostconditionSpec,
+                phase_payload,
+            )
+
+            phase = PlanPhase(
+                id="phase-e",
+                title="Unknown tool",
+                postconditions=[
+                    PostconditionSpec(
+                        description="run custom",
+                        type="test",
+                        target="my-unknown-custom-tool --flag",
+                    )
+                ],
+            )
+            plan = PlanDocument(
+                id="plan-e",
+                project="proj-e",
+                created="2026-03-26",
+                origin_session="memory/activity/2026/03/26/chat-001",
+                status="active",
+                purpose=PlanPurpose(summary="E", context="ctx", questions=[]),
+                phases=[phase],
+            )
+            payload = phase_payload(plan, phase, root)
+            self.assertEqual(payload["tool_policies"], [])
+
+    def test_policy_fields_include_required_keys(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            save_registry(
+                root,
+                "shell",
+                [
+                    ToolDefinition(
+                        name="ruff-check",
+                        description="Lint",
+                        provider="shell",
+                        cost_tier="free",
+                        timeout_seconds=30,
+                    )
+                ],
+            )
+            from engram_mcp.agent_memory_mcp.plan_utils import (
+                PlanDocument,
+                PlanPhase,
+                PlanPurpose,
+                PostconditionSpec,
+                phase_payload,
+            )
+
+            phase = PlanPhase(
+                id="phase-f",
+                title="Ruff phase",
+                postconditions=[
+                    PostconditionSpec(
+                        description="ruff passes",
+                        type="test",
+                        target="ruff check agent_memory_mcp/",
+                    )
+                ],
+            )
+            plan = PlanDocument(
+                id="plan-f",
+                project="proj-f",
+                created="2026-03-26",
+                origin_session="memory/activity/2026/03/26/chat-001",
+                status="active",
+                purpose=PlanPurpose(summary="F", context="ctx", questions=[]),
+                phases=[phase],
+            )
+            payload = phase_payload(plan, phase, root)
+            self.assertEqual(len(payload["tool_policies"]), 1)
+            policy = payload["tool_policies"][0]
+            for key in ("tool_name", "approval_required", "cost_tier", "timeout_seconds"):
+                self.assertIn(key, policy)
 
 
 if __name__ == "__main__":

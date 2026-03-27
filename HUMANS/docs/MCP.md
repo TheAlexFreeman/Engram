@@ -257,6 +257,8 @@ These are the normal write path. Each tool represents a bounded operation with b
 | `memory_plan_review` | Scan completed plans or export completed-plan artifacts. |
 | `memory_record_trace` | Emit a trace span to the session's TRACES.jsonl file. Non-blocking; always returns span_id on success. |
 | `memory_query_traces` | Query trace spans across sessions or date ranges. Returns spans (newest-first) with aggregates. |
+| `memory_register_tool` | Register or update an external tool definition in the tool registry. Returns action ("created"\|"updated") and registry_file path. |
+| `memory_get_tool_policy` | Query the tool registry by tool name, provider, tags, or cost tier. Returns matching definitions. |
 
 **`memory_plan_create` key parameters**
 
@@ -316,6 +318,34 @@ Returns `{span_id, trace_file, status}`. `trace_file` is the TRACES.jsonl path f
 | `limit` | int | Max spans to return (default 100). |
 
 Returns `{spans, total_matched, aggregates: {total_duration_ms, by_type, by_status, error_rate}}`.
+
+**`memory_register_tool` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `name` | str | Tool identifier — kebab-case slug (required). |
+| `description` | str | What the tool does (required). |
+| `provider` | str | Provider group slug: `shell`, `api`, `mcp-external`, etc. (required). |
+| `approval_required` | bool | Whether invocation requires human approval (default false). |
+| `cost_tier` | str | `free` \| `low` \| `medium` \| `high` (default `free`). |
+| `schema` | dict \| null | JSON Schema for tool inputs. |
+| `rate_limit` | str \| null | Human-readable rate limit (e.g. `"100/day"`). |
+| `timeout_seconds` | int | Expected invocation timeout (default 30). |
+| `tags` | list[str] \| null | Categorization tags (e.g. `["lint", "test"]`). |
+| `notes` | str \| null | Usage notes, gotchas, or warnings. |
+
+Returns `{tool_name, provider, registry_file, action}` where `action` is `"created"` or `"updated"`. SUMMARY.md at `memory/skills/tool-registry/SUMMARY.md` is regenerated on every call.
+
+**`memory_get_tool_policy` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `tool_name` | str \| null | Exact tool name (returns at most one result). |
+| `provider` | str \| null | Filter by provider group. |
+| `tags` | list[str] \| null | Filter by tags (any-match). |
+| `cost_tier` | str \| null | Filter by cost tier. |
+
+At least one filter parameter is required. Returns `{tools: [...], count}`. An empty result is not an error. Each tool entry includes `provider`, `name`, `description`, `approval_required`, `cost_tier`, `timeout_seconds`, and optional `schema`, `rate_limit`, `tags`, `notes`.
 
 **Knowledge lifecycle**
 

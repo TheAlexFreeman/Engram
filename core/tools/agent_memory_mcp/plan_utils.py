@@ -21,6 +21,7 @@ SOURCE_TYPES = {"internal", "external", "mcp"}
 POSTCONDITION_TYPES = {"check", "grep", "test", "manual"}
 TRACE_SPAN_TYPES = {"tool_call", "plan_action", "retrieval", "verification", "guardrail_check"}
 TRACE_STATUSES = {"ok", "error", "denied"}
+COST_TIERS: frozenset[str] = frozenset({"free", "low", "medium", "high"})
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _CREDENTIAL_FIELD_RE = re.compile(r"(key|token|secret|password|auth)", re.IGNORECASE)
@@ -871,6 +872,7 @@ def phase_payload(plan: PlanDocument, phase: PlanPhase, root: Path) -> dict[str,
     bs = budget_status(plan)
     if bs is not None:
         result["budget_status"] = bs
+    result["tool_policies"] = _resolve_tool_policies(phase, root)
     return result
 
 
@@ -1222,6 +1224,266 @@ class TraceSpan:
         return d
 
 
+@dataclass(slots=True)
+class ToolDefinition:
+    """Metadata and policy for an external tool.
+
+    Stored in ``memory/skills/tool-registry/<provider>.yaml``.  Engram does not
+    execute these tools; it stores metadata so agents and orchestrators can
+    respect constraints before invoking them.
+    """
+
+    name: str
+    description: str
+    provider: str
+    schema: dict[str, Any] | None = None
+    approval_required: bool = False
+    cost_tier: str = "free"
+    rate_limit: str | None = None
+    timeout_seconds: int = 30
+    tags: list[str] = field(default_factory=list)
+    notes: str | None = None
+
+    def __post_init__(self) -> None:
+        self.name = validate_slug(self.name, field_name="tool name")
+        self.provider = validate_slug(self.provider, field_name="provider")
+        if not isinstance(self.description, str) or not self.description.strip():
+            raise ValidationError("tool description must be a non-empty string")
+        self.description = self.description.strip()
+        if self.cost_tier not in COST_TIERS:
+            raise ValidationError(
+                f"cost_tier must be one of {sorted(COST_TIERS)}: {self.cost_tier!r}"
+            )
+        if not isinstance(self.timeout_seconds, int) or self.timeout_seconds < 1:
+            raise ValidationError("timeout_seconds must be an integer >= 1")
+        if self.schema is not None and not isinstance(self.schema, dict):
+            raise ValidationError("schema must be a dict or null")
+        validated_tags: list[str] = []
+        for tag in self.tags:
+            if not isinstance(tag, str) or not tag.strip():
+                raise ValidationError("tags must be non-empty strings")
+            validated_tags.append(tag.strip())
+        self.tags = validated_tags
+        if self.notes is not None:
+            self.notes = str(self.notes).strip() or None
+        if self.rate_limit is not None:
+            self.rate_limit = str(self.rate_limit).strip() or None
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "name": self.name,
+            "description": self.description,
+            "approval_required": self.approval_required,
+            "cost_tier": self.cost_tier,
+            "timeout_seconds": self.timeout_seconds,
+        }
+        if self.schema is not None:
+            payload["schema"] = self.schema
+        if self.rate_limit is not None:
+            payload["rate_limit"] = self.rate_limit
+        if self.tags:
+            payload["tags"] = list(self.tags)
+        if self.notes is not None:
+            payload["notes"] = self.notes
+        return payload
+
+
+# ── Tool Registry helpers ───────────────────────────────────────────────────
+
+
+def registry_file_path(provider: str) -> str:
+    """Content-relative path to a provider's YAML registry file."""
+    validated = validate_slug(provider, field_name="provider")
+    return f"memory/skills/tool-registry/{validated}.yaml"
+
+
+def registry_summary_path() -> str:
+    """Content-relative path to the tool registry SUMMARY.md."""
+    return "memory/skills/tool-registry/SUMMARY.md"
+
+
+def _find_registry_root(root: Path) -> Path:
+    """Resolve the absolute path to memory/skills/tool-registry/, tolerating root variants."""
+    direct = root / "memory/skills/tool-registry"
+    if direct.exists():
+        return direct
+    for prefix in _CONTENT_PREFIXES:
+        candidate = root / prefix / "memory/skills/tool-registry"
+        if candidate.exists():
+            return candidate
+    return direct
+
+
+def _coerce_tool(raw: Any, provider: str) -> ToolDefinition:
+    if not isinstance(raw, dict):
+        raise ValidationError(f"tool entry must be a mapping, got {type(raw).__name__}")
+    tags_raw = raw.get("tags") or []
+    if not isinstance(tags_raw, list):
+        tags_raw = [str(tags_raw)]
+    schema = raw.get("schema")
+    if schema is not None and not isinstance(schema, dict):
+        schema = None
+    try:
+        timeout = int(raw.get("timeout_seconds", 30))
+    except (TypeError, ValueError):
+        timeout = 30
+    return ToolDefinition(
+        name=str(raw.get("name", "")),
+        description=str(raw.get("description", "")),
+        provider=provider,
+        schema=schema,
+        approval_required=bool(raw.get("approval_required", False)),
+        cost_tier=str(raw.get("cost_tier", "free")),
+        rate_limit=str(raw["rate_limit"]) if raw.get("rate_limit") else None,
+        timeout_seconds=timeout,
+        tags=[str(t) for t in tags_raw],
+        notes=str(raw["notes"]) if raw.get("notes") else None,
+    )
+
+
+def load_registry(root: Path, provider: str) -> list[ToolDefinition]:
+    """Load all tool definitions for a provider. Returns [] if the file doesn't exist."""
+    reg_root = _find_registry_root(root)
+    abs_path = reg_root / f"{validate_slug(provider, field_name='provider')}.yaml"
+    if not abs_path.exists():
+        return []
+    try:
+        raw = yaml.safe_load(abs_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise ValidationError(f"Invalid YAML registry file {abs_path.name}: {exc}") from exc
+    if not isinstance(raw, dict):
+        return []
+    result: list[ToolDefinition] = []
+    for entry in raw.get("tools") or []:
+        result.append(_coerce_tool(entry, provider))
+    return result
+
+
+def save_registry(root: Path, provider: str, tools: list[ToolDefinition]) -> None:
+    """Persist tool definitions for a provider to its YAML file."""
+    reg_root = _find_registry_root(root)
+    abs_path = reg_root / f"{validate_slug(provider, field_name='provider')}.yaml"
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    payload: dict[str, Any] = {
+        "provider": provider,
+        "tools": [t.to_dict() for t in tools],
+    }
+    text = yaml.dump(
+        payload, Dumper=_PlanDumper, sort_keys=False, allow_unicode=False, width=88
+    )
+    abs_path.write_text(text, encoding="utf-8")
+
+
+def _all_registry_tools(root: Path) -> list[ToolDefinition]:
+    """Load all tool definitions from every provider YAML in the registry."""
+    reg_root = _find_registry_root(root)
+    if not reg_root.exists():
+        return []
+    tools: list[ToolDefinition] = []
+    for yaml_file in sorted(reg_root.glob("*.yaml")):
+        try:
+            tools.extend(load_registry(root, yaml_file.stem))
+        except Exception:  # noqa: BLE001
+            continue
+    return tools
+
+
+def regenerate_registry_summary(root: Path) -> None:
+    """Rewrite memory/skills/tool-registry/SUMMARY.md from all registered tools."""
+    all_tools = _all_registry_tools(root)
+    reg_root = _find_registry_root(root)
+    reg_root.mkdir(parents=True, exist_ok=True)
+    lines: list[str] = [
+        "# Tool Registry",
+        "",
+        "External tool definitions and policies.",
+        "Managed by `memory_register_tool`. Query with `memory_get_tool_policy`.",
+        "",
+    ]
+    if not all_tools:
+        lines.append("_No tools registered yet._")
+    else:
+        by_provider: dict[str, list[ToolDefinition]] = {}
+        for t in sorted(all_tools, key=lambda t: (t.provider, t.name)):
+            by_provider.setdefault(t.provider, []).append(t)
+        for prov, ptools in sorted(by_provider.items()):
+            lines += [f"## {prov}", "", "| Tool | Description | Approval | Cost | Timeout | Tags |",
+                      "|---|---|---|---|---|---|"]
+            for t in ptools:
+                tags_str = ", ".join(t.tags) if t.tags else "—"
+                approval = "yes" if t.approval_required else "no"
+                lines.append(
+                    f"| {t.name} | {t.description} | {approval} | {t.cost_tier}"
+                    f" | {t.timeout_seconds}s | {tags_str} |"
+                )
+            lines.append("")
+    summary_abs = reg_root / "SUMMARY.md"
+    summary_abs.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _command_matches_tool(target: str, tool_name: str) -> bool:
+    """Return True if a test postcondition target string likely invokes the named tool.
+
+    Strategy:
+    1. Direct substring match (slug or space-normalized form).
+    2. Extract non-flag, non-path tokens from the target; try all prefix-length
+       combinations as hyphenated slugs against the tool name.
+    3. If the first segment of the tool name (before the first hyphen-verb) appears
+       as a token, treat it as a match (e.g. "pytest" in target → "pytest-run").
+    """
+    if tool_name in target:
+        return True
+    if tool_name.replace("-", " ") in target:
+        return True
+    # Tokenize: keep words that are not flags and don't look like file paths
+    tokens = [
+        t
+        for t in target.lower().split()
+        if not t.startswith("-") and "/" not in t and "\\" not in t
+    ]
+    # Try slug combinations from longest prefix to shortest
+    for n in range(len(tokens), 0, -1):
+        candidate = "-".join(tokens[:n])
+        if candidate == tool_name:
+            return True
+    # Single-segment prefix match: "pytest" in tokens → matches "pytest-run"
+    first_segment = tool_name.split("-")[0]
+    return first_segment in tokens
+
+
+def _resolve_tool_policies(phase: "PlanPhase", root: Path) -> list[dict[str, Any]]:
+    """Return tool policy dicts for test postconditions that match registered tools.
+
+    Best-effort: unregistered tools are silently skipped, yielding an empty list.
+    """
+    test_targets = [
+        pc.target for pc in phase.postconditions if pc.type == "test" and pc.target
+    ]
+    if not test_targets:
+        return []
+    all_tools = _all_registry_tools(root)
+    if not all_tools:
+        return []
+    policies: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for tool in sorted(all_tools, key=lambda t: t.name):
+        if tool.name in seen:
+            continue
+        for target in test_targets:
+            if _command_matches_tool(target, tool.name):
+                policies.append(
+                    {
+                        "tool_name": tool.name,
+                        "approval_required": tool.approval_required,
+                        "cost_tier": tool.cost_tier,
+                        "timeout_seconds": tool.timeout_seconds,
+                    }
+                )
+                seen.add(tool.name)
+                break
+    return policies
+
+
 def trace_file_path(session_id: str) -> str:
     """Derive the TRACES.jsonl repo-relative path from a session_id.
 
@@ -1279,6 +1541,7 @@ def record_trace(
 
 __all__ = [
     "CHANGE_ACTIONS",
+    "COST_TIERS",
     "PLAN_STATUSES",
     "PHASE_STATUSES",
     "POSTCONDITION_TYPES",
@@ -1294,7 +1557,9 @@ __all__ = [
     "PlanReview",
     "PostconditionSpec",
     "SourceSpec",
+    "ToolDefinition",
     "TraceSpan",
+    "_all_registry_tools",
     "append_operations_log",
     "budget_status",
     "build_review_from_input",
@@ -1302,6 +1567,7 @@ __all__ = [
     "coerce_phase_inputs",
     "exportable_artifacts",
     "load_plan",
+    "load_registry",
     "next_action",
     "next_phase",
     "outbox_summary_path",
@@ -1314,8 +1580,12 @@ __all__ = [
     "project_outbox_root",
     "project_plan_path",
     "record_trace",
+    "regenerate_registry_summary",
+    "registry_file_path",
+    "registry_summary_path",
     "resolve_phase",
     "save_plan",
+    "save_registry",
     "trace_file_path",
     "unresolved_blockers",
     "validate_plan_references",

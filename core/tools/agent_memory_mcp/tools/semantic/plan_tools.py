@@ -9,10 +9,13 @@ from typing import TYPE_CHECKING, Any, cast
 
 from ...path_policy import validate_session_id, validate_slug
 from ...plan_utils import (
+    COST_TIERS,
     TRACE_SPAN_TYPES,
     TRACE_STATUSES,
     PlanDocument,
     PlanPurpose,
+    ToolDefinition,
+    _all_registry_tools,
     append_operations_log,
     budget_status,
     build_review_from_input,
@@ -20,6 +23,7 @@ from ...plan_utils import (
     coerce_phase_inputs,
     exportable_artifacts,
     load_plan,
+    load_registry,
     next_action,
     outbox_summary_path,
     phase_change_class,
@@ -29,8 +33,11 @@ from ...plan_utils import (
     project_outbox_root,
     project_plan_path,
     record_trace,
+    regenerate_registry_summary,
+    registry_file_path,
     resolve_phase,
     save_plan,
+    save_registry,
     trace_file_path,
     unresolved_blockers,
     verify_postconditions,
@@ -1326,6 +1333,130 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         }
         return _json.dumps(result, indent=2)
 
+    # ── Tool Registry MCP tools ──────────────────────────────────────────────
+
+    async def memory_register_tool(
+        name: str,
+        description: str,
+        provider: str,
+        approval_required: bool = False,
+        cost_tier: str = "free",
+        schema: dict[str, Any] | None = None,
+        rate_limit: str | None = None,
+        timeout_seconds: int = 30,
+        tags: list[str] | None = None,
+        notes: str | None = None,
+    ) -> str:
+        """Register or update an external tool definition in the tool registry.
+
+        Creates a new entry if the tool name is unknown for this provider, or
+        replaces the existing entry if it already exists. SUMMARY.md is
+        regenerated after every call.
+
+        Returns JSON with ``tool_name``, ``provider``, ``registry_file``,
+        and ``action`` ("created" or "updated").
+        """
+        import json as _json
+
+        root = get_root()
+        # MCP framework may pass booleans as strings
+        if isinstance(approval_required, str):
+            approval_required = approval_required.lower() not in {"false", "0", "no", ""}
+        try:
+            timeout_int = int(timeout_seconds)
+        except (TypeError, ValueError):
+            timeout_int = 30
+
+        tool = ToolDefinition(
+            name=name,
+            description=description,
+            provider=provider,
+            schema=schema if isinstance(schema, dict) else None,
+            approval_required=bool(approval_required),
+            cost_tier=cost_tier,
+            rate_limit=rate_limit,
+            timeout_seconds=timeout_int,
+            tags=list(tags or []),
+            notes=notes,
+        )
+
+        existing = load_registry(root, provider)
+        action = "created"
+        updated: list[ToolDefinition] = []
+        for existing_tool in existing:
+            if existing_tool.name == tool.name:
+                action = "updated"
+                updated.append(tool)
+            else:
+                updated.append(existing_tool)
+        if action == "created":
+            updated.append(tool)
+
+        save_registry(root, provider, updated)
+        regenerate_registry_summary(root)
+
+        result: dict[str, Any] = {
+            "tool_name": tool.name,
+            "provider": provider,
+            "registry_file": registry_file_path(provider),
+            "action": action,
+        }
+        return _json.dumps(result, indent=2)
+
+    async def memory_get_tool_policy(
+        tool_name: str | None = None,
+        provider: str | None = None,
+        tags: list[str] | None = None,
+        cost_tier: str | None = None,
+    ) -> str:
+        """Query the tool registry for matching tool policies.
+
+        At least one filter parameter must be provided. When ``tool_name`` is
+        given, returns at most one result. All other filters return all matching
+        tools. An empty result is not an error.
+
+        Returns JSON with ``tools`` (list of tool dicts) and ``count``.
+        """
+        import json as _json
+
+        from ...errors import ValidationError as _VE
+
+        if not any([tool_name, provider, tags, cost_tier]):
+            raise _VE(
+                "at least one filter parameter is required: "
+                "tool_name, provider, tags, or cost_tier"
+            )
+        if cost_tier is not None and cost_tier not in COST_TIERS:
+            raise _VE(
+                f"cost_tier must be one of {sorted(COST_TIERS)}: {cost_tier!r}"
+            )
+
+        root = get_root()
+        all_tools = _all_registry_tools(root)
+
+        filtered: list[ToolDefinition] = []
+        for tool in all_tools:
+            if tool_name is not None and tool.name != tool_name:
+                continue
+            if provider is not None and tool.provider != provider:
+                continue
+            if cost_tier is not None and tool.cost_tier != cost_tier:
+                continue
+            if tags is not None:
+                tool_tag_set = set(tool.tags)
+                if not any(t in tool_tag_set for t in tags):
+                    continue
+            filtered.append(tool)
+
+        if tool_name is not None:
+            filtered = filtered[:1]
+
+        result: dict[str, Any] = {
+            "tools": [{"provider": t.provider, **t.to_dict()} for t in filtered],
+            "count": len(filtered),
+        }
+        return _json.dumps(result, indent=2)
+
     return {
         "memory_plan_create": memory_plan_create,
         "memory_plan_execute": memory_plan_execute,
@@ -1334,6 +1465,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         "memory_plan_verify": memory_plan_verify,
         "memory_record_trace": memory_record_trace,
         "memory_query_traces": memory_query_traces,
+        "memory_register_tool": memory_register_tool,
+        "memory_get_tool_policy": memory_get_tool_policy,
     }
 
 
