@@ -669,6 +669,7 @@ core/memory/working/projects/getting-to-know-you/SUMMARY.md
 core/memory/working/projects/getting-to-know-you/questions.md
 core/memory/working/projects/harness-expansion/IN/deep-research-ai-agent-harnesses.md
 core/memory/working/projects/harness-expansion/IN/phase-1-schema-design.md
+core/memory/working/projects/harness-expansion/IN/phase-10-run-state-design.md
 core/memory/working/projects/harness-expansion/IN/phase-2-verification-design.md
 core/memory/working/projects/harness-expansion/IN/phase-3-observability-design.md
 core/memory/working/projects/harness-expansion/IN/phase-4-tool-registry-design.md

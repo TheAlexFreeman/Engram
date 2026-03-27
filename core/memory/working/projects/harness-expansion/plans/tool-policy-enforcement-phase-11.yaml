@@ -2,8 +2,8 @@ id: tool-policy-enforcement-phase-11
 project: harness-expansion
 created: '2026-03-27'
 origin_session: memory/activity/2026/03/27/chat-002
-status: draft
-sessions_used: 0
+status: active
+sessions_used: 1
 budget:
   deadline: '2026-06-01'
   max_sessions: 8
@@ -41,7 +41,7 @@ work:
   phases:
   - id: policy-enforcement-design
     title: Design the policy enforcement middleware and integration points
-    status: pending
+    status: completed
     blockers: []
     requires_approval: true
     sources:
@@ -74,7 +74,7 @@ work:
 
   - id: policy-check-impl
     title: Implement check_tool_policy() enforcement function
-    status: pending
+    status: completed
     blockers:
     - policy-enforcement-design
     sources:
@@ -104,7 +104,7 @@ work:
 
   - id: approval-auto-gating
     title: Wire automatic approval creation for approval_required tools
-    status: pending
+    status: completed
     blockers:
     - policy-check-impl
     sources:
@@ -133,7 +133,7 @@ work:
 
   - id: rate-limit-enforcement
     title: Implement rate limit tracking and enforcement
-    status: pending
+    status: completed
     blockers:
     - policy-check-impl
     sources:
@@ -162,7 +162,7 @@ work:
 
   - id: policy-violation-traces
     title: Add policy_violation trace span type for observability
-    status: pending
+    status: completed
     blockers:
     - approval-auto-gating
     - rate-limit-enforcement
@@ -191,7 +191,7 @@ work:
 
   - id: policy-enforcement-tests
     title: Add test coverage for policy enforcement
-    status: pending
+    status: completed
     blockers:
     - policy-violation-traces
     sources:
@@ -219,7 +219,7 @@ work:
 
   - id: policy-enforcement-docs
     title: Document policy enforcement in DESIGN.md and MCP.md
-    status: pending
+    status: completed
     blockers:
     - policy-enforcement-tests
     sources:

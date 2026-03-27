@@ -18,6 +18,14 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-27] Tool policy enforcement (Phase 11)
+
+**Changed:** Made tool registry policies enforceable at runtime. Added `PolicyCheckResult` dataclass and `check_tool_policy()` function to `plan_utils.py` with approval gating, rate limit enforcement (sliding window from trace spans), cost tier awareness, and eval bypass. Added `policy_violation` to `TRACE_SPAN_TYPES`. Wired policy checks into `verify_postconditions()` for test-type postconditions with automatic trace emission on violations. Rate limit parsing supports `N/minute`, `N/hour`, `N/day`, and `N/session` formats. 14 new tests in `TestToolPolicyEnforcement`. Updated DESIGN.md and MCP.md.
+
+**Reasoning:** The tool registry (Phase 4) stored approval, cost, and rate limit metadata as informational fields with no runtime enforcement. The deep research report recommends a tool policy layer that can block or require approval based on context. This phase closes the gap between declared policy and enforced policy.
+
+**Approved by:** user
+
 ## [2026-03-27] Run state layer (Phase 10)
 
 **Changed:** Added a formal RunState JSON schema and persistence layer for plan execution. New `RunState`, `RunStatePhase`, and `RunStateError` dataclasses in `plan_utils.py` with `save_run_state()`, `load_run_state()`, `update_run_state()`, `validate_run_state_against_plan()`, `check_run_state_staleness()`, and `prune_run_state()` helpers. Wired auto-save into `memory_plan_execute` (start, complete, record_failure). Integrated run state into `assemble_briefing()` output. Added new `memory_plan_resume` MCP tool for single-call plan resumption with run state context. 33 new tests in `TestRunState`. Updated DESIGN.md and MCP.md.

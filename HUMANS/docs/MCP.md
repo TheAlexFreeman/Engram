@@ -426,6 +426,17 @@ Returns `{tool_name, provider, registry_file, action}` where `action` is `"creat
 
 At least one filter parameter is required. Returns `{tools: [...], count}`. An empty result is not an error. Each tool entry includes `provider`, `name`, `description`, `approval_required`, `cost_tier`, `timeout_seconds`, and optional `schema`, `rate_limit`, `tags`, `notes`.
 
+**Tool policy enforcement**
+
+Registered tool policies are enforced at runtime via `check_tool_policy()`. When a test-type postcondition in `verify_postconditions()` matches a registered tool, its policy is checked before execution:
+
+- `approval_required=true`: Blocks unless an approved ApprovalDocument exists for the tool. Tool-scoped approvals use the naming convention `tool-{provider}--{tool_name}.yaml`.
+- `rate_limit` (e.g., `"10/hour"`, `"5/day"`): Blocks when the count of recent `tool_call` trace spans within the sliding window exceeds the limit.
+- `cost_tier="high"` with tight plan budget: Emits a soft warning but allows execution.
+- `ENGRAM_EVAL_MODE=1`: Bypasses all policy checks for eval scenarios.
+
+Policy violations produce `policy_violation` trace spans queryable via `memory_query_traces`.
+
 **`memory_request_approval` parameters and response**
 
 | Parameter | Type | Description |

@@ -20,7 +20,14 @@ PLAN_OUTCOMES = {"completed", "partial", "abandoned"}
 CHANGE_ACTIONS = {"create", "rewrite", "update", "delete", "rename"}
 SOURCE_TYPES = {"internal", "external", "mcp"}
 POSTCONDITION_TYPES = {"check", "grep", "test", "manual"}
-TRACE_SPAN_TYPES = {"tool_call", "plan_action", "retrieval", "verification", "guardrail_check"}
+TRACE_SPAN_TYPES = {
+    "tool_call",
+    "plan_action",
+    "retrieval",
+    "verification",
+    "guardrail_check",
+    "policy_violation",
+}
 TRACE_STATUSES = {"ok", "error", "denied"}
 COST_TIERS: frozenset[str] = frozenset({"free", "low", "medium", "high"})
 APPROVAL_STATUSES: frozenset[str] = frozenset({"pending", "approved", "rejected", "expired"})
@@ -1791,6 +1798,32 @@ def _validate_test(root: Path, target: str) -> dict[str, Any]:
                     "detail": f"shell metacharacters not allowed in command arguments: {normalized!r}",
                 }
             break
+    # Policy enforcement: check registered tool policies before execution
+    all_tools = _all_registry_tools(root)
+    for tool in all_tools:
+        if _command_matches_tool(normalized, tool.name):
+            policy = check_tool_policy(root, tool.name, tool.provider)
+            if not policy.allowed:
+                record_trace(
+                    root,
+                    os.environ.get("MEMORY_SESSION_ID", "").strip() or None,
+                    span_type="policy_violation",
+                    name="check_tool_policy",
+                    status="denied",
+                    metadata={
+                        "tool_name": tool.name,
+                        "provider": tool.provider,
+                        "violation_type": policy.violation_type,
+                        "reason": policy.reason,
+                    },
+                )
+                return {
+                    "status": "error",
+                    "detail": f"policy blocked: {policy.reason}",
+                    "policy_result": policy.to_dict(),
+                }
+            break
+
     # Strip proxy env vars as defense-in-depth.
     env = {
         k: v
@@ -2974,6 +3007,256 @@ def prune_run_state(run_state: RunState) -> RunState:
     return run_state
 
 
+# ---------------------------------------------------------------------------
+# Tool policy enforcement
+# ---------------------------------------------------------------------------
+
+_RATE_LIMIT_PERIODS = {"minute": 60, "hour": 3600, "day": 86400}
+_RATE_LIMIT_RE = re.compile(r"^(\d+)\s*/\s*(minute|hour|day|session)$", re.IGNORECASE)
+
+
+@dataclass(slots=True)
+class PolicyCheckResult:
+    """Result of a tool policy evaluation."""
+
+    allowed: bool
+    reason: str
+    tool_name: str = ""
+    provider: str = ""
+    required_action: str | None = None
+    violation_type: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "allowed": self.allowed,
+            "reason": self.reason,
+            "tool_name": self.tool_name,
+            "provider": self.provider,
+            "required_action": self.required_action,
+            "violation_type": self.violation_type,
+            "details": self.details,
+        }
+
+
+def _parse_rate_limit(rate_limit: str) -> tuple[int, str] | None:
+    """Parse ``'N/period'`` into ``(count, period)``.  Returns ``None`` if unparseable."""
+    m = _RATE_LIMIT_RE.match(rate_limit.strip())
+    if m is None:
+        return None
+    return int(m.group(1)), m.group(2).lower()
+
+
+def _count_recent_invocations(
+    root: Path,
+    tool_name: str,
+    period: str,
+    *,
+    session_id: str | None = None,
+) -> int:
+    """Count recent trace spans matching *tool_name* within the given window.
+
+    Scans ``tool_call`` spans in reverse chronological order and stops once the
+    time window is exceeded.
+    """
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+
+    if period == "session":
+        if not session_id:
+            return 0
+        trace_path = root / trace_file_path(session_id)
+        if not trace_path.exists():
+            return 0
+        count = 0
+        try:
+            for raw_line in trace_path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    span = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if (
+                    isinstance(span, dict)
+                    and span.get("span_type") == "tool_call"
+                    and span.get("name") == tool_name
+                ):
+                    count += 1
+        except OSError:
+            pass
+        return count
+
+    window_seconds = _RATE_LIMIT_PERIODS.get(period)
+    if window_seconds is None:
+        return 0
+    cutoff = now.timestamp() - window_seconds
+
+    activity_root = root / "memory" / "activity"
+    if not activity_root.is_dir():
+        return 0
+
+    count = 0
+    for trace_file in sorted(activity_root.rglob("*.traces.jsonl"), reverse=True):
+        try:
+            lines = trace_file.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for raw_line in reversed(lines):
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                span = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(span, dict):
+                continue
+            ts_str = span.get("timestamp")
+            if not isinstance(ts_str, str):
+                continue
+            try:
+                ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp()
+            except (ValueError, AttributeError):
+                continue
+            if ts < cutoff:
+                return count
+            if span.get("span_type") == "tool_call" and span.get("name") == tool_name:
+                count += 1
+    return count
+
+
+def check_tool_policy(
+    root: Path,
+    tool_name: str,
+    provider: str,
+    *,
+    session_id: str | None = None,
+    plan_budget: "PlanBudget | None" = None,
+) -> PolicyCheckResult:
+    """Evaluate tool policy and return whether invocation should proceed.
+
+    Pure read — does not create approvals or emit traces.  Callers are
+    responsible for acting on the result (creating approvals, emitting
+    violation traces, etc.).
+    """
+    import os
+
+    tools = load_registry(root, provider)
+    tool_def: ToolDefinition | None = None
+    for t in tools:
+        if t.name == tool_name:
+            tool_def = t
+            break
+    if tool_def is None:
+        return PolicyCheckResult(
+            allowed=True,
+            reason="no_policy",
+            tool_name=tool_name,
+            provider=provider,
+        )
+
+    # Eval bypass
+    if os.environ.get("ENGRAM_EVAL_MODE", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return PolicyCheckResult(
+            allowed=True,
+            reason="eval_bypass",
+            tool_name=tool_name,
+            provider=provider,
+        )
+
+    # Approval check
+    if tool_def.approval_required:
+        approval = load_approval(root, f"tool-{provider}", tool_name)
+        if approval is None or approval.status not in {"approved", "pending"}:
+            return PolicyCheckResult(
+                allowed=False,
+                reason=f"Tool '{tool_name}' requires approval before use",
+                tool_name=tool_name,
+                provider=provider,
+                required_action="approval",
+                violation_type="approval_required",
+                details={"provider": provider},
+            )
+        if approval.status == "pending":
+            return PolicyCheckResult(
+                allowed=False,
+                reason=f"Tool '{tool_name}' is awaiting approval",
+                tool_name=tool_name,
+                provider=provider,
+                required_action="approval",
+                violation_type="approval_required",
+                details={"approval_status": "pending", "expires": approval.expires},
+            )
+
+    # Rate limit check
+    if tool_def.rate_limit:
+        parsed = _parse_rate_limit(tool_def.rate_limit)
+        if parsed is not None:
+            limit, period = parsed
+            current = _count_recent_invocations(root, tool_name, period, session_id=session_id)
+            if current >= limit:
+                return PolicyCheckResult(
+                    allowed=False,
+                    reason=(
+                        f"Rate limit exceeded for '{tool_name}': {current}/{limit} per {period}"
+                    ),
+                    tool_name=tool_name,
+                    provider=provider,
+                    required_action="rate_limit_wait",
+                    violation_type="rate_limit_exceeded",
+                    details={
+                        "rate_limit": tool_def.rate_limit,
+                        "current_count": current,
+                        "limit": limit,
+                        "period": period,
+                    },
+                )
+
+    # Cost awareness (soft warning, still allowed)
+    violation_type: str | None = None
+    details: dict[str, Any] = {}
+    if tool_def.cost_tier == "high" and plan_budget is not None:
+        bs = budget_status(
+            PlanDocument(
+                id="policy-check",
+                project="policy-check",
+                created="2000-01-01",
+                origin_session="memory/activity/2000/01/01/chat-001",
+                status="active",
+                purpose=PlanPurpose(summary="policy check stub", context="policy check stub"),
+                phases=[
+                    PlanPhase(
+                        id="stub",
+                        title="stub",
+                        changes=[
+                            ChangeSpec(
+                                path="memory/working/notes/stub.md",
+                                action="create",
+                                description="stub",
+                            )
+                        ],
+                    )
+                ],
+                budget=plan_budget,
+            )
+        )
+        if bs is not None and bs.get("over_budget"):
+            violation_type = "cost_warning"
+            details = {"cost_tier": "high", "budget_status": bs}
+
+    return PolicyCheckResult(
+        allowed=True,
+        reason="policy_passed",
+        tool_name=tool_name,
+        provider=provider,
+        violation_type=violation_type,
+        details=details,
+    )
+
+
 __all__ = [
     "APPROVAL_RESOLUTIONS",
     "APPROVAL_STATUSES",
@@ -2989,6 +3272,7 @@ __all__ = [
     "ChangeSpec",
     "PhaseFailure",
     "PlanBudget",
+    "PolicyCheckResult",
     "PlanDocument",
     "PlanPhase",
     "PlanPurpose",
@@ -3008,6 +3292,7 @@ __all__ = [
     "budget_status",
     "build_review_from_input",
     "check_run_state_staleness",
+    "check_tool_policy",
     "coerce_budget_input",
     "coerce_phase_inputs",
     "exportable_artifacts",

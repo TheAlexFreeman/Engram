@@ -5030,5 +5030,232 @@ class TestRunState(unittest.TestCase):
         self.assertEqual(p, "memory/working/projects/my-project/plans/my-plan.run-state.json")
 
 
+class TestToolPolicyEnforcement(unittest.TestCase):
+    """Tests for check_tool_policy(), PolicyCheckResult, rate limit parsing, and integration."""
+
+    def setUp(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import (
+            PolicyCheckResult,
+            ToolDefinition,
+            _parse_rate_limit,
+            check_tool_policy,
+            save_registry,
+        )
+
+        self.PolicyCheckResult = PolicyCheckResult
+        self.ToolDefinition = ToolDefinition
+        self.check_tool_policy = check_tool_policy
+        self.save_registry = save_registry
+        self._parse_rate_limit = _parse_rate_limit
+
+    def _register_tool(self, root, **overrides):
+        defaults = {
+            "name": "test-tool",
+            "description": "A test tool",
+            "provider": "test-provider",
+        }
+        defaults.update(overrides)
+        tool = self.ToolDefinition(**defaults)
+        self.save_registry(root, defaults["provider"], [tool])
+        return tool
+
+    # ── PolicyCheckResult ─────────────────────────────────────────────────
+
+    def test_policy_check_result_to_dict(self):
+        r = self.PolicyCheckResult(
+            allowed=False,
+            reason="blocked",
+            tool_name="my-tool",
+            provider="my-prov",
+            required_action="approval",
+            violation_type="approval_required",
+        )
+        d = r.to_dict()
+        self.assertFalse(d["allowed"])
+        self.assertEqual(d["required_action"], "approval")
+
+    # ── _parse_rate_limit ─────────────────────────────────────────────────
+
+    def test_parse_valid_limits(self):
+        self.assertEqual(self._parse_rate_limit("10/hour"), (10, "hour"))
+        self.assertEqual(self._parse_rate_limit("5/day"), (5, "day"))
+        self.assertEqual(self._parse_rate_limit("3/minute"), (3, "minute"))
+        self.assertEqual(self._parse_rate_limit("1/session"), (1, "session"))
+
+    def test_parse_invalid_limits(self):
+        self.assertIsNone(self._parse_rate_limit("not-a-limit"))
+        self.assertIsNone(self._parse_rate_limit("10/week"))
+        self.assertIsNone(self._parse_rate_limit(""))
+
+    def test_parse_whitespace_tolerance(self):
+        self.assertEqual(self._parse_rate_limit("  10 / hour  "), (10, "hour"))
+
+    # ── check_tool_policy: no policy ──────────────────────────────────────
+
+    def test_no_policy_allows(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            result = self.check_tool_policy(root, "unknown-tool", "unknown-provider")
+            self.assertTrue(result.allowed)
+            self.assertEqual(result.reason, "no_policy")
+
+    # ── check_tool_policy: approval_required ──────────────────────────────
+
+    def test_approval_required_blocks(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            self._register_tool(root, approval_required=True)
+
+            result = self.check_tool_policy(root, "test-tool", "test-provider")
+            self.assertFalse(result.allowed)
+            self.assertEqual(result.violation_type, "approval_required")
+            self.assertEqual(result.required_action, "approval")
+
+    def test_approved_tool_allows(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            (root / "memory" / "working" / "approvals" / "pending").mkdir(parents=True)
+            self._register_tool(root, approval_required=True)
+
+            from engram_mcp.agent_memory_mcp.plan_utils import ApprovalDocument, save_approval
+
+            approval = ApprovalDocument(
+                plan_id="tool-test-provider",
+                phase_id="test-tool",
+                project_id="test-project",
+                status="approved",
+                requested="2026-03-27T00:00:00Z",
+                expires="2026-04-03T00:00:00Z",
+                resolution="approve",
+                resolved_at="2026-03-27T01:00:00Z",
+            )
+            save_approval(root, approval)
+
+            result = self.check_tool_policy(root, "test-tool", "test-provider")
+            self.assertTrue(result.allowed)
+
+    # ── check_tool_policy: rate limits ────────────────────────────────────
+
+    def test_rate_limit_allows_under_limit(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            self._register_tool(root, rate_limit="10/day")
+
+            result = self.check_tool_policy(root, "test-tool", "test-provider")
+            self.assertTrue(result.allowed)
+
+    def test_rate_limit_blocks_when_exceeded(self):
+        import json as _json
+        from datetime import datetime, timezone
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            self._register_tool(root, rate_limit="2/day")
+
+            traces_dir = root / "memory" / "activity" / "2026" / "03" / "27"
+            traces_dir.mkdir(parents=True)
+            trace_file = traces_dir / "chat-001.traces.jsonl"
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            lines = []
+            for _ in range(3):
+                lines.append(
+                    _json.dumps(
+                        {
+                            "span_type": "tool_call",
+                            "name": "test-tool",
+                            "status": "ok",
+                            "timestamp": now,
+                        }
+                    )
+                )
+            trace_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+            result = self.check_tool_policy(root, "test-tool", "test-provider")
+            self.assertFalse(result.allowed)
+            self.assertEqual(result.violation_type, "rate_limit_exceeded")
+            self.assertEqual(result.required_action, "rate_limit_wait")
+
+    # ── check_tool_policy: cost warning ───────────────────────────────────
+
+    def test_cost_warning_still_allows(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import PlanBudget
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            self._register_tool(root, cost_tier="high")
+
+            budget = PlanBudget(deadline="2020-01-01", advisory=True)
+            result = self.check_tool_policy(root, "test-tool", "test-provider", plan_budget=budget)
+            self.assertTrue(result.allowed)
+            self.assertEqual(result.violation_type, "cost_warning")
+
+    # ── check_tool_policy: eval bypass ────────────────────────────────────
+
+    def test_eval_bypass(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            self._register_tool(root, approval_required=True)
+
+            with mock.patch.dict("os.environ", {"ENGRAM_EVAL_MODE": "1"}):
+                result = self.check_tool_policy(root, "test-tool", "test-provider")
+                self.assertTrue(result.allowed)
+                self.assertEqual(result.reason, "eval_bypass")
+
+    # ── check_tool_policy: no restrictions ────────────────────────────────
+
+    def test_unrestricted_tool_allows(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            self._register_tool(root)
+
+            result = self.check_tool_policy(root, "test-tool", "test-provider")
+            self.assertTrue(result.allowed)
+            self.assertEqual(result.reason, "policy_passed")
+
+    # ── TRACE_SPAN_TYPES includes policy_violation ────────────────────────
+
+    def test_policy_violation_in_span_types(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import TRACE_SPAN_TYPES
+
+        self.assertIn("policy_violation", TRACE_SPAN_TYPES)
+
+    # ── Existing operations unaffected ────────────────────────────────────
+
+    def test_no_policy_no_effect_on_verify(self):
+        """verify_postconditions works normally when no tools are registered."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            plan = _minimal_plan(
+                phases=[
+                    PlanPhase(
+                        id="p1",
+                        title="Test phase",
+                        postconditions=[
+                            PostconditionSpec(
+                                description="File exists", type="check", target="nonexistent.txt"
+                            ),
+                        ],
+                        changes=[
+                            ChangeSpec(
+                                path="memory/working/notes/test.md",
+                                action="create",
+                                description="Test",
+                            )
+                        ],
+                    )
+                ]
+            )
+            result = verify_postconditions(plan, plan.phases[0], root)
+            self.assertIn("verification_results", result)
+            self.assertEqual(result["verification_results"][0]["status"], "fail")
+
+
 if __name__ == "__main__":
     unittest.main()

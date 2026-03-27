@@ -362,6 +362,22 @@ Engram addresses this through a dedicated **RunState** layer that separates exec
 
 **Pruning.** Run state files are capped at 50 KB. Completed phase entries are summarized when the limit approaches; active phases are never pruned.
 
+## Part VI: Tool Policy Enforcement
+
+The tool registry (Phase 4) stores metadata about external tools — approval requirements, cost tiers, rate limits — but these were informational only. Phase 11 makes them enforceable at runtime.
+
+**`check_tool_policy()`.** A pure read function that evaluates a tool's registered policies and returns a `PolicyCheckResult` with `allowed`, `reason`, `required_action`, and `violation_type`. Callers decide how to act on the result.
+
+**Enforcement tiers.** Two levels of enforcement:
+- *Hard blocks* for `approval_required` (tool must be approved through the approval workflow) and `rate_limit` exceeded (sliding window counted from trace spans). The tool cannot proceed.
+- *Soft warnings* for `cost_tier="high"` when plan budget is tight. The tool proceeds but the caller is informed.
+
+**Rate limits.** Parsed from the `rate_limit` field as `"N/period"` (e.g., `"10/hour"`, `"5/day"`). Counts use existing trace spans (`tool_call` type) as the timestamp source — no new storage needed. Sliding window: `minute` (60s), `hour` (3600s), `day` (86400s), or `session` (same session_id).
+
+**Integration.** Policy checks are wired into `verify_postconditions()` for test-type postconditions. When a postcondition command matches a registered tool, its policy is checked before execution. Violations produce `policy_violation` trace spans for observability. `ENGRAM_EVAL_MODE=1` bypasses all policy checks for eval scenarios.
+
+**Fail-open.** Unregistered tools (no policy in the registry) are always allowed. Policy enforcement is additive — it only gates tools that have explicit policies defined.
+
 ---
 
 ## Summary
