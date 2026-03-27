@@ -507,8 +507,10 @@ button:active { transform: scale(0.97); }
       card.setAttribute('data-user', u.name);
 
       var initial = u.name.charAt(0).toUpperCase();
-      var trust = u.profileMeta.trust || '';
-      var trustClass = trust === 'high' ? 'badge-high' : trust === 'medium' ? 'badge-medium' : '';
+      var trust = (u.profileMeta.trust || '').toLowerCase();
+      var trustClass = trust === 'high' ? 'badge-high'
+        : trust === 'medium' ? 'badge-medium'
+          : trust === 'low' ? 'badge-low' : '';
 
       var top = document.createElement('div');
       top.className = 'card-top';
@@ -657,7 +659,8 @@ button:active { transform: scale(0.97); }
         label.textContent = key.replace(/_/g, ' ') + ':';
         var val = document.createElement('span');
         if (key === 'trust') {
-          val.className = 'badge ' + (meta[key] === 'high' ? 'badge-high' : meta[key] === 'medium' ? 'badge-medium' : 'badge-low');
+          var trustToken = String(meta[key]).toLowerCase();
+          val.className = 'badge ' + (trustToken === 'high' ? 'badge-high' : trustToken === 'medium' ? 'badge-medium' : 'badge-low');
         }
         val.textContent = ' ' + meta[key];
         item.appendChild(label);

@@ -584,14 +584,34 @@
     var legend = document.getElementById('graph-legend');
     var stats = document.getElementById('graph-stats');
     var a11ySummary = document.getElementById('graph-accessible-summary');
+    var listenerDisposers = [];
+    var previewRequestToken = 0;
+    var connectionsRequestToken = 0;
+
+    function registerListener(target, type, handler, options) {
+      if (!target || typeof target.addEventListener !== 'function' || typeof target.removeEventListener !== 'function') {
+        return;
+      }
+      target.addEventListener(type, handler, options);
+      listenerDisposers.push(function () {
+        target.removeEventListener(type, handler, options);
+      });
+    }
+
+    function disposeListeners() {
+      while (listenerDisposers.length > 0) {
+        var dispose = listenerDisposers.pop();
+        try { dispose(); } catch (_) {}
+      }
+    }
 
     // Bring-to-front for overlapping left-side panels
     function bringToFront(panel) {
       a11ySummary.style.zIndex = (panel === a11ySummary) ? 4 : 1;
       legend.style.zIndex = (panel === legend) ? 4 : 1;
     }
-    a11ySummary.addEventListener('mousedown', function () { bringToFront(a11ySummary); });
-    legend.addEventListener('mousedown', function () { bringToFront(legend); });
+    registerListener(a11ySummary, 'mousedown', function () { bringToFront(a11ySummary); });
+    registerListener(legend, 'mousedown', function () { bringToFront(legend); });
 
     stats.textContent = graph.nodes.length + ' files \u00B7 ' + graph.edges.length + ' links';
     canvas.setAttribute('role', 'img');
@@ -676,15 +696,15 @@
           hubItem.appendChild(hubLink);
           hubItem.appendChild(hubMeta);
           (function (hubId) {
-            hubLink.addEventListener('mouseenter', function () {
+            registerListener(hubLink, 'mouseenter', function () {
               var idx = idxMap[hubId];
               if (idx !== undefined) hoveredNode = idx;
             });
-            hubLink.addEventListener('mouseleave', function () {
+            registerListener(hubLink, 'mouseleave', function () {
               var idx = idxMap[hubId];
               if (hoveredNode === idx) hoveredNode = -1;
             });
-            hubLink.addEventListener('click', function () {
+            registerListener(hubLink, 'click', function () {
               var idx = idxMap[hubId];
               if (idx !== undefined) showPreviewNode(nodes[idx]);
             });
@@ -704,7 +724,7 @@
           hubMoreBtn.className = 'graph-hub-more';
           hubMoreBtn.textContent = '+ ' + (summary.topHubs.length - HUB_VISIBLE) + ' more';
           var hubExpanded = false;
-          hubMoreBtn.addEventListener('click', function () {
+          registerListener(hubMoreBtn, 'click', function () {
             hubExpanded = !hubExpanded;
             var items = hubList.querySelectorAll('li');
             for (var k = HUB_VISIBLE; k < items.length; k++) {
@@ -739,15 +759,15 @@
           bridgeItem.appendChild(bridgeLink);
           bridgeItem.appendChild(bridgeMeta);
           (function (bridgeId) {
-            bridgeLink.addEventListener('mouseenter', function () {
+            registerListener(bridgeLink, 'mouseenter', function () {
               var idx = idxMap[bridgeId];
               if (idx !== undefined) hoveredNode = idx;
             });
-            bridgeLink.addEventListener('mouseleave', function () {
+            registerListener(bridgeLink, 'mouseleave', function () {
               var idx = idxMap[bridgeId];
               if (hoveredNode === idx) hoveredNode = -1;
             });
-            bridgeLink.addEventListener('click', function () {
+            registerListener(bridgeLink, 'click', function () {
               var idx = idxMap[bridgeId];
               if (idx !== undefined) showPreviewNode(nodes[idx]);
             });
@@ -767,7 +787,7 @@
           bridgeMoreBtn.className = 'graph-hub-more';
           bridgeMoreBtn.textContent = '+ ' + (summary.topBridges.length - BRIDGE_VISIBLE) + ' more';
           var bridgeExpanded = false;
-          bridgeMoreBtn.addEventListener('click', function () {
+          registerListener(bridgeMoreBtn, 'click', function () {
             bridgeExpanded = !bridgeExpanded;
             var items = bridgeList.querySelectorAll('li');
             for (var k = BRIDGE_VISIBLE; k < items.length; k++) {
@@ -787,7 +807,7 @@
 
       a11ySummary.appendChild(bodyEl);
 
-      titleRow.addEventListener('click', function () {
+      registerListener(titleRow, 'click', function () {
         var collapsed = a11ySummary.classList.toggle('collapsed');
         bodyEl.style.display = collapsed ? 'none' : '';
         titleArrow.textContent = collapsed ? '\u25b8' : '\u25be';
@@ -800,7 +820,7 @@
       canvas.height = canvas.parentElement.clientHeight;
     }
     resize();
-    window.addEventListener('resize', resize);
+    registerListener(window, 'resize', resize);
 
     // Build legend (clickable domain filter)
     legend.textContent = '';
@@ -836,7 +856,7 @@
       item.dataset.domain = d;
       legendItems[d] = item;
       (function (domain, itemEl) {
-        itemEl.addEventListener('click', function () {
+        registerListener(itemEl, 'click', function () {
           if (selectedDomain === domain) {
             selectedDomain = null;
           } else {
@@ -849,17 +869,17 @@
             }
           }
         });
-        itemEl.addEventListener('mouseenter', function () {
+        registerListener(itemEl, 'mouseenter', function () {
           hoveredLegendDomain = domain;
         });
-        itemEl.addEventListener('mouseleave', function () {
+        registerListener(itemEl, 'mouseleave', function () {
           if (hoveredLegendDomain === domain) hoveredLegendDomain = null;
         });
       })(d, item);
       legendItemsWrap.appendChild(item);
     }
     var legendCollapsed = false;
-    ltitle.addEventListener('click', function () {
+    registerListener(ltitle, 'click', function () {
       legendCollapsed = !legendCollapsed;
       legend.classList.toggle('collapsed', legendCollapsed);
       lArrow.textContent = legendCollapsed ? '\u25b8' : '\u25be';
@@ -990,7 +1010,7 @@
         canvas.style.transform = '';
       }
     }
-    depthBtn.addEventListener('click', function () { toggle3D(); });
+    registerListener(depthBtn, 'click', function () { toggle3D(); });
 
     var analysisResult = null;
     var analysisHighlight = { bridges: false, hubs: false, orphans: false, domain: null };
@@ -1041,7 +1061,7 @@
     }
 
     // Interaction
-    canvas.addEventListener('mousedown', function (ev) {
+    registerListener(canvas, 'mousedown', function (ev) {
       // Right-click or middle-click: start 3D rotation
       if (depth3d && (ev.button === 2 || ev.button === 1)) {
         ev.preventDefault();
@@ -1065,11 +1085,11 @@
       }
     });
 
-    canvas.addEventListener('contextmenu', function (ev) {
+    registerListener(canvas, 'contextmenu', function (ev) {
       if (depth3d) ev.preventDefault();
     });
 
-    canvas.addEventListener('mousemove', function (ev) {
+    registerListener(canvas, 'mousemove', function (ev) {
       if (rotating) {
         var dx = ev.clientX - rotStart.x;
         var dy = ev.clientY - rotStart.y;
@@ -1111,7 +1131,7 @@
       }
     });
 
-    canvas.addEventListener('mouseup', function () {
+    registerListener(canvas, 'mouseup', function () {
       if (rotating) {
         rotating = false;
         canvas.style.cursor = 'grab';
@@ -1139,6 +1159,9 @@
       preview.classList.remove('visible');
       previewNodeId = null;
       previewNodeIdx = -1;
+      previewOpenTargetId = null;
+      previewRequestToken++;
+      connectionsRequestToken++;
     }
 
     function closeOverlay() {
@@ -1149,27 +1172,26 @@
     }
 
     // Resize handle
-    (function () {
-      var resizing = false, startX = 0, startW = 0;
-      previewResize.addEventListener('mousedown', function (ev) {
-        ev.preventDefault(); ev.stopPropagation();
-        resizing = true; startX = ev.clientX;
-        startW = preview.offsetWidth;
-        previewResize.classList.add('active');
-      });
-      window.addEventListener('mousemove', function (ev) {
-        if (!resizing) return;
-        var newW = Math.max(220, Math.min(startW + (startX - ev.clientX), preview.parentElement.offsetWidth - 60));
-        preview.style.width = newW + 'px';
-      });
-      window.addEventListener('mouseup', function () {
-        if (resizing) { resizing = false; previewResize.classList.remove('active'); }
-      });
-    })();
+    var resizing = false, startX = 0, startW = 0;
+    registerListener(previewResize, 'mousedown', function (ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      resizing = true; startX = ev.clientX;
+      startW = preview.offsetWidth;
+      previewResize.classList.add('active');
+    });
+    registerListener(window, 'mousemove', function (ev) {
+      if (!resizing) return;
+      var newW = Math.max(220, Math.min(startW + (startX - ev.clientX), preview.parentElement.offsetWidth - 60));
+      preview.style.width = newW + 'px';
+    });
+    registerListener(window, 'mouseup', function () {
+      if (resizing) { resizing = false; previewResize.classList.remove('active'); }
+    });
 
-    previewClose.addEventListener('click', closePreview);
+    registerListener(previewClose, 'click', closePreview);
 
     async function showPreviewNode(node) {
+      var requestToken = ++previewRequestToken;
       previewNodeId = node.id;
       previewNodeIdx = idxMap[node.id] !== undefined ? idxMap[node.id] : -1;
 
@@ -1182,21 +1204,12 @@
       // Reset to content tab for new node, but keep connections tab visible
       if (typeof switchPreviewTab === 'function') switchPreviewTab(activePreviewTab || 'content');
 
-      previewOpen.onclick = function () {
-        var segs = node.id.split('/');
-        var file = segs.pop();
-        deps.setDetailPath(segs);
-        closePreview();
-        document.getElementById('graph-overlay').classList.remove('visible');
-        if (graphSim) { graphSim.stop(); graphSim = null; }
-        deps.showDetailView();
-        deps.viewFile(file);
-      };
+      previewOpenTargetId = node.id;
 
       var knowledgeBase = deps.getKnowledgeBase();
       var rootHandle = deps.getRootHandle();
       var content = await deps.readFile(rootHandle, knowledgeBase + '/' + node.id);
-      if (previewNodeId !== node.id) return;
+      if (previewNodeId !== node.id || requestToken !== previewRequestToken) return;
 
       if (!content) {
         previewBody.textContent = 'Could not read file.';
@@ -1204,6 +1217,7 @@
       }
 
       var parsed = deps.parseFrontmatter(content);
+      if (previewNodeId !== node.id || requestToken !== previewRequestToken) return;
 
       if (parsed.frontmatter) {
         var fm = deps.parseFlatYaml(parsed.frontmatter);
@@ -1224,10 +1238,24 @@
 
       previewBody.textContent = '';
       deps.renderMarkdown(parsed.body.trim(), previewBody);
+      if (previewNodeId !== node.id || requestToken !== previewRequestToken) return;
 
       // If connections tab is active, load connections for this node
       if (activePreviewTab === 'connections') renderConnections(node.id);
     }
+
+    var previewOpenTargetId = null;
+    registerListener(previewOpen, 'click', function () {
+      if (!previewOpenTargetId) return;
+      var segs = previewOpenTargetId.split('/');
+      var file = segs.pop();
+      deps.setDetailPath(segs);
+      closePreview();
+      document.getElementById('graph-overlay').classList.remove('visible');
+      if (graphSim) { graphSim.stop(); graphSim = null; }
+      deps.showDetailView();
+      deps.viewFile(file);
+    });
 
     /* ── Preview panel tabs (Content / Connections) ───── */
 
@@ -1250,7 +1278,7 @@
 
     for (var ti = 0; ti < previewTabs.length; ti++) {
       (function (btn) {
-        btn.addEventListener('click', function () { switchPreviewTab(btn.dataset.tab); });
+        registerListener(btn, 'click', function () { switchPreviewTab(btn.dataset.tab); });
       })(previewTabs[ti]);
     }
 
@@ -1327,13 +1355,13 @@
         removeBtn.className = 'conn-remove';
         removeBtn.textContent = '\u00d7';
         removeBtn.title = 'Remove link';
-        removeBtn.addEventListener('click', function (ev) {
+        registerListener(removeBtn, 'click', function (ev) {
           ev.stopPropagation();
           handleRemoveLink(sourceId, nodeId, row);
         });
         row.appendChild(removeBtn);
       }
-      row.addEventListener('click', function () {
+      registerListener(row, 'click', function () {
         var idx = idxMap[nodeId];
         if (idx !== undefined) {
           cam.x = nodes[idx].x;
@@ -1396,6 +1424,7 @@
     }
 
     function renderConnections(nodeId) {
+      var requestToken = ++connectionsRequestToken;
       clearNode(connOutbound);
       clearNode(connInbound);
       connInboundWrap.style.display = 'none';
@@ -1409,6 +1438,7 @@
       var knowledgeBase = deps.getKnowledgeBase();
       var rootHandle = deps.getRootHandle();
       deps.readFile(rootHandle, knowledgeBase + '/' + nodeId).then(function (content) {
+        if (requestToken !== connectionsRequestToken || previewNodeId !== nodeId) return;
         var related = deps.getRelatedList(content || '');
         var relatedSet = {};
         for (var r = 0; r < related.list.length; r++) {
@@ -1455,11 +1485,13 @@
 
     // Add-link search
     var searchDebounce = null;
-    connSearch.addEventListener('input', function () {
+    registerListener(connSearch, 'input', function () {
       clearTimeout(searchDebounce);
       var q = connSearch.value.trim().toLowerCase();
       if (q.length < 2) { connDropdown.style.display = 'none'; return; }
+      var searchNodeId = previewNodeId;
       searchDebounce = setTimeout(function () {
+        if (searchNodeId !== previewNodeId) return;
         clearNode(connDropdown);
         var currentAdj = adj[idxMap[previewNodeId]] || [];
         var connectedSet = {};
@@ -1478,11 +1510,12 @@
           lbl.title = nodes[n].id;
           item.appendChild(lbl);
           (function (targetNode) {
-            item.addEventListener('click', function () {
+            registerListener(item, 'click', function () {
               connDropdown.style.display = 'none';
               connSearch.value = '';
-              handleAddLink(previewNodeId, targetNode.id).then(function (ok) {
-                if (ok) renderConnections(previewNodeId);
+              var sourceId = previewNodeId;
+              handleAddLink(sourceId, targetNode.id).then(function (ok) {
+                if (ok && sourceId === previewNodeId) renderConnections(sourceId);
               });
             });
           })(nodes[n]);
@@ -1494,11 +1527,11 @@
       }, 150);
     });
 
-    connSearch.addEventListener('blur', function () {
+    registerListener(connSearch, 'blur', function () {
       setTimeout(function () { connDropdown.style.display = 'none'; }, 200);
     });
 
-    canvas.addEventListener('dblclick', function (ev) {
+    registerListener(canvas, 'dblclick', function (ev) {
       var rect = canvas.getBoundingClientRect();
       var sx = ev.clientX - rect.left, sy = ev.clientY - rect.top;
       var w = screenToWorld(sx, sy);
@@ -1507,7 +1540,7 @@
       showPreviewNode(nodes[hit]);
     });
 
-    canvas.addEventListener('click', function (ev) {
+    registerListener(canvas, 'click', function (ev) {
       if (!preview.classList.contains('visible')) return;
       var rect = canvas.getBoundingClientRect();
       var sx = ev.clientX - rect.left, sy = ev.clientY - rect.top;
@@ -1517,7 +1550,7 @@
       showPreviewNode(nodes[hit]);
     });
 
-    canvas.addEventListener('wheel', function (ev) {
+    registerListener(canvas, 'wheel', function (ev) {
       ev.preventDefault();
       var rect = canvas.getBoundingClientRect();
       var sx = (ev.clientX - rect.left) * (canvas.width / rect.width);
@@ -1859,7 +1892,8 @@
     }
     loop();
 
-    document.getElementById('graph-reset-btn').onclick = function () {
+    var graphResetBtn = document.getElementById('graph-reset-btn');
+    registerListener(graphResetBtn, 'click', function () {
       for (var i = 0; i < nodes.length; i++) {
         nodes[i].x = W / 2 + (Math.random() - 0.5) * W * 0.6;
         nodes[i].y = H / 2 + (Math.random() - 0.5) * H * 0.6;
@@ -1872,7 +1906,7 @@
       if (depth3d) computeSphereTargets();
       rotX = 0; rotY = 0;
       frameCount = 0;
-    };
+    });
 
     // Analysis modal
     var analysisBackdrop = document.getElementById('analysis-backdrop');
@@ -1883,8 +1917,8 @@
       analysisHighlight = { bridges: false, hubs: false, orphans: false, domain: null };
     }
 
-    document.getElementById('analysis-close-btn').addEventListener('click', closeAnalysis);
-    analysisBackdrop.addEventListener('click', function (ev) {
+    registerListener(document.getElementById('analysis-close-btn'), 'click', closeAnalysis);
+    registerListener(analysisBackdrop, 'click', function (ev) {
       if (ev.target === analysisBackdrop) closeAnalysis();
     });
 
@@ -1977,13 +2011,13 @@
         tr.appendChild(el('td', fmt(dom.clustering, 3)));
         tr.appendChild(makeBadgeCell(dom.status, 'badge-' + dom.status));
         (function (domName) {
-          tr.addEventListener('mouseenter', function () {
+          registerListener(tr, 'mouseenter', function () {
             analysisHighlight.domain = domName;
           });
-          tr.addEventListener('mouseleave', function () {
+          registerListener(tr, 'mouseleave', function () {
             analysisHighlight.domain = null;
           });
-          tr.addEventListener('click', function () {
+          registerListener(tr, 'click', function () {
             selectedDomain = domName;
             for (var key in legendItems) {
               legendItems[key].classList.remove('active', 'dimmed');
@@ -2009,7 +2043,7 @@
         var bCheck = document.createElement('input');
         bCheck.type = 'checkbox';
         bCheck.checked = analysisHighlight.bridges;
-        bCheck.addEventListener('change', function () { analysisHighlight.bridges = this.checked; });
+        registerListener(bCheck, 'change', function () { analysisHighlight.bridges = this.checked; });
         bToggle.appendChild(bCheck);
         bToggle.appendChild(document.createTextNode(' Highlight on graph'));
         bridgeSection.appendChild(bToggle);
@@ -2027,7 +2061,7 @@
           link.textContent = br.label;
           link.title = br.id;
           (function (idx) {
-            link.addEventListener('click', function (ev) {
+            registerListener(link, 'click', function (ev) {
               ev.stopPropagation();
               focusNode(idx);
             });
@@ -2055,7 +2089,7 @@
         var hCheck = document.createElement('input');
         hCheck.type = 'checkbox';
         hCheck.checked = analysisHighlight.hubs;
-        hCheck.addEventListener('change', function () { analysisHighlight.hubs = this.checked; });
+        registerListener(hCheck, 'change', function () { analysisHighlight.hubs = this.checked; });
         hToggle.appendChild(hCheck);
         hToggle.appendChild(document.createTextNode(' Highlight on graph'));
         hubSection.appendChild(hToggle);
@@ -2073,7 +2107,7 @@
           hlink.textContent = hub.label;
           hlink.title = hub.id;
           (function (idx) {
-            hlink.addEventListener('click', function (ev) {
+            registerListener(hlink, 'click', function (ev) {
               ev.stopPropagation();
               focusNode(idx);
             });
@@ -2101,7 +2135,7 @@
         var oCheck = document.createElement('input');
         oCheck.type = 'checkbox';
         oCheck.checked = analysisHighlight.orphans;
-        oCheck.addEventListener('change', function () { analysisHighlight.orphans = this.checked; });
+        registerListener(oCheck, 'change', function () { analysisHighlight.orphans = this.checked; });
         oToggle.appendChild(oCheck);
         oToggle.appendChild(document.createTextNode(' Highlight on graph'));
         orphanSection.appendChild(oToggle);
@@ -2115,7 +2149,7 @@
           chip.textContent = orph.label + (orph.degree === 0 ? ' (isolated)' : ' (deg 1)');
           chip.title = orph.id;
           (function (idx) {
-            chip.addEventListener('click', function () { focusNode(idx); });
+            registerListener(chip, 'click', function () { focusNode(idx); });
           })(orph.index);
           oList.appendChild(chip);
         }
@@ -2124,7 +2158,7 @@
       }
     }
 
-    document.getElementById('graph-analyze-btn').addEventListener('click', function () {
+    registerListener(document.getElementById('graph-analyze-btn'), 'click', function () {
       analysisResult = analyzeGraph(nodes, graph.edges);
       bridgeSet = {}; hubSet = {}; orphanSet = {};
       if (!analysisResult.insufficient) {
@@ -2176,7 +2210,7 @@
         case 'ArrowRight': cam.x += step; break;
       }
     }
-    overlay.addEventListener('keydown', onOverlayKeydown);
+    registerListener(overlay, 'keydown', onOverlayKeydown);
 
     renderAccessibleSummary(analyzeGraph(nodes, graph.edges));
 
@@ -2184,8 +2218,11 @@
       stop: function () {
         running = false;
         toggle3D(false);
-        window.removeEventListener('resize', resize);
-        overlay.removeEventListener('keydown', onOverlayKeydown);
+        clearTimeout(searchDebounce);
+        previewOpenTargetId = null;
+        previewRequestToken++;
+        connectionsRequestToken++;
+        disposeListeners();
         closeAnalysis();
       }
     };

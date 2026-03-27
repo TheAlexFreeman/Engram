@@ -699,6 +699,34 @@
     return !!parsed.path && parsed.path.match(/\.md$/i) && !parsed.path.match(/^https?:\/\//i);
   }
 
+  function isSafeLinkHref(href) {
+    var raw = String(href == null ? '' : href).trim();
+    if (!raw) return false;
+
+    // In-document anchors and standard relative paths.
+    if (raw.charAt(0) === '#') return true;
+    if (raw.startsWith('//')) return false; // protocol-relative URLs are not treated as relative-safe
+    if (raw.charAt(0) === '/' || raw.charAt(0) === '?' || raw.startsWith('./') || raw.startsWith('../')) {
+      return true;
+    }
+
+    var schemeMatch = raw.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
+    if (!schemeMatch) {
+      // Plain relative reference like "docs/page" or "notes.md#section".
+      return true;
+    }
+
+    var scheme = schemeMatch[1].toLowerCase();
+    if (scheme !== 'http' && scheme !== 'https' && scheme !== 'mailto') return false;
+
+    try {
+      var parsed = new URL(raw, 'https://engram.local/');
+      return parsed.protocol === scheme + ':';
+    } catch (_) {
+      return false;
+    }
+  }
+
   function _makeSectionLink(label, href, opts) {
     var parsed = splitMarkdownLinkTarget(href);
     var a = document.createElement('a');
@@ -983,12 +1011,14 @@
           parent.appendChild(_makeSectionLink(match[5], href, opts));
         } else if (_sameOriginMarkdownRef(href) && onXref) {
           parent.appendChild(_makeXrefLink(match[5], href, opts, 'knowledge-xref'));
-        } else if (href.match(/^(https?:\/\/|[a-zA-Z0-9]|\.\/)/) && !href.match(/^javascript:/i)) {
+        } else if (isSafeLinkHref(href)) {
           var a = document.createElement('a');
           a.textContent = match[5];
           a.href = href;
-          a.rel = 'noopener noreferrer';
-          a.target = '_blank';
+          if (href.match(/^(https?:|mailto:)/i)) {
+            a.rel = 'noopener noreferrer';
+            a.target = '_blank';
+          }
           parent.appendChild(a);
         } else {
           parent.appendChild(document.createTextNode(match[0]));
@@ -1024,6 +1054,7 @@
     buildFileIndex: buildFileIndex,
     normalizeMarkdownAnchor: normalizeMarkdownAnchor,
     splitMarkdownLinkTarget: splitMarkdownLinkTarget,
+    isSafeLinkHref: isSafeLinkHref,
     scrollToMarkdownSection: scrollToMarkdownSection,
     openDB: openDB,
     saveHandle: saveHandle,
