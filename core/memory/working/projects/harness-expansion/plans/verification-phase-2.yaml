@@ -6,7 +6,7 @@ status: active
 budget:
   deadline: '2026-05-01'
   max_sessions: 6
-sessions_used: 5
+sessions_used: 6
 purpose:
   summary: Add inline postcondition verification, failure recording, and retry-with-context
     to make plan execution self-correcting.
@@ -194,8 +194,8 @@ work:
         Include has_prior_failures (bool) and attempt_number in next_action().
   - id: test-coverage-verification
     title: Add test coverage for verification, failure recording, and retry
-    status: in-progress
-    commit: null
+    status: completed
+    commit: 9f8dcd3
     blockers:
     - retry-context
     sources:
