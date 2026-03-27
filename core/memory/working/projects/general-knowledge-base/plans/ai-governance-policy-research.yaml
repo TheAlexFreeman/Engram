@@ -2,8 +2,8 @@ id: ai-governance-policy-research
 project: general-knowledge-base
 created: '2026-03-26'
 origin_session: memory/activity/2026/03/26/chat-003
-status: not_started
-sessions_used: 0
+status: active
+sessions_used: 1
 budget:
   deadline: '2026-05-31'
   max_sessions: 5
@@ -44,7 +44,7 @@ work:
   phases:
     - id: orientation
       title: Orient to existing governance-adjacent coverage and map the regulatory landscape
-      status: not_started
+      status: complete
       blockers: []
       sources:
         - path: core/memory/knowledge/ai/frontier/foundation-model-governance.md
