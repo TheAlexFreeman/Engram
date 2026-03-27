@@ -123,7 +123,11 @@ semantic_extensions = [
   "memory_audit_link_density",
   "memory_prune_redundant_links",
   "memory_prune_weak_links",
-  # Semantic search tools (require sentence-transformers optional dep)
+  # Semantic search tools (require sentence-transformers optional dep);
+  # memory_semantic_search supports optional `freshness_weight`, `helpfulness_weight`,
+  # `vector_weight`, and `bm25_weight` for hybrid ranking; `min_trust` filters by
+  # trust level.  memory_reindex rebuilds the embedding index (set `force=True` to
+  # re-embed everything).
   "memory_semantic_search",
   "memory_reindex",
 ]
@@ -361,6 +365,7 @@ folders_scanned = "Folders Scanned"
 staged_count = "Staged Count"
 duplicate_count = "Duplicate Count"
 error_count = "Error Count"
+errors = "Errors"
 plan_id = "Plan Id"
 project_id = "Project Id"
 summary = "Summary"
@@ -401,6 +406,17 @@ total_removed = "Links Removed"
 details = "Details"
 dry_run = "Dry Run"
 signal = "Pruning Signal"
+query = "Search Query"
+combined = "Combined Score"
+vector = "Vector Score"
+bm25 = "BM25 Score"
+freshness = "Freshness Score"
+helpfulness = "Helpfulness Score"
+chunk_count = "Chunk Count"
+indexed = "Files Indexed"
+skipped = "Files Skipped"
+removed = "Files Removed"
+total_chunks = "Total Chunks"
 
 [shared_result]
 fields = [
@@ -1729,3 +1745,48 @@ result_fields = [
 ]
 fallback_tools = ["memory_edit", "memory_commit"]
 error_kinds = ["ValidationError", "StagingError"]
+
+[operations.memory_semantic_search]
+group = "search"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "knowledge"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "query",
+  "results",
+  "combined",
+  "vector",
+  "bm25",
+  "freshness",
+  "helpfulness",
+  "chunk_count",
+]
+fallback_tools = []
+error_kinds = ["ValidationError"]
+
+[operations.memory_reindex]
+group = "search"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "system"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "indexed",
+  "skipped",
+  "removed",
+  "errors",
+  "total_chunks",
+]
+fallback_tools = []
+error_kinds = ["ValidationError"]
