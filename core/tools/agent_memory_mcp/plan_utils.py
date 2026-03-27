@@ -30,6 +30,32 @@ def project_plan_path(project_id: str, plan_id: str) -> str:
     )
 
 
+# Known content-prefix directories (e.g. "core/").  Used as a fallback when
+# root is the repository root but project_plan_path returns content-relative
+# paths, or when SourceSpec paths redundantly include the content prefix while
+# root is already the content root.
+_CONTENT_PREFIXES = ("core",)
+
+
+def _resolve_plan_file(root: Path, project_id: str, plan_id: str) -> Path | None:
+    """Locate a plan YAML, tolerating both content-root and repo-root as *root*.
+
+    ``project_plan_path`` returns a content-relative path (``memory/working/…``).
+    If *root* is the content root the direct join works.  When *root* is the
+    repository root we fall back to checking known content-prefix subdirectories.
+    Returns the resolved ``Path`` or ``None`` if the file cannot be found.
+    """
+    rel = project_plan_path(project_id, plan_id)
+    direct = root / rel
+    if direct.exists():
+        return direct
+    for prefix in _CONTENT_PREFIXES:
+        candidate = root / prefix / rel
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def project_operations_log_path(project_id: str) -> str:
     return (
         f"memory/working/projects/{validate_slug(project_id, field_name='project_id')}"
@@ -123,9 +149,24 @@ class SourceSpec:
             raise ValidationError("external sources must include a uri")
 
     def validate_exists(self, root: Path) -> None:
-        """Raise if this is an internal source and the file does not exist."""
-        if self.type == "internal" and not (root / self.path).exists():
-            raise ValidationError(f"internal source does not exist: {self.path}")
+        """Raise if this is an internal source and the file does not exist.
+
+        Handles both conventions: paths may be content-relative (relative to
+        the content root, e.g. ``tools/file.py``) or git-relative (including
+        the content prefix, e.g. ``core/tools/file.py``).  When *root* is the
+        content root and the path redundantly starts with the content-prefix
+        directory name we strip the prefix before checking.
+        """
+        if self.type != "internal":
+            return
+        if (root / self.path).exists():
+            return
+        # Backward compat: path may include a content prefix that root
+        # already incorporates (e.g. root="…/core", path="core/tools/…").
+        first, _, rest = self.path.partition("/")
+        if first and rest and root.name == first and (root / rest).exists():
+            return
+        raise ValidationError(f"internal source does not exist: {self.path}")
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -564,8 +605,8 @@ def validate_plan_references(plan: PlanDocument, root: Path) -> None:
                 _resolve_phase(plan, blocker)
                 continue
             other_plan_id, other_phase_id = blocker.split(":", 1)
-            other_plan_path = root / project_plan_path(plan.project, other_plan_id)
-            if not other_plan_path.exists():
+            other_plan_path = _resolve_plan_file(root, plan.project, other_plan_id)
+            if other_plan_path is None:
                 raise ValidationError(
                     f"blocker references missing plan '{other_plan_id}' in project '{plan.project}'"
                 )
@@ -659,8 +700,8 @@ def phase_blockers(
             continue
 
         other_plan_id, other_phase_id = blocker.split(":", 1)
-        other_plan_path = root / project_plan_path(plan.project, other_plan_id)
-        if not other_plan_path.exists():
+        other_plan_path = _resolve_plan_file(root, plan.project, other_plan_id)
+        if other_plan_path is None:
             blockers.append(
                 {
                     "reference": blocker,
