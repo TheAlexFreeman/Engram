@@ -18,6 +18,21 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-27] Phase 2: Inline verification, failure recording, and retry context
+
+**Changed:** Extended the plan execution system with three new capabilities:
+
+- **`memory_plan_verify`** — new MCP tool that evaluates a phase's postconditions without modifying plan state. Four validator types: `check` (file existence), `grep` (pattern::path regex search), `test` (allowlisted shell command with ENGRAM_TIER2 gate, metacharacter rejection, and 30s timeout), and `manual` (always skipped by automation).
+- **`verify=true` on `memory_plan_execute` complete** — when set, evaluates postconditions before completing the phase. If any postcondition fails, the phase stays `in-progress` and `verification_results` are returned for diagnosis.
+- **`PhaseFailure` dataclass and `record_failure` action** — phases can now accumulate a failure log. Each failure records a timestamp, reason, optional verification results, and attempt number. Failure history is surfaced in `phase_payload()` (as `failures` list and `attempt_number`) and `next_action()` (as `has_prior_failures`, `attempt_number`, and `suggest_revision` when attempts ≥ 3).
+- **29 new tests** covering all four validator types, PhaseFailure serialization/round-trip/backward-compat, retry context in phase_payload and next_action, and suggest_revision threshold.
+
+Security measures: test-type commands are allowlisted (pytest, ruff, pre-commit, mypy prefixes only), shell metacharacters are rejected, proxy environment variables are stripped, and command output is truncated to 2000 characters.
+
+**Reasoning:** The plan system could track phases and tasks but had no way to verify that work actually met its postconditions, record failures for diagnostic context, or signal when a phase should be revised rather than retried. This closes the feedback loop between plan execution and plan governance.
+
+**Approved by:** agent (pending review)
+
 ## [2026-03-26] Plan schema extensions: sources, postconditions, approval gates, budget
 
 **Changed:** Extended the plan schema with four new structural features and updated the MCP tool surface to expose them:

@@ -78,10 +78,11 @@ Most meaningful work spans multiple sessions. Engram's **plan system** treats mu
 - **Approval gates** — `requires_approval: true` on a phase tells downstream tooling to pause and surface the gate before writing anything.
 - **Execution budget** — a top-level `budget` block with an optional `deadline` (YYYY-MM-DD), `max_sessions` cap, and an `advisory` flag that controls whether the cap is enforced or advisory-only.
 
-Four MCP tools manage the plan lifecycle:
+Five MCP tools manage the plan lifecycle:
 
 - `memory_plan_create` — create a structured plan with phases and tasks.
-- `memory_plan_execute` — advance phases, mark items complete, update execution state.
+- `memory_plan_execute` — advance phases, mark items complete, record failures, update execution state.
+- `memory_plan_verify` — evaluate a phase's postconditions without modifying state.
 - `memory_plan_review` — review outcomes, finalize or archive.
 - `memory_list_plans` — inventory plans in a project.
 
@@ -92,9 +93,16 @@ For each phase, the recommended execution cycle is:
 1. **`inspect`** — confirm sources, postconditions, approval gate, and budget status before touching anything.
 2. **`start`** — transition the phase to `in-progress`; the response includes sources to read and whether approval is required.
 3. *(agent reads sources and performs the work)*
-4. **`complete`** — seal the phase with a commit SHA; increments `sessions_used` and emits budget warnings when limits are approached or exceeded.
+4. **`complete`** (with `verify=true`) — evaluate postconditions, then seal the phase with a commit SHA if all pass. If postconditions fail, the phase stays `in-progress` and the response includes `verification_results` so the agent can diagnose and retry.
+5. On failure: **`record_failure`** — append a `PhaseFailure` entry (timestamped reason plus optional verification results) to the phase's failure log, then retry from step 3.
 
 The `inspect` and `start` responses both surface `sources`, `postconditions`, `requires_approval`, and `budget_status` so that agents have the full execution context without additional file reads.
+
+#### Inline verification and retry context
+
+Postconditions can be validated automatically via `memory_plan_verify` (read-only) or inline during `complete` (with `verify=true`). Four validator types are supported: `check` (file existence), `grep` (pattern search), `test` (allowlisted shell command, gated behind `ENGRAM_TIER2`), and `manual` (human-evaluated, always skipped by automation).
+
+When a phase fails, the agent records a `PhaseFailure` with `record_failure`. Failure history is surfaced in both `phase_payload()` (as `failures` list and `attempt_number`) and `next_action()` (as `has_prior_failures`, `attempt_number`, and `suggest_revision` when attempts ≥ 3). This gives agents full retry context without re-reading the plan file.
 
 Plans solve a specific problem: without persistent multi-session roadmaps, agents either lose track of complex work between conversations or rely on the user to re-supply the project context every session. With plans, the project's full context — goals, progress, decisions, next steps — is always available.
 

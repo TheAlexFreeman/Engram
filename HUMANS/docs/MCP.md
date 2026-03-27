@@ -252,7 +252,8 @@ These are the normal write path. Each tool represents a bounded operation with b
 | Tool | Description |
 | --- | --- |
 | `memory_plan_create` | Create a new structured plan with phases, sources, postconditions, and an optional budget. |
-| `memory_plan_execute` | Inspect, start, block, or complete a plan phase; surfaces sources, approval gates, and budget status. |
+| `memory_plan_execute` | Inspect, start, complete, or record failure on a plan phase; surfaces sources, approval gates, budget status, and verification results. |
+| `memory_plan_verify` | Evaluate a phase's postconditions without modifying plan state. Returns per-postcondition results and a pass/fail summary. |
 | `memory_plan_review` | Scan completed plans or export completed-plan artifacts. |
 
 **`memory_plan_create` key parameters**
@@ -268,11 +269,22 @@ The `resulting_state` includes a `budget_status` block when a budget is set.
 
 | Action | Effect | Key response fields |
 | --- | --- | --- |
-| `inspect` | Read-only: returns full phase payload. | `phase.sources`, `phase.postconditions`, `phase.requires_approval`, `budget_status` |
+| `inspect` | Read-only: returns full phase payload. | `phase.sources`, `phase.postconditions`, `phase.failures`, `phase.attempt_number`, `phase.requires_approval`, `budget_status` |
 | `start` | Transitions phase to `in-progress`. | `sources`, `postconditions`, `requires_approval`, `approval_required`, `budget_status` |
-| `complete` | Seals phase; increments `sessions_used`; emits budget warnings when limits are approached. | `sessions_used`, `budget_status`, `warnings` |
+| `complete` | Seals phase; increments `sessions_used`; emits budget warnings when limits are approached. When `verify=true`, evaluates postconditions first and blocks completion on failure. | `sessions_used`, `budget_status`, `warnings`, `verification_results` (when verify=true) |
+| `record_failure` | Appends a `PhaseFailure` entry to the phase (timestamp, reason, optional verification_results). | `failures`, `attempt_number` |
 
 `advisory: true` budgets emit warnings only. `advisory: false` budgets raise an error when the session cap is exceeded.
+
+**`memory_plan_verify` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `plan_id` | str | Plan identifier. |
+| `phase_id` | str | Phase to verify. |
+| `project_id` | str \| null | Optional project scope. |
+
+Returns `verification_results` (per-postcondition status/detail), `summary` (total/passed/failed/skipped/errors counts), and `all_passed` (bool). Four validator types: `check` (file existence), `grep` (pattern::path regex search), `test` (allowlisted shell command, requires `ENGRAM_TIER2=1`), `manual` (always skipped).
 
 **Knowledge lifecycle**
 
