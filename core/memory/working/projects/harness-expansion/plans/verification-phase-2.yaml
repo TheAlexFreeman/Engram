@@ -6,7 +6,7 @@ status: active
 budget:
   deadline: '2026-05-01'
   max_sessions: 6
-sessions_used: 3
+sessions_used: 4
 purpose:
   summary: Add inline postcondition verification, failure recording, and retry-with-context
     to make plan execution self-correcting.
@@ -131,8 +131,8 @@ work:
         without changing phase status.
   - id: failure-recording
     title: Add PhaseFailure dataclass and record_failure action
-    status: in-progress
-    commit: null
+    status: completed
+    commit: faac001
     blockers:
     - verify-integration
     sources:
