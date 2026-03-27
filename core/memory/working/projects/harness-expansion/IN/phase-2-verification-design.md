@@ -263,6 +263,78 @@ Alternative (atomic):
 
 ---
 
+## Finalized design decisions
+
+_Recorded during verify-tool-design phase (2026-03-26, session chat-003). These resolve the open questions from the plan purpose._
+
+### Decision 1: Allowlist (not denylist) for test-type commands
+
+**Question:** Should test-type postconditions use a command allowlist or a denylist?
+
+**Decision: Allowlist with prefix matching.**
+
+Rationale:
+- Aligns with Engram's least-privilege security posture (Tier 2 gating, defense-in-depth).
+- A denylist cannot anticipate all dangerous commands; an allowlist constrains the attack surface to known-safe tools.
+- Prefix matching allows arguments (e.g., `pytest core/tools/tests/ -q` matches the `pytest` prefix) while preventing command injection via pipe, semicolon, or subshell operators.
+
+**Default allowlist prefixes:**
+
+| Prefix | Purpose |
+|---|---|
+| `pre-commit run` | Hook-based linting/formatting checks |
+| `pytest` | Python test runner |
+| `python -m pytest` | Module-invoked pytest |
+| `ruff check` | Python linting |
+| `ruff format --check` | Python format verification (read-only) |
+| `mypy` | Static type checking |
+
+**Implementation detail:** The allowlist is defined as a tuple of string prefixes in `plan_utils.py`. The command must start with one of these prefixes after whitespace normalization. Shell metacharacters (`;`, `|`, `&&`, `||`, `` ` ``, `$(`) in any position beyond the allowlisted prefix cause rejection — this prevents `pytest; rm -rf /` from passing the prefix check. A future governance policy file in `core/governance/` can override the default list, but the initial implementation uses a hardcoded tuple for simplicity.
+
+### Decision 2: Blocking when verify=true (not warning)
+
+**Question:** Should verification failures block phase completion or just warn?
+
+**Decision: Blocking.** When `verify=true` is passed to `memory_plan_execute` `complete` action and any postcondition fails or errors, the phase is **not completed**. It stays `in-progress` and the response contains `verification_results` with per-postcondition status.
+
+Rationale:
+- The whole point of inline verification is tool-grounded checkpoints that prevent premature completion.
+- Warning-only would duplicate the existing behavior (postconditions surfaced in responses for agent self-check).
+- The `verify` parameter is opt-in (`false` by default), so agents that don't want blocking simply omit it.
+- The agent can always call `memory_plan_verify` standalone (read-only) to check without risking a state change.
+
+### Decision 3: Suggest revision after 3 failures (advisory)
+
+**Question:** How many retry attempts should be recorded before suggesting plan revision?
+
+**Decision: 3 attempts.** After 3 recorded `PhaseFailure` entries on a single phase, `phase_payload()` and `next_action()` include `suggest_revision: true`. This is purely advisory — the system does not enforce any retry limit or block further attempts.
+
+Rationale:
+- Three failures provide enough signal that the current approach may be fundamentally flawed, not just encountering transient issues.
+- Making it advisory respects agent autonomy — sometimes the fourth attempt succeeds after the agent adjusts its approach.
+- The counter is based on `len(phase.failures)`, which only increments via explicit `record_failure` calls, not automatic verification failures.
+
+### Decision 4: Partial results on postcondition errors
+
+**Question:** Should the verify tool return partial results if one postcondition errors?
+
+**Decision: Yes, always evaluate all postconditions.** If one postcondition errors (e.g., regex compilation failure in `grep`, file not found in `check`, command not in allowlist for `test`), the remaining postconditions are still evaluated. The errored postcondition gets `status: "error"` with an explanatory `detail` string.
+
+Rationale:
+- Maximum information for decision-making. An agent seeing 4/5 postconditions pass and 1 error can reason about whether to fix the error condition or the underlying code.
+- Consistent with the design of `all_passed: bool` — false if `failed > 0 OR errors > 0`. Errors are treated as "not passed" for the summary flag.
+- Early-exit on first error would hide useful signal about the overall state of the phase's work.
+
+### check validator: Path resolution
+
+The `check` validator resolves paths using the same logic as `SourceSpec.validate_exists()`: try `root / target` first, then fall back to content-prefix stripping and repo-root lookup. This ensures consistency with how source references are validated at plan-create time.
+
+### grep validator: target format and regex safety
+
+The `grep` validator parses `target` as `pattern::path`. If the target does not contain `::`, it is treated as an error (`status: "error"`, detail: "grep target must use pattern::path format"). The regex pattern is compiled with `re.search` — invalid regex produces `status: "error"` with the regex compilation error in `detail`. File path resolution follows the same logic as `check`.
+
+---
+
 ## What this phase does NOT include
 
 - **Automated retry loops.** The agent decides when and how to retry. The plan system records state; it doesn't drive behavior.
