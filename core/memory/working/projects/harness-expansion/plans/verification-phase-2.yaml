@@ -171,7 +171,7 @@ work:
         phase, commit to git.
   - id: retry-context
     title: Surface failure history in phase_payload and next_action
-    status: pending
+    status: in-progress
     commit: null
     blockers:
     - failure-recording
