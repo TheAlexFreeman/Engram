@@ -8211,6 +8211,12 @@ trust: high
         }
         return yaml.dump(payload, sort_keys=False, allow_unicode=False)
 
+    def _phase9_project_files(self) -> dict[str, str]:
+        return {
+            "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-27\nproject_count: 1\n---\n\n# Projects\n",
+            "memory/working/projects/example/SUMMARY.md": "---\nsource: agent-generated\norigin_session: manual\ncreated: 2026-03-27\ntrust: medium\ntype: project\nstatus: active\nactive_plans: 0\nplans: 0\nlast_activity: 2026-03-27\ncurrent_focus: External ingestion.\n---\n\n# Project: Example\n",
+        }
+
     def test_memory_plan_execute_inspect_includes_sources_postconditions_budget(self) -> None:
         plan_yaml = self._plan_yaml_with_budget()
         repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
@@ -8830,6 +8836,79 @@ trust: high
         self.assertEqual(len(briefing_spans), 1)
         self.assertEqual(briefing_spans[0]["metadata"]["plan_id"], "tracked-plan")
         self.assertEqual(briefing_spans[0]["metadata"]["phase_id"], "phase-a")
+
+    def test_memory_stage_external_writes_project_inbox_file(self) -> None:
+        repo_root = self._init_repo(self._phase9_project_files())
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_stage_external"](
+                project="example",
+                filename="article.md",
+                content="External note\n",
+                source_url="https://example.com/article?utm=1#frag",
+                fetched_date="2026-03-27",
+                source_label="example-article",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertTrue(payload["staged"])
+        target = repo_root / payload["target_path"]
+        self.assertTrue(target.exists())
+        body = target.read_text(encoding="utf-8")
+        self.assertIn("origin_url: https://example.com/article", body)
+        self.assertTrue(
+            (
+                repo_root / "memory" / "working" / "projects" / "example" / ".staged-hashes.jsonl"
+            ).exists()
+        )
+
+    def test_memory_stage_external_dry_run_returns_preview_only(self) -> None:
+        repo_root = self._init_repo(self._phase9_project_files())
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_stage_external"](
+                project="example",
+                filename="article.md",
+                content="External note\n",
+                source_url="https://example.com/article",
+                fetched_date="2026-03-27",
+                source_label="example-article",
+                dry_run=True,
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertFalse(payload["staged"])
+        self.assertFalse((repo_root / payload["target_path"]).exists())
+
+    def test_memory_scan_drop_zone_returns_scan_report(self) -> None:
+        drop_folder = Path(self._tmpdir.name) / "external-drop"
+        drop_folder.mkdir(parents=True, exist_ok=True)
+        (drop_folder / "note.md").write_text("drop note\n", encoding="utf-8")
+        repo_root = self._init_repo(
+            {
+                **self._phase9_project_files(),
+                "agent-bootstrap.toml": (
+                    "version = 1\n"
+                    f'[[watch_folders]]\npath = "{drop_folder.as_posix()}"\n'
+                    'target_project = "example"\n'
+                    'source_label = "external-drop"\n'
+                ),
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(tools["memory_scan_drop_zone"]())
+        payload = json.loads(raw)
+
+        self.assertEqual(payload["staged_count"], 1)
+        self.assertEqual(payload["duplicate_count"], 0)
+        self.assertTrue(
+            (repo_root / "memory" / "working" / "projects" / "example" / "IN" / "note.md").exists()
+        )
 
     def test_memory_run_eval_requires_tier2(self) -> None:
         repo_root = self._init_repo(

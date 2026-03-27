@@ -2,8 +2,8 @@ id: external-ingestion-phase-9
 project: harness-expansion
 created: '2026-03-27'
 origin_session: memory/activity/2026/03/27/chat-001
-status: draft
-sessions_used: 0
+status: completed
+sessions_used: 1
 budget:
   deadline: '2026-07-15'
   max_sessions: 6
@@ -24,7 +24,7 @@ purpose:
     This phase adds three affordances: (1) `memory_stage_external` — an
     MCP tool that accepts content from an agent and stages it in
     `projects/{project}/IN/` with auto-generated frontmatter and SHA-256
-    deduplication; (2) `fetch_directive` / `mcp_call` structured hints
+    deduplication; (2) `fetch_directives` / `mcp_calls` structured hints
     surfaced in `phase_payload()` for phases with `type: external` or
     `type: mcp` sources, providing agents actionable guidance on what to
     fetch before starting work; (3) `memory_scan_drop_zone` — a bulk
@@ -38,25 +38,23 @@ purpose:
     vocabulary. Phase 5 HITL preview envelope pattern informs
     `memory_stage_external` return contract. Phases 6-8 are independent.
   questions:
-  - Should SHA-256 deduplication scope be per-project or global across all projects?
-  - Should PDF extraction in memory_scan_drop_zone be a soft optional (skip on missing
-    library) or hard dependency?
-  - Should fetch_directive be emitted only when the source file is absent, or always
-    for type-external sources?
-  - Should memory_stage_external stage to projects/{project}/IN/ or to the _unverified/
-    quarantine directory?
+  - "Resolved in implementation: SHA-256 deduplication is per-project via .staged-hashes.jsonl in each project root."
+  - "Resolved in implementation: PDF extraction is soft optional; missing libraries produce per-file scan errors instead of failing the whole tool."
+  - "Resolved in implementation: fetch_directives and mcp_calls are emitted only when the referenced staged file is absent."
+  - "Resolved in implementation: memory_stage_external stages into projects/{project}/IN/ and leaves promotion to later review flows."
+  - "Resolved in implementation: watch_folders supports path, target_project, source_label, extensions, and recursive; trust stays system-enforced at low."
 work:
   phases:
   - id: ingestion-design
     title: Finalize external ingestion API contracts and security rules
-    status: pending
+    status: completed
     blockers: []
     requires_approval: true
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-9-external-ingestion-design.md
       type: internal
       intent: Use as the working design document. Flesh out full API contracts, frontmatter
-        schema, security rules, and resolve the four open questions. Update in place.
+        schema, security rules, and resolve the implementation questions. Update in place.
     - path: core/tools/agent_memory_mcp/plan_utils.py
       type: internal
       intent: Understand existing SourceSpec.type field, phase_payload() response structure,
@@ -78,7 +76,7 @@ work:
       type: manual
     - description: Staging target decision recorded (IN/ vs _unverified/) with rationale
       type: manual
-    - description: fetch_directive and mcp_call field schemas finalized with all required keys
+    - description: fetch_directives and mcp_calls field schemas finalized with all required keys
       type: manual
     - description: watch_folders TOML config key format decided with all supported fields
       type: manual
@@ -87,17 +85,17 @@ work:
       type: manual
     - description: SHA-256 scope decision recorded (per-project vs global)
       type: manual
-    - description: All four open questions resolved and recorded in design doc
+    - description: Implementation questions resolved and recorded in design doc
       type: manual
     changes:
     - path: core/memory/working/projects/harness-expansion/IN/phase-9-external-ingestion-design.md
       action: update
       description: Expand stub into full design specification with finalized API contracts,
-        resolved open questions, storage schema, and security section rationale.
+        resolved implementation questions, storage schema, and security section rationale.
 
   - id: stage-external-tool
     title: Implement stage_external_file() helper and memory_stage_external MCP tool
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-9-external-ingestion-design.md
@@ -152,13 +150,13 @@ work:
         and return JSON envelope.
 
   - id: phase-payload-enrichment
-    title: Add fetch_directive and mcp_call hints to phase_payload()
-    status: pending
+    title: Add fetch_directives and mcp_calls hints to phase_payload()
+    status: completed
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-9-external-ingestion-design.md
       type: internal
-      intent: Follow the finalized fetch_directive and mcp_call field schemas, including
+      intent: Follow the finalized fetch_directives and mcp_calls field schemas, including
         emission condition (only when source file is absent on disk).
     - path: core/tools/agent_memory_mcp/plan_utils.py
       type: internal
@@ -186,7 +184,7 @@ work:
 
   - id: drop-zone-tool
     title: Implement scan_drop_zone() helper and memory_scan_drop_zone MCP tool
-    status: pending
+    status: completed
     blockers: [stage-external-tool]
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-9-external-ingestion-design.md
@@ -243,11 +241,11 @@ work:
     - path: agent-bootstrap.toml
       action: update
       description: Add commented-out [[watch_folders]] example block with path,
-        target_project, source_label, trust, extensions, and recursive fields.
+        target_project, source_label, extensions, and recursive fields.
 
   - id: ingestion-tests
     title: Add test coverage for all three ingestion affordances
-    status: pending
+    status: completed
     blockers: [stage-external-tool]
     sources:
     - path: core/tools/tests/test_plan_schema_extensions.py
@@ -267,8 +265,8 @@ work:
       target: class TestScanDropZone::core/tools/tests/test_plan_schema_extensions.py
     - description: Tests cover — correct frontmatter generated, URL query-string stripped,
         content size cap enforced, duplicate hash rejected with DuplicateContentError,
-        staging to correct IN/ path, fetch_directive emitted for absent external source,
-        mcp_call emitted for absent mcp source, no directive for present file,
+        staging to correct IN/ path, fetch_directives emitted for absent external source,
+        mcp_calls emitted for absent mcp source, no directive for present file,
         scan report staged/duplicate/error counts correct, missing watch_folder graceful error
       type: manual
     - description: Full test suite passes (target 210-220 total tests)
@@ -286,7 +284,7 @@ work:
 
   - id: ingestion-docs
     title: Update documentation for all three ingestion affordances
-    status: pending
+    status: completed
     blockers: [ingestion-tests]
     requires_approval: true
     sources:

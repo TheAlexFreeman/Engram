@@ -12,9 +12,10 @@ import unittest
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 import yaml
-from engram_mcp.agent_memory_mcp.errors import NotFoundError, ValidationError
+from engram_mcp.agent_memory_mcp.errors import DuplicateContentError, NotFoundError, ValidationError
 from engram_mcp.agent_memory_mcp.plan_utils import (
     APPROVAL_RESOLUTIONS,
     APPROVAL_STATUSES,
@@ -51,6 +52,8 @@ from engram_mcp.agent_memory_mcp.plan_utils import (
     save_approval,
     save_plan,
     save_registry,
+    scan_drop_zone,
+    stage_external_file,
     trace_file_path,
     validate_plan_references,
     verify_postconditions,
@@ -3981,6 +3984,309 @@ class TestAssembleBriefing(unittest.TestCase):
         self.assertIsNone(briefing["source_contents"][0]["content"])
         self.assertEqual(briefing["source_contents"][0]["uri"], "https://example.com/spec")
         self.assertEqual(briefing["source_contents"][1]["type"], "mcp")
+
+
+class TestStageExternal(unittest.TestCase):
+    def test_stage_external_file_writes_frontmatter_and_hash_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "memory" / "working" / "projects" / "demo").mkdir(parents=True)
+
+            result = stage_external_file(
+                "demo",
+                "article.md",
+                "External body\n",
+                "https://example.com/article?utm=1#frag",
+                "2026-03-27",
+                "example-article",
+                root=root,
+                session_id="memory/activity/2026/03/27/chat-401",
+            )
+
+            self.assertTrue(result["staged"])
+            target = root / result["target_path"]
+            self.assertTrue(target.exists())
+            body = target.read_text(encoding="utf-8")
+            self.assertIn("source: external-research", body)
+            self.assertIn("trust: low", body)
+            self.assertIn("origin_url: https://example.com/article", body)
+            registry = (
+                root / "memory" / "working" / "projects" / "demo" / ".staged-hashes.jsonl"
+            ).read_text(encoding="utf-8")
+            self.assertIn("article.md", registry)
+
+    def test_stage_external_file_dry_run_does_not_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "memory" / "working" / "projects" / "demo").mkdir(parents=True)
+
+            result = stage_external_file(
+                "demo",
+                "article.md",
+                "External body\n",
+                "https://example.com/article",
+                "2026-03-27",
+                "example-article",
+                root=root,
+                dry_run=True,
+            )
+
+            self.assertFalse(result["staged"])
+            self.assertFalse((root / result["target_path"]).exists())
+
+    def test_stage_external_file_rejects_duplicate_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "memory" / "working" / "projects" / "demo").mkdir(parents=True)
+            stage_external_file(
+                "demo",
+                "article.md",
+                "External body\n",
+                "https://example.com/article",
+                "2026-03-27",
+                "example-article",
+                root=root,
+            )
+
+            with self.assertRaises(DuplicateContentError) as exc_info:
+                stage_external_file(
+                    "demo",
+                    "article-2.md",
+                    "External body\n",
+                    "https://example.com/article-2",
+                    "2026-03-27",
+                    "example-article",
+                    root=root,
+                )
+
+            self.assertIn("article.md", exc_info.exception.existing_filename)
+
+    def test_stage_external_file_rejects_oversized_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "memory" / "working" / "projects" / "demo").mkdir(parents=True)
+
+            with self.assertRaises(ValidationError):
+                stage_external_file(
+                    "demo",
+                    "article.md",
+                    "x" * 500_001,
+                    "https://example.com/article",
+                    "2026-03-27",
+                    "example-article",
+                    root=root,
+                )
+
+    def test_stage_external_file_rejects_filename_with_path_segments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "memory" / "working" / "projects" / "demo").mkdir(parents=True)
+
+            with self.assertRaises(ValidationError):
+                stage_external_file(
+                    "demo",
+                    "nested/article.md",
+                    "External body\n",
+                    "https://example.com/article",
+                    "2026-03-27",
+                    "example-article",
+                    root=root,
+                )
+
+    def test_phase_payload_includes_fetch_directive_for_missing_external_source(self) -> None:
+        plan = _minimal_plan(
+            project="demo",
+            phases=[
+                PlanPhase(
+                    id="phase-one",
+                    title="Fetch",
+                    sources=[
+                        SourceSpec(
+                            path="memory/working/projects/demo/IN/article.md",
+                            type="external",
+                            intent="Fetch the article before starting.",
+                            uri="https://example.com/article",
+                        )
+                    ],
+                )
+            ],
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            payload = phase_payload(plan, plan.phases[0], root)
+
+        self.assertEqual(len(payload["fetch_directives"]), 1)
+        self.assertEqual(
+            payload["fetch_directives"][0]["source_uri"], "https://example.com/article"
+        )
+
+    def test_phase_payload_omits_fetch_directive_when_external_source_exists(self) -> None:
+        plan = _minimal_plan(
+            project="demo",
+            phases=[
+                PlanPhase(
+                    id="phase-one",
+                    title="Fetch",
+                    sources=[
+                        SourceSpec(
+                            path="memory/working/projects/demo/IN/article.md",
+                            type="external",
+                            intent="Fetch the article before starting.",
+                            uri="https://example.com/article",
+                        )
+                    ],
+                )
+            ],
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "memory" / "working" / "projects" / "demo" / "IN" / "article.md"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("staged\n", encoding="utf-8")
+            payload = phase_payload(plan, plan.phases[0], root)
+
+        self.assertEqual(payload["fetch_directives"], [])
+
+    def test_phase_payload_includes_mcp_call_for_missing_mcp_source(self) -> None:
+        plan = _minimal_plan(
+            project="demo",
+            phases=[
+                PlanPhase(
+                    id="phase-one",
+                    title="Fetch via MCP",
+                    sources=[
+                        SourceSpec(
+                            path="memory/working/projects/demo/IN/search.md",
+                            type="mcp",
+                            intent="Fetch search results.",
+                            mcp_server="search-mcp",
+                            mcp_tool="search",
+                            mcp_arguments={"query": "RAG evaluation", "limit": 3},
+                        )
+                    ],
+                )
+            ],
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            payload = phase_payload(plan, plan.phases[0], Path(tmp))
+
+        self.assertEqual(len(payload["mcp_calls"]), 1)
+        self.assertEqual(payload["mcp_calls"][0]["server"], "search-mcp")
+        self.assertEqual(payload["mcp_calls"][0]["tool"], "search")
+
+
+class TestScanDropZone(unittest.TestCase):
+    def test_scan_drop_zone_stages_markdown_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp) / "repo"
+            repo_root.mkdir(parents=True)
+            (repo_root / "memory" / "working" / "projects" / "demo").mkdir(parents=True)
+            drop_folder = Path(tmp) / "drop"
+            drop_folder.mkdir(parents=True)
+            (drop_folder / "note.md").write_text("drop note\n", encoding="utf-8")
+            (repo_root / "agent-bootstrap.toml").write_text(
+                f'[[watch_folders]]\npath = "{drop_folder.as_posix()}"\ntarget_project = "demo"\nsource_label = "drop-zone"\n',
+                encoding="utf-8",
+            )
+
+            report = scan_drop_zone(root=repo_root)
+
+            self.assertEqual(report["staged_count"], 1)
+            self.assertEqual(report["duplicate_count"], 0)
+            self.assertTrue(
+                (repo_root / "memory" / "working" / "projects" / "demo" / "IN" / "note.md").exists()
+            )
+
+    def test_scan_drop_zone_marks_duplicates_on_repeat_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp) / "repo"
+            repo_root.mkdir(parents=True)
+            (repo_root / "memory" / "working" / "projects" / "demo").mkdir(parents=True)
+            drop_folder = Path(tmp) / "drop"
+            drop_folder.mkdir(parents=True)
+            (drop_folder / "note.md").write_text("drop note\n", encoding="utf-8")
+            (repo_root / "agent-bootstrap.toml").write_text(
+                f'[[watch_folders]]\npath = "{drop_folder.as_posix()}"\ntarget_project = "demo"\nsource_label = "drop-zone"\n',
+                encoding="utf-8",
+            )
+
+            first = scan_drop_zone(root=repo_root)
+            second = scan_drop_zone(root=repo_root)
+
+            self.assertEqual(first["staged_count"], 1)
+            self.assertEqual(second["duplicate_count"], 1)
+
+    def test_scan_drop_zone_reports_missing_watch_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp) / "repo"
+            repo_root.mkdir(parents=True)
+            (repo_root / "memory" / "working" / "projects" / "demo").mkdir(parents=True)
+            missing = Path(tmp) / "missing-drop"
+            (repo_root / "agent-bootstrap.toml").write_text(
+                f'[[watch_folders]]\npath = "{missing.as_posix()}"\ntarget_project = "demo"\nsource_label = "drop-zone"\n',
+                encoding="utf-8",
+            )
+
+            report = scan_drop_zone(root=repo_root)
+
+            self.assertEqual(report["error_count"], 1)
+            self.assertIn("not found", report["items"][0]["error_message"])
+
+    def test_scan_drop_zone_respects_project_filter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp) / "repo"
+            repo_root.mkdir(parents=True)
+            (repo_root / "memory" / "working" / "projects" / "demo").mkdir(parents=True)
+            (repo_root / "memory" / "working" / "projects" / "other").mkdir(parents=True)
+            drop_folder = Path(tmp) / "drop"
+            drop_folder.mkdir(parents=True)
+            (drop_folder / "note.md").write_text("drop note\n", encoding="utf-8")
+            (repo_root / "agent-bootstrap.toml").write_text(
+                (
+                    f'[[watch_folders]]\npath = "{drop_folder.as_posix()}"\n'
+                    'target_project = "demo"\nsource_label = "drop-zone"\n\n'
+                    f'[[watch_folders]]\npath = "{drop_folder.as_posix()}"\n'
+                    'target_project = "other"\nsource_label = "drop-zone"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            report = scan_drop_zone(root=repo_root, project_filter="other")
+
+            self.assertEqual(report["staged_count"], 1)
+            self.assertTrue(
+                (
+                    repo_root / "memory" / "working" / "projects" / "other" / "IN" / "note.md"
+                ).exists()
+            )
+            self.assertFalse(
+                (repo_root / "memory" / "working" / "projects" / "demo" / "IN" / "note.md").exists()
+            )
+
+    def test_scan_drop_zone_reports_pdf_extraction_error_gracefully(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_root = Path(tmp) / "repo"
+            repo_root.mkdir(parents=True)
+            (repo_root / "memory" / "working" / "projects" / "demo").mkdir(parents=True)
+            drop_folder = Path(tmp) / "drop"
+            drop_folder.mkdir(parents=True)
+            (drop_folder / "paper.pdf").write_bytes(b"%PDF-1.4")
+            (repo_root / "agent-bootstrap.toml").write_text(
+                f'[[watch_folders]]\npath = "{drop_folder.as_posix()}"\ntarget_project = "demo"\nsource_label = "drop-zone"\n',
+                encoding="utf-8",
+            )
+
+            with mock.patch(
+                "engram_mcp.agent_memory_mcp.plan_utils._extract_pdf_text",
+                return_value=(None, "PDF extraction unavailable; install pdfminer.six or pypdf"),
+            ):
+                report = scan_drop_zone(root=repo_root)
+
+            self.assertEqual(report["error_count"], 1)
+            self.assertEqual(report["items"][0]["outcome"], "error")
 
 
 class TestCrossCuttingRegression(unittest.TestCase):

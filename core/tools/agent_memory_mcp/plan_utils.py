@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import date as date_type
 from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
-from .errors import NotFoundError, ValidationError
+from .errors import DuplicateContentError, NotFoundError, ValidationError
 from .path_policy import validate_session_id, validate_slug
 
 PLAN_STATUSES = {"draft", "active", "blocked", "paused", "completed", "abandoned"}
@@ -60,6 +61,23 @@ def _resolve_plan_file(root: Path, project_id: str, plan_id: str) -> Path | None
         if candidate.exists():
             return candidate
     return None
+
+
+def _resolve_content_root(root: Path) -> Path:
+    if (root / "memory").exists():
+        return root
+    for prefix in _CONTENT_PREFIXES:
+        candidate = root / prefix
+        if (candidate / "memory").exists():
+            return candidate
+    return root
+
+
+def _resolve_repo_root(root: Path) -> Path:
+    content_root = _resolve_content_root(root)
+    if content_root.name in _CONTENT_PREFIXES:
+        return content_root.parent
+    return content_root
 
 
 def project_operations_log_path(project_id: str) -> str:
@@ -136,6 +154,9 @@ class SourceSpec:
     type: str
     intent: str
     uri: str | None = None
+    mcp_server: str | None = None
+    mcp_tool: str | None = None
+    mcp_arguments: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.type not in SOURCE_TYPES:
@@ -153,6 +174,25 @@ class SourceSpec:
             self.path = self.path.strip()
         if self.type == "external" and not self.uri:
             raise ValidationError("external sources must include a uri")
+        if self.mcp_server is not None:
+            if self.type != "mcp":
+                raise ValidationError("mcp_server is only valid for source type 'mcp'")
+            if not isinstance(self.mcp_server, str) or not self.mcp_server.strip():
+                raise ValidationError("mcp_server must be a non-empty string when provided")
+            self.mcp_server = self.mcp_server.strip()
+        if self.mcp_tool is not None:
+            if self.type != "mcp":
+                raise ValidationError("mcp_tool is only valid for source type 'mcp'")
+            if not isinstance(self.mcp_tool, str) or not self.mcp_tool.strip():
+                raise ValidationError("mcp_tool must be a non-empty string when provided")
+            self.mcp_tool = self.mcp_tool.strip()
+        if (self.mcp_server is None) != (self.mcp_tool is None):
+            raise ValidationError("mcp sources must provide both mcp_server and mcp_tool")
+        if self.mcp_arguments is not None:
+            if self.type != "mcp":
+                raise ValidationError("mcp_arguments is only valid for source type 'mcp'")
+            if not isinstance(self.mcp_arguments, dict):
+                raise ValidationError("mcp_arguments must be a mapping when provided")
 
     def validate_exists(self, root: Path) -> None:
         """Raise if this is an internal source and the file does not exist.
@@ -190,6 +230,12 @@ class SourceSpec:
         }
         if self.uri is not None:
             payload["uri"] = self.uri
+        if self.mcp_server is not None:
+            payload["mcp_server"] = self.mcp_server
+        if self.mcp_tool is not None:
+            payload["mcp_tool"] = self.mcp_tool
+        if self.mcp_arguments is not None:
+            payload["mcp_arguments"] = self.mcp_arguments
         return payload
 
 
@@ -495,6 +541,9 @@ def _coerce_source_specs(raw_sources: Any) -> list[SourceSpec]:
                 type=str(raw_source.get("type", "internal")),
                 intent=str(raw_source.get("intent", "")),
                 uri=raw_source.get("uri"),
+                mcp_server=raw_source.get("mcp_server"),
+                mcp_tool=raw_source.get("mcp_tool"),
+                mcp_arguments=raw_source.get("mcp_arguments"),
             )
         )
     return sources
@@ -875,6 +924,42 @@ def phase_payload(plan: PlanDocument, phase: PlanPhase, root: Path) -> dict[str,
     if bs is not None:
         result["budget_status"] = bs
     result["tool_policies"] = _resolve_tool_policies(phase, root)
+    fetch_directives: list[dict[str, Any]] = []
+    mcp_calls: list[dict[str, Any]] = []
+    for index, source in enumerate(phase.sources):
+        if _resolve_verify_path(root, source.path) is not None:
+            continue
+        if source.type == "external":
+            fetch_directives.append(
+                {
+                    "source_index": index,
+                    "action": "fetch_and_stage",
+                    "source_path": source.path,
+                    "source_uri": source.uri,
+                    "suggested_filename": Path(source.path).name or source.path,
+                    "target_project": plan.project,
+                    "intent": source.intent,
+                    "reason": (
+                        "Source file does not exist on disk; fetch and stage before "
+                        "starting phase work."
+                    ),
+                }
+            )
+        elif source.type == "mcp" and source.mcp_server and source.mcp_tool:
+            mcp_calls.append(
+                {
+                    "source_index": index,
+                    "server": source.mcp_server,
+                    "tool": source.mcp_tool,
+                    "arguments": source.mcp_arguments or {},
+                    "source_path": source.path,
+                    "suggested_filename": Path(source.path).name or source.path,
+                    "target_project": plan.project,
+                    "intent": source.intent,
+                }
+            )
+    result["fetch_directives"] = fetch_directives
+    result["mcp_calls"] = mcp_calls
     return result
 
 
@@ -1084,6 +1169,12 @@ def assemble_briefing(
             }
             if source.uri is not None:
                 entry["uri"] = source.uri
+            if source.mcp_server is not None:
+                entry["mcp_server"] = source.mcp_server
+            if source.mcp_tool is not None:
+                entry["mcp_tool"] = source.mcp_tool
+            if source.mcp_arguments is not None:
+                entry["mcp_arguments"] = source.mcp_arguments
 
             if source.type != "internal":
                 entry["content"] = None
@@ -1154,6 +1245,383 @@ def assemble_briefing(
                 "approval_status": approval_chars,
             },
         },
+    }
+
+
+_MAX_STAGED_EXTERNAL_CHARS = 500_000
+
+
+def _project_root(root: Path, project_id: str) -> Path:
+    project_slug = validate_slug(project_id, field_name="project_id")
+    content_root = _resolve_content_root(root)
+    return content_root / "memory" / "working" / "projects" / project_slug
+
+
+def _sanitize_origin_url(source_url: str) -> str:
+    from urllib.parse import urlsplit, urlunsplit
+
+    if not isinstance(source_url, str) or not source_url.strip():
+        raise ValidationError("source_url must be a non-empty string")
+    parts = urlsplit(source_url.strip())
+    if not parts.scheme:
+        raise ValidationError("source_url must include a URI scheme")
+    if parts.scheme != "file" and not parts.netloc:
+        raise ValidationError("source_url must include a network location")
+    sanitized = urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+    if not sanitized:
+        raise ValidationError("source_url could not be sanitized")
+    return sanitized
+
+
+def _normalize_staged_filename(filename: str) -> str:
+    if not isinstance(filename, str) or not filename.strip():
+        raise ValidationError("filename must be a non-empty string")
+    normalized = filename.replace("\\", "/").strip()
+    if normalized in {".", ".."} or "/" in normalized:
+        raise ValidationError("filename must not include directory segments")
+    return normalized
+
+
+def _staged_hash_registry_path(root: Path, project_id: str) -> Path:
+    return _project_root(root, project_id) / ".staged-hashes.jsonl"
+
+
+def _read_staged_hash_registry(root: Path, project_id: str) -> dict[str, str]:
+    registry_path = _staged_hash_registry_path(root, project_id)
+    if not registry_path.exists():
+        return {}
+    registry: dict[str, str] = {}
+    try:
+        lines = registry_path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise ValidationError(f"Could not read staged hash registry: {exc}") from exc
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValidationError(f"Invalid staged hash registry entry: {exc}") from exc
+        if not isinstance(entry, dict):
+            continue
+        content_hash = entry.get("hash")
+        filename = entry.get("filename")
+        if isinstance(content_hash, str) and isinstance(filename, str):
+            registry[content_hash] = filename
+    return registry
+
+
+def stage_external_file(
+    project: str,
+    filename: str,
+    content: str,
+    source_url: str,
+    fetched_date: str,
+    source_label: str,
+    *,
+    root: Path,
+    session_id: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Stage external content into a project IN/ folder with governed frontmatter."""
+    import hashlib
+
+    if not isinstance(content, str) or not content:
+        raise ValidationError("content must be a non-empty string")
+    if len(content) > _MAX_STAGED_EXTERNAL_CHARS:
+        raise ValidationError(
+            f"content exceeds maximum size of {_MAX_STAGED_EXTERNAL_CHARS} characters"
+        )
+    if not isinstance(fetched_date, str) or not _DATE_RE.match(fetched_date.strip()):
+        raise ValidationError("fetched_date must be in YYYY-MM-DD format")
+    if not isinstance(source_label, str) or not source_label.strip():
+        raise ValidationError("source_label must be a non-empty string")
+    if session_id is not None:
+        validate_session_id(session_id)
+
+    project_root = _project_root(root, project)
+    if not project_root.exists():
+        raise NotFoundError(f"Project not found: memory/working/projects/{project}")
+
+    staged_filename = _normalize_staged_filename(filename)
+    sanitized_url = _sanitize_origin_url(source_url)
+    content_hash = f"sha256:{hashlib.sha256(content.encode('utf-8')).hexdigest()}"
+    registry = _read_staged_hash_registry(root, project)
+    if content_hash in registry:
+        raise DuplicateContentError(
+            f"Duplicate staged content already exists: {registry[content_hash]}",
+            content_hash=content_hash,
+            existing_filename=registry[content_hash],
+        )
+
+    target_path = project_root / "IN" / staged_filename
+    if target_path.exists():
+        raise ValidationError(f"target file already exists: {target_path.name}")
+
+    frontmatter_preview: dict[str, Any] = {
+        "source": "external-research",
+        "trust": "low",
+        "origin_url": sanitized_url,
+        "fetched_date": fetched_date.strip(),
+        "source_label": source_label.strip(),
+        "created": date_type.today().isoformat(),
+        "origin_session": session_id or "unknown",
+        "staged_by": "memory_stage_external",
+    }
+    envelope = {
+        "action": "stage_external",
+        "project": validate_slug(project, field_name="project_id"),
+        "target_path": target_path.relative_to(_resolve_content_root(root)).as_posix(),
+        "frontmatter_preview": frontmatter_preview,
+        "content_chars": len(content),
+        "content_hash": content_hash,
+        "duplicate": False,
+        "staged": False,
+    }
+    if dry_run:
+        return envelope
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    frontmatter_text = yaml.dump(
+        frontmatter_preview,
+        Dumper=_PlanDumper,
+        sort_keys=False,
+        allow_unicode=False,
+        width=88,
+    )
+    body = content if content.endswith("\n") else f"{content}\n"
+    target_path.write_text(f"---\n{frontmatter_text}---\n\n{body}", encoding="utf-8")
+
+    registry_path = _staged_hash_registry_path(root, project)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    staged_at = date_type.today().isoformat()
+    with registry_path.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "hash": content_hash,
+                    "filename": staged_filename,
+                    "staged_at": staged_at,
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+    envelope["staged"] = True
+    return envelope
+
+
+def _read_watch_folders(root: Path) -> list[dict[str, Any]]:
+    import tomllib
+
+    repo_root = _resolve_repo_root(root)
+    bootstrap_path = repo_root / "agent-bootstrap.toml"
+    if not bootstrap_path.exists():
+        return []
+    try:
+        raw = tomllib.loads(bootstrap_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ValidationError(f"Could not load agent-bootstrap.toml: {exc}") from exc
+    watch_folders = raw.get("watch_folders", [])
+    if watch_folders is None:
+        return []
+    if not isinstance(watch_folders, list):
+        raise ValidationError("watch_folders must be an array of tables")
+    normalized: list[dict[str, Any]] = []
+    for item in watch_folders:
+        if not isinstance(item, dict):
+            raise ValidationError("watch_folders entries must be mappings")
+        normalized.append(item)
+    return normalized
+
+
+def _extract_pdf_text(abs_path: Path) -> tuple[str | None, str | None]:
+    try:
+        from pypdf import PdfReader  # type: ignore[import-not-found]
+
+        reader = PdfReader(str(abs_path))
+        text = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+        if not text:
+            return None, "PDF extraction produced no text"
+        return text, None
+    except ModuleNotFoundError:
+        pass
+    except Exception as exc:  # noqa: BLE001
+        return None, f"PDF extraction failed: {exc}"
+
+    try:
+        from pdfminer.high_level import extract_text  # type: ignore[import-not-found]
+
+        text = extract_text(str(abs_path)).strip()
+        if not text:
+            return None, "PDF extraction produced no text"
+        return text, None
+    except ModuleNotFoundError:
+        return None, "PDF extraction unavailable; install pdfminer.six or pypdf"
+    except Exception as exc:  # noqa: BLE001
+        return None, f"PDF extraction failed: {exc}"
+
+
+def scan_drop_zone(
+    *,
+    root: Path,
+    project_filter: str | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """Scan configured watch folders and stage new content into project inboxes."""
+    repo_root = _resolve_repo_root(root)
+    watch_folders = _read_watch_folders(root)
+    if project_filter is not None:
+        project_filter = validate_slug(project_filter, field_name="project_filter")
+
+    items: list[dict[str, Any]] = []
+    folders_scanned = 0
+    files_found = 0
+    staged_count = 0
+    duplicate_count = 0
+    error_count = 0
+
+    for entry in watch_folders:
+        target_project = validate_slug(
+            str(entry.get("target_project", "")), field_name="target_project"
+        )
+        if project_filter is not None and target_project != project_filter:
+            continue
+        raw_path = str(entry.get("path", "")).strip()
+        if not raw_path:
+            error_count += 1
+            items.append(
+                {
+                    "filename": "",
+                    "target_project": target_project,
+                    "outcome": "error",
+                    "hash": None,
+                    "error_message": "watch_folders entry is missing path",
+                }
+            )
+            continue
+        folder_path = Path(raw_path)
+        if not folder_path.is_absolute():
+            folder_path = (repo_root / folder_path).resolve()
+        else:
+            folder_path = folder_path.resolve()
+
+        try:
+            folder_path.relative_to(repo_root)
+            inside_repo = True
+        except ValueError:
+            inside_repo = False
+        if inside_repo:
+            error_count += 1
+            items.append(
+                {
+                    "filename": folder_path.name,
+                    "target_project": target_project,
+                    "outcome": "error",
+                    "hash": None,
+                    "error_message": "watch_folder cannot point inside the Engram repository",
+                }
+            )
+            continue
+
+        folders_scanned += 1
+        if not folder_path.exists() or not folder_path.is_dir():
+            error_count += 1
+            items.append(
+                {
+                    "filename": folder_path.name,
+                    "target_project": target_project,
+                    "outcome": "error",
+                    "hash": None,
+                    "error_message": f"watch_folder not found: {folder_path}",
+                }
+            )
+            continue
+
+        source_label = str(entry.get("source_label", "")).strip() or folder_path.name
+        recursive = bool(entry.get("recursive", False))
+        extensions = entry.get("extensions") or [".md", ".txt", ".pdf"]
+        if not isinstance(extensions, list):
+            raise ValidationError("watch_folders.extensions must be a list when provided")
+        normalized_extensions = {str(ext).lower() for ext in extensions}
+        iterator = folder_path.rglob("*") if recursive else folder_path.glob("*")
+
+        for abs_file in sorted(path for path in iterator if path.is_file()):
+            if abs_file.suffix.lower() not in normalized_extensions:
+                continue
+            files_found += 1
+            try:
+                if abs_file.suffix.lower() == ".pdf":
+                    content, error_message = _extract_pdf_text(abs_file)
+                    if content is None:
+                        error_count += 1
+                        items.append(
+                            {
+                                "filename": abs_file.name,
+                                "target_project": target_project,
+                                "outcome": "error",
+                                "hash": None,
+                                "error_message": error_message,
+                            }
+                        )
+                        continue
+                    stage_filename = f"{abs_file.stem}.md"
+                else:
+                    content = abs_file.read_text(encoding="utf-8", errors="replace")
+                    stage_filename = abs_file.name
+
+                envelope = stage_external_file(
+                    target_project,
+                    stage_filename,
+                    content,
+                    abs_file.resolve().as_uri(),
+                    date_type.fromtimestamp(abs_file.stat().st_mtime).isoformat(),
+                    source_label,
+                    root=root,
+                    session_id=session_id,
+                    dry_run=False,
+                )
+                staged_count += 1
+                items.append(
+                    {
+                        "filename": abs_file.name,
+                        "target_project": target_project,
+                        "outcome": "staged",
+                        "hash": envelope["content_hash"],
+                        "error_message": None,
+                    }
+                )
+            except DuplicateContentError as exc:
+                duplicate_count += 1
+                items.append(
+                    {
+                        "filename": abs_file.name,
+                        "target_project": target_project,
+                        "outcome": "duplicate",
+                        "hash": exc.content_hash or None,
+                        "error_message": exc.existing_filename or str(exc),
+                    }
+                )
+            except (OSError, ValidationError, NotFoundError) as exc:
+                error_count += 1
+                items.append(
+                    {
+                        "filename": abs_file.name,
+                        "target_project": target_project,
+                        "outcome": "error",
+                        "hash": None,
+                        "error_message": str(exc),
+                    }
+                )
+
+    return {
+        "folders_scanned": folders_scanned,
+        "files_found": files_found,
+        "staged_count": staged_count,
+        "duplicate_count": duplicate_count,
+        "error_count": error_count,
+        "items": items,
     }
 
 

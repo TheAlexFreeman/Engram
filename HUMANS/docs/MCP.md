@@ -258,6 +258,8 @@ These are the normal write path. Each tool represents a bounded operation with b
 | `memory_record_trace` | Emit a trace span to the session's TRACES.jsonl file. Non-blocking; always returns span_id on success. |
 | `memory_query_traces` | Query trace spans across sessions or date ranges. Returns spans (newest-first) with aggregates. |
 | `memory_plan_briefing` | Return a single-call briefing packet for a requested or next-actionable phase, including source excerpts, failures, recent traces, approval state, and context-budget metadata. |
+| `memory_stage_external` | Stage externally fetched content into a project `IN/` folder with governed frontmatter, URL sanitization, and per-project SHA-256 deduplication. |
+| `memory_scan_drop_zone` | Scan configured `[[watch_folders]]` entries from `agent-bootstrap.toml` and bulk-stage new `.md`, `.txt`, or `.pdf` content into project inboxes. |
 | `memory_run_eval` | Run declarative offline eval scenarios from `memory/skills/eval-scenarios/` and record compact eval summary spans. |
 | `memory_eval_report` | Read historical eval runs from trace spans and aggregate summary metrics and trends. |
 | `memory_register_tool` | Register or update an external tool definition in the tool registry. Returns action ("created"\|"updated") and registry_file path. |
@@ -337,6 +339,30 @@ Returns `{spans, total_matched, aggregates: {total_duration_ms, by_type, by_stat
 | `include_approval` | bool | Include approval document state when applicable. |
 
 Returns a single packet with `{plan_id, project_id, phase_id, phase, source_contents, failure_summary, recent_traces, approval_status, context_budget}`. When no actionable phase exists and `phase_id` is omitted, the tool returns a read-only plan summary with progress instead. If `MEMORY_SESSION_ID` is present, the tool records a `tool_call` trace span named `memory_plan_briefing`.
+
+**`memory_stage_external` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `project` | str | Target project slug. Content is staged under `memory/working/projects/{project}/IN/`. |
+| `filename` | str | Basename for the staged file. Path separators and traversal segments are rejected. |
+| `content` | str | Non-empty UTF-8 text content to persist. Limited to 500,000 characters. |
+| `source_url` | str | Original external URL. Query strings and fragments are stripped before persistence. |
+| `fetched_date` | str | Source fetch date in `YYYY-MM-DD` format. |
+| `source_label` | str | Human-readable source label written into frontmatter. |
+| `dry_run` | bool | When true, return the preview envelope without writing the file. |
+
+Returns `{action, project, target_path, frontmatter_preview, content_chars, content_hash, duplicate, staged}`. The tool always computes a SHA-256 content hash and checks `memory/working/projects/{project}/.staged-hashes.jsonl` before writing; duplicate content raises `DuplicateContentError`. Successful writes are direct project-inbox writes, not auto-commit operations. When `MEMORY_SESSION_ID` is present, the tool records a trace span for self-instrumentation.
+
+**`memory_scan_drop_zone` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `project_filter` | str \| null | Optional project slug; when set, scan only matching `[[watch_folders]]` entries. |
+
+The tool reads `[[watch_folders]]` from `agent-bootstrap.toml`. Supported keys per entry are `path`, `target_project`, `source_label`, `extensions`, and `recursive`. Relative paths resolve from the repo root. Watch folders inside the Engram repository are rejected so the scanner cannot ingest tracked repo files back into itself.
+
+Returns `{folders_scanned, files_found, staged_count, duplicate_count, error_count, items}`. Each `items` entry includes `{filename, target_project, outcome, hash, error_message}` where `outcome` is `staged`, `duplicate`, or `error`. `.pdf` files are extracted with `pypdf` first and `pdfminer.six` second; if neither library is available, the tool records a per-file error and continues scanning the remaining inputs. When `MEMORY_SESSION_ID` is present, the tool records a trace span for self-instrumentation.
 
 **`memory_run_eval` parameters and response**
 

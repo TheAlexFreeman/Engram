@@ -46,6 +46,8 @@ from ...plan_utils import (
     save_approval,
     save_plan,
     save_registry,
+    scan_drop_zone,
+    stage_external_file,
     trace_file_path,
     unresolved_blockers,
     verify_postconditions,
@@ -1632,6 +1634,92 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         return _json.dumps(result, indent=2)
 
     @mcp.tool(
+        name="memory_stage_external",
+        annotations=_tool_annotations(
+            title="Stage External Content",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_stage_external(
+        project: str,
+        filename: str,
+        content: str,
+        source_url: str,
+        fetched_date: str,
+        source_label: str,
+        dry_run: bool = False,
+    ) -> str:
+        """Stage external content into a project's IN/ directory."""
+        import json as _json
+        import os as _os
+
+        root = get_root()
+        env_session_id = _os.environ.get("MEMORY_SESSION_ID", "").strip() or None
+        result = stage_external_file(
+            project,
+            filename,
+            content,
+            source_url,
+            fetched_date,
+            source_label,
+            root=root,
+            session_id=env_session_id,
+            dry_run=bool(dry_run),
+        )
+        if env_session_id is not None:
+            record_trace(
+                root,
+                env_session_id,
+                span_type="tool_call",
+                name="memory_stage_external",
+                status="ok",
+                metadata={
+                    "project_id": result.get("project"),
+                    "target_path": result.get("target_path"),
+                    "dry_run": bool(dry_run),
+                    "staged": result.get("staged", False),
+                },
+            )
+        return _json.dumps(result, indent=2)
+
+    @mcp.tool(
+        name="memory_scan_drop_zone",
+        annotations=_tool_annotations(
+            title="Scan Drop Zone",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_scan_drop_zone(project_filter: str | None = None) -> str:
+        """Scan configured watch folders and stage newly discovered content."""
+        import json as _json
+        import os as _os
+
+        root = get_root()
+        env_session_id = _os.environ.get("MEMORY_SESSION_ID", "").strip() or None
+        result = scan_drop_zone(root=root, project_filter=project_filter, session_id=env_session_id)
+        if env_session_id is not None:
+            record_trace(
+                root,
+                env_session_id,
+                span_type="tool_call",
+                name="memory_scan_drop_zone",
+                status="ok",
+                metadata={
+                    "project_filter": project_filter,
+                    "staged_count": result.get("staged_count", 0),
+                    "duplicate_count": result.get("duplicate_count", 0),
+                    "error_count": result.get("error_count", 0),
+                },
+            )
+        return _json.dumps(result, indent=2)
+
+    @mcp.tool(
         name="memory_run_eval",
         annotations=_tool_annotations(
             title="Run Eval Scenarios",
@@ -2130,6 +2218,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         "memory_plan_create": memory_plan_create,
         "memory_plan_execute": memory_plan_execute,
         "memory_plan_briefing": memory_plan_briefing,
+        "memory_stage_external": memory_stage_external,
+        "memory_scan_drop_zone": memory_scan_drop_zone,
         "memory_plan_review": memory_plan_review,
         "memory_list_plans": memory_list_plans,
         "memory_plan_verify": memory_plan_verify,

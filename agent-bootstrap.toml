@@ -17,6 +17,16 @@ ultimate_authority_policy = "on_demand_only"
 # so startup tooling can surface host-repo git state alongside the memory worktree.
 # host_repo_root = "C:/path/to/host/repo"
 
+# Optional external-ingestion scan config. Each watch folder is scanned by
+# memory_scan_drop_zone and staged into memory/working/projects/{target_project}/IN/
+# with source=external-research and trust=low.
+# [[watch_folders]]
+# path = "C:/path/to/research-inbox"
+# target_project = "harness-expansion"
+# source_label = "local-research-inbox"
+# extensions = [".md", ".txt", ".pdf"]
+# recursive = false
+
 [mode_detection]
 automation = "scheduled_or_recurring_run"
 periodic_review = "explicit_or_scheduled_governance_review"

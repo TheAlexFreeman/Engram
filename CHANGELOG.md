@@ -18,6 +18,19 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-27] Phase 9: External ingestion affordances
+
+**Changed:** Added the Phase 9 external-intake layer for plan execution and project research staging.
+
+- **`SourceSpec` and `phase_payload()` in `core/tools/agent_memory_mcp/plan_utils.py`** — `SourceSpec` now supports `mcp_server`, `mcp_tool`, and `mcp_arguments` for `type: mcp` sources. `phase_payload()` now emits `fetch_directives` and `mcp_calls` for missing external and MCP-backed sources so agents can fetch prerequisite context before starting work.
+- **`stage_external_file()` and `scan_drop_zone()`** — new helpers in `plan_utils.py`. `stage_external_file()` writes project-local inbox files under `memory/working/projects/{project}/IN/` with enforced `source: external-research`, `trust: low`, sanitized `origin_url`, and a per-project `.staged-hashes.jsonl` SHA-256 registry. `scan_drop_zone()` reads `[[watch_folders]]` from `agent-bootstrap.toml`, stages supported `.md`, `.txt`, and `.pdf` files, and returns a structured scan report with staged, duplicate, and error counts.
+- **`memory_stage_external` / `memory_scan_drop_zone`** — new MCP tools in `plan_tools.py`. `memory_stage_external` supports preview-first via `dry_run`, while `memory_scan_drop_zone` bulk-processes configured watch folders and degrades gracefully when PDF extraction libraries are unavailable.
+- **Tests and docs** — expanded schema/helper coverage and MCP integration coverage for both new tools, finalized the Phase 9 project design docs, documented the tools in `HUMANS/docs/MCP.md`, added the ingestion workflow to `HUMANS/docs/INTEGRATIONS.md`, and registered the new capabilities in `HUMANS/tooling/agent-memory-capabilities.toml`.
+
+**Reasoning:** Earlier harness phases made sources and phase context first-class, but the system still lacked a governed path for turning fetched external material into project-local artifacts. Phase 9 closes that gap by making external intake explicit, deduplicated, and discoverable in both the plan payload contract and the MCP tool surface.
+
+**Approved by:** user
+
 ## [2026-03-27] Phase 8: Context assembly briefing packet
 
 **Changed:** Added the Phase 8 context-assembly layer for plan execution.
