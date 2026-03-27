@@ -20,7 +20,7 @@ def extract_inline_script(html_text: str) -> str:
     end = html_text.find("</script>", start)
     if end < 0:
         raise AssertionError("Expected closing </script> for inline block")
-    return html_text[start + len(marker):end]
+    return html_text[start + len(marker) : end]
 
 
 def extract_js_function(source: str, function_name: str) -> str:
@@ -41,7 +41,7 @@ def extract_js_function(source: str, function_name: str) -> str:
         elif ch == "}":
             depth -= 1
             if depth == 0:
-                return source[start: idx + 1]
+                return source[start : idx + 1]
 
     raise AssertionError(f"Unbalanced braces while parsing function {function_name}")
 
@@ -113,7 +113,9 @@ class GraphLifecycleHardeningTests(unittest.TestCase):
         self.assertIn("var previewRequestToken = 0;", self.text)
         self.assertIn("var connectionsRequestToken = 0;", self.text)
         self.assertIn("requestToken !== previewRequestToken", self.text)
-        self.assertIn("requestToken !== connectionsRequestToken || previewNodeId !== nodeId", self.text)
+        self.assertIn(
+            "requestToken !== connectionsRequestToken || previewNodeId !== nodeId", self.text
+        )
 
 
 class ProjectsHardeningTests(unittest.TestCase):
@@ -127,8 +129,12 @@ class ProjectsHardeningTests(unittest.TestCase):
         self.assertIn("var yamlApi = window.jsyaml;", self.script_text)
         self.assertIn("function sanitizeSvgId(value, fallback)", self.script_text)
         self.assertIn("var markerSuffix = sanitizeSvgId", self.script_text)
-        self.assertIn("var implicitMarkerId = 'fc-arrow-implicit-' + markerSuffix;", self.script_text)
-        self.assertIn("var explicitMarkerId = 'fc-arrow-explicit-' + markerSuffix;", self.script_text)
+        self.assertIn(
+            "var implicitMarkerId = 'fc-arrow-implicit-' + markerSuffix;", self.script_text
+        )
+        self.assertIn(
+            "var explicitMarkerId = 'fc-arrow-explicit-' + markerSuffix;", self.script_text
+        )
 
     def test_projects_parse_plan_normalizes_to_strict_model(self) -> None:
         function_names = [
@@ -144,7 +150,9 @@ class ProjectsHardeningTests(unittest.TestCase):
             "normalizePlanModel",
             "parsePlanYaml",
         ]
-        function_src = "\n\n".join(extract_js_function(self.script_text, name) for name in function_names)
+        function_src = "\n\n".join(
+            extract_js_function(self.script_text, name) for name in function_names
+        )
 
         fixture = {
             "id": "quoted-plan",
@@ -157,14 +165,22 @@ class ProjectsHardeningTests(unittest.TestCase):
                         "title": "Collect data",
                         "status": "completed",
                         "blockers": ["seed"],
-                        "changes": [{"path": "core/a.md", "action": "edit", "description": "capture baseline"}],
+                        "changes": [
+                            {
+                                "path": "core/a.md",
+                                "action": "edit",
+                                "description": "capture baseline",
+                            }
+                        ],
                     },
                     {
                         "id": "phase-2",
                         "title": "Ship patch",
                         "status": "in-progress",
                         "blockers": ["phase-1", "other-plan:gate"],
-                        "changes": [{"path": "core/b.md", "action": "create", "description": "apply fix"}],
+                        "changes": [
+                            {"path": "core/b.md", "action": "create", "description": "apply fix"}
+                        ],
                     },
                 ]
             },

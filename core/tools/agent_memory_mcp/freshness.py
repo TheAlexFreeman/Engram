@@ -11,7 +11,6 @@ import math
 from datetime import date, datetime
 from typing import Any
 
-
 # Default half-life in days — after this many days the freshness score
 # drops to 0.5.  Matches the medium-trust flagging threshold in
 # core/INIT.md (Exploration stage).

@@ -13,7 +13,6 @@ import math
 import re
 import sqlite3
 from collections import Counter, defaultdict
-from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 

@@ -1781,12 +1781,6 @@ owns_frontmatter = []
 owns_summaries = []
 owns_access_logs = []
 owns_review_queue = []
-result_fields = [
-  "indexed",
-  "skipped",
-  "removed",
-  "errors",
-  "total_chunks",
-]
+result_fields = ["indexed", "skipped", "removed", "errors", "total_chunks"]
 fallback_tools = []
 error_kinds = ["ValidationError"]

@@ -9,14 +9,10 @@ is not installed.
 from __future__ import annotations
 
 import json
-import math
-import os
 import sqlite3
 import sys
 import textwrap
-from datetime import date, timedelta
 from pathlib import Path
-from unittest import mock
 
 import pytest
 
@@ -24,11 +20,9 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from core.tools.agent_memory_mcp.tools.semantic.search_tools import (
-    DEFAULT_MODEL,
-    DEFAULT_SCOPES,
-    EmbeddingIndex,
+from core.tools.agent_memory_mcp.tools.semantic.search_tools import (  # noqa: E402
     _BM25,
+    EmbeddingIndex,
     _check_embedding_deps,
     _load_helpfulness_map,
     _tokenize,
@@ -519,7 +513,7 @@ class TestSemanticSearchTool:
         )
         # Philosophy has higher helpfulness (0.85) vs cooking (0.3)
         lines = result.split("\n")
-        first_file_line = next((l for l in lines if l.startswith("**1.")), "")
+        first_file_line = next((ln for ln in lines if ln.startswith("**1.")), "")
         assert "philosophy.md" in first_file_line
 
     @pytest.mark.asyncio

@@ -167,7 +167,9 @@ class MemoryMCPTests(unittest.TestCase):
 
     def test_memory_validate_finds_validator_from_content_prefix_root(self) -> None:
         output = asyncio.run(self.module.memory_validate())
-        self.assertNotEqual(output, "Validator not found at HUMANS/tooling/scripts/validate_memory_repo.py")
+        self.assertNotEqual(
+            output, "Validator not found at HUMANS/tooling/scripts/validate_memory_repo.py"
+        )
 
     def test_readme_profile_contract_matches_advisory_runtime(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")

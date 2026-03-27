@@ -3745,7 +3745,8 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         # --- Freshness re-ranking -------------------------------------------
         if freshness_weight > 0 and file_groups:
-            from ..freshness import effective_date, freshness_score as _fs
+            from ..freshness import effective_date
+            from ..freshness import freshness_score as _fs
             from ..frontmatter_utils import read_with_frontmatter
 
             max_matches = max(mc for _, mc, _, _ in file_groups)

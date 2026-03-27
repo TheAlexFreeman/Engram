@@ -1705,7 +1705,9 @@ declared_gaps = []
         self.assertEqual(payload["contract_versions"]["capabilities"], 1)
         self.assertEqual(payload["summary"]["declared_total_tools"], 4)
         self.assertGreaterEqual(payload["summary"]["total_tools"], 4)
-        self.assertEqual(payload["summary"]["runtime_total_tools"], payload["summary"]["total_tools"])
+        self.assertEqual(
+            payload["summary"]["runtime_total_tools"], payload["summary"]["total_tools"]
+        )
         self.assertEqual(payload["summary"]["read_tools"], 2)
         self.assertEqual(payload["summary"]["semantic_tools"], 1)
 
@@ -6136,7 +6138,9 @@ current_focus: Example project.
         self.assertEqual(payload["upcoming_medium"], [])
         self.assertEqual(payload["unevaluable"], [])
 
-    def test_memory_audit_trust_handles_high_trust_without_medium_bucket_contamination(self) -> None:
+    def test_memory_audit_trust_handles_high_trust_without_medium_bucket_contamination(
+        self,
+    ) -> None:
         repo_root = self._init_repo(
             {
                 "core/INIT.md": (
