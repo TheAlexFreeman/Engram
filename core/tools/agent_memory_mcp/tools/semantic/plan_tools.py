@@ -380,9 +380,15 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         session_id: str | None = None,
         commit_sha: str | None = None,
         review: dict[str, Any] | None = None,
+        verify: bool = False,
         preview: bool = False,
     ) -> str:
-        """Inspect, start, block, or complete a structured plan phase."""
+        """Inspect, start, block, or complete a structured plan phase.
+
+        When action="complete" and verify=True, postconditions are evaluated
+        before completion. If any fail or error, the phase stays in-progress
+        and verification_results are returned instead.
+        """
         from ...errors import AlreadyDoneError, ValidationError
         from ...frontmatter_utils import today_str
         from ...models import MemoryWriteResult
@@ -578,6 +584,24 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             )
         if phase.status == "completed":
             raise AlreadyDoneError(f"Phase '{phase.id}' is already complete")
+
+        # Optional inline verification before completing
+        if verify:
+            verification = verify_postconditions(plan, phase, root)
+            if not verification["all_passed"]:
+                verification_state: dict[str, Any] = {
+                    "status": "verification_failed",
+                    "plan_status": plan.status,
+                    "phase_status": phase.status,
+                    "phase_id": phase.id,
+                    **verification,
+                }
+                return json.dumps(verification_state, indent=2)
+            # Verification passed — include results in completion response
+            warnings.append(
+                f"Verification passed: {verification['summary']['passed']} passed, "
+                f"{verification['summary']['skipped']} skipped"
+            )
 
         phase.status = "completed"
         phase.commit = commit_sha.strip()
