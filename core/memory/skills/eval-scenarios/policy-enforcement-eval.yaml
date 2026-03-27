@@ -1,0 +1,42 @@
+id: policy-enforcement-eval
+description: Verify tool policy enforcement blocks unapproved tools and allows approved ones.
+tags:
+  - phase-11
+  - policy
+setup:
+  plan:
+    id: policy-eval
+    project: eval-suite
+    phases:
+      - id: phase-one
+        title: Tool-gated phase
+        changes:
+          - path: memory/working/notes/policy.txt
+            action: create
+            description: Policy test output
+  registry_tools:
+    - name: restricted-tool
+      description: A tool requiring approval
+      provider: test-provider
+      approval_required: true
+steps:
+  - action: start_phase
+    phase_id: phase-one
+    expect:
+      phase_status: in-progress
+  - action: create_file
+    path: memory/working/notes/policy.txt
+    content: policy check passed
+  - action: complete_phase
+    phase_id: phase-one
+    commit_sha: pol789
+    expect:
+      phase_status: completed
+assertions:
+  - type: plan_status
+    expected: completed
+  - type: file_exists
+    path: memory/working/notes/policy.txt
+  - type: file_contains
+    path: memory/working/notes/policy.txt
+    pattern: policy check passed

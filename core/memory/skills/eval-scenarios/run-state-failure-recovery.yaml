@@ -1,0 +1,46 @@
+id: run-state-failure-recovery
+description: Verify run state tracks failures and recovers on retry.
+tags:
+  - phase-10
+  - run-state
+  - failure
+setup:
+  plan:
+    id: run-state-failure-eval
+    project: eval-suite
+    phases:
+      - id: phase-one
+        title: Fragile phase
+        changes:
+          - path: memory/working/notes/fragile.txt
+            action: create
+            description: Fragile output
+steps:
+  - action: start_phase
+    phase_id: phase-one
+    expect:
+      phase_status: in-progress
+  - action: record_failure
+    phase_id: phase-one
+    reason: "Simulated transient failure"
+    expect:
+      attempt_number: 1
+  - action: create_file
+    path: memory/working/notes/fragile.txt
+    content: recovered
+  - action: complete_phase
+    phase_id: phase-one
+    commit_sha: def456
+    expect:
+      phase_status: completed
+assertions:
+  - type: plan_status
+    expected: completed
+  - type: phase_status
+    phase_id: phase-one
+    expected: completed
+  - type: metric
+    name: retry_rate
+    min: 0.0
+  - type: file_exists
+    path: memory/working/notes/fragile.txt

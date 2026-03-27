@@ -671,6 +671,7 @@ core/memory/working/projects/harness-expansion/IN/deep-research-ai-agent-harness
 core/memory/working/projects/harness-expansion/IN/phase-1-schema-design.md
 core/memory/working/projects/harness-expansion/IN/phase-10-run-state-design.md
 core/memory/working/projects/harness-expansion/IN/phase-11-tool-policy-enforcement-design.md
+core/memory/working/projects/harness-expansion/IN/phase-12-runtime-guardrails-design.md
 core/memory/working/projects/harness-expansion/IN/phase-2-verification-design.md
 core/memory/working/projects/harness-expansion/IN/phase-3-observability-design.md
 core/memory/working/projects/harness-expansion/IN/phase-4-tool-registry-design.md
@@ -712,6 +713,7 @@ core/tools/agent_memory_mcp/eval_utils.py
 core/tools/agent_memory_mcp/freshness.py
 core/tools/agent_memory_mcp/frontmatter_utils.py
 core/tools/agent_memory_mcp/git_repo.py
+core/tools/agent_memory_mcp/guard_pipeline.py
 core/tools/agent_memory_mcp/models.py
 core/tools/agent_memory_mcp/path_policy.py
 core/tools/agent_memory_mcp/plan_utils.py
@@ -739,6 +741,7 @@ core/tools/tests/test_agent_memory_mcp_write_tools.py
 core/tools/tests/test_core_boundary.py
 core/tools/tests/test_eval_utils.py
 core/tools/tests/test_graph_tools.py
+core/tools/tests/test_guard_pipeline.py
 core/tools/tests/test_link_scoring.py
 core/tools/tests/test_link_tools_engine.py
 core/tools/tests/test_memory_mcp.py

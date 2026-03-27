@@ -18,6 +18,14 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-27] Eval hardening (Phase 13)
+
+**Changed:** Added isolated eval execution (`run_scenario(isolated=True)`), pytest CI runner (`test_eval_scenarios.py` with `@pytest.mark.eval`), result history tracking (`append_eval_history`, `load_eval_history` with `eval-history.jsonl`), and regression detection (`compare_eval_runs()` with 10% threshold). Created 4 new eval scenarios for Phases 10-12: run state checkpoint/resume, run state failure recovery, guard pipeline blocking, and policy enforcement. Updated seed scenario tests. Updated DESIGN.md.
+
+**Reasoning:** The eval framework (Phase 7) executed scenarios directly with no isolation, CI integration, or regression detection. The deep research report stresses that "eval value compounds over the lifecycle." Hardening makes evals reliable enough for CI pipelines and enables catching regressions between runs.
+
+**Approved by:** user
+
 ## [2026-03-27] Runtime guard pipeline (Phase 12)
 
 **Changed:** Added `guard_pipeline.py` module with `Guard` abstract base class, `GuardPipeline`, `GuardContext`, `GuardResult`, and `PipelineResult`. Four built-in guards: `PathGuard` (wraps existing path_policy.py), `ContentSizeGuard` (100 KB default, configurable via `ENGRAM_MAX_FILE_SIZE`), `FrontmatterGuard` (validates source/trust enums), `TrustBoundaryGuard` (requires approval for agent-assigned trust:high). Pipeline short-circuits on block, accumulates warnings, emits `guardrail_check` trace spans. `default_pipeline()` convenience constructor. 28 tests in `test_guard_pipeline.py`. Updated DESIGN.md.

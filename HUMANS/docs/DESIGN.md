@@ -396,6 +396,20 @@ The guard pipeline (`guard_pipeline.py`) provides a centralized, extensible pre-
 
 **Extensibility.** New guards are added by subclassing `Guard` and registering in the pipeline. `default_pipeline()` builds the standard guard set; callers can customize the guard list.
 
+## Part VIII: Eval Hardening
+
+Phase 7 delivered the eval framework (schema, runner, metrics, MCP tools). Phase 13 hardens it for production use.
+
+**Isolated execution.** `run_scenario()` accepts `isolated=True` to execute in a fresh temporary directory. `run_suite()` already isolates each scenario. Artifacts never persist in the main repo.
+
+**CI integration.** `test_eval_scenarios.py` discovers all YAML scenarios in `memory/skills/eval-scenarios/` and runs each as a parameterized pytest case. `pytest -m eval` runs eval scenarios separately from unit tests.
+
+**Result history.** `append_eval_history()` persists scenario results to `eval-history.jsonl`. `load_eval_history()` reads them back for trend analysis.
+
+**Regression detection.** `compare_eval_runs()` compares two result sets. Status regressions (pass to fail) are hard failures. Metric degradation beyond 10% triggers warnings. This enables CI pipelines to catch regressions before merge.
+
+**Expanded scenarios.** Nine scenarios covering: basic lifecycle, approval workflows, verification retries, trace recording, tool policy integration, run state checkpoint/resume, run state failure recovery, guard pipeline blocking, and policy enforcement.
+
 ---
 
 ## Summary

@@ -407,16 +407,18 @@ class TestSeedEvalScenarios(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         scenarios = load_suite(eval_scenarios_dir(root))
 
-        self.assertEqual(
-            {scenario.id for scenario in scenarios},
-            {
-                "approval-pause-resume",
-                "basic-plan-lifecycle",
-                "tool-policy-integration",
-                "trace-recording-validation",
-                "verification-failure-retry",
-            },
-        )
+        expected_ids = {
+            "approval-pause-resume",
+            "basic-plan-lifecycle",
+            "guard-pipeline-blocking",
+            "policy-enforcement-eval",
+            "run-state-checkpoint-resume",
+            "run-state-failure-recovery",
+            "tool-policy-integration",
+            "trace-recording-validation",
+            "verification-failure-retry",
+        }
+        self.assertEqual({scenario.id for scenario in scenarios}, expected_ids)
         approval_only = select_scenarios(root, tag="approval")
         self.assertEqual([scenario.id for scenario in approval_only], ["approval-pause-resume"])
 
@@ -431,7 +433,7 @@ class TestSeedEvalScenarios(unittest.TestCase):
                 "memory/activity/2026/03/27/chat-110",
             )
 
-        self.assertEqual(len(results), 5)
+        self.assertEqual(len(results), 9)
         self.assertTrue(all(result.status == "pass" for result in results))
 
 
