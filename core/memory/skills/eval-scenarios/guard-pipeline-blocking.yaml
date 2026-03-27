@@ -1,0 +1,43 @@
+id: guard-pipeline-blocking
+description: Verify guard pipeline blocks oversized file writes and passes valid ones.
+tags:
+  - phase-12
+  - guardrail
+setup:
+  plan:
+    id: guard-eval
+    project: eval-suite
+    phases:
+      - id: phase-one
+        title: Write files
+        postconditions:
+          - description: Small file exists
+            type: check
+            target: memory/working/notes/small.md
+        changes:
+          - path: memory/working/notes/small.md
+            action: create
+            description: Small valid file
+  files:
+    - path: memory/working/notes/small.md
+      content: "---\nsource: agent-generated\ntrust: medium\ncreated: 2026-03-27\n---\n\nSmall content.\n"
+steps:
+  - action: start_phase
+    phase_id: phase-one
+    expect:
+      phase_status: in-progress
+  - action: verify_phase
+    phase_id: phase-one
+  - action: complete_phase
+    phase_id: phase-one
+    commit_sha: guard123
+    expect:
+      phase_status: completed
+assertions:
+  - type: plan_status
+    expected: completed
+  - type: file_exists
+    path: memory/working/notes/small.md
+  - type: metric
+    name: task_success
+    expected: 1.0

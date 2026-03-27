@@ -1,0 +1,355 @@
+"""Centralized pre-write guard pipeline.
+
+Provides a pluggable validation layer that runs before write operations.
+Each ``Guard`` subclass implements a ``check()`` method that inspects a
+``GuardContext`` and returns a ``GuardResult``.  The ``GuardPipeline``
+executes guards in order, short-circuiting on the first ``block`` result.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from .errors import MemoryPermissionError, ValidationError
+from .path_policy import (
+    validate_raw_move_destination,
+    validate_raw_mutation_source,
+    validate_raw_write_target,
+)
+
+_TRUST_LEVELS = {"high", "medium", "low"}
+_SOURCE_TYPES = {
+    "user-stated",
+    "agent-inferred",
+    "agent-generated",
+    "external-research",
+    "template",
+    "skill-discovery",
+}
+_DEFAULT_MAX_FILE_BYTES = 100_000
+_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+
+
+@dataclass(slots=True)
+class GuardContext:
+    """Context for a guard check."""
+
+    path: str
+    operation: str
+    root: Path
+    content: str | None = None
+    session_id: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class GuardResult:
+    """Result of a single guard check."""
+
+    status: str
+    guard_name: str
+    message: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "guard_name": self.guard_name,
+            "message": self.message,
+            "metadata": self.metadata,
+        }
+
+
+@dataclass(slots=True)
+class PipelineResult:
+    """Aggregated result of running all guards."""
+
+    allowed: bool
+    results: list[GuardResult]
+    warnings: list[str]
+    blocked_by: str | None = None
+    duration_ms: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "allowed": self.allowed,
+            "results": [r.to_dict() for r in self.results],
+            "warnings": list(self.warnings),
+            "blocked_by": self.blocked_by,
+            "duration_ms": self.duration_ms,
+        }
+
+
+class Guard(ABC):
+    """Abstract base class for pre-write guards."""
+
+    name: str = "guard"
+
+    @abstractmethod
+    def check(self, context: GuardContext) -> GuardResult:
+        """Evaluate the guard and return a result."""
+
+
+class PathGuard(Guard):
+    """Wraps existing path_policy.py validation."""
+
+    name = "PathGuard"
+
+    def __init__(self, repo: Any) -> None:
+        self._repo = repo
+
+    def check(self, context: GuardContext) -> GuardResult:
+        try:
+            if context.operation == "write":
+                validate_raw_write_target(self._repo, context.path)
+            elif context.operation == "delete":
+                validate_raw_mutation_source(self._repo, context.path, operation="delete")
+            elif context.operation == "move":
+                validate_raw_move_destination(self._repo, context.path)
+        except (MemoryPermissionError, ValidationError) as exc:
+            return GuardResult(
+                status="block",
+                guard_name=self.name,
+                message=str(exc),
+            )
+        return GuardResult(status="pass", guard_name=self.name, message="")
+
+
+class ContentSizeGuard(Guard):
+    """Blocks writes exceeding a configurable file size threshold."""
+
+    name = "ContentSizeGuard"
+
+    def check(self, context: GuardContext) -> GuardResult:
+        if context.content is None:
+            return GuardResult(status="pass", guard_name=self.name, message="")
+
+        max_bytes = _DEFAULT_MAX_FILE_BYTES
+        env_max = os.environ.get("ENGRAM_MAX_FILE_SIZE", "").strip()
+        if env_max:
+            try:
+                max_bytes = int(env_max)
+            except ValueError:
+                pass
+
+        size = len(context.content.encode("utf-8"))
+        if size > max_bytes:
+            return GuardResult(
+                status="block",
+                guard_name=self.name,
+                message=(f"Content size {size:,} bytes exceeds limit of {max_bytes:,} bytes"),
+                metadata={"size": size, "limit": max_bytes},
+            )
+        return GuardResult(status="pass", guard_name=self.name, message="")
+
+
+class FrontmatterGuard(Guard):
+    """Validates YAML frontmatter schema on markdown file writes."""
+
+    name = "FrontmatterGuard"
+
+    def check(self, context: GuardContext) -> GuardResult:
+        if context.content is None:
+            return GuardResult(status="pass", guard_name=self.name, message="")
+        if not context.path.endswith(".md"):
+            return GuardResult(status="pass", guard_name=self.name, message="")
+
+        match = _FRONTMATTER_RE.match(context.content)
+        if match is None:
+            return GuardResult(status="pass", guard_name=self.name, message="")
+
+        import yaml
+
+        try:
+            fm = yaml.safe_load(match.group(1))
+        except yaml.YAMLError:
+            return GuardResult(
+                status="warn",
+                guard_name=self.name,
+                message="Frontmatter YAML is malformed",
+            )
+        if not isinstance(fm, dict):
+            return GuardResult(status="pass", guard_name=self.name, message="")
+
+        source = fm.get("source")
+        if source is not None and source not in _SOURCE_TYPES:
+            return GuardResult(
+                status="block",
+                guard_name=self.name,
+                message=f"Invalid source type: {source!r}",
+                metadata={"field": "source", "value": source, "allowed": sorted(_SOURCE_TYPES)},
+            )
+
+        trust = fm.get("trust")
+        if trust is not None and trust not in _TRUST_LEVELS:
+            return GuardResult(
+                status="block",
+                guard_name=self.name,
+                message=f"Invalid trust level: {trust!r}",
+                metadata={"field": "trust", "value": trust, "allowed": sorted(_TRUST_LEVELS)},
+            )
+
+        warnings: list[str] = []
+        if "source" not in fm:
+            warnings.append("missing recommended field 'source'")
+        if "created" not in fm:
+            warnings.append("missing recommended field 'created'")
+
+        if warnings:
+            return GuardResult(
+                status="warn",
+                guard_name=self.name,
+                message="; ".join(warnings),
+            )
+
+        return GuardResult(status="pass", guard_name=self.name, message="")
+
+
+class TrustBoundaryGuard(Guard):
+    """Prevents unconfirmed trust:high assignment by agents."""
+
+    name = "TrustBoundaryGuard"
+
+    def check(self, context: GuardContext) -> GuardResult:
+        if context.content is None:
+            return GuardResult(status="pass", guard_name=self.name, message="")
+        if not context.path.endswith(".md"):
+            return GuardResult(status="pass", guard_name=self.name, message="")
+
+        match = _FRONTMATTER_RE.match(context.content)
+        if match is None:
+            return GuardResult(status="pass", guard_name=self.name, message="")
+
+        import yaml
+
+        try:
+            fm = yaml.safe_load(match.group(1))
+        except yaml.YAMLError:
+            return GuardResult(status="pass", guard_name=self.name, message="")
+        if not isinstance(fm, dict):
+            return GuardResult(status="pass", guard_name=self.name, message="")
+
+        trust = fm.get("trust")
+        source = fm.get("source")
+
+        if trust == "high" and source != "user-stated":
+            return GuardResult(
+                status="require_approval",
+                guard_name=self.name,
+                message=(
+                    "trust:high assignment requires user confirmation "
+                    f"(source is {source!r}, not 'user-stated')"
+                ),
+                metadata={"trust": trust, "source": source},
+            )
+
+        return GuardResult(status="pass", guard_name=self.name, message="")
+
+
+class GuardPipeline:
+    """Executes a sequence of guards, short-circuiting on block."""
+
+    def __init__(self, guards: list[Guard] | None = None) -> None:
+        self.guards: list[Guard] = guards or []
+
+    def run(
+        self,
+        context: GuardContext,
+    ) -> PipelineResult:
+        start = time.monotonic()
+        results: list[GuardResult] = []
+        warnings: list[str] = []
+        blocked_by: str | None = None
+
+        for guard in self.guards:
+            result = guard.check(context)
+            results.append(result)
+
+            if result.status == "warn":
+                warnings.append(f"{result.guard_name}: {result.message}")
+            elif result.status in {"block", "require_approval"}:
+                blocked_by = result.guard_name
+                break
+
+        elapsed = int((time.monotonic() - start) * 1000)
+        allowed = blocked_by is None
+
+        self._emit_trace(context, results, warnings, blocked_by, elapsed)
+
+        return PipelineResult(
+            allowed=allowed,
+            results=results,
+            warnings=warnings,
+            blocked_by=blocked_by,
+            duration_ms=elapsed,
+        )
+
+    def _emit_trace(
+        self,
+        context: GuardContext,
+        results: list[GuardResult],
+        warnings: list[str],
+        blocked_by: str | None,
+        duration_ms: int,
+    ) -> None:
+        from .plan_utils import record_trace
+
+        session_id = context.session_id
+        if not session_id:
+            session_id = os.environ.get("MEMORY_SESSION_ID", "").strip() or None
+        if not session_id:
+            return
+
+        record_trace(
+            context.root,
+            session_id,
+            span_type="guardrail_check",
+            name="guard_pipeline",
+            status="denied" if blocked_by else "ok",
+            duration_ms=duration_ms,
+            metadata={
+                "path": context.path,
+                "operation": context.operation,
+                "guards_run": len(results),
+                "blocked_by": blocked_by,
+                "warnings": warnings,
+            },
+        )
+
+
+def default_pipeline(*, repo: Any | None = None) -> GuardPipeline:
+    """Build the standard guard pipeline with all built-in guards.
+
+    When *repo* is provided, PathGuard is included as the first stage.
+    """
+    guards: list[Guard] = []
+    if repo is not None:
+        guards.append(PathGuard(repo))
+    guards.extend(
+        [
+            ContentSizeGuard(),
+            FrontmatterGuard(),
+            TrustBoundaryGuard(),
+        ]
+    )
+    return GuardPipeline(guards)
+
+
+__all__ = [
+    "ContentSizeGuard",
+    "FrontmatterGuard",
+    "Guard",
+    "GuardContext",
+    "GuardPipeline",
+    "GuardResult",
+    "PathGuard",
+    "PipelineResult",
+    "TrustBoundaryGuard",
+    "default_pipeline",
+]

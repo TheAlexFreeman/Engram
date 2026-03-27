@@ -4534,5 +4534,839 @@ class TestCrossCuttingRegression(unittest.TestCase):
             self.assertEqual(payload["tool_policies"], [])
 
 
+class TestRunState(unittest.TestCase):
+    """Comprehensive tests for RunState dataclass, persistence, and integration."""
+
+    def setUp(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import (
+            RunState,
+            RunStateError,
+            RunStatePhase,
+            check_run_state_staleness,
+            load_run_state,
+            prune_run_state,
+            run_state_path,
+            save_run_state,
+            update_run_state,
+            validate_run_state_against_plan,
+        )
+
+        self.RunState = RunState
+        self.RunStateError = RunStateError
+        self.RunStatePhase = RunStatePhase
+        self.load_run_state = load_run_state
+        self.save_run_state = save_run_state
+        self.update_run_state = update_run_state
+        self.run_state_path = run_state_path
+        self.validate_run_state_against_plan = validate_run_state_against_plan
+        self.check_run_state_staleness = check_run_state_staleness
+        self.prune_run_state = prune_run_state
+
+    def _make_rs(self, **overrides):
+        defaults = {
+            "plan_id": "test-plan",
+            "project_id": "test-project",
+            "session_id": "memory/activity/2026/03/27/chat-001",
+            "last_checkpoint": "2026-03-27T10:00:00Z",
+            "created_at": "2026-03-27T09:00:00Z",
+            "updated_at": "2026-03-27T10:00:00Z",
+        }
+        defaults.update(overrides)
+        return self.RunState(**defaults)
+
+    # ── Creation and validation ───────────────────────────────────────────
+
+    def test_create_minimal(self):
+        rs = self._make_rs()
+        self.assertEqual(rs.plan_id, "test-plan")
+        self.assertEqual(rs.project_id, "test-project")
+        self.assertEqual(rs.schema_version, 1)
+        self.assertIsNone(rs.current_phase_id)
+        self.assertIsNone(rs.error_context)
+        self.assertEqual(rs.sessions_consumed, 0)
+
+    def test_create_with_all_fields(self):
+        rs = self._make_rs(
+            current_phase_id="phase-one",
+            current_task="reading sources",
+            next_action_hint="implement changes",
+            sessions_consumed=3,
+            error_context=self.RunStateError(
+                phase_id="phase-one",
+                message="test failure",
+                timestamp="2026-03-27T10:00:00Z",
+            ),
+            phase_states={
+                "phase-one": self.RunStatePhase(
+                    started_at="2026-03-27T09:00:00Z",
+                    task_position="reading sources",
+                    intermediate_outputs=[
+                        {
+                            "key": "source-review",
+                            "value": "Summary of sources",
+                            "timestamp": "2026-03-27T09:30:00Z",
+                        }
+                    ],
+                )
+            },
+        )
+        self.assertEqual(rs.current_phase_id, "phase-one")
+        self.assertEqual(rs.current_task, "reading sources")
+        self.assertEqual(rs.sessions_consumed, 3)
+        self.assertIsNotNone(rs.error_context)
+        self.assertEqual(len(rs.phase_states), 1)
+        self.assertEqual(len(rs.phase_states["phase-one"].intermediate_outputs), 1)
+
+    def test_invalid_plan_id_rejected(self):
+        with self.assertRaises(ValidationError):
+            self._make_rs(plan_id="")
+
+    def test_negative_sessions_consumed_rejected(self):
+        with self.assertRaises(ValidationError):
+            self._make_rs(sessions_consumed=-1)
+
+    def test_invalid_schema_version_rejected(self):
+        with self.assertRaises(ValidationError):
+            self._make_rs(schema_version=0)
+
+    # ── to_dict round-trip ────────────────────────────────────────────────
+
+    def test_to_dict_roundtrip(self):
+        rs = self._make_rs(
+            current_phase_id="phase-one",
+            current_task="implementing",
+            phase_states={
+                "phase-one": self.RunStatePhase(
+                    started_at="2026-03-27T09:00:00Z",
+                    intermediate_outputs=[
+                        {
+                            "key": "impl-note",
+                            "value": "Added RunState class",
+                            "timestamp": "2026-03-27T10:00:00Z",
+                        }
+                    ],
+                )
+            },
+        )
+        d = rs.to_dict()
+        self.assertEqual(d["plan_id"], "test-plan")
+        self.assertEqual(d["current_phase_id"], "phase-one")
+        self.assertEqual(d["phase_states"]["phase-one"]["started_at"], "2026-03-27T09:00:00Z")
+        self.assertEqual(len(d["phase_states"]["phase-one"]["intermediate_outputs"]), 1)
+        self.assertIsNone(d["error_context"])
+
+    def test_to_dict_with_error_context(self):
+        rs = self._make_rs(
+            error_context=self.RunStateError(
+                phase_id="p1",
+                message="something broke",
+                timestamp="2026-03-27T10:00:00Z",
+                recoverable=False,
+            )
+        )
+        d = rs.to_dict()
+        self.assertIsNotNone(d["error_context"])
+        self.assertEqual(d["error_context"]["phase_id"], "p1")
+        self.assertFalse(d["error_context"]["recoverable"])
+
+    # ── Save and load ─────────────────────────────────────────────────────
+
+    def test_save_and_load(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            plans_dir = root / "memory" / "working" / "projects" / "test-project" / "plans"
+            plans_dir.mkdir(parents=True)
+
+            rs = self._make_rs(current_phase_id="phase-one", current_task="testing")
+            path = self.save_run_state(root, rs)
+            self.assertTrue(path.exists())
+
+            loaded = self.load_run_state(root, "test-project", "test-plan")
+            self.assertIsNotNone(loaded)
+            self.assertEqual(loaded.plan_id, "test-plan")
+            self.assertEqual(loaded.current_phase_id, "phase-one")
+            self.assertEqual(loaded.current_task, "testing")
+
+    def test_load_missing_returns_none(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            result = self.load_run_state(root, "test-project", "test-plan")
+            self.assertIsNone(result)
+
+    def test_load_corrupt_json_returns_none(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            rs_dir = root / "memory" / "working" / "projects" / "test-project" / "plans"
+            rs_dir.mkdir(parents=True)
+            rs_file = rs_dir / "test-plan.run-state.json"
+            rs_file.write_text("{ not valid json", encoding="utf-8")
+            result = self.load_run_state(root, "test-project", "test-plan")
+            self.assertIsNone(result)
+
+    def test_save_sets_timestamps(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "working" / "projects" / "test-project" / "plans").mkdir(
+                parents=True
+            )
+            rs = self._make_rs(created_at="", updated_at="")
+            self.save_run_state(root, rs)
+            self.assertTrue(rs.created_at)
+            self.assertTrue(rs.updated_at)
+
+    # ── update_run_state ──────────────────────────────────────────────────
+
+    def test_update_start(self):
+        rs = self._make_rs()
+        self.update_run_state(
+            rs,
+            "start",
+            "phase-one",
+            session_id="memory/activity/2026/03/27/chat-002",
+            next_action_hint="Read source files",
+        )
+        self.assertEqual(rs.current_phase_id, "phase-one")
+        self.assertIsNone(rs.error_context)
+        self.assertEqual(rs.next_action_hint, "Read source files")
+        self.assertIn("phase-one", rs.phase_states)
+        self.assertIsNotNone(rs.phase_states["phase-one"].started_at)
+
+    def test_update_complete(self):
+        rs = self._make_rs(current_phase_id="phase-one", sessions_consumed=1)
+        rs.phase_states["phase-one"] = self.RunStatePhase(started_at="2026-03-27T09:00:00Z")
+        self.update_run_state(
+            rs,
+            "complete",
+            "phase-one",
+            session_id="memory/activity/2026/03/27/chat-002",
+            next_action_hint="Start phase-two",
+        )
+        self.assertIsNone(rs.current_phase_id)
+        self.assertIsNone(rs.current_task)
+        self.assertEqual(rs.sessions_consumed, 2)
+        self.assertIsNotNone(rs.phase_states["phase-one"].completed_at)
+        self.assertEqual(rs.next_action_hint, "Start phase-two")
+
+    def test_update_record_failure(self):
+        rs = self._make_rs(current_phase_id="phase-one")
+        self.update_run_state(
+            rs,
+            "record_failure",
+            "phase-one",
+            session_id="memory/activity/2026/03/27/chat-002",
+            error_message="Pre-commit failed",
+            error_recoverable=True,
+        )
+        self.assertIsNotNone(rs.error_context)
+        self.assertEqual(rs.error_context.message, "Pre-commit failed")
+        self.assertTrue(rs.error_context.recoverable)
+
+    def test_start_clears_previous_error(self):
+        rs = self._make_rs(
+            error_context=self.RunStateError(
+                phase_id="phase-one",
+                message="old error",
+                timestamp="2026-03-27T09:00:00Z",
+            )
+        )
+        self.update_run_state(
+            rs,
+            "start",
+            "phase-one",
+            session_id="memory/activity/2026/03/27/chat-002",
+        )
+        self.assertIsNone(rs.error_context)
+
+    # ── validate_run_state_against_plan ────────────────────────────────────
+
+    def test_validate_matching_state(self):
+        plan = _minimal_plan()
+        rs = self._make_rs(current_phase_id="phase-one")
+        warnings = self.validate_run_state_against_plan(rs, plan)
+        self.assertEqual(warnings, [])
+
+    def test_validate_unknown_current_phase(self):
+        plan = _minimal_plan()
+        rs = self._make_rs(current_phase_id="nonexistent-phase")
+        warnings = self.validate_run_state_against_plan(rs, plan)
+        self.assertTrue(any("not found" in w for w in warnings))
+        self.assertIsNone(rs.current_phase_id)
+
+    def test_validate_completed_phase_advances(self):
+        plan = _minimal_plan(
+            phases=[
+                PlanPhase(
+                    id="phase-one",
+                    title="Done",
+                    status="completed",
+                    changes=[
+                        ChangeSpec(
+                            path="memory/working/notes/test.md",
+                            action="create",
+                            description="Test",
+                        )
+                    ],
+                ),
+                PlanPhase(
+                    id="phase-two",
+                    title="Next",
+                    changes=[
+                        ChangeSpec(
+                            path="memory/working/notes/test2.md",
+                            action="create",
+                            description="Test 2",
+                        )
+                    ],
+                ),
+            ]
+        )
+        rs = self._make_rs(current_phase_id="phase-one")
+        warnings = self.validate_run_state_against_plan(rs, plan)
+        self.assertTrue(any("advancing" in w for w in warnings))
+        self.assertEqual(rs.current_phase_id, "phase-two")
+
+    def test_validate_removes_unknown_phase_states(self):
+        plan = _minimal_plan()
+        rs = self._make_rs(
+            phase_states={
+                "phase-one": self.RunStatePhase(),
+                "deleted-phase": self.RunStatePhase(),
+            }
+        )
+        warnings = self.validate_run_state_against_plan(rs, plan)
+        self.assertTrue(any("deleted-phase" in w for w in warnings))
+        self.assertNotIn("deleted-phase", rs.phase_states)
+        self.assertIn("phase-one", rs.phase_states)
+
+    # ── check_run_state_staleness ─────────────────────────────────────────
+
+    def test_staleness_same_session(self):
+        rs = self._make_rs(session_id="memory/activity/2026/03/27/chat-001")
+        result = self.check_run_state_staleness(rs, "memory/activity/2026/03/27/chat-001")
+        self.assertIsNone(result)
+
+    def test_staleness_different_session_old(self):
+        rs = self._make_rs(
+            session_id="memory/activity/2026/03/27/chat-001",
+            last_checkpoint="2020-01-01T00:00:00Z",
+        )
+        result = self.check_run_state_staleness(rs, "memory/activity/2026/03/27/chat-002")
+        self.assertIsNone(result)
+
+    def test_staleness_different_session_recent(self):
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        rs = self._make_rs(
+            session_id="memory/activity/2026/03/27/chat-001",
+            last_checkpoint=now,
+        )
+        result = self.check_run_state_staleness(rs, "memory/activity/2026/03/27/chat-002")
+        self.assertIsNotNone(result)
+        self.assertIn("Taking over", result)
+
+    # ── prune_run_state ───────────────────────────────────────────────────
+
+    def test_prune_summarizes_completed(self):
+        rs = self._make_rs(
+            phase_states={
+                "phase-one": self.RunStatePhase(
+                    started_at="2026-03-27T09:00:00Z",
+                    completed_at="2026-03-27T10:00:00Z",
+                    intermediate_outputs=[
+                        {
+                            "key": f"output-{i}",
+                            "value": f"val-{i}",
+                            "timestamp": "2026-03-27T10:00:00Z",
+                        }
+                        for i in range(5)
+                    ],
+                ),
+                "phase-two": self.RunStatePhase(
+                    started_at="2026-03-27T11:00:00Z",
+                    intermediate_outputs=[
+                        {
+                            "key": "active-output",
+                            "value": "still working",
+                            "timestamp": "2026-03-27T11:30:00Z",
+                        }
+                    ],
+                ),
+            }
+        )
+        self.prune_run_state(rs)
+        p1 = rs.phase_states["phase-one"]
+        self.assertEqual(len(p1.intermediate_outputs), 1)
+        self.assertEqual(p1.intermediate_outputs[0]["key"], "pruned-summary")
+        self.assertIn("5", p1.intermediate_outputs[0]["value"])
+        p2 = rs.phase_states["phase-two"]
+        self.assertEqual(len(p2.intermediate_outputs), 1)
+        self.assertEqual(p2.intermediate_outputs[0]["key"], "active-output")
+
+    def test_prune_skips_active_phases(self):
+        rs = self._make_rs(
+            phase_states={
+                "active": self.RunStatePhase(
+                    started_at="2026-03-27T09:00:00Z",
+                    intermediate_outputs=[
+                        {"key": f"o-{i}", "value": f"v-{i}", "timestamp": "2026-03-27T10:00:00Z"}
+                        for i in range(10)
+                    ],
+                )
+            }
+        )
+        self.prune_run_state(rs)
+        self.assertEqual(len(rs.phase_states["active"].intermediate_outputs), 10)
+
+    # ── assemble_briefing integration ─────────────────────────────────────
+
+    def test_briefing_includes_run_state_when_present(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            plan = _minimal_plan()
+            plan_dir = root / "memory" / "working" / "projects" / "test-project" / "plans"
+            plan_dir.mkdir(parents=True)
+            save_plan(plan_dir / "test-plan.yaml", plan)
+
+            rs = self._make_rs(
+                current_phase_id="phase-one",
+                current_task="implementing",
+                next_action_hint="Run tests",
+            )
+            self.save_run_state(root, rs)
+
+            result = assemble_briefing(plan, plan.phases[0], root)
+            self.assertIn("run_state", result)
+            self.assertIsNotNone(result["run_state"])
+            self.assertEqual(result["run_state"]["current_task"], "implementing")
+            self.assertEqual(result["run_state"]["next_action_hint"], "Run tests")
+            self.assertIn("run_state", result["context_budget"]["breakdown"])
+
+    def test_briefing_run_state_null_when_missing(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            plan = _minimal_plan()
+            result = assemble_briefing(plan, plan.phases[0], root)
+            self.assertIn("run_state", result)
+            self.assertIsNone(result["run_state"])
+            self.assertEqual(result["context_budget"]["breakdown"]["run_state"], 0)
+
+    # ── Execute round-trip ────────────────────────────────────────────────
+
+    def test_execute_start_complete_roundtrip(self):
+        """Simulate start → complete and verify run state tracks correctly."""
+        rs = self._make_rs()
+        session = "memory/activity/2026/03/27/chat-001"
+
+        self.update_run_state(rs, "start", "phase-one", session_id=session)
+        self.assertIsNotNone(rs.phase_states["phase-one"].started_at)
+        self.assertEqual(rs.current_phase_id, "phase-one")
+
+        self.update_run_state(
+            rs,
+            "complete",
+            "phase-one",
+            session_id=session,
+            next_action_hint="Start phase-two",
+        )
+        self.assertIsNotNone(rs.phase_states["phase-one"].completed_at)
+        self.assertIsNone(rs.current_phase_id)
+        self.assertEqual(rs.sessions_consumed, 1)
+
+    def test_failure_then_retry(self):
+        """Simulate failure → retry start flow."""
+        rs = self._make_rs()
+        session = "memory/activity/2026/03/27/chat-001"
+
+        self.update_run_state(rs, "start", "phase-one", session_id=session)
+        self.update_run_state(
+            rs,
+            "record_failure",
+            "phase-one",
+            session_id=session,
+            error_message="Tests failed",
+        )
+        self.assertIsNotNone(rs.error_context)
+        self.assertEqual(rs.error_context.message, "Tests failed")
+
+        self.update_run_state(rs, "start", "phase-one", session_id=session)
+        self.assertIsNone(rs.error_context)
+
+    # ── RunStatePhase validation ──────────────────────────────────────────
+
+    def test_run_state_phase_empty(self):
+        p = self.RunStatePhase()
+        d = p.to_dict()
+        self.assertIsNone(d["started_at"])
+        self.assertIsNone(d["completed_at"])
+        self.assertEqual(d["intermediate_outputs"], [])
+
+    def test_run_state_phase_invalid_output_key_rejected(self):
+        with self.assertRaises(ValidationError):
+            self.RunStatePhase(
+                intermediate_outputs=[
+                    {"key": "", "value": "x", "timestamp": "2026-01-01T00:00:00Z"}
+                ]
+            )
+
+    # ── RunStateError validation ──────────────────────────────────────────
+
+    def test_run_state_error_valid(self):
+        e = self.RunStateError(
+            phase_id="phase-one", message="broke", timestamp="2026-03-27T10:00:00Z"
+        )
+        d = e.to_dict()
+        self.assertEqual(d["phase_id"], "phase-one")
+        self.assertTrue(d["recoverable"])
+
+    def test_run_state_error_empty_message_rejected(self):
+        with self.assertRaises(ValidationError):
+            self.RunStateError(phase_id="p1", message="", timestamp="2026-03-27T10:00:00Z")
+
+    # ── run_state_path ────────────────────────────────────────────────────
+
+    def test_run_state_path_format(self):
+        p = self.run_state_path("my-project", "my-plan")
+        self.assertEqual(p, "memory/working/projects/my-project/plans/my-plan.run-state.json")
+
+
+class TestToolPolicyEnforcement(unittest.TestCase):
+    """Tests for check_tool_policy(), PolicyCheckResult, rate limit parsing, and integration."""
+
+    def setUp(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import (
+            PolicyCheckResult,
+            ToolDefinition,
+            _parse_rate_limit,
+            check_tool_policy,
+            save_registry,
+        )
+
+        self.PolicyCheckResult = PolicyCheckResult
+        self.ToolDefinition = ToolDefinition
+        self.check_tool_policy = check_tool_policy
+        self.save_registry = save_registry
+        self._parse_rate_limit = _parse_rate_limit
+
+    def _register_tool(self, root, **overrides):
+        defaults = {
+            "name": "test-tool",
+            "description": "A test tool",
+            "provider": "test-provider",
+        }
+        defaults.update(overrides)
+        tool = self.ToolDefinition(**defaults)
+        self.save_registry(root, defaults["provider"], [tool])
+        return tool
+
+    # ── PolicyCheckResult ─────────────────────────────────────────────────
+
+    def test_policy_check_result_to_dict(self):
+        r = self.PolicyCheckResult(
+            allowed=False,
+            reason="blocked",
+            tool_name="my-tool",
+            provider="my-prov",
+            required_action="approval",
+            violation_type="approval_required",
+        )
+        d = r.to_dict()
+        self.assertFalse(d["allowed"])
+        self.assertEqual(d["required_action"], "approval")
+
+    # ── _parse_rate_limit ─────────────────────────────────────────────────
+
+    def test_parse_valid_limits(self):
+        self.assertEqual(self._parse_rate_limit("10/hour"), (10, "hour"))
+        self.assertEqual(self._parse_rate_limit("5/day"), (5, "day"))
+        self.assertEqual(self._parse_rate_limit("3/minute"), (3, "minute"))
+        self.assertEqual(self._parse_rate_limit("1/session"), (1, "session"))
+
+    def test_parse_invalid_limits(self):
+        self.assertIsNone(self._parse_rate_limit("not-a-limit"))
+        self.assertIsNone(self._parse_rate_limit("10/week"))
+        self.assertIsNone(self._parse_rate_limit(""))
+
+    def test_parse_whitespace_tolerance(self):
+        self.assertEqual(self._parse_rate_limit("  10 / hour  "), (10, "hour"))
+
+    # ── check_tool_policy: no policy ──────────────────────────────────────
+
+    def test_no_policy_allows(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            result = self.check_tool_policy(root, "unknown-tool", "unknown-provider")
+            self.assertTrue(result.allowed)
+            self.assertEqual(result.reason, "no_policy")
+
+    # ── check_tool_policy: approval_required ──────────────────────────────
+
+    def test_approval_required_blocks(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            self._register_tool(root, approval_required=True)
+
+            result = self.check_tool_policy(root, "test-tool", "test-provider")
+            self.assertFalse(result.allowed)
+            self.assertEqual(result.violation_type, "approval_required")
+            self.assertEqual(result.required_action, "approval")
+
+    def test_approved_tool_allows(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            (root / "memory" / "working" / "approvals" / "pending").mkdir(parents=True)
+            self._register_tool(root, approval_required=True)
+
+            from engram_mcp.agent_memory_mcp.plan_utils import ApprovalDocument, save_approval
+
+            approval = ApprovalDocument(
+                plan_id="tool-test-provider",
+                phase_id="test-tool",
+                project_id="test-project",
+                status="approved",
+                requested="2026-03-27T00:00:00Z",
+                expires="2026-04-03T00:00:00Z",
+                resolution="approve",
+                resolved_at="2026-03-27T01:00:00Z",
+            )
+            save_approval(root, approval)
+
+            result = self.check_tool_policy(root, "test-tool", "test-provider")
+            self.assertTrue(result.allowed)
+
+    # ── check_tool_policy: rate limits ────────────────────────────────────
+
+    def test_rate_limit_allows_under_limit(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            self._register_tool(root, rate_limit="10/day")
+
+            result = self.check_tool_policy(root, "test-tool", "test-provider")
+            self.assertTrue(result.allowed)
+
+    def test_rate_limit_blocks_when_exceeded(self):
+        import json as _json
+        from datetime import datetime, timezone
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            self._register_tool(root, rate_limit="2/day")
+
+            traces_dir = root / "memory" / "activity" / "2026" / "03" / "27"
+            traces_dir.mkdir(parents=True)
+            trace_file = traces_dir / "chat-001.traces.jsonl"
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            lines = []
+            for _ in range(3):
+                lines.append(
+                    _json.dumps(
+                        {
+                            "span_type": "tool_call",
+                            "name": "test-tool",
+                            "status": "ok",
+                            "timestamp": now,
+                        }
+                    )
+                )
+            trace_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+            result = self.check_tool_policy(root, "test-tool", "test-provider")
+            self.assertFalse(result.allowed)
+            self.assertEqual(result.violation_type, "rate_limit_exceeded")
+            self.assertEqual(result.required_action, "rate_limit_wait")
+
+    # ── check_tool_policy: cost warning ───────────────────────────────────
+
+    def test_cost_warning_still_allows(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import PlanBudget
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            self._register_tool(root, cost_tier="high")
+
+            budget = PlanBudget(deadline="2020-01-01", advisory=True)
+            result = self.check_tool_policy(root, "test-tool", "test-provider", plan_budget=budget)
+            self.assertTrue(result.allowed)
+            self.assertEqual(result.violation_type, "cost_warning")
+
+    # ── check_tool_policy: eval bypass ────────────────────────────────────
+
+    def test_eval_bypass(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            self._register_tool(root, approval_required=True)
+
+            with mock.patch.dict("os.environ", {"ENGRAM_EVAL_MODE": "1"}):
+                result = self.check_tool_policy(root, "test-tool", "test-provider")
+                self.assertTrue(result.allowed)
+                self.assertEqual(result.reason, "eval_bypass")
+
+    # ── check_tool_policy: no restrictions ────────────────────────────────
+
+    def test_unrestricted_tool_allows(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "memory" / "skills" / "tool-registry").mkdir(parents=True)
+            self._register_tool(root)
+
+            result = self.check_tool_policy(root, "test-tool", "test-provider")
+            self.assertTrue(result.allowed)
+            self.assertEqual(result.reason, "policy_passed")
+
+    # ── TRACE_SPAN_TYPES includes policy_violation ────────────────────────
+
+    def test_policy_violation_in_span_types(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import TRACE_SPAN_TYPES
+
+        self.assertIn("policy_violation", TRACE_SPAN_TYPES)
+
+    # ── Existing operations unaffected ────────────────────────────────────
+
+    def test_no_policy_no_effect_on_verify(self):
+        """verify_postconditions works normally when no tools are registered."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            plan = _minimal_plan(
+                phases=[
+                    PlanPhase(
+                        id="p1",
+                        title="Test phase",
+                        postconditions=[
+                            PostconditionSpec(
+                                description="File exists", type="check", target="nonexistent.txt"
+                            ),
+                        ],
+                        changes=[
+                            ChangeSpec(
+                                path="memory/working/notes/test.md",
+                                action="create",
+                                description="Test",
+                            )
+                        ],
+                    )
+                ]
+            )
+            result = verify_postconditions(plan, plan.phases[0], root)
+            self.assertIn("verification_results", result)
+            self.assertEqual(result["verification_results"][0]["status"], "fail")
+
+
+class TestTraceEnrichment(unittest.TestCase):
+    """Tests for trace cost estimation, parent-child spans, and aggregate metrics."""
+
+    def test_estimate_cost_basic(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import estimate_cost
+
+        cost = estimate_cost(input_chars=400, output_chars=200)
+        self.assertEqual(cost["tokens_in"], 100)
+        self.assertEqual(cost["tokens_out"], 50)
+
+    def test_estimate_cost_zero(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import estimate_cost
+
+        cost = estimate_cost()
+        self.assertEqual(cost["tokens_in"], 0)
+        self.assertEqual(cost["tokens_out"], 0)
+
+    def test_estimate_cost_rounding(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import estimate_cost
+
+        cost = estimate_cost(input_chars=5)
+        self.assertEqual(cost["tokens_in"], 2)
+
+    def test_record_trace_returns_span_id(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sid = "memory/activity/2026/03/27/chat-001"
+            span_id = record_trace(root, sid, span_type="tool_call", name="test", status="ok")
+            self.assertIsNotNone(span_id)
+            self.assertEqual(len(span_id), 12)
+
+    def test_record_trace_with_cost(self):
+        from engram_mcp.agent_memory_mcp.plan_utils import estimate_cost
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sid = "memory/activity/2026/03/27/chat-001"
+            cost = estimate_cost(input_chars=100, output_chars=200)
+            record_trace(
+                root,
+                sid,
+                span_type="tool_call",
+                name="test-with-cost",
+                status="ok",
+                cost=cost,
+            )
+            import json
+
+            trace_file = root / "memory/activity/2026/03/27/chat-001.traces.jsonl"
+            self.assertTrue(trace_file.exists())
+            spans = [
+                json.loads(line)
+                for line in trace_file.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertEqual(len(spans), 1)
+            self.assertEqual(spans[0]["cost"]["tokens_in"], 25)
+            self.assertEqual(spans[0]["cost"]["tokens_out"], 50)
+
+    def test_parent_child_span_linkage(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sid = "memory/activity/2026/03/27/chat-001"
+            parent_id = record_trace(root, sid, span_type="plan_action", name="start", status="ok")
+            record_trace(
+                root,
+                sid,
+                span_type="tool_call",
+                name="child-op",
+                status="ok",
+                parent_span_id=parent_id,
+            )
+            import json
+
+            trace_file = root / "memory/activity/2026/03/27/chat-001.traces.jsonl"
+            spans = [
+                json.loads(line)
+                for line in trace_file.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertEqual(len(spans), 2)
+            self.assertIsNone(spans[0].get("parent_span_id"))
+            self.assertEqual(spans[1]["parent_span_id"], parent_id)
+
+    def test_policy_violation_span_type_accepted(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sid = "memory/activity/2026/03/27/chat-001"
+            span_id = record_trace(
+                root,
+                sid,
+                span_type="policy_violation",
+                name="check_tool_policy",
+                status="denied",
+            )
+            self.assertIsNotNone(span_id)
+
+    def test_guardrail_check_span_type_accepted(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sid = "memory/activity/2026/03/27/chat-001"
+            span_id = record_trace(
+                root,
+                sid,
+                span_type="guardrail_check",
+                name="guard_pipeline",
+                status="ok",
+            )
+            self.assertIsNotNone(span_id)
+
+
 if __name__ == "__main__":
     unittest.main()

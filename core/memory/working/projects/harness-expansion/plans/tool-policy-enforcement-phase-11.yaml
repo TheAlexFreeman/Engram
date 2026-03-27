@@ -1,0 +1,248 @@
+id: tool-policy-enforcement-phase-11
+project: harness-expansion
+created: '2026-03-27'
+origin_session: memory/activity/2026/03/27/chat-002
+status: active
+sessions_used: 1
+budget:
+  deadline: '2026-06-01'
+  max_sessions: 8
+  advisory: true
+purpose:
+  summary: Make tool policies enforceable at runtime by adding a policy-check middleware
+    that gates write operations based on the tool registry's approval, cost, and rate
+    limit metadata.
+  context: >
+    Phase 4 built a tool registry with ToolDefinition storing approval_required,
+    cost_tier, and rate limits — but these are informational metadata, not enforced
+    policies. The deep research report emphasizes: "enforce a tool policy layer
+    that can block or require approval based on tool + args + context" and "assume
+    every tool output is untrusted input."
+
+    Currently, an agent can perform any registered operation regardless of the
+    tool's declared policy. The approval workflow (Phase 5) exists but is only
+    triggered manually via memory_request_approval — there is no automatic gating
+    that says "this tool requires approval before execution."
+
+    This phase adds: (1) a check_tool_policy() function that evaluates tool
+    policies before execution, (2) automatic approval creation when a tool has
+    approval_required=true, (3) rate limit enforcement using operation timestamps,
+    (4) cost tier awareness in plan budget tracking, and (5) a policy violation
+    trace span type for observability.
+
+    Dependencies: Phase 4 (tool registry), Phase 5 (approval workflow), Phase 3
+    (traces for violation recording). All are complete.
+  questions:
+  - Should policy checks apply to all tiers or only Tier 1/2 writes?
+  - How should rate limits be counted — per session, per day, or sliding window?
+  - Should policy violations be hard blocks or soft warnings with override capability?
+  - How should policy checks interact with eval scenario execution?
+work:
+  phases:
+  - id: policy-enforcement-design
+    title: Design the policy enforcement middleware and integration points
+    status: completed
+    blockers: []
+    requires_approval: true
+    sources:
+    - path: core/memory/working/projects/harness-expansion/IN/deep-research-ai-agent-harnesses.md
+      type: internal
+      intent: Reference the report's recommendations on tool policy layers, least
+        privilege, and guardrail enforcement.
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      type: internal
+      intent: Understand memory_register_tool, memory_get_tool_policy, and the
+        ToolDefinition schema to design enforcement around them.
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Review existing approval helpers and trace recording to understand
+        integration surfaces.
+    postconditions:
+    - description: Policy enforcement design document covers check_tool_policy()
+        function signature, integration points, and return schema
+      type: manual
+    - description: Rate limit counting strategy decided (window type, storage)
+      type: manual
+    - description: Hard-block vs soft-warning policy documented with override mechanism
+      type: manual
+    - description: Eval scenario interaction clarified (bypass, mock, or enforce)
+      type: manual
+    changes:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-11-tool-policy-enforcement-design.md
+      action: create
+      description: Design document for policy enforcement middleware.
+
+  - id: policy-check-impl
+    title: Implement check_tool_policy() enforcement function
+    status: completed
+    blockers:
+    - policy-enforcement-design
+    sources:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-11-tool-policy-enforcement-design.md
+      type: internal
+      intent: Follow the finalized design for function signature, return type, and
+        enforcement logic.
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Reference ToolDefinition fields and registry loading helpers.
+    postconditions:
+    - description: check_tool_policy() function exists in plan_utils.py
+      type: grep
+      target: def check_tool_policy::core/tools/agent_memory_mcp/plan_utils.py
+    - description: Function evaluates approval_required, cost_tier, and rate_limits
+      type: manual
+    - description: Function returns a PolicyCheckResult with allowed, reason, and
+        required_action fields
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      action: update
+      description: Add PolicyCheckResult dataclass and check_tool_policy() function.
+
+  - id: approval-auto-gating
+    title: Wire automatic approval creation for approval_required tools
+    status: completed
+    blockers:
+    - policy-check-impl
+    sources:
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      type: internal
+      intent: Integrate check_tool_policy() into write operation paths and wire
+        to memory_request_approval when approval is needed.
+    postconditions:
+    - description: Write operations check tool policy before execution
+      type: manual
+    - description: When approval_required=true and no active approval exists,
+        an ApprovalDocument is automatically created
+      type: manual
+    - description: Execution pauses with clear message indicating approval needed
+      type: manual
+    - description: Already-approved operations proceed without re-approval
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      action: update
+      description: Add policy check calls to write operation paths with automatic
+        approval creation.
+
+  - id: rate-limit-enforcement
+    title: Implement rate limit tracking and enforcement
+    status: completed
+    blockers:
+    - policy-check-impl
+    sources:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-11-tool-policy-enforcement-design.md
+      type: internal
+      intent: Follow rate limit counting strategy and window configuration.
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Reference operations.jsonl and trace data as timestamp sources for
+        rate counting.
+    postconditions:
+    - description: Rate limit check uses operation timestamps from traces or operations log
+      type: manual
+    - description: Exceeded rate limits produce a clear error with window and count details
+      type: manual
+    - description: Rate limit configuration is per-tool via ToolDefinition.rate_limits
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      action: update
+      description: Add rate limit checking to check_tool_policy() with sliding
+        window timestamp counting.
+
+  - id: policy-violation-traces
+    title: Add policy_violation trace span type for observability
+    status: completed
+    blockers:
+    - approval-auto-gating
+    - rate-limit-enforcement
+    sources:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Extend TRACE_SPAN_TYPES with policy_violation. Record traces on
+        every policy check failure.
+    postconditions:
+    - description: policy_violation added to TRACE_SPAN_TYPES
+      type: grep
+      target: policy_violation::core/tools/agent_memory_mcp/plan_utils.py
+    - description: Every policy check failure emits a trace span with tool name,
+        violation type, and policy details
+      type: manual
+    - description: memory_query_traces can filter by policy_violation span type
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      action: update
+      description: Add policy_violation to TRACE_SPAN_TYPES and emit trace spans
+        on policy failures.
+
+  - id: policy-enforcement-tests
+    title: Add test coverage for policy enforcement
+    status: completed
+    blockers:
+    - policy-violation-traces
+    sources:
+    - path: core/tools/tests/test_plan_schema_extensions.py
+      type: internal
+      intent: Follow existing test patterns.
+    postconditions:
+    - description: TestToolPolicyEnforcement class with 10+ tests
+      type: manual
+    - description: Tests cover approval gating, rate limit blocking, cost tier tracking,
+        policy violation traces
+      type: manual
+    - description: Tests verify existing operations unaffected when no policy defined
+      type: manual
+    - description: Full test suite passes
+      type: test
+      target: pytest core/tools/tests/ -q
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/tests/test_plan_schema_extensions.py
+      action: update
+      description: Add TestToolPolicyEnforcement class.
+
+  - id: policy-enforcement-docs
+    title: Document policy enforcement in DESIGN.md and MCP.md
+    status: completed
+    blockers:
+    - policy-enforcement-tests
+    sources:
+    - path: HUMANS/docs/DESIGN.md
+      type: internal
+      intent: Add policy enforcement section.
+    - path: HUMANS/docs/MCP.md
+      type: internal
+      intent: Update tool documentation with enforcement behavior.
+    postconditions:
+    - description: DESIGN.md documents policy enforcement architecture and flow
+      type: manual
+    - description: MCP.md updated to reflect enforcement behavior on write tools
+      type: manual
+    - description: CHANGELOG.md updated with Phase 11 entry
+      type: manual
+    changes:
+    - path: HUMANS/docs/DESIGN.md
+      action: update
+      description: Add policy enforcement section.
+    - path: HUMANS/docs/MCP.md
+      action: update
+      description: Document enforcement behavior.
+    - path: CHANGELOG.md
+      action: update
+      description: Add Phase 11 entry.

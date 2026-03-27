@@ -864,9 +864,20 @@ def _evaluate_assertion(
     raise ValidationError(f"Unsupported eval assertion type: {assertion.type}")
 
 
-def run_scenario(scenario: EvalScenario, root: Path, session_id: str) -> ScenarioResult:
+def run_scenario(
+    scenario: EvalScenario,
+    root: Path,
+    session_id: str,
+    *,
+    isolated: bool = False,
+) -> ScenarioResult:
     validate_session_id(session_id)
     scenario = validate_scenario(scenario)
+
+    if isolated:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            return run_scenario(scenario, Path(tmpdir), session_id, isolated=False)
+
     started_at = time.perf_counter()
     root.mkdir(parents=True, exist_ok=True)
 
@@ -1128,6 +1139,111 @@ def build_eval_report(
     return {"runs": runs, "summary": summary, "metrics": metrics, "trends": trends}
 
 
+_REGRESSION_THRESHOLD = 0.10
+
+
+def eval_history_path(root: Path) -> Path:
+    """Return the absolute path to the eval history JSONL file."""
+    return eval_scenarios_dir(root) / "eval-history.jsonl"
+
+
+def append_eval_history(root: Path, results: list[ScenarioResult]) -> Path:
+    """Append scenario results to the eval history file.  Returns the file path."""
+    history_path = eval_history_path(root)
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    with history_path.open("a", encoding="utf-8") as fh:
+        for result in results:
+            entry = {
+                "scenario_id": result.scenario_id,
+                "timestamp": result.timestamp,
+                "status": result.status,
+                "metrics": result.metrics,
+                "duration_ms": result.duration_ms,
+            }
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    return history_path
+
+
+def load_eval_history(root: Path) -> list[dict[str, Any]]:
+    """Load all entries from the eval history file."""
+    history_path = eval_history_path(root)
+    if not history_path.exists():
+        return []
+    entries: list[dict[str, Any]] = []
+    for line in history_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return entries
+
+
+def compare_eval_runs(
+    current: list[ScenarioResult],
+    previous: list[ScenarioResult],
+    *,
+    threshold: float = _REGRESSION_THRESHOLD,
+) -> dict[str, Any]:
+    """Compare two sets of scenario results and detect regressions.
+
+    A regression is:
+    - A scenario that was pass in *previous* but fail/error in *current*.
+    - A metric that degrades by more than *threshold* (fraction, default 10%).
+
+    Returns ``{regressions, metric_deltas, summary}``.
+    """
+    prev_by_id = {r.scenario_id: r for r in previous}
+    regressions: list[dict[str, Any]] = []
+    metric_deltas: list[dict[str, Any]] = []
+
+    for cur in current:
+        prev = prev_by_id.get(cur.scenario_id)
+        if prev is None:
+            continue
+        if prev.status == "pass" and cur.status in {"fail", "error"}:
+            regressions.append(
+                {
+                    "scenario_id": cur.scenario_id,
+                    "previous_status": prev.status,
+                    "current_status": cur.status,
+                    "type": "status_regression",
+                }
+            )
+        for name in METRIC_NAMES:
+            prev_val = prev.metrics.get(name)
+            cur_val = cur.metrics.get(name)
+            if prev_val is None or cur_val is None:
+                continue
+            if prev_val == 0:
+                continue
+            delta = cur_val - prev_val
+            pct = abs(delta / prev_val)
+            if delta < 0 and pct > threshold:
+                metric_deltas.append(
+                    {
+                        "scenario_id": cur.scenario_id,
+                        "metric": name,
+                        "previous": prev_val,
+                        "current": cur_val,
+                        "delta": delta,
+                        "pct_change": round(pct * 100, 1),
+                    }
+                )
+
+    return {
+        "regressions": regressions,
+        "metric_deltas": metric_deltas,
+        "summary": {
+            "status_regressions": len(regressions),
+            "metric_regressions": len(metric_deltas),
+            "has_regressions": bool(regressions) or bool(metric_deltas),
+        },
+    }
+
+
 __all__ = [
     "AssertionResult",
     "EVAL_ASSERTION_TYPES",
@@ -1138,11 +1254,15 @@ __all__ = [
     "METRIC_NAMES",
     "ScenarioResult",
     "StepResult",
+    "append_eval_history",
+    "compare_eval_runs",
     "compute_eval_metrics",
     "aggregate_results",
     "build_eval_report",
+    "eval_history_path",
     "eval_scenarios_dir",
     "load_scenario",
+    "load_eval_history",
     "load_eval_runs",
     "load_suite",
     "run_scenario",

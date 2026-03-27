@@ -1,0 +1,48 @@
+id: run-state-checkpoint-resume
+description: Verify run state is created on phase start and updated on phase complete.
+tags:
+  - phase-10
+  - run-state
+setup:
+  plan:
+    id: run-state-eval
+    project: eval-suite
+    phases:
+      - id: phase-one
+        title: First phase
+        changes:
+          - path: memory/working/notes/rs-eval.txt
+            action: create
+            description: Create eval output
+      - id: phase-two
+        title: Second phase
+        blockers:
+          - phase-one
+        changes:
+          - path: memory/working/notes/rs-eval-2.txt
+            action: create
+            description: Create second output
+steps:
+  - action: start_phase
+    phase_id: phase-one
+    expect:
+      phase_status: in-progress
+  - action: complete_phase
+    phase_id: phase-one
+    commit_sha: abc123
+    expect:
+      phase_status: completed
+assertions:
+  - type: plan_status
+    expected: active
+  - type: phase_status
+    phase_id: phase-one
+    expected: completed
+  - type: trace_span_count
+    filter:
+      span_type: plan_action
+      name: start
+    min: 1
+  - type: metric
+    name: task_success
+    expected: 0.0

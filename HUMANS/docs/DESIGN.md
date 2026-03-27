@@ -344,6 +344,84 @@ See [MCP.md](MCP.md) for the full human-facing guide to the tool surface.
 
 ---
 
+## Part V: Run State and Resumability
+
+Long-horizon plan execution depends on reliable state persistence across sessions. The deep research report's strongest recommendation: "Run state is for correctness and resumability; memory is for recall and personalization. Mixing them tends to cause state drift."
+
+Engram addresses this through a dedicated **RunState** layer that separates execution state from plan definitions:
+
+**Separation of concerns.** Plan YAML files define *what* needs to happen (phases, sources, changes, postconditions). RunState JSON files track *where execution is* (current task position, intermediate outputs, error context, resumption hints). Plan YAML remains authoritative for phase status; run state is additive.
+
+**Persistence model.** Run state is persisted as a JSON file alongside each plan YAML (`{plan_id}.run-state.json`). It is auto-saved after every `memory_plan_execute` action (start, complete, record_failure) for crash recovery, and git-committed at phase boundaries for durability.
+
+**Resumption.** The `memory_plan_resume` MCP tool provides single-call resumption: it loads run state, validates it against the plan, detects session staleness, and assembles a minimal restart context including intermediate outputs and a phase briefing. When no run state exists, it degrades gracefully to plan-only context.
+
+**Context integration.** The `assemble_briefing()` system automatically includes run state data (current task, next action hint, error context, intermediate outputs) when available, accounting for it in the context budget.
+
+**Concurrency.** Last-writer-wins with a 60-minute staleness warning. No file locking, consistent with Engram's git-based patterns.
+
+**Pruning.** Run state files are capped at 50 KB. Completed phase entries are summarized when the limit approaches; active phases are never pruned.
+
+## Part VI: Tool Policy Enforcement
+
+The tool registry (Phase 4) stores metadata about external tools — approval requirements, cost tiers, rate limits — but these were informational only. Phase 11 makes them enforceable at runtime.
+
+**`check_tool_policy()`.** A pure read function that evaluates a tool's registered policies and returns a `PolicyCheckResult` with `allowed`, `reason`, `required_action`, and `violation_type`. Callers decide how to act on the result.
+
+**Enforcement tiers.** Two levels of enforcement:
+- *Hard blocks* for `approval_required` (tool must be approved through the approval workflow) and `rate_limit` exceeded (sliding window counted from trace spans). The tool cannot proceed.
+- *Soft warnings* for `cost_tier="high"` when plan budget is tight. The tool proceeds but the caller is informed.
+
+**Rate limits.** Parsed from the `rate_limit` field as `"N/period"` (e.g., `"10/hour"`, `"5/day"`). Counts use existing trace spans (`tool_call` type) as the timestamp source — no new storage needed. Sliding window: `minute` (60s), `hour` (3600s), `day` (86400s), or `session` (same session_id).
+
+**Integration.** Policy checks are wired into `verify_postconditions()` for test-type postconditions. When a postcondition command matches a registered tool, its policy is checked before execution. Violations produce `policy_violation` trace spans for observability. `ENGRAM_EVAL_MODE=1` bypasses all policy checks for eval scenarios.
+
+**Fail-open.** Unregistered tools (no policy in the registry) are always allowed. Policy enforcement is additive — it only gates tools that have explicit policies defined.
+
+## Part VII: Runtime Guard Pipeline
+
+The guard pipeline (`guard_pipeline.py`) provides a centralized, extensible pre-write validation layer. It implements the deep research report's recommendation for guardrails as a "parallel control plane" — cheap checks that run before expensive operations.
+
+**Architecture.** A `Guard` abstract base class defines a single `check(context) -> GuardResult` method. A `GuardPipeline` executes guards in order, accumulating warnings and short-circuiting on the first `block` or `require_approval` result. `GuardContext` carries the write target path, content, operation type, and metadata. `PipelineResult` aggregates all results with timing.
+
+**Built-in guards (in execution order):**
+1. **PathGuard** — wraps existing `path_policy.py` directory protection (protected roots, raw mutation roots)
+2. **ContentSizeGuard** — blocks files exceeding 100 KB (configurable via `ENGRAM_MAX_FILE_SIZE`)
+3. **FrontmatterGuard** — validates YAML frontmatter schema on markdown writes (source enum, trust enum, recommended fields)
+4. **TrustBoundaryGuard** — requires approval when `trust:high` is assigned by an agent (source is not `user-stated`)
+
+**Result types.** `pass` (no issue), `warn` (proceed but inform), `block` (hard stop), `require_approval` (needs human confirmation). Warnings accumulate across guards; blocks short-circuit the pipeline.
+
+**Observability.** Every pipeline run emits a `guardrail_check` trace span with guard count, block source, and accumulated warnings.
+
+**Extensibility.** New guards are added by subclassing `Guard` and registering in the pipeline. `default_pipeline()` builds the standard guard set; callers can customize the guard list.
+
+## Part VIII: Eval Hardening
+
+Phase 7 delivered the eval framework (schema, runner, metrics, MCP tools). Phase 13 hardens it for production use.
+
+**Isolated execution.** `run_scenario()` accepts `isolated=True` to execute in a fresh temporary directory. `run_suite()` already isolates each scenario. Artifacts never persist in the main repo.
+
+**CI integration.** `test_eval_scenarios.py` discovers all YAML scenarios in `memory/skills/eval-scenarios/` and runs each as a parameterized pytest case. `pytest -m eval` runs eval scenarios separately from unit tests.
+
+**Result history.** `append_eval_history()` persists scenario results to `eval-history.jsonl`. `load_eval_history()` reads them back for trend analysis.
+
+**Regression detection.** `compare_eval_runs()` compares two result sets. Status regressions (pass to fail) are hard failures. Metric degradation beyond 10% triggers warnings. This enables CI pipelines to catch regressions before merge.
+
+**Expanded scenarios.** Nine scenarios covering: basic lifecycle, approval workflows, verification retries, trace recording, tool policy integration, run state checkpoint/resume, run state failure recovery, guard pipeline blocking, and policy enforcement.
+
+## Part IX: Trace Enrichment
+
+Phase 3 delivered structured traces with `TraceSpan`, `TRACES.jsonl`, and querying. Phase 14 fills in the operational metrics gaps.
+
+**Cost tracking.** `estimate_cost()` converts character counts to approximate token counts (4 chars/token default). Plan execution traces (`start`, `complete`, `record_failure`) now include `cost: {tokens_in, tokens_out}`. `memory_query_traces` aggregates include `total_cost` with summed token counts.
+
+**Parent-child spans.** `record_trace()` returns a `span_id` that can be passed as `parent_span_id` to child operations, enabling call-tree reconstruction. The plan `start` action returns its span ID for downstream use.
+
+**Aggregate metrics.** `memory_query_traces` response now includes `total_cost` in its `aggregates` block alongside `total_duration_ms`, `by_type`, `by_status`, and `error_rate`.
+
+---
+
 ## Summary
 
 Engram is a system built on the conviction that AI memory should be a user-owned, human-readable, model-portable artifact — not a platform feature that locks users in or an opaque embedding store that defies inspection. Its architecture draws from version control (git as the audit trail), information retrieval (progressive compression and trust-weighted retrieval), immune systems (quarantine, decay, anomaly detection), and developmental biology (maturity stages with adaptive parameters).

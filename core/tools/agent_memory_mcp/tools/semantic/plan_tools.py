@@ -16,6 +16,7 @@ from ...plan_utils import (
     ApprovalDocument,
     PlanDocument,
     PlanPurpose,
+    RunState,
     ToolDefinition,
     _all_registry_tools,
     append_operations_log,
@@ -24,12 +25,15 @@ from ...plan_utils import (
     assemble_briefing,
     budget_status,
     build_review_from_input,
+    check_run_state_staleness,
     coerce_budget_input,
     coerce_phase_inputs,
+    estimate_cost,
     exportable_artifacts,
     load_approval,
     load_plan,
     load_registry,
+    load_run_state,
     next_action,
     outbox_summary_path,
     phase_change_class,
@@ -43,13 +47,17 @@ from ...plan_utils import (
     regenerate_registry_summary,
     registry_file_path,
     resolve_phase,
+    run_state_path,
     save_approval,
     save_plan,
     save_registry,
+    save_run_state,
     scan_drop_zone,
     stage_external_file,
     trace_file_path,
     unresolved_blockers,
+    update_run_state,
+    validate_run_state_against_plan,
     verify_postconditions,
 )
 from ...preview_contract import build_governed_preview, preview_target
@@ -60,6 +68,39 @@ if TYPE_CHECKING:
 
 def _tool_annotations(**kwargs: object) -> Any:
     return cast(Any, kwargs)
+
+
+def _persist_run_state(
+    root: Path,
+    repo: Any,
+    plan: "PlanDocument",
+    phase_id: str,
+    action: str,
+    session_id: str,
+    files_changed: list[str],
+    *,
+    commit_to_git: bool = True,
+    next_action_hint: str | None = None,
+    error_message: str | None = None,
+) -> None:
+    """Load-or-create run state, apply an action, save, and optionally stage for git."""
+    rs = load_run_state(root, plan.project, plan.id)
+    if rs is None:
+        rs = RunState(plan_id=plan.id, project_id=plan.project)
+    update_run_state(
+        rs,
+        action,
+        phase_id,
+        session_id=session_id,
+        next_action_hint=next_action_hint,
+        error_message=error_message,
+    )
+    save_run_state(root, rs)
+    rs_rel = run_state_path(plan.project, plan.id)
+    if commit_to_git and repo is not None:
+        repo.add(rs_rel)
+        if rs_rel not in files_changed:
+            files_changed.append(rs_rel)
 
 
 def _project_summary_path(project_id: str) -> str:
@@ -766,6 +807,16 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
             save_plan(abs_plan, plan, root)
             repo.add(plan_path)
+            _persist_run_state(
+                root,
+                repo,
+                plan,
+                phase.id,
+                "start",
+                session_id,
+                files_changed,
+                next_action_hint=phase.title,
+            )
             _append_plan_log(
                 root,
                 repo,
@@ -778,13 +829,17 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 detail=phase.title,
             )
             _sync_project_navigation(root, repo, resolved_project_id, files_changed)
-            record_trace(
+            _start_span_id = record_trace(
                 root,
                 session_id,
                 span_type="plan_action",
                 name="start",
                 status="ok",
                 metadata={"plan_id": plan.id, "phase_id": phase.id, "action": "start"},
+                cost=estimate_cost(
+                    input_chars=len(json.dumps(start_state)),
+                    output_chars=len(json.dumps(start_state)),
+                ),
             )
             commit_result = repo.commit(commit_msg)
             return MemoryWriteResult.from_commit(
@@ -864,6 +919,17 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
             save_plan(abs_plan, plan, root)
             repo.add(plan_path)
+            _persist_run_state(
+                root,
+                repo,
+                plan,
+                phase.id,
+                "record_failure",
+                session_id,
+                files_changed,
+                commit_to_git=False,
+                error_message=reason.strip(),
+            )
             _append_plan_log(
                 root,
                 repo,
@@ -888,6 +954,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                     "action": "record_failure",
                     "attempt": failure.attempt,
                 },
+                cost=estimate_cost(
+                    input_chars=len(reason.strip()),
+                    output_chars=len(json.dumps(failure_state)),
+                ),
             )
             commit_result = repo.commit(commit_msg)
             return MemoryWriteResult.from_commit(
@@ -1016,6 +1086,17 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         save_plan(abs_plan, plan, root)
         repo.add(plan_path)
+        _na = next_action(plan)
+        _persist_run_state(
+            root,
+            repo,
+            plan,
+            phase.id,
+            "complete",
+            session_id,
+            files_changed,
+            next_action_hint=_na["title"] if _na else None,
+        )
         _append_plan_log(
             root,
             repo,
@@ -1054,6 +1135,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 "commit": phase.commit,
                 "plan_done": all_done,
             },
+            cost=estimate_cost(
+                input_chars=len(json.dumps(completion_state)),
+                output_chars=len(json.dumps(completion_state)),
+            ),
         )
         commit_result = repo.commit(commit_msg)
         return MemoryWriteResult.from_commit(
@@ -1498,6 +1583,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         limited_spans = all_spans[: max(1, limit)]
 
         total_duration_ms = sum(s.get("duration_ms") or 0 for s in all_spans)
+        total_tokens_in = 0
+        total_tokens_out = 0
         by_type: dict[str, int] = {}
         by_status: dict[str, int] = {}
         error_count = 0
@@ -1508,12 +1595,20 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             by_status[ss] = by_status.get(ss, 0) + 1
             if ss == "error":
                 error_count += 1
+            span_cost = span.get("cost")
+            if isinstance(span_cost, dict):
+                total_tokens_in += int(span_cost.get("tokens_in", 0))
+                total_tokens_out += int(span_cost.get("tokens_out", 0))
 
         result: dict[str, Any] = {
             "spans": limited_spans,
             "total_matched": total_matched,
             "aggregates": {
                 "total_duration_ms": total_duration_ms,
+                "total_cost": {
+                    "tokens_in": total_tokens_in,
+                    "tokens_out": total_tokens_out,
+                },
                 "by_type": by_type,
                 "by_status": by_status,
                 "error_rate": round(error_count / total_matched, 3) if total_matched > 0 else 0.0,
@@ -1634,6 +1729,125 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                     "truncated": context_budget.get("truncated", False),
                 },
             )
+
+        return _json.dumps(result, indent=2)
+
+    @mcp.tool(
+        name="memory_plan_resume",
+        annotations=_tool_annotations(
+            title="Resume Plan Execution",
+            readOnlyHint=True,
+            idempotentHint=True,
+        ),
+    )
+    async def memory_plan_resume(
+        plan_id: str,
+        session_id: str,
+        project_id: str | None = None,
+        max_context_chars: int = 8000,
+    ) -> str:
+        """Load run state and assemble minimal restart context for resuming a plan.
+
+        Returns the current resumption point (phase, task, outputs, errors) plus
+        a phase briefing.  Degrades gracefully when no run state exists.
+        """
+        import json as _json
+
+        from ...errors import ValidationError
+
+        try:
+            max_chars = int(max_context_chars)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("max_context_chars must be an integer >= 0") from exc
+        if max_chars < 0:
+            raise ValidationError("max_context_chars must be >= 0")
+
+        validate_session_id(session_id)
+        root = get_root()
+        plan_path, resolved_project_id = _resolve_existing_plan_path(root, plan_id, project_id)
+        abs_plan = root / plan_path
+        plan = load_plan(abs_plan, root)
+
+        rs = load_run_state(root, plan.project, plan.id)
+        has_run_state = rs is not None
+        resume_warnings: list[str] = []
+
+        resumption: dict[str, Any]
+        intermediate_outputs: list[dict[str, Any]] = []
+
+        if rs is not None:
+            plan_warnings = validate_run_state_against_plan(rs, plan)
+            resume_warnings.extend(plan_warnings)
+            staleness_warning = check_run_state_staleness(rs, session_id)
+            if staleness_warning:
+                resume_warnings.append(staleness_warning)
+            rs.session_id = session_id
+
+            resumption = {
+                "current_phase_id": rs.current_phase_id,
+                "current_task": rs.current_task,
+                "next_action_hint": rs.next_action_hint,
+                "error_context": (None if rs.error_context is None else rs.error_context.to_dict()),
+                "sessions_consumed": rs.sessions_consumed,
+                "last_checkpoint": rs.last_checkpoint,
+                "previous_session": rs.session_id,
+            }
+
+            target_phase_id = rs.current_phase_id
+            if target_phase_id and target_phase_id in rs.phase_states:
+                intermediate_outputs = rs.phase_states[target_phase_id].intermediate_outputs
+
+            save_run_state(root, rs)
+        else:
+            nxt = next_action(plan)
+            resumption = {
+                "current_phase_id": nxt["id"] if nxt else None,
+                "current_task": None,
+                "next_action_hint": nxt["title"] if nxt else None,
+                "error_context": None,
+                "sessions_consumed": plan.sessions_used,
+                "last_checkpoint": None,
+                "previous_session": None,
+            }
+
+        target_phase_id = resumption["current_phase_id"]
+        phase_briefing: dict[str, Any] | None = None
+        if target_phase_id is not None:
+            phase = resolve_phase(plan, target_phase_id)
+            phase_briefing = assemble_briefing(
+                plan,
+                phase,
+                root,
+                max_context_chars=max_chars,
+                session_id=session_id,
+            )
+
+        result: dict[str, Any] = {
+            "plan_id": plan.id,
+            "project_id": resolved_project_id,
+            "plan_status": plan.status,
+            "resumption": resumption,
+            "phase_briefing": phase_briefing,
+            "intermediate_outputs": intermediate_outputs,
+            "warnings": resume_warnings,
+            "has_run_state": has_run_state,
+        }
+        bs = budget_status(plan)
+        if bs is not None:
+            result["budget_status"] = bs
+
+        record_trace(
+            root,
+            session_id,
+            span_type="tool_call",
+            name="memory_plan_resume",
+            status="ok",
+            metadata={
+                "plan_id": plan.id,
+                "has_run_state": has_run_state,
+                "phase_id": target_phase_id,
+            },
+        )
 
         return _json.dumps(result, indent=2)
 

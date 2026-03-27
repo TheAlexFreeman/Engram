@@ -257,7 +257,8 @@ These are the normal write path. Each tool represents a bounded operation with b
 | `memory_plan_review` | Scan completed plans or export completed-plan artifacts. |
 | `memory_record_trace` | Emit a trace span to the session's TRACES.jsonl file. Non-blocking; always returns span_id on success. |
 | `memory_query_traces` | Query trace spans across sessions or date ranges. Returns spans (newest-first) with aggregates. |
-| `memory_plan_briefing` | Return a single-call briefing packet for a requested or next-actionable phase, including source excerpts, failures, recent traces, approval state, and context-budget metadata. |
+| `memory_plan_briefing` | Return a single-call briefing packet for a requested or next-actionable phase, including source excerpts, failures, recent traces, approval state, run state, and context-budget metadata. |
+| `memory_plan_resume` | Load run state and assemble minimal restart context for resuming a plan. Returns resumption point, phase briefing, and intermediate outputs. Degrades gracefully when no run state exists. |
 | `memory_stage_external` | Stage externally fetched content into a project `IN/` folder with governed frontmatter, URL sanitization, and per-project SHA-256 deduplication. |
 | `memory_scan_drop_zone` | Scan configured `[[watch_folders]]` entries from `agent-bootstrap.toml` and bulk-stage new `.md`, `.txt`, or `.pdf` content into project inboxes. |
 | `memory_run_eval` | Run declarative offline eval scenarios from `memory/skills/eval-scenarios/` and record compact eval summary spans. |
@@ -338,7 +339,18 @@ Returns `{spans, total_matched, aggregates: {total_duration_ms, by_type, by_stat
 | `include_traces` | bool | Include recent trace spans for the plan. |
 | `include_approval` | bool | Include approval document state when applicable. |
 
-Returns a single packet with `{plan_id, project_id, phase_id, phase, source_contents, failure_summary, recent_traces, approval_status, context_budget}`. When no actionable phase exists and `phase_id` is omitted, the tool returns a read-only plan summary with progress instead. If `MEMORY_SESSION_ID` is present, the tool records a `tool_call` trace span named `memory_plan_briefing`.
+Returns a single packet with `{plan_id, project_id, phase_id, phase, source_contents, failure_summary, recent_traces, approval_status, run_state, context_budget}`. The `run_state` field includes `current_task`, `next_action_hint`, `last_checkpoint`, `error_context`, and phase-level `intermediate_outputs` when a run-state file exists; `null` otherwise. When no actionable phase exists and `phase_id` is omitted, the tool returns a read-only plan summary with progress instead. If `MEMORY_SESSION_ID` is present, the tool records a `tool_call` trace span named `memory_plan_briefing`.
+
+**`memory_plan_resume` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `plan_id` | str | Plan to resume. |
+| `session_id` | str | Current session ID (used for staleness detection and session takeover). |
+| `project_id` | str \| null | Optional project scope. Auto-detected when omitted. |
+| `max_context_chars` | int | Character budget for phase briefing context (default 8000, 0 = unlimited). |
+
+Returns `{plan_id, project_id, plan_status, resumption, phase_briefing, intermediate_outputs, warnings, has_run_state, budget_status?}`. The `resumption` block includes `current_phase_id`, `current_task`, `next_action_hint`, `error_context`, `sessions_consumed`, `last_checkpoint`, and `previous_session`. When `has_run_state` is `false`, the tool falls back to plan-only context (equivalent to `memory_plan_briefing`). Emits a `tool_call` trace span named `memory_plan_resume`.
 
 **`memory_stage_external` parameters and response**
 
@@ -413,6 +425,17 @@ Returns `{tool_name, provider, registry_file, action}` where `action` is `"creat
 | `cost_tier` | str \| null | Filter by cost tier. |
 
 At least one filter parameter is required. Returns `{tools: [...], count}`. An empty result is not an error. Each tool entry includes `provider`, `name`, `description`, `approval_required`, `cost_tier`, `timeout_seconds`, and optional `schema`, `rate_limit`, `tags`, `notes`.
+
+**Tool policy enforcement**
+
+Registered tool policies are enforced at runtime via `check_tool_policy()`. When a test-type postcondition in `verify_postconditions()` matches a registered tool, its policy is checked before execution:
+
+- `approval_required=true`: Blocks unless an approved ApprovalDocument exists for the tool. Tool-scoped approvals use the naming convention `tool-{provider}--{tool_name}.yaml`.
+- `rate_limit` (e.g., `"10/hour"`, `"5/day"`): Blocks when the count of recent `tool_call` trace spans within the sliding window exceeds the limit.
+- `cost_tier="high"` with tight plan budget: Emits a soft warning but allows execution.
+- `ENGRAM_EVAL_MODE=1`: Bypasses all policy checks for eval scenarios.
+
+Policy violations produce `policy_violation` trace spans queryable via `memory_query_traces`.
 
 **`memory_request_approval` parameters and response**
 

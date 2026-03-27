@@ -1,0 +1,202 @@
+id: eval-hardening-phase-13
+project: harness-expansion
+created: '2026-03-27'
+origin_session: memory/activity/2026/03/27/chat-002
+status: completed
+sessions_used: 1
+budget:
+  deadline: '2026-06-15'
+  max_sessions: 6
+  advisory: true
+purpose:
+  summary: Harden the Phase 7 eval framework with isolated execution environments,
+    CI integration, regression detection, and expanded scenario coverage for
+    Phases 10-12.
+  context: >
+    Phase 7 delivered the eval schema, dataclasses, runner, metrics, and MCP tools.
+    The deep research report stresses that "eval value compounds over the lifecycle"
+    and recommends "private eval sets and telemetry-derived tasks" to guard against
+    benchmark contamination and subtle regressions.
+
+    The current eval runner (run_scenario / run_suite in eval_utils.py) executes
+    scenarios directly against the memory repo. This means evals can leave artifacts,
+    and there is no isolation between scenarios. There is also no CI integration,
+    no regression detection across runs, and the seed scenarios cover only the
+    Phase 1-9 feature set.
+
+    This phase adds: (1) isolated eval execution via temporary git worktrees,
+    (2) a pytest integration for CI pipelines, (3) result history with trend
+    tracking, (4) regression detection comparing consecutive runs, and (5) new
+    eval scenarios for Phases 10-12 features.
+
+    Dependencies: Phase 7 (eval framework), Phase 10 (run state scenarios),
+    Phase 11 (policy enforcement scenarios), Phase 12 (guardrail scenarios).
+    Phase 10-12 scenario writing can start before those phases complete, using
+    the plan schema as specification.
+  questions:
+  - Should eval isolation use git worktrees or tmpdir copies of the repo?
+  - What regression threshold triggers a warning vs a failure?
+  - Should eval history persist in git or in a separate tracking file?
+  - How should eval results integrate with the trace viewer UI?
+work:
+  phases:
+  - id: eval-isolation-design
+    title: Design isolated eval execution environment
+    status: completed
+    blockers: []
+    requires_approval: true
+    sources:
+    - path: core/tools/agent_memory_mcp/eval_utils.py
+      type: internal
+      intent: Understand current run_scenario/run_suite implementation to identify
+        isolation points.
+    - path: core/tools/agent_memory_mcp/git_repo.py
+      type: internal
+      intent: Understand git operations for potential worktree-based isolation.
+    postconditions:
+    - description: Isolation strategy decided (worktree vs tmpdir) with rationale
+      type: manual
+    - description: Cleanup contract documented (what happens to worktree after eval)
+      type: manual
+    - description: Regression detection thresholds defined
+      type: manual
+    changes:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-13-eval-hardening-design.md
+      action: create
+      description: Design document for eval isolation, CI integration, and regression detection.
+
+  - id: eval-isolation-impl
+    title: Implement isolated eval execution via temporary environments
+    status: completed
+    blockers:
+    - eval-isolation-design
+    sources:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-13-eval-hardening-design.md
+      type: internal
+      intent: Follow the isolation design.
+    - path: core/tools/agent_memory_mcp/eval_utils.py
+      type: internal
+      intent: Modify run_scenario to support isolated execution.
+    postconditions:
+    - description: run_scenario accepts an isolation parameter
+      type: manual
+    - description: Isolated execution creates a temporary environment, runs the
+        scenario, and cleans up
+      type: manual
+    - description: Eval artifacts do not persist in the main repo
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/eval_utils.py
+      action: update
+      description: Add isolated execution support to run_scenario and run_suite.
+
+  - id: eval-ci-integration
+    title: Add pytest-based eval runner for CI pipelines
+    status: completed
+    blockers:
+    - eval-isolation-impl
+    sources:
+    - path: core/tools/tests/
+      type: internal
+      intent: Follow existing pytest conventions.
+    - path: core/memory/working/projects/harness-expansion/IN/phase-13-eval-hardening-design.md
+      type: internal
+      intent: Reference CI integration design.
+    postconditions:
+    - description: pytest test file that discovers and runs all eval scenarios
+      type: check
+      target: core/tools/tests/test_eval_scenarios.py
+    - description: Each scenario is a parameterized test case
+      type: manual
+    - description: pytest markers allow running eval scenarios separately (pytest -m eval)
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/tests/test_eval_scenarios.py
+      action: create
+      description: Pytest-based eval runner with parameterized scenario discovery.
+
+  - id: eval-history-tracking
+    title: Implement eval result history and regression detection
+    status: completed
+    blockers:
+    - eval-isolation-impl
+    sources:
+    - path: core/tools/agent_memory_mcp/eval_utils.py
+      type: internal
+      intent: Extend with result persistence and trend computation.
+    postconditions:
+    - description: Eval results append to a history file (eval-history.jsonl)
+      type: manual
+    - description: compare_eval_runs() function detects regressions between
+        consecutive runs
+      type: grep
+      target: def compare_eval_runs::core/tools/agent_memory_mcp/eval_utils.py
+    - description: memory_eval_report includes trend data when history exists
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/eval_utils.py
+      action: update
+      description: Add result history persistence, comparison logic, and trend
+        computation.
+
+  - id: eval-new-scenarios
+    title: Create eval scenarios for Phases 10-12
+    status: completed
+    blockers: []
+    sources:
+    - path: core/memory/working/projects/harness-expansion/plans/run-state-phase-10.yaml
+      type: internal
+      intent: Derive eval scenarios from run state features.
+    - path: core/memory/working/projects/harness-expansion/plans/tool-policy-enforcement-phase-11.yaml
+      type: internal
+      intent: Derive eval scenarios from policy enforcement features.
+    - path: core/memory/working/projects/harness-expansion/plans/runtime-guardrails-phase-12.yaml
+      type: internal
+      intent: Derive eval scenarios from guardrail features.
+    postconditions:
+    - description: 3+ new scenarios covering run state checkpoint/resume
+      type: manual
+    - description: 2+ new scenarios covering tool policy enforcement and violation
+      type: manual
+    - description: 2+ new scenarios covering guard pipeline blocking and warning
+      type: manual
+    - description: All new scenarios validate against eval schema
+      type: test
+      target: pytest core/tools/tests/ -k eval -q
+    changes:
+    - path: core/memory/skills/eval-scenarios/
+      action: update
+      description: Add eval scenarios for run state, tool policy, and guardrail features.
+
+  - id: eval-hardening-docs
+    title: Document eval hardening in DESIGN.md
+    status: completed
+    blockers:
+    - eval-ci-integration
+    - eval-history-tracking
+    - eval-new-scenarios
+    sources:
+    - path: HUMANS/docs/DESIGN.md
+      type: internal
+      intent: Update eval section with isolation, CI, and regression detection.
+    postconditions:
+    - description: DESIGN.md eval section updated with isolation and CI integration
+      type: manual
+    - description: CHANGELOG.md updated with Phase 13 entry
+      type: manual
+    changes:
+    - path: HUMANS/docs/DESIGN.md
+      action: update
+      description: Update eval section with hardening features.
+    - path: CHANGELOG.md
+      action: update
+      description: Add Phase 13 entry.

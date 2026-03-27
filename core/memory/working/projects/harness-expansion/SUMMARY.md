@@ -1,14 +1,14 @@
 ---
-active_plans: 0
-cognitive_mode: implementation
+active_plans: 6
+cognitive_mode: planning
 created: 2026-03-26
-current_focus: 'All nine harness-expansion phases are complete.'
+current_focus: 'Phases 10-15 drafted to evolve Engram from memory layer to full agent harness.'
 last_activity: '2026-03-27'
-open_questions: 0
+open_questions: 6
 origin_session: memory/activity/2026/03/26/chat-001
-plans: 9
+plans: 15
 source: agent-generated
-status: completed
+status: active
 trust: medium
 type: project
 ---
@@ -16,10 +16,10 @@ type: project
 # Project: Harness Expansion
 
 ## Description
-Evolve Engram from a memory-and-governance layer into a minimal agent harness by incrementally extending the plan system with execution affordances. Grounded in the deep research analysis of LLM agent harness best practices (2026-03-26), the project now stands as a completed reference implementation across nine phases.
+Evolve Engram from a memory-and-governance layer into a full agent harness by incrementally extending the plan system with execution affordances. Grounded in the deep research analysis of LLM agent harness best practices (2026-03-26) and a comprehensive gap analysis (2026-03-27), the project has completed nine foundation phases and has six new phases drafted to close the remaining harness gaps.
 
 ## Cognitive mode
-Implementation complete. All nine phases have been landed, documented, and validated. The harness-expansion project now serves as the reference record for the plan-system extension work.
+Planning. Phases 1-9 are complete and serve as the foundation. Phases 10-15 are drafted, covering the execution layer gaps identified in the gap analysis: durable run state, tool policy enforcement, runtime guardrails, eval hardening, trace enrichment, and git reliability.
 
 ## Artifact flow
 - IN/: design documents for each phase
@@ -39,8 +39,16 @@ Implementation complete. All nine phases have been landed, documented, and valid
 | eval-framework-phase-7 | 7: Eval Framework | completed | 7/7 | 3/8 sessions |
 | context-assembly-phase-8 | 8: Context Assembly | completed | 5/5 | 1/5 sessions |
 | external-ingestion-phase-9 | 9: External Ingestion | completed | 6/6 | 1/6 sessions |
+| run-state-phase-10 | 10: Durable Run State | draft | 0/7 | 0/10 sessions |
+| tool-policy-enforcement-phase-11 | 11: Tool Policy Enforcement | draft | 0/7 | 0/8 sessions |
+| runtime-guardrails-phase-12 | 12: Runtime Guardrails | draft | 0/9 | 0/8 sessions |
+| eval-hardening-phase-13 | 13: Eval Hardening | draft | 0/6 | 0/6 sessions |
+| trace-enrichment-phase-14 | 14: Trace Enrichment | draft | 0/5 | 0/5 sessions |
+| git-reliability-phase-15 | 15: Git Reliability | draft | 0/5 | 0/3 sessions |
 
 ## Inter-plan dependencies
+
+### Phases 1-9 (completed)
 - Phase 3 (`trace-recording-impl`) blocks on Phase 2 (`verify-integration`) so verification spans are traceable.
 - Phase 5 (`approval-workflow-design`) blocks on Phases 2 and 3.
 - Phase 4 is fully independent.
@@ -48,6 +56,24 @@ Implementation complete. All nine phases have been landed, documented, and valid
 - Phase 7 depends on Phase 3 traces and benefits from Phase 6 fixtures.
 - Phase 8 assembles outputs from all prior phases and degrades gracefully if some data is absent.
 - Phase 9 depends on the Phase 1 `SourceSpec.type` vocabulary and benefits from the Phase 5 preview-envelope pattern.
+
+### Phases 10-15 (draft)
+- **Phase 15 (Git Reliability)** has no dependencies and should be completed first — git reliability is foundational to all other work.
+- **Phase 10 (Run State)** builds on Phases 1, 2, 3, 8 (all complete). No blockers.
+- **Phase 11 (Tool Policy Enforcement)** builds on Phases 4, 5, 3 (all complete). No blockers. Can run in parallel with Phase 10.
+- **Phase 12 (Runtime Guardrails)** benefits from Phase 11's enforcement pattern as a model. Soft dependency.
+- **Phase 13 (Eval Hardening)** depends on Phase 7 (complete). New scenario writing benefits from Phases 10-12 being complete, but scenario design can start from the plan specs.
+- **Phase 14 (Trace Enrichment)** depends on Phase 3 (complete). Integrating Phase 11/12 trace types can happen incrementally.
+
+### Recommended execution order
+```
+Phase 15 (Git Reliability)           ← start immediately, short
+Phase 10 (Run State)        ┐
+Phase 11 (Tool Policy)      ├─────── can run in parallel
+Phase 14 (Trace Enrichment) ┘
+Phase 12 (Runtime Guardrails)        ← after 11
+Phase 13 (Eval Hardening)           ← after 10, 11, 12 for full scenario coverage
+```
 
 ## Resolved questions
 1. **Sources validated at create time?** Yes — enforced via `save_plan` and `validate_plan_references`.
@@ -101,7 +127,30 @@ The project started from seven identified harness gaps spanning orchestration, t
 - Workflow note: pre-commit hooks use `language: system`, so Ruff results follow the system Python installation rather than the workspace `.venv`; if format checks disagree, reproduce with system `python -m ruff ...`.
 - All nine phase plans are now synchronized with implementation status.
 
+## Phase 10-15 summary
+
+### Phase 10: Durable Run State
+Introduces a RunState JSON schema persisted per-plan, auto-saved after each plan execution step, enabling checkpoint/resume across sessions without re-deriving progress. Addresses the deep research report's strongest recommendation: "run state is for correctness and resumability; memory is for recall and personalization."
+
+### Phase 11: Tool Policy Enforcement
+Makes the Phase 4 tool registry's metadata (approval_required, cost_tier, rate_limits) enforceable at runtime via a check_tool_policy() middleware. Adds automatic approval gating, rate limit enforcement, and policy_violation trace spans.
+
+### Phase 12: Runtime Guardrails
+Centralizes scattered validation into a GuardPipeline with pluggable guards: PathGuard (migrated from path_policy.py), FrontmatterGuard, ContentSizeGuard, TrustBoundaryGuard. Runs on every write operation; emits guardrail_check trace spans.
+
+### Phase 13: Eval Hardening
+Hardens the Phase 7 eval framework with isolated execution environments (temporary git worktrees), pytest CI integration, result history with regression detection, and new scenarios covering Phases 10-12 features.
+
+### Phase 14: Trace Enrichment
+Fills observability gaps: cost field population on trace spans, parent-child span hierarchy for call-tree reconstruction, aggregate metrics dashboard for periodic reviews, and integration with Phase 11/12 trace types.
+
+### Phase 15: Git Reliability
+Addresses the immediate review queue item (stale HEAD.lock in FUSE environments) and adds broader resilience: retry with exponential backoff, filesystem health diagnostics. Prioritized first because git reliability is foundational.
+
 ## Next Steps
-1. Use the Phase 7 eval scenarios, Phase 8 briefing packets, and Phase 9 ingestion affordances as the validation baseline for future harness work.
-2. Extend the harness only through new phases or successor projects rather than re-opening the completed Phase 1-9 contracts opportunistically.
-3. Revisit cross-phase regression coverage whenever a future change touches plan execution, approval, or external-intake behavior.
+1. Activate Phase 15 (Git Reliability) first — it's short, has no dependencies, and unblocks all other work.
+2. Activate Phases 10, 11, and 14 in parallel — they have no inter-dependencies and cover the three biggest harness gaps.
+3. Activate Phase 12 after Phase 11 establishes the enforcement pattern.
+4. Activate Phase 13 last — it validates all other phases and benefits from having Phases 10-12 complete.
+5. Extend the harness only through new phases rather than re-opening completed contracts.
+6. Revisit cross-phase regression coverage whenever a future change touches plan execution, approval, or external-intake behavior.

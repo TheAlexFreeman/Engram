@@ -623,6 +623,10 @@ core/memory/skills/codebase-survey.md
 core/memory/skills/eval-scenarios/SUMMARY.md
 core/memory/skills/eval-scenarios/approval-pause-resume.yaml
 core/memory/skills/eval-scenarios/basic-plan-lifecycle.yaml
+core/memory/skills/eval-scenarios/guard-pipeline-blocking.yaml
+core/memory/skills/eval-scenarios/policy-enforcement-eval.yaml
+core/memory/skills/eval-scenarios/run-state-checkpoint-resume.yaml
+core/memory/skills/eval-scenarios/run-state-failure-recovery.yaml
 core/memory/skills/eval-scenarios/tool-policy-integration.yaml
 core/memory/skills/eval-scenarios/trace-recording-validation.yaml
 core/memory/skills/eval-scenarios/verification-failure-retry.yaml
@@ -675,6 +679,10 @@ core/memory/working/projects/getting-to-know-you/SUMMARY.md
 core/memory/working/projects/getting-to-know-you/questions.md
 core/memory/working/projects/harness-expansion/IN/deep-research-ai-agent-harnesses.md
 core/memory/working/projects/harness-expansion/IN/phase-1-schema-design.md
+core/memory/working/projects/harness-expansion/IN/phase-10-run-state-design.md
+core/memory/working/projects/harness-expansion/IN/phase-11-tool-policy-enforcement-design.md
+core/memory/working/projects/harness-expansion/IN/phase-12-runtime-guardrails-design.md
+core/memory/working/projects/harness-expansion/IN/phase-13-eval-hardening-design.md
 core/memory/working/projects/harness-expansion/IN/phase-2-verification-design.md
 core/memory/working/projects/harness-expansion/IN/phase-3-observability-design.md
 core/memory/working/projects/harness-expansion/IN/phase-4-tool-registry-design.md
@@ -688,11 +696,17 @@ core/memory/working/projects/harness-expansion/operations.jsonl
 core/memory/working/projects/harness-expansion/plans/active-plans-phase-1.yaml
 core/memory/working/projects/harness-expansion/plans/context-assembly-phase-8.yaml
 core/memory/working/projects/harness-expansion/plans/eval-framework-phase-7.yaml
+core/memory/working/projects/harness-expansion/plans/eval-hardening-phase-13.yaml
 core/memory/working/projects/harness-expansion/plans/external-ingestion-phase-9.yaml
+core/memory/working/projects/harness-expansion/plans/git-reliability-phase-15.yaml
 core/memory/working/projects/harness-expansion/plans/hitl-phase-5.yaml
 core/memory/working/projects/harness-expansion/plans/integration-tests-phase-6.yaml
 core/memory/working/projects/harness-expansion/plans/observability-phase-3.yaml
+core/memory/working/projects/harness-expansion/plans/run-state-phase-10.yaml
+core/memory/working/projects/harness-expansion/plans/runtime-guardrails-phase-12.yaml
+core/memory/working/projects/harness-expansion/plans/tool-policy-enforcement-phase-11.yaml
 core/memory/working/projects/harness-expansion/plans/tool-registry-phase-4.yaml
+core/memory/working/projects/harness-expansion/plans/trace-enrichment-phase-14.yaml
 core/memory/working/projects/harness-expansion/plans/verification-phase-2.yaml
 core/memory/working/projects/system-literacy/SUMMARY.md
 core/memory/working/projects/system-literacy/notes/project-plans-roadmap.md
@@ -710,6 +724,7 @@ core/tools/agent_memory_mcp/eval_utils.py
 core/tools/agent_memory_mcp/freshness.py
 core/tools/agent_memory_mcp/frontmatter_utils.py
 core/tools/agent_memory_mcp/git_repo.py
+core/tools/agent_memory_mcp/guard_pipeline.py
 core/tools/agent_memory_mcp/models.py
 core/tools/agent_memory_mcp/path_policy.py
 core/tools/agent_memory_mcp/plan_utils.py
@@ -735,8 +750,10 @@ core/tools/memory_mcp.py
 core/tools/tests/__init__.py
 core/tools/tests/test_agent_memory_mcp_write_tools.py
 core/tools/tests/test_core_boundary.py
+core/tools/tests/test_eval_scenarios.py
 core/tools/tests/test_eval_utils.py
 core/tools/tests/test_graph_tools.py
+core/tools/tests/test_guard_pipeline.py
 core/tools/tests/test_link_scoring.py
 core/tools/tests/test_link_tools_engine.py
 core/tools/tests/test_memory_mcp.py
@@ -744,6 +761,7 @@ core/tools/tests/test_plan_schema_extensions.py
 core/tools/tests/test_search_freshness.py
 core/tools/tests/test_semantic_search.py
 core/tools/tests/test_surface_unlinked.py
+engram-harness-gap-analysis.md
 extract_names.py
 index.html
 prune_links.py

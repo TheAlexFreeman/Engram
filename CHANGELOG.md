@@ -18,6 +18,54 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-27] Git reliability hardening (Phase 15)
+
+**Changed:** Enhanced `git_repo.py` with retry resilience and diagnostics. Added `_is_transient_failure()` for classifying lock contention and I/O errors. `commit()` now retries up to 3 times with exponential backoff (0.5s, 1s, 2s) on transient failures. Added `_try_cleanup_stale_index_lock()` and `_try_cleanup_all_stale_locks()` alongside existing HEAD.lock cleanup. All lock cleanups now log warnings. Added `health_check()` method returning structured diagnostics (lock files, repo validity, HEAD state, index state, filesystem writability). Added `memory_git_health` MCP tool (Tier 0, read-only). 14 new tests in `test_git_reliability.py`. Resolved review queue item 2026-03-26-review-core-tools-agent-memory-mcp-git-repo-py.
+
+**Reasoning:** Git reliability is foundational — every write goes through git_repo.py. FUSE-mounted filesystems can leave orphaned lock files that block all commits. Retry with backoff and stale lock cleanup make git operations resilient to transient failures without manual intervention.
+
+**Approved by:** user
+
+## [2026-03-27] Trace enrichment (Phase 14)
+
+**Changed:** Added `estimate_cost()` helper to `plan_utils.py` for character-to-token cost estimation (4 chars/token default). Plan execution traces (start, complete, record_failure) now include `cost: {tokens_in, tokens_out}`. `memory_query_traces` aggregates now include `total_cost` with summed token counts. `record_trace()` return value (`span_id`) supports parent-child span chaining via `parent_span_id`. 8 new tests in `TestTraceEnrichment`. Updated DESIGN.md.
+
+**Reasoning:** Phase 3 traces had empty cost fields and unused parent-child relationships. The deep research report recommends end-to-end traces with latency/cost as critical operational metrics. Cost estimation and span hierarchy make the observability layer production-ready for periodic reviews.
+
+**Approved by:** user
+
+## [2026-03-27] Eval hardening (Phase 13)
+
+**Changed:** Added isolated eval execution (`run_scenario(isolated=True)`), pytest CI runner (`test_eval_scenarios.py` with `@pytest.mark.eval`), result history tracking (`append_eval_history`, `load_eval_history` with `eval-history.jsonl`), and regression detection (`compare_eval_runs()` with 10% threshold). Created 4 new eval scenarios for Phases 10-12: run state checkpoint/resume, run state failure recovery, guard pipeline blocking, and policy enforcement. Updated seed scenario tests. Updated DESIGN.md.
+
+**Reasoning:** The eval framework (Phase 7) executed scenarios directly with no isolation, CI integration, or regression detection. The deep research report stresses that "eval value compounds over the lifecycle." Hardening makes evals reliable enough for CI pipelines and enables catching regressions between runs.
+
+**Approved by:** user
+
+## [2026-03-27] Runtime guard pipeline (Phase 12)
+
+**Changed:** Added `guard_pipeline.py` module with `Guard` abstract base class, `GuardPipeline`, `GuardContext`, `GuardResult`, and `PipelineResult`. Four built-in guards: `PathGuard` (wraps existing path_policy.py), `ContentSizeGuard` (100 KB default, configurable via `ENGRAM_MAX_FILE_SIZE`), `FrontmatterGuard` (validates source/trust enums), `TrustBoundaryGuard` (requires approval for agent-assigned trust:high). Pipeline short-circuits on block, accumulates warnings, emits `guardrail_check` trace spans. `default_pipeline()` convenience constructor. 28 tests in `test_guard_pipeline.py`. Updated DESIGN.md.
+
+**Reasoning:** Guardrails were limited to path_policy.py and prose governance docs. The deep research report recommends guardrails as a parallel control plane with structured validation. The guard pipeline centralizes validation into an extensible, observable system that new guards can plug into without modifying write paths.
+
+**Approved by:** user
+
+## [2026-03-27] Tool policy enforcement (Phase 11)
+
+**Changed:** Made tool registry policies enforceable at runtime. Added `PolicyCheckResult` dataclass and `check_tool_policy()` function to `plan_utils.py` with approval gating, rate limit enforcement (sliding window from trace spans), cost tier awareness, and eval bypass. Added `policy_violation` to `TRACE_SPAN_TYPES`. Wired policy checks into `verify_postconditions()` for test-type postconditions with automatic trace emission on violations. Rate limit parsing supports `N/minute`, `N/hour`, `N/day`, and `N/session` formats. 14 new tests in `TestToolPolicyEnforcement`. Updated DESIGN.md and MCP.md.
+
+**Reasoning:** The tool registry (Phase 4) stored approval, cost, and rate limit metadata as informational fields with no runtime enforcement. The deep research report recommends a tool policy layer that can block or require approval based on context. This phase closes the gap between declared policy and enforced policy.
+
+**Approved by:** user
+
+## [2026-03-27] Run state layer (Phase 10)
+
+**Changed:** Added a formal RunState JSON schema and persistence layer for plan execution. New `RunState`, `RunStatePhase`, and `RunStateError` dataclasses in `plan_utils.py` with `save_run_state()`, `load_run_state()`, `update_run_state()`, `validate_run_state_against_plan()`, `check_run_state_staleness()`, and `prune_run_state()` helpers. Wired auto-save into `memory_plan_execute` (start, complete, record_failure). Integrated run state into `assemble_briefing()` output. Added new `memory_plan_resume` MCP tool for single-call plan resumption with run state context. 33 new tests in `TestRunState`. Updated DESIGN.md and MCP.md.
+
+**Reasoning:** Plan execution state was distributed across plan YAML files, git commits, and operations.jsonl, requiring agents to re-derive progress on resumption. The deep research report's strongest recommendation is to separate "correctness state" (run state) from "recall memory" to prevent state drift. RunState provides explicit checkpoints with intermediate outputs, task position, and resumption hints, making multi-session plan execution reliable and context-efficient.
+
+**Approved by:** user
+
 ## [2026-03-28] Retrieval discipline directive
 
 **Changed:** Added a "Retrieval discipline" paragraph to `core/INIT.md` and a `[behavioral_directives]` section to `agent-bootstrap.toml` requiring agents to search memory before answering recall-type questions.

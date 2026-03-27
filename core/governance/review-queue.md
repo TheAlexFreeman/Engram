@@ -67,4 +67,4 @@ Security flags should never be silently queued for later review. All other types
 **File:** core/tools/agent_memory_mcp/git_repo.py
 **Priority:** normal
 **Reason:** Add stale HEAD.lock cleanup to the plumbing fallback path. When _should_fallback_to_plumbing detects a lock error, check whether HEAD.lock exists, is older than 30s, and belongs to a dead PID — if so, unlink it before retrying. This prevents the failure mode where a FUSE-mounted filesystem (e.g., Cowork VM) leaves orphaned lock files that block both porcelain and plumbing commit paths. See harness-expansion session 2026-03-26 for the full diagnosis.
-**Status:** pending
+**Status:** resolved (Phase 15 — stale lock cleanup with logging, index.lock cleanup, retry with exponential backoff, memory_git_health diagnostic)
