@@ -572,7 +572,8 @@ current_focus: Ship the first project milestone.
             encoding="utf-8"
         )
 
-        self.assertEqual(payload["new_state"]["next_action"], "Do second step")
+        self.assertEqual(payload["new_state"]["next_action"]["title"], "Do second step")
+        self.assertEqual(payload["new_state"]["next_action"]["id"], "phase-b")
         self.assertEqual(payload["new_state"]["plan_progress"], [1, 2])
         self.assertEqual(plan_body["work"]["phases"][0]["status"], "completed")
         self.assertEqual(plan_body["work"]["phases"][0]["commit"], "abc1234")
