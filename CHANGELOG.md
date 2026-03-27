@@ -18,6 +18,26 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-26] Phase 5: Structured HITL (ApprovalDocument, memory_request_approval, memory_resolve_approval, paused plan status)
+
+**Changed:** Operationalized `requires_approval` as a full interrupt/resume workflow:
+
+- **`ApprovalDocument` dataclass** — YAML schema with `plan_id`, `phase_id`, `project_id`, `status` (pending/approved/rejected/expired), `requested`, `expires`, `context` (phase_title, phase_summary, sources, changes, change_class, budget_status), `resolution`, `reviewer`, `resolved_at`, `comment`. Stored at `memory/working/approvals/pending/{plan_id}--{phase_id}.yaml` while pending, moved to `resolved/` on resolution.
+- **`memory_request_approval` MCP tool** — creates pending approval document and pauses plan. Auto-deduplicates: returns existing document if pending approval already exists.
+- **`memory_resolve_approval` MCP tool** — resolves pending approval (approve/reject), moves document to `resolved/`, sets plan status to `active` or `blocked`. Regenerates SUMMARY.md after every operation.
+- **`paused` plan status** — added to `PLAN_STATUSES`. Expresses "waiting for human input" (vs. `blocked` = technical dependency). Transitions: `active → paused` (approval requested), `paused → active` (approved), `paused → blocked` (rejected or expired).
+- **Auto-pause on `requires_approval` phases** — `memory_plan_execute` start action automatically creates an approval document and pauses the plan when it encounters a `requires_approval: true` phase with no existing approval. Handles all approval states: pending (return awaiting), approved (proceed), rejected/expired (block).
+- **Paused plan guard** — `memory_plan_execute` start and complete actions return an error when `plan.status == "paused"`.
+- **Lazy expiry** — `load_approval()` checks `expires` on every read; if past, status transitions to `expired`, file moves to `resolved/`. Default expiry window: 7 days.
+- **`working/approvals/` directory** — `pending/.gitkeep`, `resolved/.gitkeep`, and `SUMMARY.md` (approval queue navigator, regenerated after every operation).
+- **`HUMANS/views/approvals.html`** — browser UI with pending approvals list (expiry countdowns, phase context, approve/reject buttons with comment field), resolved history, and expired alerts. Writes resolution YAML via File System Access API; no server required.
+- **38 new tests** (190 total) — `TestApprovalDocumentDataclass` (14), `TestApprovalStorage` (8), `TestApprovalExpiry` (6), `TestApprovalsSummaryRegeneration` (3), `TestPlanPauseStatus` (5).
+- **Documentation** — DESIGN.md and MCP.md updated with approval lifecycle, tool parameters, and plan status transitions.
+
+**Reasoning:** The harness report identified the missing "workflow" layer: `requires_approval` existed as a flag but provided no structured mechanism to create, track, or resolve approval requests. This phase closes the loop — the agent can now create a serialized approval document, pause, and resume with full human oversight at decisional phase boundaries.
+
+**Approved by:** user
+
 ## [2026-03-26] Phase 4: External tool registry (ToolDefinition, memory_register_tool, memory_get_tool_policy)
 
 **Changed:** Added a policy storage layer for external tools so agents and orchestrators can query tool constraints before invoking them:

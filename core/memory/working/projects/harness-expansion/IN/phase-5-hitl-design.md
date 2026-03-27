@@ -281,6 +281,20 @@ This avoids double-gating: the existing change-class system handles file-path-ba
 
 ---
 
+## Finalized design decisions (2026-03-26)
+
+1. **Auto-create on start.** When `memory_plan_execute` with `action: "start"` encounters a `requires_approval: true` phase that has no existing pending approval, it automatically calls the approval creation logic internally, pauses the plan, and returns the approval context. The agent does not need to call `memory_request_approval` explicitly.
+
+2. **Default expiry: 7 days, lazy evaluation.** Each approval document carries an `expires` timestamp defaulting to 7 days from request. Expiry is checked on every read of the document (via `memory_plan_execute`, `memory_resolve_approval`, or the approval UI) — not via a background process. On detection, status transitions to `expired`, the file moves to `resolved/`, and the plan is set to `blocked`.
+
+3. **Rejection allows re-request.** A rejected approval does not require plan modification before re-requesting. The agent may call `memory_request_approval` again for the same phase after rejection, creating a new pending approval document.
+
+4. **Approval UI: direct file write.** The `approvals.html` UI writes resolution YAML files directly to `working/approvals/resolved/` via the File System Access API (no MCP server call from the browser). On the next `memory_plan_execute` call, the agent reads the resolution from the file and updates the plan accordingly.
+
+5. **File naming: `{plan_id}--{phase_id}.yaml` (double-dash).** This convention distinguishes the approval file from plan files and avoids collisions between phase IDs that contain single dashes.
+
+---
+
 ## What this phase does NOT include
 
 - **Notification system.** Approvals are stored as files; there's no push notification (email, Slack, etc.). The approval UI shows pending items, but the human must check it.

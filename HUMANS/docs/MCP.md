@@ -259,6 +259,8 @@ These are the normal write path. Each tool represents a bounded operation with b
 | `memory_query_traces` | Query trace spans across sessions or date ranges. Returns spans (newest-first) with aggregates. |
 | `memory_register_tool` | Register or update an external tool definition in the tool registry. Returns action ("created"\|"updated") and registry_file path. |
 | `memory_get_tool_policy` | Query the tool registry by tool name, provider, tags, or cost tier. Returns matching definitions. |
+| `memory_request_approval` | Create a pending approval document for a plan phase and pause the plan. Returns approval_file, expires, and plan_status. |
+| `memory_resolve_approval` | Approve or reject a pending approval. Moves document to resolved/, updates plan status to active (approve) or blocked (reject). |
 
 **`memory_plan_create` key parameters**
 
@@ -346,6 +348,33 @@ Returns `{tool_name, provider, registry_file, action}` where `action` is `"creat
 | `cost_tier` | str \| null | Filter by cost tier. |
 
 At least one filter parameter is required. Returns `{tools: [...], count}`. An empty result is not an error. Each tool entry includes `provider`, `name`, `description`, `approval_required`, `cost_tier`, `timeout_seconds`, and optional `schema`, `rate_limit`, `tags`, `notes`.
+
+**`memory_request_approval` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `plan_id` | str | Plan slug. |
+| `phase_id` | str | Phase slug. Phase must be `pending` or `in-progress`. |
+| `project_id` | str \| null | Optional; inferred if unambiguous. |
+| `context` | str \| null | Additional context appended to auto-generated phase summary. |
+| `expires_days` | int | Days until expiry (default 7). |
+
+Creates a YAML approval document at `memory/working/approvals/pending/{plan_id}--{phase_id}.yaml` and sets `plan.status = "paused"`. If a pending approval already exists, returns the existing document without creating a duplicate. Returns `{approval_file, status: "pending", expires, plan_status: "paused"}`.
+
+**`memory_resolve_approval` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `plan_id` | str | Plan slug. |
+| `phase_id` | str | Phase slug. |
+| `resolution` | str | `"approve"` or `"reject"`. |
+| `comment` | str \| null | Optional reviewer comment. |
+
+Moves the approval document from `pending/` to `resolved/`, sets `plan.status = "active"` (approve) or `"blocked"` (reject), and regenerates `working/approvals/SUMMARY.md`. Errors if no pending approval document exists. Returns `{approval_file, status, plan_status}`.
+
+**Approval lifecycle**
+
+Plan statuses now include `paused` (awaiting human approval), in addition to `draft`, `active`, `blocked`, `completed`, and `abandoned`. Transitions: `active` → `paused` (approval requested), `paused` → `active` (approved), `paused` → `blocked` (rejected or expired). Expiry is lazy: checked on read of the approval document; expired approvals move to `resolved/` with `status: expired`. `memory_plan_execute` with `action: "start"` on a `requires_approval` phase automatically invokes the approval creation logic if no document exists.
 
 **Knowledge lifecycle**
 

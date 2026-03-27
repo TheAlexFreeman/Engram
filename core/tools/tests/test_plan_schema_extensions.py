@@ -16,6 +16,10 @@ from typing import Any
 import yaml
 from engram_mcp.agent_memory_mcp.errors import NotFoundError, ValidationError
 from engram_mcp.agent_memory_mcp.plan_utils import (
+    APPROVAL_RESOLUTIONS,
+    APPROVAL_STATUSES,
+    PLAN_STATUSES,
+    ApprovalDocument,
     ChangeSpec,
     PhaseFailure,
     PlanBudget,
@@ -26,17 +30,23 @@ from engram_mcp.agent_memory_mcp.plan_utils import (
     SourceSpec,
     ToolDefinition,
     _all_registry_tools,
+    _check_approval_expiry,
+    approval_filename,
+    approvals_summary_path,
     budget_status,
     coerce_budget_input,
     coerce_phase_inputs,
+    load_approval,
     load_plan,
     load_registry,
     next_action,
     phase_blockers,
     phase_payload,
     project_plan_path,
+    regenerate_approvals_summary,
     regenerate_registry_summary,
     registry_file_path,
+    save_approval,
     save_plan,
     save_registry,
     validate_plan_references,
@@ -1983,11 +1993,15 @@ class TestRegistrySummaryRegeneration(unittest.TestCase):
                 "shell",
                 [
                     ToolDefinition(
-                        name="pytest-run", description="Run tests", provider="shell",
+                        name="pytest-run",
+                        description="Run tests",
+                        provider="shell",
                         tags=["test"],
                     ),
                     ToolDefinition(
-                        name="ruff-check", description="Lint", provider="shell",
+                        name="ruff-check",
+                        description="Lint",
+                        provider="shell",
                     ),
                 ],
             )
@@ -2060,9 +2074,7 @@ class TestToolPolicyIntegration(unittest.TestCase):
                 created="2026-03-26",
                 origin_session="memory/activity/2026/03/26/chat-001",
                 status="active",
-                purpose=PlanPurpose(
-                    summary="A test plan", context="testing", questions=[]
-                ),
+                purpose=PlanPurpose(summary="A test plan", context="testing", questions=[]),
                 phases=[phase],
             )
             payload = phase_payload(plan, phase, root)
@@ -2114,9 +2126,7 @@ class TestToolPolicyIntegration(unittest.TestCase):
                 id="phase-c",
                 title="Has test PC",
                 postconditions=[
-                    PostconditionSpec(
-                        description="run tests", type="test", target="pytest"
-                    )
+                    PostconditionSpec(description="run tests", type="test", target="pytest")
                 ],
             )
             plan = PlanDocument(
@@ -2251,6 +2261,393 @@ class TestToolPolicyIntegration(unittest.TestCase):
             policy = payload["tool_policies"][0]
             for key in ("tool_name", "approval_required", "cost_tier", "timeout_seconds"):
                 self.assertIn(key, policy)
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Approval workflow tests
+# ---------------------------------------------------------------------------
+
+
+def _make_approval(
+    plan_id: str = "plan-a",
+    phase_id: str = "phase-b",
+    project_id: str = "proj-c",
+    status: str = "pending",
+    requested: str = "2026-04-01T10:00:00Z",
+    expires: str = "2026-04-08T10:00:00Z",
+    **kwargs: Any,
+) -> ApprovalDocument:
+    return ApprovalDocument(
+        plan_id=plan_id,
+        phase_id=phase_id,
+        project_id=project_id,
+        status=status,
+        requested=requested,
+        expires=expires,
+        **kwargs,
+    )
+
+
+class TestApprovalDocumentDataclass(unittest.TestCase):
+    """ApprovalDocument construction, validation, and to_dict round-trip."""
+
+    def test_valid_pending_document(self) -> None:
+        ap = _make_approval()
+        self.assertEqual(ap.plan_id, "plan-a")
+        self.assertEqual(ap.phase_id, "phase-b")
+        self.assertEqual(ap.status, "pending")
+        self.assertIsNone(ap.resolution)
+        self.assertIsNone(ap.reviewer)
+
+    def test_all_statuses_valid(self) -> None:
+        for status in APPROVAL_STATUSES:
+            ap = _make_approval(status=status)
+            self.assertEqual(ap.status, status)
+
+    def test_invalid_status_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            _make_approval(status="unknown")
+
+    def test_invalid_plan_id_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            _make_approval(plan_id="not valid slug!")
+
+    def test_invalid_phase_id_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            _make_approval(phase_id="Bad Phase")
+
+    def test_invalid_project_id_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            _make_approval(project_id="")
+
+    def test_invalid_resolution_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            _make_approval(resolution="maybe")
+
+    def test_valid_resolutions(self) -> None:
+        for res in APPROVAL_RESOLUTIONS:
+            ap = _make_approval(resolution=res)
+            self.assertEqual(ap.resolution, res)
+
+    def test_empty_requested_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            _make_approval(requested="")
+
+    def test_empty_expires_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            _make_approval(expires="")
+
+    def test_context_defaults_to_dict(self) -> None:
+        ap = _make_approval()
+        self.assertIsInstance(ap.context, dict)
+
+    def test_non_dict_context_coerced(self) -> None:
+        ap = ApprovalDocument(
+            plan_id="plan-a",
+            phase_id="phase-b",
+            project_id="proj-c",
+            status="pending",
+            requested="2026-04-01T10:00:00Z",
+            expires="2026-04-08T10:00:00Z",
+            context="not a dict",  # type: ignore[arg-type]
+        )
+        self.assertEqual(ap.context, {})
+
+    def test_to_dict_contains_required_fields(self) -> None:
+        ap = _make_approval(context={"phase_title": "Do something"}, comment="LGTM")
+        d = ap.to_dict()
+        for key in (
+            "plan_id",
+            "phase_id",
+            "project_id",
+            "status",
+            "requested",
+            "expires",
+            "context",
+        ):
+            self.assertIn(key, d)
+        self.assertEqual(d["context"]["phase_title"], "Do something")
+        self.assertEqual(d["comment"], "LGTM")
+
+    def test_approval_filename_format(self) -> None:
+        fn = approval_filename("my-plan", "my-phase")
+        self.assertEqual(fn, "my-plan--my-phase.yaml")
+
+    def test_approvals_summary_path(self) -> None:
+        path = approvals_summary_path()
+        self.assertIn("approvals", path)
+        self.assertTrue(path.endswith("SUMMARY.md"))
+
+    def test_paused_in_plan_statuses(self) -> None:
+        self.assertIn("paused", PLAN_STATUSES)
+
+
+class TestApprovalStorage(unittest.TestCase):
+    """save_approval / load_approval round-trip and directory routing."""
+
+    def _root(self) -> "Any":  # returns a TemporaryDirectory context
+        return tempfile.TemporaryDirectory()
+
+    def test_save_pending_goes_to_pending_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval()
+            saved = save_approval(root, ap)
+            self.assertIn("pending", str(saved))
+            self.assertTrue(saved.exists())
+
+    def test_save_approved_goes_to_resolved_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval(status="approved")
+            saved = save_approval(root, ap)
+            self.assertIn("resolved", str(saved))
+            self.assertTrue(saved.exists())
+
+    def test_save_rejected_goes_to_resolved_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval(status="rejected")
+            saved = save_approval(root, ap)
+            self.assertIn("resolved", str(saved))
+
+    def test_load_approval_from_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval(context={"phase_title": "Test phase"})
+            save_approval(root, ap)
+            loaded = load_approval(root, "plan-a", "phase-b")
+            self.assertIsNotNone(loaded)
+            assert loaded is not None
+            self.assertEqual(loaded.status, "pending")
+            self.assertEqual(loaded.context.get("phase_title"), "Test phase")
+
+    def test_load_approval_from_resolved(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval(status="approved", resolution="approve", reviewer="user")
+            save_approval(root, ap)
+            loaded = load_approval(root, "plan-a", "phase-b")
+            self.assertIsNotNone(loaded)
+            assert loaded is not None
+            self.assertEqual(loaded.status, "approved")
+            self.assertEqual(loaded.reviewer, "user")
+
+    def test_load_returns_none_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = load_approval(root, "no-plan", "no-phase")
+            self.assertIsNone(result)
+
+    def test_pending_takes_precedence_over_resolved(self) -> None:
+        """If somehow both files exist, pending is returned first."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pending_ap = _make_approval(status="pending")
+            save_approval(root, pending_ap)
+            # Also write a resolved copy manually
+            from engram_mcp.agent_memory_mcp.plan_utils import _find_approvals_root
+
+            approvals_root = _find_approvals_root(root)
+            resolved_dir = approvals_root / "resolved"
+            resolved_dir.mkdir(parents=True, exist_ok=True)
+            resolved_ap = _make_approval(status="approved")
+            resolved_file = resolved_dir / approval_filename("plan-a", "phase-b")
+            import yaml as _yaml
+
+            resolved_file.write_text(_yaml.dump(resolved_ap.to_dict()), encoding="utf-8")
+            loaded = load_approval(root, "plan-a", "phase-b")
+            assert loaded is not None
+            self.assertEqual(loaded.status, "pending")
+
+    def test_yaml_round_trip_preserves_all_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval(
+                status="rejected",
+                resolution="reject",
+                reviewer="user",
+                resolved_at="2026-04-02T12:00:00Z",
+                comment="Not ready yet",
+                context={"phase_title": "Design step", "change_class": "proposed"},
+            )
+            save_approval(root, ap)
+            loaded = load_approval(root, "plan-a", "phase-b")
+            assert loaded is not None
+            self.assertEqual(loaded.resolution, "reject")
+            self.assertEqual(loaded.comment, "Not ready yet")
+            self.assertEqual(loaded.context.get("phase_title"), "Design step")
+
+
+class TestApprovalExpiry(unittest.TestCase):
+    """Lazy expiry evaluation in _check_approval_expiry and load_approval."""
+
+    def _past_ts(self) -> str:
+        return "2020-01-01T00:00:00Z"  # definitely in the past
+
+    def _future_ts(self) -> str:
+        return "2099-12-31T23:59:59Z"  # definitely in the future
+
+    def test_non_expired_returns_false(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval(expires=self._future_ts())
+            result = _check_approval_expiry(ap, root)
+            self.assertFalse(result)
+            self.assertEqual(ap.status, "pending")
+
+    def test_expired_approval_transitions_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval(expires=self._past_ts())
+            save_approval(root, ap)  # save to pending/
+            result = _check_approval_expiry(ap, root)
+            self.assertTrue(result)
+            self.assertEqual(ap.status, "expired")
+
+    def test_expired_file_moves_to_resolved(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval(expires=self._past_ts())
+            save_approval(root, ap)
+            _check_approval_expiry(ap, root)
+            from engram_mcp.agent_memory_mcp.plan_utils import _find_approvals_root
+
+            approvals_root = _find_approvals_root(root)
+            filename = approval_filename("plan-a", "phase-b")
+            self.assertFalse((approvals_root / "pending" / filename).exists())
+            self.assertTrue((approvals_root / "resolved" / filename).exists())
+
+    def test_load_approval_returns_expired_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval(expires=self._past_ts())
+            save_approval(root, ap)
+            loaded = load_approval(root, "plan-a", "phase-b")
+            assert loaded is not None
+            self.assertEqual(loaded.status, "expired")
+
+    def test_already_resolved_skips_expiry_check(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval(status="approved", expires=self._past_ts())
+            result = _check_approval_expiry(ap, root)
+            self.assertFalse(result)
+            self.assertEqual(ap.status, "approved")
+
+    def test_invalid_expires_date_does_not_raise(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # Store a pending approval with valid timestamps, then mutate
+            ap = _make_approval()
+            ap.expires = "not-a-date"  # type: ignore[assignment]
+            result = _check_approval_expiry(ap, root)
+            self.assertFalse(result)
+
+
+class TestApprovalsSummaryRegeneration(unittest.TestCase):
+    """regenerate_approvals_summary produces correct SUMMARY.md."""
+
+    def test_empty_queue_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            regenerate_approvals_summary(root)
+            from engram_mcp.agent_memory_mcp.plan_utils import _find_approvals_root
+
+            approvals_root = _find_approvals_root(root)
+            summary = (approvals_root / "SUMMARY.md").read_text(encoding="utf-8")
+            self.assertIn("No pending approvals", summary)
+            self.assertIn("No resolved approvals", summary)
+
+    def test_pending_item_appears_in_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval(context={"phase_title": "My Test Phase"})
+            save_approval(root, ap)
+            regenerate_approvals_summary(root)
+            from engram_mcp.agent_memory_mcp.plan_utils import _find_approvals_root
+
+            approvals_root = _find_approvals_root(root)
+            summary = (approvals_root / "SUMMARY.md").read_text(encoding="utf-8")
+            self.assertIn("plan-a", summary)
+            self.assertIn("My Test Phase", summary)
+
+    def test_resolved_item_appears_in_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ap = _make_approval(
+                status="approved",
+                resolved_at="2026-04-02T12:00:00Z",
+                context={"phase_title": "Resolved Phase"},
+            )
+            save_approval(root, ap)
+            regenerate_approvals_summary(root)
+            from engram_mcp.agent_memory_mcp.plan_utils import _find_approvals_root
+
+            approvals_root = _find_approvals_root(root)
+            summary = (approvals_root / "SUMMARY.md").read_text(encoding="utf-8")
+            self.assertIn("Resolved Phase", summary)
+            self.assertIn("approved", summary)
+
+
+class TestPlanPauseStatus(unittest.TestCase):
+    """PLAN_STATUSES includes 'paused' and it integrates with PlanDocument."""
+
+    def test_paused_is_valid_plan_status(self) -> None:
+        self.assertIn("paused", PLAN_STATUSES)
+
+    def test_plan_document_can_hold_paused_status(self) -> None:
+        plan = PlanDocument(
+            id="test-plan",
+            project="test-project",
+            created="2026-04-01",
+            origin_session="memory/activity/2026/04/01/chat-001",
+            status="paused",
+            purpose=PlanPurpose(summary="Test", context="ctx", questions=[]),
+            phases=[PlanPhase(id="ph-one", title="Phase one")],
+        )
+        self.assertEqual(plan.status, "paused")
+
+    def test_paused_plan_round_trips_via_yaml(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = PlanDocument(
+                id="paused-plan",
+                project="test-proj",
+                created="2026-04-01",
+                origin_session="memory/activity/2026/04/01/chat-001",
+                status="paused",
+                purpose=PlanPurpose(summary="Paused plan test", context="ctx", questions=[]),
+                phases=[
+                    PlanPhase(
+                        id="ph-one",
+                        title="Phase One",
+                        requires_approval=True,
+                        changes=[
+                            ChangeSpec(
+                                path="memory/working/notes/test.md",
+                                action="update",
+                                description="Update notes",
+                            )
+                        ],
+                    ),
+                ],
+            )
+            proj_dir = root / "memory" / "working" / "projects" / "test-proj" / "plans"
+            proj_dir.mkdir(parents=True)
+            abs_path = proj_dir / "paused-plan.yaml"
+            save_plan(abs_path, plan)
+            loaded = load_plan(abs_path)
+            self.assertEqual(loaded.status, "paused")
+            self.assertTrue(loaded.phases[0].requires_approval)
+
+    def test_requires_approval_phase_flag(self) -> None:
+        phase = PlanPhase(id="needs-review", title="Needs review", requires_approval=True)
+        self.assertTrue(phase.requires_approval)
+
+    def test_phase_without_requires_approval_defaults_false(self) -> None:
+        phase = PlanPhase(id="no-review", title="No review needed")
+        self.assertFalse(phase.requires_approval)
 
 
 if __name__ == "__main__":

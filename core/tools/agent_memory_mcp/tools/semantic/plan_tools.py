@@ -9,19 +9,24 @@ from typing import TYPE_CHECKING, Any, cast
 
 from ...path_policy import validate_session_id, validate_slug
 from ...plan_utils import (
+    APPROVAL_RESOLUTIONS,
     COST_TIERS,
     TRACE_SPAN_TYPES,
     TRACE_STATUSES,
+    ApprovalDocument,
     PlanDocument,
     PlanPurpose,
     ToolDefinition,
     _all_registry_tools,
     append_operations_log,
+    approval_filename,
+    approvals_summary_path,
     budget_status,
     build_review_from_input,
     coerce_budget_input,
     coerce_phase_inputs,
     exportable_artifacts,
+    load_approval,
     load_plan,
     load_registry,
     next_action,
@@ -33,9 +38,11 @@ from ...plan_utils import (
     project_outbox_root,
     project_plan_path,
     record_trace,
+    regenerate_approvals_summary,
     regenerate_registry_summary,
     registry_file_path,
     resolve_phase,
+    save_approval,
     save_plan,
     save_registry,
     trace_file_path,
@@ -447,6 +454,17 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             f"memory/working/projects/{resolved_project_id}/operations.jsonl",
         ]
 
+        # Guard: paused plans cannot be advanced (only inspect works)
+        if plan.status == "paused" and action in {"start", "complete"}:
+            paused_msg = (
+                f"Plan is paused, awaiting approval for phase '{phase.id}'. "
+                "Use `memory_resolve_approval` to approve or reject."
+            )
+            return json.dumps(
+                {"plan_status": "paused", "phase_id": phase.id, "message": paused_msg},
+                indent=2,
+            )
+
         if action == "start" and blockers:
             plan.status = "blocked"
             if phase.status == "pending":
@@ -523,6 +541,169 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 raise AlreadyDoneError(f"Phase '{phase.id}' is already complete")
             if phase.status == "in-progress":
                 raise AlreadyDoneError(f"Phase '{phase.id}' is already in progress")
+
+            # ── requires_approval: auto-create approval and pause ────────────
+            if phase.requires_approval:
+                from datetime import datetime, timezone
+
+                existing_approval = load_approval(root, plan.id, phase.id)
+
+                if existing_approval is not None and existing_approval.status == "approved":
+                    pass  # Approved — fall through to normal start
+
+                elif existing_approval is not None and existing_approval.status == "pending":
+                    # Already awaiting approval; plan should be paused
+                    return json.dumps(
+                        {
+                            "plan_status": "paused",
+                            "phase_id": phase.id,
+                            "message": (
+                                f"Awaiting approval for phase '{phase.id}'. "
+                                "Use `memory_resolve_approval` to approve or reject."
+                            ),
+                            "approval": existing_approval.to_dict(),
+                        },
+                        indent=2,
+                    )
+
+                elif existing_approval is not None and existing_approval.status in {
+                    "rejected",
+                    "expired",
+                }:
+                    # Rejected or expired → block the plan
+                    plan.status = "blocked"
+                    commit_msg_rej = (
+                        f"[plan] Block {plan.id}:{phase.id} (approval {existing_approval.status})"
+                    )
+                    rej_state: dict[str, Any] = {
+                        "plan_status": plan.status,
+                        "phase_id": phase.id,
+                        "approval_status": existing_approval.status,
+                        "message": (
+                            f"Approval for phase '{phase.id}' was {existing_approval.status}. "
+                            "Call `memory_request_approval` to re-request or abandon the plan."
+                        ),
+                        "approval": existing_approval.to_dict(),
+                    }
+                    if not preview:
+                        save_plan(abs_plan, plan, root)
+                        repo.add(plan_path)
+                        _append_plan_log(
+                            root,
+                            repo,
+                            resolved_project_id,
+                            files_changed,
+                            session_id=session_id,
+                            action="phase-blocked",
+                            plan_id=plan.id,
+                            phase_id=phase.id,
+                            detail=f"Approval {existing_approval.status}",
+                        )
+                        _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+                        commit_result_rej = repo.commit(commit_msg_rej)
+                        return MemoryWriteResult.from_commit(
+                            files_changed=files_changed,
+                            commit_result=commit_result_rej,
+                            commit_message=commit_msg_rej,
+                            new_state=rej_state,
+                            warnings=warnings,
+                        ).to_json()
+                    return json.dumps(rej_state, indent=2)
+
+                else:
+                    # No approval document → auto-create and pause plan
+                    now_dt = datetime.now(timezone.utc)
+                    now_str = now_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    expires_str = now_dt.replace(
+                        day=min(now_dt.day + 7, 28) if now_dt.month == 2 else now_dt.day
+                    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    # Use timedelta for correct 7-day calculation
+                    from datetime import timedelta
+
+                    expires_str = (now_dt + timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    bs_ctx = budget_status(plan)
+                    approval_context: dict[str, Any] = {
+                        "phase_title": phase.title,
+                        "phase_summary": (
+                            f"Phase '{phase.id}' requires human approval before execution. "
+                            f"Sources: {len(phase.sources)}, "
+                            f"Changes: {len(phase.changes)}"
+                        ),
+                        "sources": [s.path for s in phase.sources],
+                        "changes": [c.to_dict() for c in phase.changes],
+                        "change_class": change_class,
+                    }
+                    if bs_ctx is not None:
+                        approval_context["budget_status"] = bs_ctx
+                    new_approval = ApprovalDocument(
+                        plan_id=plan.id,
+                        phase_id=phase.id,
+                        project_id=resolved_project_id,
+                        status="pending",
+                        requested=now_str,
+                        expires=expires_str,
+                        context=approval_context,
+                    )
+                    plan.status = "paused"
+                    approval_files_changed = list(files_changed) + [approvals_summary_path()]
+                    commit_msg_pause = f"[plan] Pause {plan.id}:{phase.id} pending approval"
+                    paused_state: dict[str, Any] = {
+                        "plan_status": "paused",
+                        "phase_id": phase.id,
+                        "approval_file": (
+                            f"memory/working/approvals/pending/"
+                            f"{approval_filename(plan.id, phase.id)}"
+                        ),
+                        "expires": expires_str,
+                        "message": (
+                            f"Phase '{phase.id}' requires human approval. "
+                            "Approval request created. Use `memory_resolve_approval` "
+                            "to approve or reject."
+                        ),
+                    }
+                    if not preview:
+                        save_approval(root, new_approval)
+                        regenerate_approvals_summary(root)
+                        save_plan(abs_plan, plan, root)
+                        repo.add(plan_path)
+                        repo.add(approvals_summary_path())
+                        _append_plan_log(
+                            root,
+                            repo,
+                            resolved_project_id,
+                            approval_files_changed,
+                            session_id=session_id,
+                            action="approval-requested",
+                            plan_id=plan.id,
+                            phase_id=phase.id,
+                            detail=f"Auto-paused: approval required for {phase.id}",
+                        )
+                        _sync_project_navigation(
+                            root, repo, resolved_project_id, approval_files_changed
+                        )
+                        record_trace(
+                            root,
+                            session_id,
+                            span_type="plan_action",
+                            name="approval-requested",
+                            status="ok",
+                            metadata={
+                                "plan_id": plan.id,
+                                "phase_id": phase.id,
+                                "expires": expires_str,
+                            },
+                        )
+                        commit_result_pause = repo.commit(commit_msg_pause)
+                        return MemoryWriteResult.from_commit(
+                            files_changed=approval_files_changed,
+                            commit_result=commit_result_pause,
+                            commit_message=commit_msg_pause,
+                            new_state=paused_state,
+                            warnings=warnings,
+                        ).to_json()
+                    return json.dumps(paused_state, indent=2)
+            # ── end requires_approval block ──────────────────────────────────
+
             plan.status = "active"
             phase.status = "in-progress"
             commit_msg = f"[plan] Start {plan.id}:{phase.id}"
@@ -1333,6 +1514,264 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         }
         return _json.dumps(result, indent=2)
 
+    # ── Approval workflow MCP tools ──────────────────────────────────────────
+
+    async def memory_request_approval(
+        plan_id: str,
+        phase_id: str,
+        project_id: str | None = None,
+        context: str | None = None,
+        expires_days: int = 7,
+    ) -> str:
+        """Request human approval for a plan phase.
+
+        Creates a pending approval document in ``working/approvals/pending/`` and
+        transitions the plan status to ``paused``.  If an approval already exists for
+        this phase and is still pending, returns the existing document without creating
+        a duplicate.
+
+        Returns JSON with ``approval_file``, ``status``, ``expires``,
+        and ``plan_status``.
+        """
+        import json as _json
+        from datetime import datetime, timedelta, timezone
+
+        from ...errors import ValidationError as _VE
+        from ...models import MemoryWriteResult
+
+        repo = get_repo()
+        root = get_root()
+
+        plan_path_r, resolved_project_id = _resolve_existing_plan_path(root, plan_id, project_id)
+        abs_plan = repo.abs_path(plan_path_r)
+        plan = load_plan(abs_plan, root)
+        phase = resolve_phase(plan, phase_id)
+
+        if phase.status not in {"pending", "in-progress"}:
+            raise _VE(
+                f"Phase '{phase.id}' must be pending or in-progress to request approval "
+                f"(current status: {phase.status!r})"
+            )
+
+        # Check for existing pending approval
+        existing = load_approval(root, plan.id, phase.id)
+        if existing is not None and existing.status == "pending":
+            return _json.dumps(
+                {
+                    "approval_file": (
+                        f"memory/working/approvals/pending/{approval_filename(plan.id, phase.id)}"
+                    ),
+                    "status": "pending",
+                    "expires": existing.expires,
+                    "plan_status": plan.status,
+                    "message": "Approval already pending; returning existing document.",
+                },
+                indent=2,
+            )
+
+        now_dt = datetime.now(timezone.utc)
+        now_str = now_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        try:
+            days = max(1, int(expires_days))
+        except (TypeError, ValueError):
+            days = 7
+        expires_str = (now_dt + timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        change_class_val = phase_change_class(phase)
+        bs_ctx = budget_status(plan)
+        approval_context: dict[str, Any] = {
+            "phase_title": phase.title,
+            "phase_summary": (
+                f"Phase '{phase.id}' requires human approval before execution. "
+                f"Sources: {len(phase.sources)}, Changes: {len(phase.changes)}"
+            ),
+            "sources": [s.path for s in phase.sources],
+            "changes": [c.to_dict() for c in phase.changes],
+            "change_class": change_class_val,
+        }
+        if bs_ctx is not None:
+            approval_context["budget_status"] = bs_ctx
+        if context:
+            approval_context["additional_context"] = context.strip()
+
+        new_approval = ApprovalDocument(
+            plan_id=plan.id,
+            phase_id=phase.id,
+            project_id=resolved_project_id,
+            status="pending",
+            requested=now_str,
+            expires=expires_str,
+            context=approval_context,
+        )
+        plan.status = "paused"
+        save_approval(root, new_approval)
+        regenerate_approvals_summary(root)
+        save_plan(abs_plan, plan, root)
+        repo.add(plan_path_r)
+        repo.add(approvals_summary_path())
+
+        files_req = [
+            plan_path_r,
+            _project_summary_path(resolved_project_id),
+            "memory/working/projects/SUMMARY.md",
+            f"memory/working/projects/{resolved_project_id}/operations.jsonl",
+            approvals_summary_path(),
+        ]
+        _append_plan_log(
+            root,
+            repo,
+            resolved_project_id,
+            files_req,
+            session_id=None,
+            action="approval-requested",
+            plan_id=plan.id,
+            phase_id=phase.id,
+            detail=f"Expires {expires_str}",
+        )
+        _sync_project_navigation(root, repo, resolved_project_id, files_req)
+        record_trace(
+            root,
+            None,
+            span_type="plan_action",
+            name="approval-requested",
+            status="ok",
+            metadata={"plan_id": plan.id, "phase_id": phase.id, "expires": expires_str},
+        )
+        commit_msg_req = f"[plan] Request approval {plan.id}:{phase.id}"
+        commit_result_req = repo.commit(commit_msg_req)
+        result_req: dict[str, Any] = {
+            "approval_file": (
+                f"memory/working/approvals/pending/{approval_filename(plan.id, phase.id)}"
+            ),
+            "status": "pending",
+            "expires": expires_str,
+            "plan_status": "paused",
+        }
+        return MemoryWriteResult.from_commit(
+            files_changed=files_req,
+            commit_result=commit_result_req,
+            commit_message=commit_msg_req,
+            new_state=result_req,
+            warnings=[],
+        ).to_json()
+
+    async def memory_resolve_approval(
+        plan_id: str,
+        phase_id: str,
+        resolution: str,
+        comment: str | None = None,
+    ) -> str:
+        """Resolve a pending approval request (approve or reject).
+
+        Moves the approval document from ``pending/`` to ``resolved/`` and updates
+        the plan status: ``active`` on approval, ``blocked`` on rejection.
+
+        ``resolution`` must be ``"approve"`` or ``"reject"``.
+
+        Returns JSON with ``approval_file``, ``status``, and ``plan_status``.
+        """
+        from datetime import datetime, timezone
+
+        from ...errors import NotFoundError
+        from ...errors import ValidationError as _VE
+        from ...models import MemoryWriteResult
+
+        repo = get_repo()
+        root = get_root()
+
+        if resolution not in APPROVAL_RESOLUTIONS:
+            raise _VE(f"resolution must be one of {sorted(APPROVAL_RESOLUTIONS)}: {resolution!r}")
+
+        plan_path_r, resolved_project_id = _resolve_existing_plan_path(root, plan_id, None)
+        abs_plan = repo.abs_path(plan_path_r)
+        plan = load_plan(abs_plan, root)
+        phase = resolve_phase(plan, phase_id)
+
+        existing = load_approval(root, plan.id, phase.id)
+        if existing is None:
+            raise NotFoundError(
+                f"No approval document found for plan '{plan.id}' phase '{phase.id}'"
+            )
+        if existing.status != "pending":
+            raise _VE(
+                f"Approval for phase '{phase.id}' is already resolved (status: {existing.status!r})"
+            )
+
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        existing.resolution = resolution
+        existing.reviewer = "user"
+        existing.resolved_at = now_str
+        existing.comment = comment.strip() if comment else None
+        existing.status = "approved" if resolution == "approve" else "rejected"
+
+        # Move from pending/ to resolved/
+        from ...plan_utils import _find_approvals_root
+
+        approvals_root = _find_approvals_root(root)
+        filename_r = approval_filename(plan.id, phase.id)
+        pending_path_r = approvals_root / "pending" / filename_r
+        resolved_dir_r = approvals_root / "resolved"
+        resolved_dir_r.mkdir(parents=True, exist_ok=True)
+        save_approval(root, existing)  # saves to resolved/ since status != pending
+        if pending_path_r.exists():
+            pending_path_r.unlink()
+
+        if resolution == "approve":
+            plan.status = "active"
+        else:
+            plan.status = "blocked"
+
+        regenerate_approvals_summary(root)
+        save_plan(abs_plan, plan, root)
+        repo.add(plan_path_r)
+        repo.add(approvals_summary_path())
+
+        files_res = [
+            plan_path_r,
+            _project_summary_path(resolved_project_id),
+            "memory/working/projects/SUMMARY.md",
+            f"memory/working/projects/{resolved_project_id}/operations.jsonl",
+            approvals_summary_path(),
+        ]
+        _append_plan_log(
+            root,
+            repo,
+            resolved_project_id,
+            files_res,
+            session_id=None,
+            action=f"approval-{resolution}d",
+            plan_id=plan.id,
+            phase_id=phase.id,
+            detail=comment or "",
+        )
+        _sync_project_navigation(root, repo, resolved_project_id, files_res)
+        record_trace(
+            root,
+            None,
+            span_type="plan_action",
+            name=f"approval-{resolution}d",
+            status="ok",
+            metadata={"plan_id": plan.id, "phase_id": phase.id, "resolution": resolution},
+        )
+        commit_msg_res = (
+            f"[plan] {'Approve' if resolution == 'approve' else 'Reject'} {plan.id}:{phase.id}"
+        )
+        commit_result_res = repo.commit(commit_msg_res)
+        result_res: dict[str, Any] = {
+            "approval_file": (
+                f"memory/working/approvals/resolved/{approval_filename(plan.id, phase.id)}"
+            ),
+            "status": existing.status,
+            "plan_status": plan.status,
+        }
+        return MemoryWriteResult.from_commit(
+            files_changed=files_res,
+            commit_result=commit_result_res,
+            commit_message=commit_msg_res,
+            new_state=result_res,
+            warnings=[],
+        ).to_json()
+
     # ── Tool Registry MCP tools ──────────────────────────────────────────────
 
     async def memory_register_tool(
@@ -1423,13 +1862,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         if not any([tool_name, provider, tags, cost_tier]):
             raise _VE(
-                "at least one filter parameter is required: "
-                "tool_name, provider, tags, or cost_tier"
+                "at least one filter parameter is required: tool_name, provider, tags, or cost_tier"
             )
         if cost_tier is not None and cost_tier not in COST_TIERS:
-            raise _VE(
-                f"cost_tier must be one of {sorted(COST_TIERS)}: {cost_tier!r}"
-            )
+            raise _VE(f"cost_tier must be one of {sorted(COST_TIERS)}: {cost_tier!r}")
 
         root = get_root()
         all_tools = _all_registry_tools(root)
@@ -1467,6 +1903,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         "memory_query_traces": memory_query_traces,
         "memory_register_tool": memory_register_tool,
         "memory_get_tool_policy": memory_get_tool_policy,
+        "memory_request_approval": memory_request_approval,
+        "memory_resolve_approval": memory_resolve_approval,
     }
 
 

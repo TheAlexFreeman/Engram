@@ -13,7 +13,7 @@ import yaml  # type: ignore[import-untyped]
 from .errors import NotFoundError, ValidationError
 from .path_policy import validate_session_id, validate_slug
 
-PLAN_STATUSES = {"draft", "active", "blocked", "completed", "abandoned"}
+PLAN_STATUSES = {"draft", "active", "blocked", "paused", "completed", "abandoned"}
 PHASE_STATUSES = {"pending", "blocked", "in-progress", "completed", "skipped"}
 PLAN_OUTCOMES = {"completed", "partial", "abandoned"}
 CHANGE_ACTIONS = {"create", "rewrite", "update", "delete", "rename"}
@@ -22,6 +22,8 @@ POSTCONDITION_TYPES = {"check", "grep", "test", "manual"}
 TRACE_SPAN_TYPES = {"tool_call", "plan_action", "retrieval", "verification", "guardrail_check"}
 TRACE_STATUSES = {"ok", "error", "denied"}
 COST_TIERS: frozenset[str] = frozenset({"free", "low", "medium", "high"})
+APPROVAL_STATUSES: frozenset[str] = frozenset({"pending", "approved", "rejected", "expired"})
+APPROVAL_RESOLUTIONS: frozenset[str] = frozenset({"approve", "reject"})
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _CREDENTIAL_FIELD_RE = re.compile(r"(key|token|secret|password|auth)", re.IGNORECASE)
@@ -1368,9 +1370,7 @@ def save_registry(root: Path, provider: str, tools: list[ToolDefinition]) -> Non
         "provider": provider,
         "tools": [t.to_dict() for t in tools],
     }
-    text = yaml.dump(
-        payload, Dumper=_PlanDumper, sort_keys=False, allow_unicode=False, width=88
-    )
+    text = yaml.dump(payload, Dumper=_PlanDumper, sort_keys=False, allow_unicode=False, width=88)
     abs_path.write_text(text, encoding="utf-8")
 
 
@@ -1407,8 +1407,12 @@ def regenerate_registry_summary(root: Path) -> None:
         for t in sorted(all_tools, key=lambda t: (t.provider, t.name)):
             by_provider.setdefault(t.provider, []).append(t)
         for prov, ptools in sorted(by_provider.items()):
-            lines += [f"## {prov}", "", "| Tool | Description | Approval | Cost | Timeout | Tags |",
-                      "|---|---|---|---|---|---|"]
+            lines += [
+                f"## {prov}",
+                "",
+                "| Tool | Description | Approval | Cost | Timeout | Tags |",
+                "|---|---|---|---|---|---|",
+            ]
             for t in ptools:
                 tags_str = ", ".join(t.tags) if t.tags else "—"
                 approval = "yes" if t.approval_required else "no"
@@ -1456,9 +1460,7 @@ def _resolve_tool_policies(phase: "PlanPhase", root: Path) -> list[dict[str, Any
 
     Best-effort: unregistered tools are silently skipped, yielding an empty list.
     """
-    test_targets = [
-        pc.target for pc in phase.postconditions if pc.type == "test" and pc.target
-    ]
+    test_targets = [pc.target for pc in phase.postconditions if pc.type == "test" and pc.target]
     if not test_targets:
         return []
     all_tools = _all_registry_tools(root)
@@ -1539,7 +1541,276 @@ def record_trace(
         return None
 
 
+# ---------------------------------------------------------------------------
+# Approval workflow schema and helpers
+# ---------------------------------------------------------------------------
+
+
+def approval_filename(plan_id: str, phase_id: str) -> str:
+    """Return the filename (not path) for an approval document: {plan_id}--{phase_id}.yaml."""
+    p = validate_slug(plan_id, field_name="plan_id")
+    ph = validate_slug(phase_id, field_name="phase_id")
+    return f"{p}--{ph}.yaml"
+
+
+def approvals_summary_path() -> str:
+    """Content-relative path to the approvals queue SUMMARY.md."""
+    return "memory/working/approvals/SUMMARY.md"
+
+
+def _find_approvals_root(root: Path) -> Path:
+    """Resolve the absolute path to memory/working/approvals/, tolerating root variants."""
+    direct = root / "memory/working/approvals"
+    if direct.exists():
+        return direct
+    for prefix in _CONTENT_PREFIXES:
+        candidate = root / prefix / "memory/working/approvals"
+        if candidate.exists():
+            return candidate
+    return direct
+
+
+@dataclass(slots=True)
+class ApprovalDocument:
+    """A pending or resolved human-in-the-loop approval request for a plan phase.
+
+    Stored in ``memory/working/approvals/pending/{plan_id}--{phase_id}.yaml``
+    while awaiting review, and moved to ``resolved/`` after resolution or expiry.
+    """
+
+    plan_id: str
+    phase_id: str
+    project_id: str
+    status: str  # pending | approved | rejected | expired
+    requested: str  # ISO-8601 UTC timestamp
+    expires: str  # ISO-8601 UTC timestamp
+    context: dict[str, Any] = field(default_factory=dict)
+    resolution: str | None = None  # "approve" | "reject"
+    reviewer: str | None = None
+    resolved_at: str | None = None
+    comment: str | None = None
+
+    def __post_init__(self) -> None:
+        self.plan_id = validate_slug(self.plan_id, field_name="plan_id")
+        self.phase_id = validate_slug(self.phase_id, field_name="phase_id")
+        self.project_id = validate_slug(self.project_id, field_name="project_id")
+        if self.status not in APPROVAL_STATUSES:
+            raise ValidationError(
+                f"approval status must be one of {sorted(APPROVAL_STATUSES)}: {self.status!r}"
+            )
+        if not isinstance(self.requested, str) or not self.requested.strip():
+            raise ValidationError("requested must be a non-empty ISO-8601 timestamp string")
+        if not isinstance(self.expires, str) or not self.expires.strip():
+            raise ValidationError("expires must be a non-empty ISO-8601 timestamp string")
+        if self.resolution is not None and self.resolution not in APPROVAL_RESOLUTIONS:
+            raise ValidationError(
+                f"resolution must be one of {sorted(APPROVAL_RESOLUTIONS)}: {self.resolution!r}"
+            )
+        if not isinstance(self.context, dict):
+            self.context = {}
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "plan_id": self.plan_id,
+            "phase_id": self.phase_id,
+            "project_id": self.project_id,
+            "status": self.status,
+            "requested": self.requested,
+            "expires": self.expires,
+            "context": self.context,
+            "resolution": self.resolution,
+            "reviewer": self.reviewer,
+            "resolved_at": self.resolved_at,
+            "comment": self.comment,
+        }
+
+
+def _coerce_approval(raw: dict[str, Any]) -> "ApprovalDocument":
+    """Coerce a raw YAML mapping into an ApprovalDocument."""
+    context = raw.get("context")
+    if not isinstance(context, dict):
+        context = {}
+    return ApprovalDocument(
+        plan_id=str(raw.get("plan_id", "")),
+        phase_id=str(raw.get("phase_id", "")),
+        project_id=str(raw.get("project_id", "")),
+        status=str(raw.get("status", "pending")),
+        requested=str(raw.get("requested", "")),
+        expires=str(raw.get("expires", "")),
+        context=context,
+        resolution=str(raw["resolution"]) if raw.get("resolution") else None,
+        reviewer=str(raw["reviewer"]) if raw.get("reviewer") else None,
+        resolved_at=str(raw["resolved_at"]) if raw.get("resolved_at") else None,
+        comment=str(raw["comment"]) if raw.get("comment") else None,
+    )
+
+
+def _check_approval_expiry(approval: "ApprovalDocument", root: Path) -> bool:
+    """Check if a pending approval has passed its expiry; if so, transition it in-place.
+
+    Mutates *approval* status to ``"expired"`` and moves its file from
+    ``pending/`` to ``resolved/``.  Returns ``True`` if the approval was expired
+    (and the caller should set the plan status to ``"blocked"``), ``False``
+    otherwise.
+    """
+    if approval.status != "pending":
+        return False
+    try:
+        from datetime import datetime, timezone
+
+        expires_dt = datetime.fromisoformat(approval.expires.replace("Z", "+00:00"))
+        now = datetime.now(timezone.utc)
+        if now <= expires_dt:
+            return False
+    except (ValueError, AttributeError):
+        return False
+
+    # Transition to expired and move file
+    approval.status = "expired"
+    approvals_root = _find_approvals_root(root)
+    filename = approval_filename(approval.plan_id, approval.phase_id)
+    pending_path = approvals_root / "pending" / filename
+    resolved_dir = approvals_root / "resolved"
+    resolved_dir.mkdir(parents=True, exist_ok=True)
+    resolved_path = resolved_dir / filename
+    text = yaml.dump(
+        approval.to_dict(),
+        Dumper=_PlanDumper,
+        sort_keys=False,
+        allow_unicode=False,
+        width=88,
+    )
+    resolved_path.write_text(text, encoding="utf-8")
+    if pending_path.exists():
+        pending_path.unlink()
+    return True
+
+
+def load_approval(root: Path, plan_id: str, phase_id: str) -> "ApprovalDocument | None":
+    """Load an approval document for a plan/phase pair.
+
+    Checks ``pending/`` first, then ``resolved/``.  If the document is pending
+    and past its expiry deadline, lazily transitions it to ``expired`` (file
+    moved to ``resolved/``).  Returns ``None`` if no approval document exists.
+    """
+    approvals_root = _find_approvals_root(root)
+    filename = approval_filename(plan_id, phase_id)
+
+    pending_path = approvals_root / "pending" / filename
+    if pending_path.exists():
+        try:
+            raw = yaml.safe_load(pending_path.read_text(encoding="utf-8"))
+        except yaml.YAMLError as exc:
+            raise ValidationError(f"Invalid approval YAML {filename}: {exc}") from exc
+        if not isinstance(raw, dict):
+            raise ValidationError(f"Approval file must be a mapping: {filename}")
+        approval = _coerce_approval(raw)
+        _check_approval_expiry(approval, root)
+        return approval
+
+    resolved_path = approvals_root / "resolved" / filename
+    if resolved_path.exists():
+        try:
+            raw = yaml.safe_load(resolved_path.read_text(encoding="utf-8"))
+        except yaml.YAMLError as exc:
+            raise ValidationError(f"Invalid approval YAML {filename}: {exc}") from exc
+        if not isinstance(raw, dict):
+            raise ValidationError(f"Approval file must be a mapping: {filename}")
+        return _coerce_approval(raw)
+
+    return None
+
+
+def save_approval(root: Path, approval: "ApprovalDocument") -> Path:
+    """Persist an approval document to the correct subdirectory based on status.
+
+    Pending approvals go to ``pending/``; all others go to ``resolved/``.
+    Returns the absolute path where the document was saved.
+    """
+    approvals_root = _find_approvals_root(root)
+    filename = approval_filename(approval.plan_id, approval.phase_id)
+
+    if approval.status == "pending":
+        target_dir = approvals_root / "pending"
+    else:
+        target_dir = approvals_root / "resolved"
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    abs_path = target_dir / filename
+    text = yaml.dump(
+        approval.to_dict(),
+        Dumper=_PlanDumper,
+        sort_keys=False,
+        allow_unicode=False,
+        width=88,
+    )
+    abs_path.write_text(text, encoding="utf-8")
+    return abs_path
+
+
+def regenerate_approvals_summary(root: Path) -> None:
+    """Rewrite memory/working/approvals/SUMMARY.md from pending and resolved directories."""
+    approvals_root = _find_approvals_root(root)
+    approvals_root.mkdir(parents=True, exist_ok=True)
+
+    pending_approvals: list[ApprovalDocument] = []
+    resolved_approvals: list[ApprovalDocument] = []
+
+    pending_dir = approvals_root / "pending"
+    if pending_dir.exists():
+        for yaml_file in sorted(pending_dir.glob("*.yaml")):
+            try:
+                raw = yaml.safe_load(yaml_file.read_text(encoding="utf-8"))
+                if isinstance(raw, dict):
+                    pending_approvals.append(_coerce_approval(raw))
+            except Exception:  # noqa: BLE001
+                continue
+
+    resolved_dir = approvals_root / "resolved"
+    if resolved_dir.exists():
+        for yaml_file in sorted(resolved_dir.glob("*.yaml")):
+            try:
+                raw = yaml.safe_load(yaml_file.read_text(encoding="utf-8"))
+                if isinstance(raw, dict):
+                    resolved_approvals.append(_coerce_approval(raw))
+            except Exception:  # noqa: BLE001
+                continue
+
+    lines: list[str] = [
+        "# Approval Queue",
+        "",
+        "Human-in-the-loop approval requests. "
+        "Managed by `memory_request_approval` and `memory_resolve_approval`.",
+        "",
+    ]
+
+    lines += ["## Pending", ""]
+    if not pending_approvals:
+        lines.append("_No pending approvals._")
+    else:
+        lines += ["| Plan | Phase | Requested | Expires |", "|---|---|---|---|"]
+        for ap in pending_approvals:
+            title = (ap.context or {}).get("phase_title", ap.phase_id)
+            lines.append(f"| {ap.plan_id} | {title} | {ap.requested[:10]} | {ap.expires[:10]} |")
+
+    lines += ["", "## Resolved", ""]
+    if not resolved_approvals:
+        lines.append("_No resolved approvals._")
+    else:
+        lines += ["| Plan | Phase | Status | Resolved |", "|---|---|---|---|"]
+        for ap in sorted(resolved_approvals, key=lambda a: a.resolved_at or "", reverse=True):
+            title = (ap.context or {}).get("phase_title", ap.phase_id)
+            resolved_str = (ap.resolved_at or "")[:10]
+            lines.append(f"| {ap.plan_id} | {title} | {ap.status} | {resolved_str} |")
+
+    lines.append("")
+    summary_abs = approvals_root / "SUMMARY.md"
+    summary_abs.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 __all__ = [
+    "APPROVAL_RESOLUTIONS",
+    "APPROVAL_STATUSES",
     "CHANGE_ACTIONS",
     "COST_TIERS",
     "PLAN_STATUSES",
@@ -1548,6 +1819,7 @@ __all__ = [
     "SOURCE_TYPES",
     "TRACE_SPAN_TYPES",
     "TRACE_STATUSES",
+    "ApprovalDocument",
     "ChangeSpec",
     "PhaseFailure",
     "PlanBudget",
@@ -1560,12 +1832,16 @@ __all__ = [
     "ToolDefinition",
     "TraceSpan",
     "_all_registry_tools",
+    "_check_approval_expiry",
     "append_operations_log",
+    "approval_filename",
+    "approvals_summary_path",
     "budget_status",
     "build_review_from_input",
     "coerce_budget_input",
     "coerce_phase_inputs",
     "exportable_artifacts",
+    "load_approval",
     "load_plan",
     "load_registry",
     "next_action",
@@ -1580,10 +1856,12 @@ __all__ = [
     "project_outbox_root",
     "project_plan_path",
     "record_trace",
+    "regenerate_approvals_summary",
     "regenerate_registry_summary",
     "registry_file_path",
     "registry_summary_path",
     "resolve_phase",
+    "save_approval",
     "save_plan",
     "save_registry",
     "trace_file_path",
