@@ -57,8 +57,11 @@ class MemoryCapabilitiesTests(unittest.TestCase):
             operation = manifest["operations"][tool_name]
             self.assertEqual(operation["tier"], "semantic")
             self.assertIn(operation["change_class"], change_classes)
-            self.assertIn("auto_commit", operation["commit_model"])
             self.assertIsInstance(operation["writes"], list)
+            if operation["writes"]:
+                self.assertIn("auto_commit", operation["commit_model"])
+            else:
+                self.assertEqual(operation["commit_model"], "none")
             self.assertIsInstance(operation["owns_frontmatter"], list)
             self.assertIsInstance(operation["owns_summaries"], list)
             self.assertIsInstance(operation["owns_access_logs"], list)

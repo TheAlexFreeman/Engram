@@ -1,9 +1,17 @@
 """Prune redundant cross-references from the densest knowledge base domains."""
-import os, re
 
-KB = 'core/memory/knowledge'
-DOMAINS = ['mathematics', 'rationalist-community', 'social-science', 'ai', 'software-engineering']
-LINK_RE = re.compile(r'\[([^\]]*)\]\(([^)]*\.md[^)]*)\)')
+import os
+import re
+
+KB = "core/memory/knowledge"
+DOMAINS = [
+    "mathematics",
+    "rationalist-community",
+    "social-science",
+    "ai",
+    "software-engineering",
+]
+LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]*\.md[^)]*)\)")
 
 total_removed = 0
 files_modified = 0

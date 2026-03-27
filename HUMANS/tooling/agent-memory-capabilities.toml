@@ -356,6 +356,46 @@ folders_scanned = "Folders Scanned"
 staged_count = "Staged Count"
 duplicate_count = "Duplicate Count"
 error_count = "Error Count"
+plan_id = "Plan Id"
+project_id = "Project Id"
+summary = "Summary"
+all_passed = "All Passed"
+context_budget = "Context Budget"
+span_id = "Trace Span"
+trace_file = "Trace File"
+total_matched = "Matched Spans"
+aggregates = "Trace Aggregates"
+results = "Eval Results"
+runs = "Eval Runs"
+trends = "Metric Trends"
+metrics = "Metrics"
+approval_file = "Approval File"
+expires = "Approval Expires"
+tool_name = "Tool Name"
+provider = "Provider"
+registry_file = "Registry File"
+action = "Action"
+count = "Count"
+path = "Path"
+verdict = "Verdict"
+log_path = "Review Log"
+folder_path = "Folder Path"
+counts = "Review Counts"
+source_folder = "Source Folder"
+planned_moves = "Planned Moves"
+scope = "Scope"
+degree_threshold = "Degree Threshold"
+clustering_threshold = "Clustering Threshold"
+dense_nodes = "Dense Nodes"
+bridge_edges = "Bridge Edges"
+total_bridge_edges = "Total Bridge Edges"
+total_redundant = "Total Redundant Edges"
+graph_stats = "Graph Stats"
+files_changed = "Files Changed"
+total_removed = "Links Removed"
+details = "Details"
+dry_run = "Dry Run"
+signal = "Pruning Signal"
 
 [shared_result]
 fields = [
@@ -784,6 +824,159 @@ result_fields = ["outbox_root", "exported_artifacts"]
 fallback_tools = ["memory_write", "memory_commit"]
 error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
 
+[operations.memory_plan_verify]
+group = "plan"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit_exception_direct_write"
+commit_category_hint = "plan"
+writes = ["memory/activity/YYYY/MM/DD/chat-NNN.traces.jsonl"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["plan_id", "project_id", "phase_id", "all_passed", "summary"]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError"]
+notes = "Verification reads plan state, but may append a compact verification trace span when MEMORY_SESSION_ID is available."
+
+[operations.memory_plan_briefing]
+group = "plan"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit_exception_direct_write"
+commit_category_hint = "plan"
+writes = ["memory/activity/YYYY/MM/DD/chat-NNN.traces.jsonl"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["plan_id", "project_id", "phase_id", "plan_status", "context_budget"]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError"]
+notes = "Briefing assembly is read-mostly, but it may append a tool-call trace span when MEMORY_SESSION_ID is available."
+
+[operations.memory_record_trace]
+group = "plan"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit_exception_direct_write"
+commit_category_hint = "plan"
+writes = ["memory/activity/YYYY/MM/DD/chat-NNN.traces.jsonl"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["span_id", "trace_file", "status"]
+fallback_tools = []
+error_kinds = ["ValidationError"]
+notes = "Append-only trace recording writes directly to the session trace file without creating a git commit."
+
+[operations.memory_query_traces]
+group = "plan"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "plan"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["total_matched", "aggregates"]
+fallback_tools = []
+error_kinds = ["ValidationError"]
+
+[operations.memory_run_eval]
+group = "plan"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit_exception_direct_write"
+commit_category_hint = "plan"
+writes = ["memory/activity/YYYY/MM/DD/chat-NNN.traces.jsonl"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["results", "summary", "metrics"]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError"]
+notes = "Eval runs execute in temporary directories and only persist compact summary spans back into the live session trace."
+
+[operations.memory_eval_report]
+group = "plan"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "plan"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["runs", "summary", "metrics", "trends"]
+fallback_tools = []
+error_kinds = ["ValidationError"]
+
+[operations.memory_request_approval]
+group = "plan"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "plan"
+writes = [
+  "memory/working/projects/{project_id}/plans/{plan_id}.yaml",
+  "memory/working/projects/{project_id}/SUMMARY.md",
+  "memory/working/projects/SUMMARY.md",
+  "memory/working/projects/{project_id}/operations.jsonl",
+  "memory/working/approvals/pending/{plan_id}--{phase_id}.yaml",
+  "memory/working/approvals/SUMMARY.md",
+]
+owns_frontmatter = [
+  "memory/working/projects/{project_id}/plans/{plan_id}.yaml",
+  "memory/working/approvals/pending/{plan_id}--{phase_id}.yaml",
+]
+owns_summaries = [
+  "memory/working/projects/{project_id}/SUMMARY.md",
+  "memory/working/projects/SUMMARY.md",
+  "memory/working/approvals/SUMMARY.md",
+]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["approval_file", "status", "expires", "plan_status"]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+
+[operations.memory_resolve_approval]
+group = "plan"
+tier = "semantic"
+change_class = "protected"
+commit_model = "auto_commit"
+commit_category_hint = "plan"
+writes = [
+  "memory/working/projects/{project_id}/plans/{plan_id}.yaml",
+  "memory/working/projects/{project_id}/SUMMARY.md",
+  "memory/working/projects/SUMMARY.md",
+  "memory/working/projects/{project_id}/operations.jsonl",
+  "memory/working/approvals/pending/{plan_id}--{phase_id}.yaml",
+  "memory/working/approvals/resolved/{plan_id}--{phase_id}.yaml",
+  "memory/working/approvals/SUMMARY.md",
+]
+owns_frontmatter = [
+  "memory/working/projects/{project_id}/plans/{plan_id}.yaml",
+  "memory/working/approvals/resolved/{plan_id}--{phase_id}.yaml",
+]
+owns_summaries = [
+  "memory/working/projects/{project_id}/SUMMARY.md",
+  "memory/working/projects/SUMMARY.md",
+  "memory/working/approvals/SUMMARY.md",
+]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["approval_file", "status", "plan_status"]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+
 [operations.memory_stage_external]
 group = "project"
 tier = "semantic"
@@ -909,6 +1102,39 @@ result_fields = [
 fallback_tools = ["memory_move", "memory_update_frontmatter", "memory_commit"]
 error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
 
+[operations.memory_promote_knowledge_subtree]
+group = "knowledge"
+tier = "semantic"
+change_class = "proposed"
+preview_support = true
+preview_mode = "dry_run"
+preview_argument = "dry_run"
+commit_model = "auto_commit"
+commit_category_hint = "curation"
+writes = [
+  "memory/knowledge/_unverified/**/{file}.md",
+  "memory/knowledge/**/{file}.md",
+  "memory/knowledge/_unverified/SUMMARY.md",
+  "memory/knowledge/SUMMARY.md",
+]
+owns_frontmatter = ["memory/knowledge/**/{file}.md"]
+owns_summaries = [
+  "memory/knowledge/_unverified/SUMMARY.md",
+  "memory/knowledge/SUMMARY.md",
+]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "source_folder",
+  "target_folder",
+  "promoted_count",
+  "trust",
+  "planned_moves",
+  "summary_updates",
+]
+fallback_tools = ["memory_move", "memory_update_frontmatter", "memory_commit"]
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+
 [operations.memory_update_names_index]
 group = "knowledge"
 tier = "semantic"
@@ -1028,6 +1254,36 @@ error_kinds = [
   "StagingError",
 ]
 
+[operations.memory_mark_reviewed]
+group = "knowledge"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "curation"
+writes = ["memory/knowledge/_unverified/REVIEW_LOG.jsonl"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["path", "verdict", "log_path", "session_id"]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+
+[operations.memory_list_pending_reviews]
+group = "knowledge"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "curation"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["folder_path", "log_path", "counts"]
+fallback_tools = []
+error_kinds = ["ValidationError"]
+
 [operations.memory_append_scratchpad]
 group = "scratchpad"
 tier = "semantic"
@@ -1069,6 +1325,40 @@ error_kinds = [
   "ValidationError",
   "StagingError",
 ]
+
+[operations.memory_register_tool]
+group = "skill"
+tier = "semantic"
+change_class = "protected"
+commit_model = "auto_commit_exception_direct_write"
+commit_category_hint = "skill"
+writes = [
+  "memory/skills/tool-registry/{provider}.yaml",
+  "memory/skills/tool-registry/SUMMARY.md",
+]
+owns_frontmatter = []
+owns_summaries = ["memory/skills/tool-registry/SUMMARY.md"]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["tool_name", "provider", "registry_file", "action"]
+fallback_tools = []
+error_kinds = []
+notes = "Registry mutations write provider YAML and the generated summary directly without creating a git commit."
+
+[operations.memory_get_tool_policy]
+group = "skill"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "skill"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["count"]
+fallback_tools = []
+error_kinds = ["ValidationError"]
 
 [operations.memory_update_user_trait]
 group = "identity"
@@ -1323,8 +1613,9 @@ error_kinds = ["NotFoundError", "ValidationError"]
 [operations.memory_audit_link_density]
 group = "curation"
 tier = "semantic"
-change_class = "read_only"
+change_class = "automatic"
 commit_model = "none"
+commit_category_hint = "curation"
 writes = []
 owns_frontmatter = []
 owns_summaries = []
@@ -1342,6 +1633,39 @@ result_fields = [
 ]
 fallback_tools = []
 error_kinds = []
+
+[operations.memory_analyze_graph]
+group = "curation"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "curation"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["scope", "metrics"]
+fallback_tools = []
+error_kinds = []
+
+[operations.memory_prune_redundant_links]
+group = "curation"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "curation"
+preview_support = true
+preview_mode = "dry_run"
+preview_argument = "dry_run"
+writes = ["memory/knowledge/**/*.md"]
+owns_frontmatter = ["memory/knowledge/**/*.md"]
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["files_changed", "total_removed", "details", "dry_run", "scope"]
+fallback_tools = ["memory_edit", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
 
 [operations.memory_score_links_by_access]
 group = "curation"

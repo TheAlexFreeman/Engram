@@ -11,6 +11,11 @@ repos:
         entry: python -m ruff format --check HUMANS/tooling/scripts/ HUMANS/tooling/tests/ core/tools/
         language: system
         pass_filenames: false
+      - id: initial-commit-manifest-check
+        name: initial commit manifest check
+        entry: python HUMANS/tooling/scripts/generate_initial_commit_manifest.py --check
+        language: system
+        pass_filenames: false
       - id: validate-memory-repo
         name: validate memory repo
         entry: python HUMANS/tooling/scripts/validate_memory_repo.py
