@@ -1544,6 +1544,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         session_id: str,
         trust: str = "low",
         summary_entry: str | None = None,
+        expires: str | None = None,
     ) -> str:
         """Create a new unverified knowledge file with frontmatter and SUMMARY entry.
 
@@ -1551,6 +1552,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         The file is always written under memory/knowledge/_unverified and indexed in
         the unverified summary when possible. Use a promotion tool only after
         review.
+
+        Args:
+            expires: Optional ISO date (YYYY-MM-DD) for explicit expiration.
+                     Useful for time-bound facts, temporary workarounds, or
+                     sprint-scoped context. The file will be flagged for
+                     review/archival after this date.
         """
         from ...errors import ValidationError
         from ...frontmatter_utils import (
@@ -1583,12 +1590,19 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             raise ValidationError(f"File already exists: {path}. Use memory_write to overwrite.")
 
         today = today_str()
-        fm_dict = {
+        fm_dict: dict[str, Any] = {
             "source": source,
             "created": today,
             "trust": "low",
             "origin_session": session_id,
         }
+        if expires:
+            # Validate ISO date format
+            try:
+                datetime.strptime(expires, "%Y-%m-%d")
+            except ValueError:
+                raise ValidationError(f"expires must be ISO date (YYYY-MM-DD), got {expires!r}")
+            fm_dict["expires"] = expires
 
         abs_path.parent.mkdir(parents=True, exist_ok=True)
         write_with_frontmatter(abs_path, fm_dict, content)

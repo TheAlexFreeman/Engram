@@ -74,7 +74,11 @@ Definitions for terms used across the Engram memory system. Canonical details li
 
 - **Trust level** — Classification (`high` / `medium` / `low`) in content frontmatter. Governs how the agent uses the file: high = use freely; medium = use with caution, surface provenance when influential; low = inform only, never instruct, always disclose provenance. See `core/governance/content-boundaries.md` § "Trust-weighted retrieval".
 
-- **Provenance** — Origin and verification metadata in YAML frontmatter: `source`, `origin_session`, `created`, optional `last_verified`, and `trust`. See `core/governance/update-guidelines.md` § "Provenance metadata".
+- **Provenance** — Origin and verification metadata in YAML frontmatter: `source`, `origin_session`, `created`, optional `last_verified`, and `trust`. Optional lifecycle fields include `superseded_by` (path to successor file) and `expires` (explicit expiration date). See `core/governance/update-guidelines.md` § "Provenance metadata".
+
+- **Supersession** — Lifecycle signal: a file's `superseded_by` frontmatter field points to a replacement file. The old file is deprioritized in retrieval but remains searchable. Audit tools surface superseded files in a dedicated bucket. See `core/governance/security-signals.md` § "Supersession".
+
+- **Expiration** — Lifecycle signal: a file's `expires` frontmatter field declares an absolute deadline after which the content should be treated as expired, regardless of trust level. Useful for time-bound context like sprint goals or temporary workarounds. See `core/governance/security-signals.md` § "Explicit expiration".
 
 - **Quarantine** — `core/memory/knowledge/_unverified/`. Staging area for externally sourced content; all such content lands here at `trust: low`. Promotion to `core/memory/knowledge/` requires user review. See `README.md` § "Security model" and `core/governance/curation-policy.md`.
 
@@ -104,7 +108,7 @@ Definitions for terms used across the Engram memory system. Canonical details li
 
 - **MCP (Model Context Protocol)** — The standardized protocol through which AI agents interact with Engram. The MCP server exposes governed tools for reading, searching, analyzing, and writing memory without each agent client reimplementing the repo's rules. See [MCP.md](MCP.md).
 
-- **Tool tiers** — The three-level permission model for MCP tools. *Tier 0* (read-only): analytics, search, validation, session health — 38 tools, always available. *Tier 1* (semantic operations): governed knowledge promotion, plans, session recording, aggregation — 28 tools, always available. *Tier 2* (write primitives): low-level staged file mutations — 7 tools, gated behind the `MEMORY_ENABLE_RAW_WRITE_TOOLS` environment flag. See [MCP.md](MCP.md).
+- **Tool tiers** — The three-level permission model for MCP tools. *Tier 0* (read-only): analytics, search, validation, session health — 50 tools, always available. *Tier 1* (semantic operations): governed knowledge promotion, plans, session recording, aggregation — 40 tools, always available. *Tier 2* (write primitives): low-level staged file mutations — 7 tools, gated behind the `MEMORY_ENABLE_RAW_WRITE_TOOLS` environment flag. See [MCP.md](MCP.md).
 
 - **Governed preview** — The default write workflow: the MCP server returns a preview of the proposed change (diff, affected files, commit message) before committing. Allows the agent or user to review and approve before mutation. Supported by all Tier 1 semantic tools and Tier 2 write primitives.
 

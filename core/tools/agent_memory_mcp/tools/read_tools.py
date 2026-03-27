@@ -994,6 +994,19 @@ def _review_expiry_threshold_days(
     return None
 
 
+def _parse_expires_date(fm: dict) -> date | None:
+    """Return the explicit expiration date from frontmatter, or None."""
+    val = fm.get("expires")
+    if not val:
+        return None
+    try:
+        if isinstance(val, date):
+            return val
+        return datetime.strptime(str(val), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
 def _parse_aggregation_trigger(repo_root: Path) -> int:
     """Read the active ACCESS aggregation trigger from the live router file."""
     qr_path = _resolve_live_router_path(repo_root)
@@ -2342,13 +2355,32 @@ def _frontmatter_health_report(root: Path, rel_path: str) -> dict[str, Any]:
                     }
                 )
 
-    for field_name in ("created", "last_verified"):
+    for field_name in ("created", "last_verified", "expires"):
         if field_name in frontmatter and _invalid_date_string(frontmatter.get(field_name)):
             issues.append(
                 {
                     "kind": "invalid_date",
                     "field": field_name,
                     "message": f"invalid date value for {field_name}",
+                }
+            )
+
+    superseded_by = frontmatter.get("superseded_by")
+    if superseded_by is not None:
+        if not isinstance(superseded_by, str) or not superseded_by.strip():
+            issues.append(
+                {
+                    "kind": "invalid_superseded_by",
+                    "message": "superseded_by must be a non-empty repo-relative path",
+                }
+            )
+        elif not (root / superseded_by).is_file():
+            issues.append(
+                {
+                    "kind": "broken_superseded_by",
+                    "field": "superseded_by",
+                    "target": superseded_by,
+                    "message": f"superseded_by target does not exist: {superseded_by}",
                 }
             )
 
@@ -6177,6 +6209,8 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         approaching = []
         upcoming_low = []
         upcoming_medium = []
+        expired_files = []
+        superseded_files = []
         unevaluable = []
         files_checked = 0
         repo = get_repo()
@@ -6208,6 +6242,34 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                         implicit_medium = True
 
                     files_checked += 1
+
+                    # Check explicit supersession
+                    superseded_by = fm_dict.get("superseded_by")
+                    if superseded_by and isinstance(superseded_by, str):
+                        superseded_files.append(
+                            {
+                                "path": rel,
+                                "trust": trust,
+                                "superseded_by": superseded_by,
+                                "successor_exists": (root / superseded_by).is_file(),
+                            }
+                        )
+                        continue  # Skip decay checks for superseded files
+
+                    # Check explicit expiration
+                    expires_date = _parse_expires_date(fm_dict)
+                    if expires_date is not None and today > expires_date:
+                        expired_files.append(
+                            {
+                                "path": rel,
+                                "trust": trust,
+                                "expires": str(expires_date),
+                                "days_past_expiry": (today - expires_date).days,
+                                "action_required": "archive" if trust == "low" else "review",
+                            }
+                        )
+                        continue  # Explicit expiration takes precedence over decay
+
                     eff_date = _effective_date(fm_dict)
                     if eff_date is None and implicit_medium:
                         if rel in untracked_files:
@@ -6301,6 +6363,8 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                         approaching.append(entry)
 
         result = {
+            "expired": expired_files,
+            "superseded": superseded_files,
             "overdue_low": overdue_low,
             "overdue_medium": overdue_medium,
             "approaching": approaching,
