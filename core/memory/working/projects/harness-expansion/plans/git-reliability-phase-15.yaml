@@ -1,0 +1,163 @@
+id: git-reliability-phase-15
+project: harness-expansion
+created: '2026-03-27'
+origin_session: memory/activity/2026/03/27/chat-002
+status: draft
+sessions_used: 0
+budget:
+  deadline: '2026-04-15'
+  max_sessions: 3
+  advisory: true
+purpose:
+  summary: Harden git_repo.py for FUSE-mounted and VM-hosted environments by adding
+    stale lock cleanup, retry resilience, and health diagnostics.
+  context: >
+    The review queue has a pending proposal (2026-03-26) to add stale HEAD.lock
+    cleanup to the plumbing fallback path in git_repo.py. In FUSE-mounted
+    filesystems (e.g., Cowork VM), orphaned lock files can block both porcelain
+    and plumbing commit paths, causing cascading failures across all write
+    operations.
+
+    Git reliability is foundational — every write in Engram goes through
+    git_repo.py. This phase addresses the immediate lock file issue and adds
+    broader resilience: retry logic with backoff, filesystem health checks, and
+    diagnostic tooling for debugging git failures in constrained environments.
+
+    This is prioritized as the earliest phase because git failures block all
+    other harness work.
+
+    Dependencies: None. This is infrastructure-level and should be completed
+    before starting Phases 10-14.
+  questions:
+  - What PID staleness threshold is safe for lock cleanup (30s proposed)?
+  - Should lock cleanup be automatic or require a diagnostic tool call?
+  - What retry backoff parameters are appropriate for FUSE latency?
+work:
+  phases:
+  - id: stale-lock-cleanup
+    title: Add stale HEAD.lock cleanup to plumbing fallback path
+    status: pending
+    blockers: []
+    sources:
+    - path: core/tools/agent_memory_mcp/git_repo.py
+      type: internal
+      intent: Find _should_fallback_to_plumbing and the lock error detection path.
+    - path: core/governance/review-queue.md
+      type: internal
+      intent: Reference the 2026-03-26 proposal with the full diagnosis.
+    postconditions:
+    - description: _should_fallback_to_plumbing checks for stale HEAD.lock before retry
+      type: manual
+    - description: Lock file is removed only when older than threshold and owner PID is dead
+      type: manual
+    - description: Lock cleanup is logged as a warning for audit trail
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/git_repo.py
+      action: update
+      description: Add stale lock detection and cleanup to the plumbing fallback path.
+
+  - id: git-retry-resilience
+    title: Add retry with exponential backoff to git operations
+    status: pending
+    blockers:
+    - stale-lock-cleanup
+    sources:
+    - path: core/tools/agent_memory_mcp/git_repo.py
+      type: internal
+      intent: Identify commit and write operations that should retry on transient
+        failures.
+    postconditions:
+    - description: Git write operations retry up to 3 times with exponential backoff
+      type: manual
+    - description: Retries are limited to transient failures (lock contention, I/O errors)
+        not logical errors
+      type: manual
+    - description: Each retry is logged with attempt number and error
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/git_repo.py
+      action: update
+      description: Add retry wrapper for transient git failures.
+
+  - id: git-health-diagnostic
+    title: Add memory_git_health diagnostic tool
+    status: pending
+    blockers:
+    - stale-lock-cleanup
+    sources:
+    - path: core/tools/agent_memory_mcp/git_repo.py
+      type: internal
+      intent: Identify health-check points (lock files, repo integrity, index state).
+    postconditions:
+    - description: memory_git_health tool checks for lock files, repo integrity,
+        and filesystem responsiveness
+      type: manual
+    - description: Tool returns structured diagnostic report
+      type: manual
+    - description: Tool is read-only and safe to call at any time
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/read_tools.py
+      action: update
+      description: Add memory_git_health diagnostic tool.
+
+  - id: git-reliability-tests
+    title: Add test coverage for git reliability features
+    status: pending
+    blockers:
+    - git-retry-resilience
+    - git-health-diagnostic
+    sources:
+    - path: core/tools/tests/
+      type: internal
+      intent: Follow existing test patterns.
+    postconditions:
+    - description: Tests cover stale lock detection and cleanup
+      type: manual
+    - description: Tests cover retry logic with mocked transient failures
+      type: manual
+    - description: Tests cover health diagnostic output
+      type: manual
+    - description: Full test suite passes
+      type: test
+      target: pytest core/tools/tests/ -q
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/tests/test_git_reliability.py
+      action: create
+      description: Git reliability test module.
+
+  - id: git-reliability-resolve-queue
+    title: Resolve review queue item and update documentation
+    status: pending
+    blockers:
+    - git-reliability-tests
+    sources:
+    - path: core/governance/review-queue.md
+      type: internal
+      intent: Mark the 2026-03-26 proposal as resolved.
+    postconditions:
+    - description: Review queue item 2026-03-26-review-core-tools-agent-memory-mcp-git-repo-py
+        marked resolved
+      type: manual
+    - description: CHANGELOG.md updated with Phase 15 entry
+      type: manual
+    changes:
+    - path: core/governance/review-queue.md
+      action: update
+      description: Mark stale lock cleanup proposal as resolved.
+    - path: CHANGELOG.md
+      action: update
+      description: Add Phase 15 entry.
