@@ -1,12 +1,12 @@
 ---
-active_plans: 3
+active_plans: 4
 cognitive_mode: implementation
 created: 2026-03-26
-current_focus: 'Phases 6-8 planned: integration tests, eval framework, context assembly.'
+current_focus: 'Phases 6-8 planned: integration tests, eval framework, context assembly. Phase 9 planned: external ingestion affordances.'
 last_activity: '2026-03-27'
 open_questions: 0
 origin_session: memory/activity/2026/03/26/chat-001
-plans: 8
+plans: 9
 source: agent-generated
 status: ongoing
 trust: medium
@@ -38,6 +38,7 @@ Implementation mode. Phase 1 (schema extensions) is complete. Phases 2–5 have 
 | integration-tests-phase-6 | 6: Integration Tests | draft | 0/6 | 0/6 sessions |
 | eval-framework-phase-7 | 7: Eval Framework | draft | 0/7 | 0/8 sessions |
 | context-assembly-phase-8 | 8: Context Assembly | draft | 0/5 | 0/5 sessions |
+| external-ingestion-phase-9 | 9: External Ingestion | draft | 0/6 | 0/6 sessions |
 
 ## Inter-plan dependencies
 - Phase 3 (`trace-recording-impl`) blocks on Phase 2 (`verify-integration`) — verification spans should be traceable
@@ -46,6 +47,7 @@ Implementation mode. Phase 1 (schema extensions) is complete. Phases 2–5 have 
 - Phase 6 (integration tests) is independent — all prior phases are complete
 - Phase 7 (eval framework) depends on Phase 3 traces; benefits from Phase 6 fixtures but not blocked
 - Phase 8 (context assembly) assembles outputs from all prior phases; degrades gracefully if data absent
+- Phase 9 (external ingestion) depends on Phase 1 SourceSpec `type` field (external/mcp vocabulary); benefits from Phase 5 preview-envelope pattern; independent of Phases 6-8
 
 ## Phase 1 outcome (completed 2026-03-26)
 All four schema extensions are implemented and tested: `SourceSpec`, `PostconditionSpec`, `requires_approval`, and `PlanBudget`. The MCP tool surface (`memory_plan_create`, `memory_plan_execute`) surfaces all new fields. 64 tests pass. Documentation updated in DESIGN.md, MCP.md, and CHANGELOG.md.
@@ -76,3 +78,6 @@ Offline evaluation framework. Design doc: IN/phase-7-eval-framework-design.md. P
 
 ## Phase 8 outcome (pending)
 Context assembly briefing tool. Design doc: IN/phase-8-context-assembly-design.md. Plan: plans/context-assembly-phase-8.yaml. assemble_briefing() helper + memory_plan_briefing MCP tool. Single-call context packet with source file contents, failure summaries, traces, approval status, tool policies, and configurable budget (default ~8000 chars).
+
+## Phase 9 outcome (pending)
+External content ingestion affordances. Design doc: IN/phase-9-external-ingestion-design.md. Plan: plans/external-ingestion-phase-9.yaml. Three affordances: (1) memory_stage_external MCP tool — agents call after fetching content externally; stages to projects/{project}/IN/ with auto-generated trust frontmatter (source: external-research, trust: low, origin_url with query strings stripped) and SHA-256 deduplication; (2) fetch_directives and mcp_calls lists added to phase_payload() response for phases with type: external or type: mcp sources that do not yet exist on disk; (3) memory_scan_drop_zone MCP tool — reads [[watch_folders]] entries from agent-bootstrap.toml, bulk-stages new files with dedup, emits scan report with staged/duplicate/error counts. PDF extraction optional via pdfminer.six/pypdf subprocess.
