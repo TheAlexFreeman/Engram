@@ -29,6 +29,7 @@ from ...plan_utils import (
     resolve_phase,
     save_plan,
     unresolved_blockers,
+    verify_postconditions,
 )
 from ...preview_contract import build_governed_preview, preview_target
 
@@ -918,11 +919,47 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         return _json.dumps(plans, indent=2)
 
+    @mcp.tool(
+        name="memory_plan_verify",
+        annotations=_tool_annotations(
+            title="Verify Plan Postconditions",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_plan_verify(
+        plan_id: str,
+        phase_id: str,
+        project_id: str | None = None,
+    ) -> str:
+        """Evaluate postconditions on a plan phase without modifying plan state.
+
+        Returns structured pass/fail/skip/error results for each postcondition.
+        Manual postconditions are skipped. check/grep/test types are evaluated
+        automatically. test-type evaluation requires ENGRAM_TIER2=1.
+        """
+        import json as _json
+
+        root = get_root()
+
+        plan_path, resolved_project_id = _resolve_existing_plan_path(root, plan_id, project_id)
+        abs_plan = root / plan_path
+        plan = load_plan(abs_plan, root)
+        phase = resolve_phase(plan, phase_id)
+        verification = verify_postconditions(plan, phase, root)
+        verification["plan_id"] = plan.id
+        verification["project_id"] = resolved_project_id
+        verification["phase_id"] = phase.id
+        return _json.dumps(verification, indent=2)
+
     return {
         "memory_plan_create": memory_plan_create,
         "memory_plan_execute": memory_plan_execute,
         "memory_plan_review": memory_plan_review,
         "memory_list_plans": memory_list_plans,
+        "memory_plan_verify": memory_plan_verify,
     }
 
 

@@ -860,6 +860,179 @@ def exportable_artifacts(root: Path, plan: PlanDocument) -> list[str]:
     return artifacts
 
 
+# ── Postcondition verification ──────────────────────────────────────────
+
+# Command prefixes considered safe for test-type postconditions.
+# Each entry is a prefix: the target command (after whitespace normalization)
+# must start with one of these strings.
+VERIFY_TEST_ALLOWLIST: tuple[str, ...] = (
+    "pre-commit run",
+    "pytest",
+    "python -m pytest",
+    "ruff check",
+    "ruff format --check",
+    "mypy",
+)
+
+# Shell metacharacters that indicate command chaining / injection.
+_SHELL_META_RE = re.compile(r"[;|&`$]")
+
+
+def _resolve_verify_path(root: Path, target: str) -> Path | None:
+    """Resolve a postcondition target path using the same fallback logic as SourceSpec."""
+    candidate = root / target
+    if candidate.exists():
+        return candidate
+    # Content-prefix fallback: path may include "core/" when root already is core/.
+    first, _, rest = target.partition("/")
+    if first and rest and root.name == first and (root / rest).exists():
+        return root / rest
+    # Repo-root fallback: when root is a content-prefix dir.
+    if root.name in _CONTENT_PREFIXES and (root.parent / target).exists():
+        return root.parent / target
+    return None
+
+
+def _validate_check(root: Path, target: str) -> dict[str, Any]:
+    """Validate a 'check' postcondition (file exists)."""
+    resolved = _resolve_verify_path(root, target)
+    if resolved is not None and resolved.is_file():
+        return {"status": "pass", "detail": None}
+    return {"status": "fail", "detail": f"file not found: {target}"}
+
+
+def _validate_grep(root: Path, target: str) -> dict[str, Any]:
+    """Validate a 'grep' postcondition (pattern found in file)."""
+    if "::" not in target:
+        return {"status": "error", "detail": "grep target must use pattern::path format"}
+    pattern, path = target.split("::", 1)
+    resolved = _resolve_verify_path(root, path)
+    if resolved is None or not resolved.is_file():
+        return {"status": "error", "detail": f"grep target file not found: {path}"}
+    try:
+        compiled = re.compile(pattern)
+    except re.error as exc:
+        return {"status": "error", "detail": f"invalid regex: {exc}"}
+    try:
+        contents = resolved.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return {"status": "error", "detail": f"cannot read file: {exc}"}
+    if compiled.search(contents):
+        return {"status": "pass", "detail": None}
+    return {"status": "fail", "detail": f"pattern not found: {pattern}"}
+
+
+def _validate_test(root: Path, target: str) -> dict[str, Any]:
+    """Validate a 'test' postcondition (shell command exits 0).
+
+    Requires ENGRAM_TIER2=1 and the command must match the allowlist.
+    """
+    import os
+    import subprocess
+
+    if not os.environ.get("ENGRAM_TIER2"):
+        return {
+            "status": "error",
+            "detail": "test-type postconditions require ENGRAM_TIER2=1",
+        }
+    normalized = " ".join(target.split())
+    if not any(normalized.startswith(prefix) for prefix in VERIFY_TEST_ALLOWLIST):
+        return {
+            "status": "error",
+            "detail": (
+                f"command not in allowlist: {normalized!r}. "
+                f"Allowed prefixes: {', '.join(VERIFY_TEST_ALLOWLIST)}"
+            ),
+        }
+    # Reject shell metacharacters beyond the allowlisted prefix
+    # to prevent injection like "pytest; rm -rf /"
+    for prefix in VERIFY_TEST_ALLOWLIST:
+        if normalized.startswith(prefix):
+            suffix = normalized[len(prefix) :]
+            if _SHELL_META_RE.search(suffix):
+                return {
+                    "status": "error",
+                    "detail": f"shell metacharacters not allowed in command arguments: {normalized!r}",
+                }
+            break
+    # Strip proxy env vars as defense-in-depth.
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.lower().startswith(("http_proxy", "https_proxy", "no_proxy"))
+    }
+    try:
+        result = subprocess.run(
+            normalized,
+            shell=True,
+            cwd=str(root),
+            env=env,
+            capture_output=True,
+            timeout=30,
+            text=True,
+        )
+    except subprocess.TimeoutExpired:
+        return {"status": "fail", "detail": "command timed out after 30 seconds"}
+    except OSError as exc:
+        return {"status": "error", "detail": f"command execution failed: {exc}"}
+    if result.returncode == 0:
+        return {"status": "pass", "detail": None}
+    output = (result.stdout + result.stderr).strip()
+    if len(output) > 2000:
+        output = output[:2000] + "\n... (truncated)"
+    return {"status": "fail", "detail": output or f"exit code {result.returncode}"}
+
+
+def verify_postconditions(
+    plan: PlanDocument,
+    phase: PlanPhase,
+    root: Path,
+) -> dict[str, Any]:
+    """Evaluate all postconditions on a phase.
+
+    Returns a dict with verification_results, summary, and all_passed.
+    Does not modify plan state.
+    """
+    results: list[dict[str, Any]] = []
+    for pc in phase.postconditions:
+        entry: dict[str, Any] = {
+            "postcondition": pc.description,
+            "type": pc.type,
+        }
+        if pc.type == "manual":
+            entry["status"] = "skip"
+            entry["detail"] = None
+        elif pc.type == "check":
+            outcome = _validate_check(root, pc.target or "")
+            entry.update(outcome)
+        elif pc.type == "grep":
+            outcome = _validate_grep(root, pc.target or "")
+            entry.update(outcome)
+        elif pc.type == "test":
+            outcome = _validate_test(root, pc.target or "")
+            entry.update(outcome)
+        else:
+            entry["status"] = "error"
+            entry["detail"] = f"unknown postcondition type: {pc.type}"
+        results.append(entry)
+
+    passed = sum(1 for r in results if r["status"] == "pass")
+    failed = sum(1 for r in results if r["status"] == "fail")
+    skipped = sum(1 for r in results if r["status"] == "skip")
+    errors = sum(1 for r in results if r["status"] == "error")
+    return {
+        "verification_results": results,
+        "summary": {
+            "total": len(results),
+            "passed": passed,
+            "failed": failed,
+            "skipped": skipped,
+            "errors": errors,
+        },
+        "all_passed": failed == 0 and errors == 0,
+    }
+
+
 def append_operations_log(
     root: Path,
     project_id: str,
@@ -926,4 +1099,6 @@ __all__ = [
     "save_plan",
     "unresolved_blockers",
     "validate_plan_references",
+    "verify_postconditions",
+    "VERIFY_TEST_ALLOWLIST",
 ]
