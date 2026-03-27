@@ -15,10 +15,16 @@ origin_session: core/memory/activity/YYYY/MM/DD/chat-NNN | setup | manual | unkn
 created: YYYY-MM-DD
 last_verified: YYYY-MM-DD # optional until a human confirms the content
 trust: high | medium | low
+superseded_by: memory/knowledge/path/to/successor.md # optional — marks this file as replaced
+expires: YYYY-MM-DD # optional — declarative auto-expiration date
 ---
 ```
 
 `last_verified` is omitted until a human explicitly reviews or confirms the content. When it is absent, `created` is the effective verification date for decay and freshness calculations.
+
+`superseded_by` marks a file as replaced by a newer version at the given repo-relative path. Superseded files are deprioritized in retrieval but not auto-archived — they remain searchable for historical context. When present, trust-based decay calculations still apply but the file is surfaced as "superseded" in audit results. The path must point to an existing file within the memory tree.
+
+`expires` declares an explicit expiration date. When the current date passes this value, the file is treated as expired regardless of its trust level. This is especially useful for `_unverified/` content, time-bound project context, and any fact with a known shelf life. Expired files are flagged for review or archival during the next audit. Unlike trust-based decay (which is threshold-relative), `expires` is an absolute deadline.
 
 ### Field definitions
 
@@ -35,6 +41,8 @@ trust: high | medium | low
 - **last_verified** — Optional date a human last reviewed or confirmed the content. Omit it for newly created content that has not yet been human-verified.
 - **Plans special case.** For project plan files under `core/memory/working/projects/`, `last_verified` is the date the plan state was last reviewed or advanced in-session. It is a freshness marker for plan state, not a claim that every sentence in the plan has been externally verified.
 - **trust** — The current trust classification (see `core/governance/content-boundaries.md` for retrieval behavior at each level).
+- **superseded_by** — Optional. Repo-relative path to the file that replaces this one (e.g. `memory/knowledge/react/hooks-v2.md`). Set when a newer, more complete, or corrected version of the same knowledge is created. The superseded file is not deleted — it remains in git and in the folder tree — but retrieval should prefer the successor. Remove this field if the successor is itself retired or the supersession is reversed.
+- **expires** — Optional. ISO date (`YYYY-MM-DD`) after which the content should be treated as expired. Use for time-bound facts (e.g. sprint goals, temporary workarounds, event-specific context). Expiration is independent of trust decay — a `trust: high` file can still expire. When `expires` is reached, the file enters the review/archive lifecycle as if its trust-based threshold had been exceeded.
 
 ### Trust assignment rules
 

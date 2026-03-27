@@ -1,0 +1,227 @@
+id: learning-theory-generalization-research
+project: general-knowledge-base
+created: '2026-03-26'
+origin_session: memory/activity/2026/03/26/chat-003
+status: not_started
+sessions_used: 0
+budget:
+  deadline: '2026-05-15'
+  max_sessions: 3
+  advisory: true
+purpose:
+  summary: >-
+    Build a learning-theory/ subdomain under mathematics/ covering modern
+    generalization theory and the emerging theory of large-model learning —
+    bridging the existing information-theory files with the AI frontier domain.
+  context: |
+    The mathematics/ domain already has pac-learning-sample-complexity.md,
+    vc-dimension-fundamental-theorem.md, compression-generalization-connection.md,
+    and double-descent-benign-overfitting.md under information-theory/.
+    These are good survey-level treatments, but learning theory has advanced
+    significantly: PAC-Bayes bounds, implicit regularization in SGD, the neural
+    tangent kernel, the grokking phenomenon, and the theory of in-context
+    learning are all active research areas that the existing files do not cover.
+
+    This gap also creates an architectural asymmetry: the AI frontier domain
+    has files on scaling laws, emergence, and reasoning models but no
+    mathematical grounding for why large models generalize at all. This plan
+    creates core/memory/knowledge/mathematics/learning-theory/ with 6–8 files
+    that provide that grounding and connect it to the frontier AI research.
+  questions:
+    - Is the neural tangent kernel still a principled explanation of large-model
+      generalization in 2026, or has it been superseded by feature learning
+      accounts?
+    - How should the grokking phenomenon be framed — as a regularization story,
+      a phase transition, or something else?
+    - What is the right level of mathematical formality for these files, given
+      that the target reader is an LLM agent rather than a human mathematician?
+work:
+  phases:
+    - id: orientation
+      title: Orient to existing learning theory coverage and define learning-theory/ scope
+      status: not_started
+      blockers: []
+      sources:
+        - path: core/memory/knowledge/mathematics/information-theory/pac-learning-sample-complexity.md
+          type: internal
+          intent: >-
+            Understand the depth and formalism of the existing PAC learning
+            treatment to calibrate the new files — new files should go deeper
+            on post-PAC developments rather than re-cover classical material.
+        - path: core/memory/knowledge/mathematics/information-theory/vc-dimension-fundamental-theorem.md
+          type: internal
+          intent: >-
+            Check how VC theory is presented to ensure new files on
+            PAC-Bayes and stability extend the VC framing coherently.
+        - path: core/memory/knowledge/mathematics/information-theory/compression-generalization-connection.md
+          type: internal
+          intent: >-
+            Use the existing compression-generalization synthesis as the anchor
+            for the new learning theory files — they should explicitly extend
+            it rather than duplicate it.
+        - path: core/memory/knowledge/mathematics/information-theory/double-descent-benign-overfitting.md
+          type: internal
+          intent: >-
+            Understand how double descent and benign overfitting are already
+            covered — the new learning-theory/ files should build on this as
+            the contemporary anomaly that motivates the need for post-PAC theory.
+        - path: core/memory/knowledge/ai/frontier/architectures/synthetic-data-self-improvement.md
+          type: internal
+          intent: >-
+            See how learning theory is implicitly assumed in the frontier AI
+            files — the new files should explicitly ground claims made there
+            (e.g., why self-improvement converges or diverges).
+      postconditions:
+        - Scope note written to IN/ defining 6–8 target files
+        - Clear map of which information-theory/ files are prerequisites vs. parallel
+        - Confirmed target subdirectory (mathematics/learning-theory/)
+      requires_approval: false
+      changes:
+        - path: core/memory/working/projects/general-knowledge-base/IN/learning-theory-scope-note.md
+          action: create
+          description: >-
+            Scope note defining the learning-theory/ subdomain, target file
+            list with one-paragraph scopes, and a dependency map connecting
+            new files to the existing information-theory/ coverage.
+
+    - id: modern-generalization-theory
+      title: Write files on post-classical generalization theory
+      status: not_started
+      blockers:
+        - orientation
+      sources:
+        - path: core/memory/working/projects/general-knowledge-base/IN/learning-theory-scope-note.md
+          type: internal
+          intent: Follow the finalized scope for this phase's files.
+        - path: core/memory/knowledge/mathematics/information-theory/pac-learning-sample-complexity.md
+          type: internal
+          intent: >-
+            Build directly on the PAC formalism — PAC-Bayes files should
+            be written as extensions of the classical PAC treatment.
+        - path: core/memory/knowledge/mathematics/optimization/gradient-descent-convergence.md
+          type: internal
+          intent: >-
+            Connect the implicit regularization file to the existing gradient
+            descent convergence coverage — implicit regularization is a
+            consequence of SGD geometry.
+      postconditions:
+        - pac-bayes-generalization-bounds.md created (trust medium)
+        - implicit-regularization-sgd-flat-minima.md created (trust medium)
+        - neural-tangent-kernel-infinite-width.md created (trust medium)
+        - grokking-delayed-generalization.md created (trust medium)
+        - Each file has correct YAML frontmatter and related cross-references
+        - pre-commit hooks pass
+      requires_approval: false
+      changes:
+        - path: core/memory/knowledge/mathematics/learning-theory/pac-bayes-generalization-bounds.md
+          action: create
+          description: >-
+            McAllester's PAC-Bayes theorem: bounds on generalisation gap via
+            KL divergence between posterior and prior over hypotheses.
+            Catoni's bound; the role of the prior; excess risk decomposition.
+            Why PAC-Bayes bounds survive the overparameterisation regime where
+            VC theory fails. Connection to minimum description length.
+            Empirical results: PAC-Bayes bounds as computable certificates.
+        - path: core/memory/knowledge/mathematics/learning-theory/implicit-regularization-sgd-flat-minima.md
+          action: create
+          description: >-
+            SGD as implicit regularizer: continuous-time analysis (gradient
+            flow); discrete noise as perturbation; convergence to flat minima.
+            Hochreiter and Schmidhuber on flat vs sharp minima and
+            generalization. SAM (Sharpness-Aware Minimization). The edge-of-
+            stability phenomenon (Cohen et al. 2021). Debate: do flat minima
+            causally improve generalization or just correlate with it?
+        - path: core/memory/knowledge/mathematics/learning-theory/neural-tangent-kernel-infinite-width.md
+          action: create
+          description: >-
+            Jacot et al. NTK: infinite-width limit of neural networks as kernel
+            regression. NTK derivation; why it stays approximately constant
+            during training in the lazy regime. Predictions and failures:
+            NTK describes some but not all training dynamics; feature learning
+            regime vs kernel regime. Limitations at finite width; the μP
+            parameterisation (Tensor Programs). Current status as a partially
+            validated theoretical framework.
+        - path: core/memory/knowledge/mathematics/learning-theory/grokking-delayed-generalization.md
+          action: create
+          description: >-
+            Power et al. grokking (2022): delayed generalization long after
+            training loss saturates. Experimental setup (modular arithmetic).
+            Proposed mechanisms: representation complexity theory (Nanda et al.);
+            weight norm regularization story; phase transition framing.
+            Connections to double descent, benign overfitting, and the
+            sharpness-generalization debate. Implications for understanding
+            when training longer helps.
+
+    - id: scale-and-synthesis
+      title: Write files on scale, in-context learning theory, and synthesis
+      status: not_started
+      blockers:
+        - modern-generalization-theory
+      sources:
+        - path: core/memory/knowledge/mathematics/learning-theory/pac-bayes-generalization-bounds.md
+          type: internal
+          intent: Draw from all phase-2 files to build the synthesis.
+        - path: core/memory/knowledge/ai/frontier/architectures/synthetic-data-self-improvement.md
+          type: internal
+          intent: >-
+            Connect in-context learning theory to how synthetic data and
+            self-improvement pipelines exploit generalisation at scale.
+        - path: core/memory/knowledge/ai/frontier/reasoning/benchmarking-reasoning.md
+          type: internal
+          intent: >-
+            Ensure the synthesis connects to how capability emerges and is
+            measured — emergent abilities are a direct consequence of learning
+            theory at scale.
+        - path: core/memory/knowledge/mathematics/information-theory/compression-generalization-connection.md
+          type: internal
+          intent: >-
+            Ground the synthesis in the existing compression-generalization
+            file — the new learning-theory/ domain should update and extend
+            that synthesis, not replace it.
+      postconditions:
+        - in-context-learning-theory.md created (trust medium)
+        - transfer-learning-theory-domain-adaptation.md created (trust medium)
+        - learning-theory-synthesis.md created (trust medium)
+        - learning-theory/ SUMMARY.md created listing all 7 files
+        - All 7 files have correct frontmatter; pre-commit hooks pass
+        - IN/ scope note archived
+      requires_approval: true
+      changes:
+        - path: core/memory/knowledge/mathematics/learning-theory/in-context-learning-theory.md
+          action: create
+          description: >-
+            What in-context learning is: performance improvement from demonstration
+            examples in the prompt without weight updates. Proposed mechanisms:
+            implicit Bayesian inference (Xie et al.); gradient descent in the
+            residual stream (Akyurek et al.); task identification from context.
+            Why classical PAC theory does not explain it. The meta-learning
+            framing: in-context learning as learning-to-learn during pretraining.
+            Empirical limits: sensitivity to example order, label flips, format.
+        - path: core/memory/knowledge/mathematics/learning-theory/transfer-learning-theory-domain-adaptation.md
+          action: create
+          description: >-
+            Ben-David et al. theory of domain adaptation: source/target domain
+            divergence bounds; the H-delta-H-divergence. Fine-tuning as
+            posterior update on pretrained prior. Catastrophic forgetting
+            and continual learning; Elastic Weight Consolidation. Transfer and
+            fine-tuning taxonomy: feature extraction vs full fine-tuning vs
+            PEFT (LoRA, adapters). When pretraining helps and when it hurts
+            (negative transfer).
+        - path: core/memory/knowledge/mathematics/learning-theory/learning-theory-synthesis.md
+          action: create
+          description: >-
+            Synthesis: the arc from classical PAC theory (VC, Rademacher) through
+            the overparameterisation puzzle (double descent, benign overfitting)
+            to contemporary accounts (PAC-Bayes, implicit regularization,
+            NTK, grokking). Why generalization at LLM scale remains theoretically
+            open. Connections to the AI frontier domain: scaling laws as
+            empirical generalization theory, in-context learning as
+            test-time generalization. Design implications for agent training
+            data and fine-tuning decisions.
+        - path: core/memory/knowledge/mathematics/learning-theory/SUMMARY.md
+          action: create
+          description: >-
+            Domain summary listing all 7 files with one-line descriptions,
+            recommended reading order, and cross-references to mathematics/
+            information-theory/ prerequisite files and ai/frontier/ files
+            that build on this theory.

@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from datetime import date
 from pathlib import Path
@@ -571,7 +572,8 @@ current_focus: Ship the first project milestone.
             encoding="utf-8"
         )
 
-        self.assertEqual(payload["new_state"]["next_action"], "Do second step")
+        self.assertEqual(payload["new_state"]["next_action"]["title"], "Do second step")
+        self.assertEqual(payload["new_state"]["next_action"]["id"], "phase-b")
         self.assertEqual(payload["new_state"]["plan_progress"], [1, 2])
         self.assertEqual(plan_body["work"]["phases"][0]["status"], "completed")
         self.assertEqual(plan_body["work"]["phases"][0]["commit"], "abc1234")
@@ -4835,6 +4837,259 @@ Load compact context.
         self.assertRegex(payload["publication"]["parent_sha"], r"^[0-9a-f]{40}$")
         self.assertIn("degraded plumbing path", payload["warnings"][0])
 
+    def test_memory_commit_cleans_stale_head_lock_for_dead_pid(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        _, tools, _, repo = self.server.create_mcp(
+            repo_root=repo_root,
+            enable_raw_write_tools=True,
+        )
+
+        asyncio.run(
+            tools["memory_write"](
+                path="memory/knowledge/_unverified/test.md",
+                content="# Note\n",
+            )
+        )
+
+        head_lock_path = repo.git_dir / getattr(self.git_repo_module, "_HEAD_LOCK_NAME")
+        head_lock_path.write_text("pid=424242\npurpose=stale\n", encoding="utf-8")
+        stale_timestamp = time.time() - 120.0
+        os.utime(head_lock_path, (stale_timestamp, stale_timestamp))
+
+        original_is_pid_alive = repo._is_pid_alive
+        repo._is_pid_alive = lambda pid: False
+        self.addCleanup(setattr, repo, "_is_pid_alive", original_is_pid_alive)
+
+        def cleanup_head_lock() -> None:
+            if head_lock_path.exists():
+                head_lock_path.unlink()
+
+        self.addCleanup(cleanup_head_lock)
+
+        original_run = repo._run
+        commit_attempts = {"count": 0}
+        update_ref_attempts = {"count": 0}
+
+        def fail_porcelain_commit(
+            args: list[str],
+            check: bool = True,
+            capture: bool = True,
+            *,
+            cwd: Path | None = None,
+            env: dict[str, str] | None = None,
+        ):
+            if args[:2] == ["git", "commit"]:
+                commit_attempts["count"] += 1
+                raise self.errors.StagingError(
+                    "`git commit -m` failed (exit 128): fatal: Unable to create '.git/index.lock': File exists.",
+                    stderr="fatal: Unable to create '.git/index.lock': File exists.",
+                )
+            if args[:2] == ["git", "update-ref"]:
+                update_ref_attempts["count"] += 1
+                if head_lock_path.exists():
+                    raise self.errors.StagingError(
+                        "`git update-ref` failed (exit 128): fatal: Unable to create '.git/HEAD.lock': File exists.",
+                        stderr="fatal: Unable to create '.git/HEAD.lock': File exists.",
+                    )
+            return original_run(args, check=check, capture=capture, cwd=cwd, env=env)
+
+        repo._run = fail_porcelain_commit
+        self.addCleanup(setattr, repo, "_run", original_run)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_commit"](message="[knowledge] Add test note"))
+        )
+
+        self.assertEqual(commit_attempts["count"], 1)
+        self.assertEqual(update_ref_attempts["count"], 1)
+        self.assertFalse(head_lock_path.exists())
+        self.assertEqual(payload["publication"]["mode"], "plumbing")
+        self.assertTrue(payload["publication"]["degraded"])
+
+    def test_memory_commit_does_not_remove_stale_head_lock_without_pid(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        _, tools, _, repo = self.server.create_mcp(
+            repo_root=repo_root,
+            enable_raw_write_tools=True,
+        )
+
+        asyncio.run(
+            tools["memory_write"](
+                path="memory/knowledge/_unverified/test.md",
+                content="# Note\n",
+            )
+        )
+
+        head_lock_path = repo.git_dir / getattr(self.git_repo_module, "_HEAD_LOCK_NAME")
+        head_lock_path.write_text("owner=unknown\n", encoding="utf-8")
+        stale_timestamp = time.time() - 120.0
+        os.utime(head_lock_path, (stale_timestamp, stale_timestamp))
+
+        def cleanup_head_lock() -> None:
+            if head_lock_path.exists():
+                head_lock_path.unlink()
+
+        self.addCleanup(cleanup_head_lock)
+
+        original_run = repo._run
+        update_ref_attempts = {"count": 0}
+
+        def fail_on_lock_errors(
+            args: list[str],
+            check: bool = True,
+            capture: bool = True,
+            *,
+            cwd: Path | None = None,
+            env: dict[str, str] | None = None,
+        ):
+            if args[:2] == ["git", "commit"]:
+                raise self.errors.StagingError(
+                    "`git commit -m` failed (exit 128): fatal: Unable to create '.git/index.lock': File exists.",
+                    stderr="fatal: Unable to create '.git/index.lock': File exists.",
+                )
+            if args[:2] == ["git", "update-ref"]:
+                update_ref_attempts["count"] += 1
+                if head_lock_path.exists():
+                    raise self.errors.StagingError(
+                        "`git update-ref` failed (exit 128): fatal: Unable to create '.git/HEAD.lock': File exists.",
+                        stderr="fatal: Unable to create '.git/HEAD.lock': File exists.",
+                    )
+            return original_run(args, check=check, capture=capture, cwd=cwd, env=env)
+
+        repo._run = fail_on_lock_errors
+        self.addCleanup(setattr, repo, "_run", original_run)
+
+        with self.assertRaises(self.errors.StagingError):
+            asyncio.run(tools["memory_commit"](message="[knowledge] Add test note"))
+
+        self.assertEqual(update_ref_attempts["count"], 1)
+        self.assertTrue(head_lock_path.exists())
+
+    def test_memory_commit_does_not_remove_stale_head_lock_for_live_pid(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        _, tools, _, repo = self.server.create_mcp(
+            repo_root=repo_root,
+            enable_raw_write_tools=True,
+        )
+
+        asyncio.run(
+            tools["memory_write"](
+                path="memory/knowledge/_unverified/test.md",
+                content="# Note\n",
+            )
+        )
+
+        head_lock_path = repo.git_dir / getattr(self.git_repo_module, "_HEAD_LOCK_NAME")
+        head_lock_path.write_text("pid=321\npurpose=live\n", encoding="utf-8")
+        stale_timestamp = time.time() - 120.0
+        os.utime(head_lock_path, (stale_timestamp, stale_timestamp))
+
+        original_is_pid_alive = repo._is_pid_alive
+        repo._is_pid_alive = lambda pid: True
+        self.addCleanup(setattr, repo, "_is_pid_alive", original_is_pid_alive)
+
+        def cleanup_head_lock() -> None:
+            if head_lock_path.exists():
+                head_lock_path.unlink()
+
+        self.addCleanup(cleanup_head_lock)
+
+        original_run = repo._run
+        update_ref_attempts = {"count": 0}
+
+        def fail_on_lock_errors(
+            args: list[str],
+            check: bool = True,
+            capture: bool = True,
+            *,
+            cwd: Path | None = None,
+            env: dict[str, str] | None = None,
+        ):
+            if args[:2] == ["git", "commit"]:
+                raise self.errors.StagingError(
+                    "`git commit -m` failed (exit 128): fatal: Unable to create '.git/index.lock': File exists.",
+                    stderr="fatal: Unable to create '.git/index.lock': File exists.",
+                )
+            if args[:2] == ["git", "update-ref"]:
+                update_ref_attempts["count"] += 1
+                if head_lock_path.exists():
+                    raise self.errors.StagingError(
+                        "`git update-ref` failed (exit 128): fatal: Unable to create '.git/HEAD.lock': File exists.",
+                        stderr="fatal: Unable to create '.git/HEAD.lock': File exists.",
+                    )
+            return original_run(args, check=check, capture=capture, cwd=cwd, env=env)
+
+        repo._run = fail_on_lock_errors
+        self.addCleanup(setattr, repo, "_run", original_run)
+
+        with self.assertRaises(self.errors.StagingError):
+            asyncio.run(tools["memory_commit"](message="[knowledge] Add test note"))
+
+        self.assertEqual(update_ref_attempts["count"], 1)
+        self.assertTrue(head_lock_path.exists())
+
+    def test_memory_commit_retries_plumbing_once_after_stale_head_lock_cleanup(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        _, tools, _, repo = self.server.create_mcp(
+            repo_root=repo_root,
+            enable_raw_write_tools=True,
+        )
+
+        asyncio.run(
+            tools["memory_write"](
+                path="memory/knowledge/_unverified/test.md",
+                content="# Note\n",
+            )
+        )
+
+        original_cleanup_stale_head_lock = repo._try_cleanup_stale_head_lock
+        cleanup_calls = {"count": 0}
+
+        def always_cleanup_stale_head_lock() -> bool:
+            cleanup_calls["count"] += 1
+            return True
+
+        repo._try_cleanup_stale_head_lock = always_cleanup_stale_head_lock
+        self.addCleanup(
+            setattr, repo, "_try_cleanup_stale_head_lock", original_cleanup_stale_head_lock
+        )
+
+        original_run = repo._run
+        commit_attempts = {"count": 0}
+        update_ref_attempts = {"count": 0}
+
+        def fail_porcelain_and_update_ref(
+            args: list[str],
+            check: bool = True,
+            capture: bool = True,
+            *,
+            cwd: Path | None = None,
+            env: dict[str, str] | None = None,
+        ):
+            if args[:2] == ["git", "commit"]:
+                commit_attempts["count"] += 1
+                raise self.errors.StagingError(
+                    "`git commit -m` failed (exit 128): fatal: Unable to create '.git/index.lock': File exists.",
+                    stderr="fatal: Unable to create '.git/index.lock': File exists.",
+                )
+            if args[:2] == ["git", "update-ref"]:
+                update_ref_attempts["count"] += 1
+                raise self.errors.StagingError(
+                    "`git update-ref` failed (exit 128): fatal: Unable to create '.git/HEAD.lock': File exists.",
+                    stderr="fatal: Unable to create '.git/HEAD.lock': File exists.",
+                )
+            return original_run(args, check=check, capture=capture, cwd=cwd, env=env)
+
+        repo._run = fail_porcelain_and_update_ref
+        self.addCleanup(setattr, repo, "_run", original_run)
+
+        with self.assertRaises(self.errors.StagingError):
+            asyncio.run(tools["memory_commit"](message="[knowledge] Add test note"))
+
+        self.assertEqual(commit_attempts["count"], 1)
+        self.assertEqual(update_ref_attempts["count"], 2)
+        self.assertGreaterEqual(cleanup_calls["count"], 2)
+
     def test_memory_commit_blocks_when_single_writer_lock_is_held(self) -> None:
         repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
         _, tools, _, repo = self.server.create_mcp(
@@ -7642,6 +7897,1174 @@ trust: high
                     version_token=old_token,
                 )
             )
+
+    # -----------------------------------------------------------------------
+    # memory_plan_create: budget and phase fields
+    # -----------------------------------------------------------------------
+
+    def test_memory_plan_create_with_budget_stores_and_returns_budget_status(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-26\nproject_count: 1\n---\n\n# Projects\n\n_No active or ongoing projects._\n",
+                "memory/working/projects/example/SUMMARY.md": "---\nsource: agent-generated\norigin_session: manual\ncreated: 2026-03-26\ntrust: medium\ntype: project\nstatus: active\ncognitive_mode: exploration\nopen_questions: 0\nactive_plans: 0\nlast_activity: 2026-03-26\ncurrent_focus: Harness work.\n---\n\n# Project: Example\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        raw = asyncio.run(
+            tools["memory_plan_create"](
+                plan_id="budget-plan",
+                project_id="example",
+                purpose_summary="Budget plan",
+                purpose_context="Plan with a budget constraint.",
+                phases=[
+                    {
+                        "id": "phase-a",
+                        "title": "Do the work",
+                        "changes": [
+                            {
+                                "path": "memory/working/projects/example/notes/output.md",
+                                "action": "create",
+                                "description": "Write output note.",
+                            }
+                        ],
+                    }
+                ],
+                session_id="memory/activity/2026/03/26/chat-001",
+                budget={"deadline": "2026-04-15", "max_sessions": 8, "advisory": True},
+            )
+        )
+        payload = json.loads(raw)
+        plan_body = yaml.safe_load(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "projects"
+                / "example"
+                / "plans"
+                / "budget-plan.yaml"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(plan_body["budget"]["deadline"], "2026-04-15")
+        self.assertEqual(plan_body["budget"]["max_sessions"], 8)
+        self.assertNotIn("advisory", plan_body["budget"])  # True is the default, omitted
+        self.assertIn("budget_status", payload["new_state"])
+        self.assertEqual(payload["new_state"]["budget_status"]["max_sessions"], 8)
+        self.assertEqual(payload["new_state"]["budget_status"]["sessions_used"], 0)
+
+    def test_memory_plan_create_with_phase_sources_and_postconditions(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-26\nproject_count: 1\n---\n\n# Projects\n\n_No active or ongoing projects._\n",
+                "memory/working/projects/example/SUMMARY.md": "---\nsource: agent-generated\norigin_session: manual\ncreated: 2026-03-26\ntrust: medium\ntype: project\nstatus: active\ncognitive_mode: exploration\nopen_questions: 0\nactive_plans: 0\nlast_activity: 2026-03-26\ncurrent_focus: Schema validation work.\n---\n\n# Project: Example\n",
+                "memory/working/notes/reference.md": "# Reference\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        asyncio.run(
+            tools["memory_plan_create"](
+                plan_id="rich-plan",
+                project_id="example",
+                purpose_summary="Rich plan",
+                purpose_context="Plan with sources and postconditions.",
+                phases=[
+                    {
+                        "id": "phase-a",
+                        "title": "Do it",
+                        "sources": [
+                            {
+                                "path": "memory/working/notes/reference.md",
+                                "type": "internal",
+                                "intent": "Read the reference notes.",
+                            }
+                        ],
+                        "postconditions": ["Output file exists", "Tests pass"],
+                        "requires_approval": True,
+                        "changes": [
+                            {
+                                "path": "memory/working/projects/example/notes/output.md",
+                                "action": "create",
+                                "description": "Write output note.",
+                            }
+                        ],
+                    }
+                ],
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        plan_body = yaml.safe_load(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "projects"
+                / "example"
+                / "plans"
+                / "rich-plan.yaml"
+            ).read_text(encoding="utf-8")
+        )
+        phase = plan_body["work"]["phases"][0]
+        self.assertEqual(len(phase["sources"]), 1)
+        self.assertEqual(phase["sources"][0]["type"], "internal")
+        self.assertEqual(len(phase["postconditions"]), 2)
+        self.assertTrue(phase["requires_approval"])
+
+    # -----------------------------------------------------------------------
+    # memory_plan_execute: inspect, start, complete with new fields
+    # -----------------------------------------------------------------------
+
+    def _plan_yaml_with_budget(self, *, sessions_used: int = 0) -> str:
+        return (
+            "id: tracked-plan\n"
+            "project: example\n"
+            "created: 2026-03-26\n"
+            "origin_session: memory/activity/2026/03/26/chat-001\n"
+            "status: active\n"
+            "budget:\n"
+            "  deadline: '2026-04-15'\n"
+            "  max_sessions: 3\n"
+            f"sessions_used: {sessions_used}\n"
+            "purpose:\n"
+            "  summary: Tracked plan\n"
+            "  context: Plan with budget and approval gate.\n"
+            "  questions: []\n"
+            "work:\n"
+            "  phases:\n"
+            "    - id: phase-a\n"
+            "      title: Gated phase\n"
+            "      status: pending\n"
+            "      commit: null\n"
+            "      blockers: []\n"
+            "      sources:\n"
+            "        - path: memory/working/notes/ref.md\n"
+            "          type: internal\n"
+            "          intent: Read reference.\n"
+            "      postconditions:\n"
+            "        - File exists\n"
+            "      requires_approval: true\n"
+            "      changes:\n"
+            "        - path: memory/working/projects/example/notes/out.md\n"
+            "          action: create\n"
+            "          description: Write output.\n"
+            "review: null\n"
+        )
+
+    def _plan_yaml_with_check_postcondition(
+        self,
+        *,
+        requires_approval: bool = False,
+        sessions_used: int = 0,
+        check_target: str = "memory/working/projects/example/notes/out.md",
+    ) -> str:
+        requires_approval_yaml = "true" if requires_approval else "false"
+        return (
+            "id: tracked-plan\n"
+            "project: example\n"
+            "created: 2026-03-26\n"
+            "origin_session: memory/activity/2026/03/26/chat-001\n"
+            "status: active\n"
+            "budget:\n"
+            "  deadline: '2026-04-15'\n"
+            "  max_sessions: 3\n"
+            f"sessions_used: {sessions_used}\n"
+            "purpose:\n"
+            "  summary: Verifiable tracked plan\n"
+            "  context: Plan with check postcondition for execute verification.\n"
+            "  questions: []\n"
+            "work:\n"
+            "  phases:\n"
+            "    - id: phase-a\n"
+            "      title: Verifiable phase\n"
+            "      status: pending\n"
+            "      commit: null\n"
+            "      blockers: []\n"
+            "      sources:\n"
+            "        - path: memory/working/notes/ref.md\n"
+            "          type: internal\n"
+            "          intent: Read reference.\n"
+            "      postconditions:\n"
+            "        - description: Output file exists\n"
+            "          type: check\n"
+            f"          target: {check_target}\n"
+            f"      requires_approval: {requires_approval_yaml}\n"
+            "      changes:\n"
+            "        - path: memory/working/projects/example/notes/out.md\n"
+            "          action: create\n"
+            "          description: Write output.\n"
+            "review: null\n"
+        )
+
+    def _eval_scenario_yaml(
+        self,
+        *,
+        scenario_id: str = "basic-plan-lifecycle",
+        tags: list[str] | None = None,
+    ) -> str:
+        payload = {
+            "id": scenario_id,
+            "description": "Run a basic lifecycle scenario.",
+            "tags": tags or ["lifecycle"],
+            "setup": {
+                "plan": {
+                    "id": f"{scenario_id}-plan",
+                    "project": "eval-suite",
+                    "phases": [
+                        {
+                            "id": "phase-one",
+                            "title": "Create output",
+                            "postconditions": [
+                                {
+                                    "description": "Output exists",
+                                    "type": "check",
+                                    "target": "memory/working/notes/eval.txt",
+                                }
+                            ],
+                            "changes": [
+                                {
+                                    "path": "memory/working/notes/eval.txt",
+                                    "action": "create",
+                                    "description": "Create eval file",
+                                }
+                            ],
+                        }
+                    ],
+                },
+                "files": [
+                    {
+                        "path": "memory/working/notes/eval.txt",
+                        "content": "hello from eval\n",
+                    }
+                ],
+            },
+            "steps": [
+                {
+                    "action": "start_phase",
+                    "phase_id": "phase-one",
+                    "expect": {"phase_status": "in-progress"},
+                },
+                {
+                    "action": "verify_phase",
+                    "phase_id": "phase-one",
+                    "expect": {"all_passed": True},
+                },
+                {
+                    "action": "complete_phase",
+                    "phase_id": "phase-one",
+                    "commit_sha": "eval-001",
+                    "verify": True,
+                    "expect": {"phase_status": "completed", "plan_status": "completed"},
+                },
+            ],
+            "assertions": [
+                {"type": "plan_status", "expected": "completed"},
+                {"type": "metric", "name": "task_success", "expected": 1.0},
+            ],
+        }
+        return yaml.dump(payload, sort_keys=False, allow_unicode=False)
+
+    def _plan_repo_files(self, plan_yaml: str) -> dict[str, str]:
+        return {
+            "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-26\nproject_count: 1\n---\n\n# Projects\n\n_No active or ongoing projects._\n",
+            "memory/working/projects/example/SUMMARY.md": "---\nsource: agent-generated\norigin_session: manual\ncreated: 2026-03-26\ntrust: medium\ntype: project\nstatus: active\ncognitive_mode: exploration\nopen_questions: 0\nactive_plans: 1\nlast_activity: 2026-03-26\ncurrent_focus: Budget plan.\n---\n\n# Project: Example\n",
+            "memory/working/projects/example/plans/tracked-plan.yaml": plan_yaml,
+            "memory/working/notes/ref.md": "# Ref\n",
+        }
+
+    def _phase8_plan_yaml(self, *, completed: bool = False) -> str:
+        payload = {
+            "id": "tracked-plan",
+            "project": "example",
+            "created": "2026-03-27",
+            "origin_session": "memory/activity/2026/03/27/chat-200",
+            "status": "completed" if completed else "active",
+            "purpose": {
+                "summary": "Phase 8 test plan",
+                "context": "Exercise the plan briefing read path.",
+            },
+            "work": {
+                "phases": [
+                    {
+                        "id": "phase-a",
+                        "title": "Briefing phase",
+                        "status": "completed" if completed else "pending",
+                        "sources": [
+                            {
+                                "path": "core/context.md",
+                                "type": "internal",
+                                "intent": "Read the briefing source.",
+                            }
+                        ],
+                        "changes": [
+                            {
+                                "path": "memory/working/projects/example/notes/out.md",
+                                "action": "create",
+                                "description": "Create project note.",
+                            }
+                        ],
+                    }
+                ]
+            },
+            "review": None,
+        }
+        return yaml.dump(payload, sort_keys=False, allow_unicode=False)
+
+    def _phase9_project_files(self) -> dict[str, str]:
+        return {
+            "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-27\nproject_count: 1\n---\n\n# Projects\n",
+            "memory/working/projects/example/SUMMARY.md": "---\nsource: agent-generated\norigin_session: manual\ncreated: 2026-03-27\ntrust: medium\ntype: project\nstatus: active\nactive_plans: 0\nplans: 0\nlast_activity: 2026-03-27\ncurrent_focus: External ingestion.\n---\n\n# Project: Example\n",
+        }
+
+    def test_memory_plan_execute_inspect_includes_sources_postconditions_budget(self) -> None:
+        plan_yaml = self._plan_yaml_with_budget()
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="inspect",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertIn("sources", payload["phase"])
+        self.assertEqual(payload["phase"]["sources"][0]["type"], "internal")
+        self.assertIn("postconditions", payload["phase"])
+        self.assertEqual(payload["phase"]["postconditions"][0]["description"], "File exists")
+        self.assertTrue(payload["phase"]["requires_approval"])
+        self.assertIn("budget_status", payload)
+        self.assertEqual(payload["budget_status"]["max_sessions"], 3)
+        self.assertFalse(payload["budget_status"]["over_budget"])
+
+    def test_memory_plan_execute_start_surfaces_approval_gate_for_requires_approval_phase(
+        self,
+    ) -> None:
+        plan_yaml = self._plan_yaml_with_budget()
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertEqual(payload["new_state"]["plan_status"], "paused")
+        self.assertEqual(payload["new_state"]["phase_id"], "phase-a")
+        self.assertIn("approval_file", payload["new_state"])
+        self.assertIn("requires human approval", payload["new_state"]["message"])
+
+    def test_memory_plan_execute_start_creates_pending_approval_and_trace(self) -> None:
+        plan_yaml = self._plan_yaml_with_budget()
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        payload = json.loads(raw)
+
+        approval_path = (
+            repo_root
+            / "memory"
+            / "working"
+            / "approvals"
+            / "pending"
+            / "tracked-plan--phase-a.yaml"
+        )
+        self.assertEqual(payload["new_state"]["plan_status"], "paused")
+        self.assertTrue(approval_path.exists())
+
+        approval_body = yaml.safe_load(approval_path.read_text(encoding="utf-8"))
+        self.assertEqual(approval_body["status"], "pending")
+        self.assertEqual(approval_body["phase_id"], "phase-a")
+
+        plan_body = yaml.safe_load(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "projects"
+                / "example"
+                / "plans"
+                / "tracked-plan.yaml"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(plan_body["status"], "paused")
+
+        trace_path = (
+            repo_root / "memory" / "activity" / "2026" / "03" / "26" / "chat-001.traces.jsonl"
+        )
+        trace_spans = [
+            json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertTrue(any(span["name"] == "approval-requested" for span in trace_spans))
+        git_root = self._git_root(repo_root)
+        approval_git_path = (
+            "core/memory/working/approvals/pending/tracked-plan--phase-a.yaml"
+            if (git_root / "core").is_dir()
+            else "memory/working/approvals/pending/tracked-plan--phase-a.yaml"
+        )
+        subprocess.run(
+            [
+                "git",
+                "ls-files",
+                "--error-unmatch",
+                approval_git_path,
+            ],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_memory_plan_execute_start_returns_pending_approval_when_already_waiting(self) -> None:
+        plan_yaml = self._plan_yaml_with_budget()
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertEqual(payload["plan_status"], "paused")
+        self.assertEqual(payload["phase_id"], "phase-a")
+        self.assertIn("awaiting approval", payload["message"].lower())
+
+    def test_memory_plan_execute_complete_while_paused_returns_guard_message(self) -> None:
+        plan_yaml = self._plan_yaml_with_budget()
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="complete",
+                session_id="memory/activity/2026/03/26/chat-001",
+                commit_sha="abc1234",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertEqual(payload["plan_status"], "paused")
+        self.assertEqual(payload["phase_id"], "phase-a")
+        self.assertIn("awaiting approval", payload["message"].lower())
+
+        plan_body = yaml.safe_load(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "projects"
+                / "example"
+                / "plans"
+                / "tracked-plan.yaml"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(plan_body["status"], "paused")
+        self.assertEqual(plan_body["work"]["phases"][0]["status"], "pending")
+
+    def test_memory_resolve_approval_reject_blocks_followup_start(self) -> None:
+        plan_yaml = self._plan_yaml_with_budget()
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        resolve_raw = asyncio.run(
+            tools["memory_resolve_approval"](
+                plan_id="tracked-plan",
+                phase_id="phase-a",
+                resolution="reject",
+                comment="Need more detail.",
+            )
+        )
+        resolve_payload = json.loads(resolve_raw)
+
+        self.assertEqual(resolve_payload["new_state"]["status"], "rejected")
+        self.assertEqual(resolve_payload["new_state"]["plan_status"], "blocked")
+
+        followup_raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        followup_payload = json.loads(followup_raw)
+
+        self.assertEqual(followup_payload["new_state"]["plan_status"], "blocked")
+        self.assertEqual(followup_payload["new_state"]["approval_status"], "rejected")
+        self.assertIn("re-request", followup_payload["new_state"]["message"])
+
+    def test_memory_plan_execute_start_with_expired_approval_blocks_and_moves_file(self) -> None:
+        from engram_mcp.agent_memory_mcp.plan_utils import ApprovalDocument, save_approval
+
+        plan_yaml = self._plan_yaml_with_budget()
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        expired = ApprovalDocument(
+            plan_id="tracked-plan",
+            phase_id="phase-a",
+            project_id="example",
+            status="pending",
+            requested="2026-03-01T09:00:00Z",
+            expires="2026-03-02T09:00:00Z",
+            context={"phase_title": "Gated phase"},
+        )
+        save_approval(repo_root, expired)
+
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertEqual(payload["new_state"]["plan_status"], "blocked")
+        self.assertEqual(payload["new_state"]["approval_status"], "expired")
+        self.assertTrue(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "approvals"
+                / "resolved"
+                / "tracked-plan--phase-a.yaml"
+            ).exists()
+        )
+
+    def test_memory_resolve_approval_approve_allows_phase_start(self) -> None:
+        plan_yaml = self._plan_yaml_with_budget()
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        resolve_raw = asyncio.run(
+            tools["memory_resolve_approval"](
+                plan_id="tracked-plan",
+                phase_id="phase-a",
+                resolution="approve",
+                comment="Looks good.",
+            )
+        )
+        resolve_payload = json.loads(resolve_raw)
+
+        self.assertEqual(resolve_payload["new_state"]["status"], "approved")
+        self.assertEqual(resolve_payload["new_state"]["plan_status"], "active")
+
+        approval_body = yaml.safe_load(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "approvals"
+                / "resolved"
+                / "tracked-plan--phase-a.yaml"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(approval_body["status"], "approved")
+        self.assertEqual(approval_body["comment"], "Looks good.")
+
+        resumed_raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        resumed_payload = json.loads(resumed_raw)
+
+        self.assertEqual(resumed_payload["new_state"]["plan_status"], "active")
+        self.assertEqual(resumed_payload["new_state"]["phase_status"], "in-progress")
+        self.assertTrue(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "approvals"
+                / "resolved"
+                / "tracked-plan--phase-a.yaml"
+            ).exists()
+        )
+        git_root = self._git_root(repo_root)
+        resolved_git_path = (
+            "core/memory/working/approvals/resolved/tracked-plan--phase-a.yaml"
+            if (git_root / "core").is_dir()
+            else "memory/working/approvals/resolved/tracked-plan--phase-a.yaml"
+        )
+        pending_git_path = (
+            "core/memory/working/approvals/pending/tracked-plan--phase-a.yaml"
+            if (git_root / "core").is_dir()
+            else "memory/working/approvals/pending/tracked-plan--phase-a.yaml"
+        )
+        subprocess.run(
+            [
+                "git",
+                "ls-files",
+                "--error-unmatch",
+                resolved_git_path,
+            ],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        pending_lookup = subprocess.run(
+            [
+                "git",
+                "ls-files",
+                "--error-unmatch",
+                pending_git_path,
+            ],
+            cwd=git_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(pending_lookup.returncode, 0)
+
+    def test_memory_resolve_approval_cannot_resolve_twice(self) -> None:
+        plan_yaml = self._plan_yaml_with_budget()
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        asyncio.run(
+            tools["memory_resolve_approval"](
+                plan_id="tracked-plan",
+                phase_id="phase-a",
+                resolution="approve",
+                comment="Looks good.",
+            )
+        )
+
+        with self.assertRaises(self.errors.ValidationError) as exc_info:
+            asyncio.run(
+                tools["memory_resolve_approval"](
+                    plan_id="tracked-plan",
+                    phase_id="phase-a",
+                    resolution="reject",
+                    comment="Second resolution should fail.",
+                )
+            )
+
+        self.assertIn("already resolved", str(exc_info.exception))
+
+    def test_memory_plan_execute_complete_with_verify_failure_preserves_phase_state(self) -> None:
+        plan_yaml = self._plan_yaml_with_check_postcondition(requires_approval=False)
+        repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="complete",
+                session_id="memory/activity/2026/03/26/chat-001",
+                commit_sha="abc1234",
+                verify=True,
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertEqual(payload["status"], "verification_failed")
+        self.assertEqual(payload["phase_status"], "in-progress")
+        self.assertFalse(payload["all_passed"])
+
+        plan_body = yaml.safe_load(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "projects"
+                / "example"
+                / "plans"
+                / "tracked-plan.yaml"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(plan_body["status"], "active")
+        self.assertEqual(plan_body.get("sessions_used", 0), 0)
+        self.assertEqual(plan_body["work"]["phases"][0]["status"], "in-progress")
+
+    def test_memory_plan_execute_complete_with_verify_success_records_warning(self) -> None:
+        plan_yaml = self._plan_yaml_with_check_postcondition(requires_approval=False)
+        repo_root = self._init_repo(
+            {
+                **self._plan_repo_files(plan_yaml),
+                "memory/working/projects/example/notes/out.md": "done\n",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="complete",
+                session_id="memory/activity/2026/03/26/chat-001",
+                commit_sha="abc1234",
+                verify=True,
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertEqual(payload["new_state"]["phase_status"], "completed")
+        self.assertEqual(payload["new_state"]["sessions_used"], 1)
+        self.assertTrue(any("Verification passed" in warning for warning in payload["warnings"]))
+
+        plan_body = yaml.safe_load(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "projects"
+                / "example"
+                / "plans"
+                / "tracked-plan.yaml"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(plan_body["work"]["phases"][0]["status"], "completed")
+        self.assertEqual(plan_body["sessions_used"], 1)
+
+    def test_memory_plan_execute_complete_increments_sessions_used(self) -> None:
+        plan_yaml = self._plan_yaml_with_check_postcondition(
+            requires_approval=False, sessions_used=0
+        )
+        repo_root = self._init_repo(
+            {
+                **self._plan_repo_files(plan_yaml),
+                "memory/working/projects/example/notes/out.md": "done\n",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        # Start the phase first
+        asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        # Now complete it
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="complete",
+                session_id="memory/activity/2026/03/26/chat-001",
+                commit_sha="abc1234",
+            )
+        )
+        payload = json.loads(raw)
+        plan_body = yaml.safe_load(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "projects"
+                / "example"
+                / "plans"
+                / "tracked-plan.yaml"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(payload["new_state"]["sessions_used"], 1)
+        self.assertEqual(plan_body.get("sessions_used", 0), 1)
+        self.assertIn("budget_status", payload["new_state"])
+
+    def test_memory_plan_execute_complete_warns_when_session_budget_exhausted(self) -> None:
+        # sessions_used starts at 2, max_sessions is 3 — completing makes it 3 (exhausted)
+        plan_yaml = self._plan_yaml_with_check_postcondition(
+            requires_approval=False, sessions_used=2
+        )
+        repo_root = self._init_repo(
+            {
+                **self._plan_repo_files(plan_yaml),
+                "memory/working/projects/example/notes/out.md": "done\n",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="start",
+                session_id="memory/activity/2026/03/26/chat-001",
+            )
+        )
+        raw = asyncio.run(
+            tools["memory_plan_execute"](
+                plan_id="tracked-plan",
+                project_id="example",
+                phase_id="phase-a",
+                action="complete",
+                session_id="memory/activity/2026/03/26/chat-001",
+                commit_sha="abc1234",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertTrue(any("session budget" in w.lower() for w in payload["warnings"]))
+        self.assertTrue(payload["new_state"]["budget_status"]["over_session_budget"])
+
+    def test_memory_plan_briefing_returns_next_action_phase_packet(self) -> None:
+        repo_root = self._init_repo(
+            {
+                **self._plan_repo_files(self._phase8_plan_yaml()),
+                "core/context.md": "Briefing source body\n" * 8,
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_plan_briefing"](
+                plan_id="tracked-plan",
+                project_id="example",
+                max_context_chars=600,
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertEqual(payload["plan_id"], "tracked-plan")
+        self.assertEqual(payload["phase_id"], "phase-a")
+        self.assertEqual(payload["phase"]["phase"]["id"], "phase-a")
+        self.assertEqual(payload["source_contents"][0]["path"], "core/context.md")
+        self.assertIn("context_budget", payload)
+
+    def test_memory_plan_briefing_returns_summary_when_no_actionable_phase(self) -> None:
+        repo_root = self._init_repo(
+            {
+                **self._plan_repo_files(self._phase8_plan_yaml(completed=True)),
+                "core/context.md": "Briefing source body\n",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_plan_briefing"](
+                plan_id="tracked-plan",
+                project_id="example",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertIsNone(payload["phase"])
+        self.assertEqual(payload["progress"]["done"], 1)
+        self.assertEqual(payload["progress"]["total"], 1)
+        self.assertIn("no actionable phase", payload["message"].lower())
+
+    def test_memory_plan_briefing_records_trace_from_memory_session_env(self) -> None:
+        repo_root = self._init_repo(
+            {
+                **self._plan_repo_files(self._phase8_plan_yaml()),
+                "core/context.md": "Briefing source body\n",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        old_session = os.environ.get("MEMORY_SESSION_ID")
+        os.environ["MEMORY_SESSION_ID"] = "memory/activity/2026/03/27/chat-204"
+        try:
+            asyncio.run(
+                tools["memory_plan_briefing"](
+                    plan_id="tracked-plan",
+                    project_id="example",
+                )
+            )
+        finally:
+            if old_session is None:
+                os.environ.pop("MEMORY_SESSION_ID", None)
+            else:
+                os.environ["MEMORY_SESSION_ID"] = old_session
+
+        trace_path = (
+            repo_root / "memory" / "activity" / "2026" / "03" / "27" / "chat-204.traces.jsonl"
+        )
+        trace_spans = [
+            json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()
+        ]
+        briefing_spans = [span for span in trace_spans if span["name"] == "memory_plan_briefing"]
+
+        self.assertEqual(len(briefing_spans), 1)
+        self.assertEqual(briefing_spans[0]["metadata"]["plan_id"], "tracked-plan")
+        self.assertEqual(briefing_spans[0]["metadata"]["phase_id"], "phase-a")
+
+    def test_memory_stage_external_writes_project_inbox_file(self) -> None:
+        repo_root = self._init_repo(self._phase9_project_files())
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_stage_external"](
+                project="example",
+                filename="article.md",
+                content="External note\n",
+                source_url="https://example.com/article?utm=1#frag",
+                fetched_date="2026-03-27",
+                source_label="example-article",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertTrue(payload["staged"])
+        target = repo_root / payload["target_path"]
+        self.assertTrue(target.exists())
+        body = target.read_text(encoding="utf-8")
+        self.assertIn("origin_url: https://example.com/article", body)
+        self.assertTrue(
+            (
+                repo_root / "memory" / "working" / "projects" / "example" / ".staged-hashes.jsonl"
+            ).exists()
+        )
+
+    def test_memory_stage_external_dry_run_returns_preview_only(self) -> None:
+        repo_root = self._init_repo(self._phase9_project_files())
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_stage_external"](
+                project="example",
+                filename="article.md",
+                content="External note\n",
+                source_url="https://example.com/article",
+                fetched_date="2026-03-27",
+                source_label="example-article",
+                dry_run=True,
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertFalse(payload["staged"])
+        self.assertFalse((repo_root / payload["target_path"]).exists())
+
+    def test_memory_scan_drop_zone_returns_scan_report(self) -> None:
+        drop_folder = Path(self._tmpdir.name) / "external-drop"
+        drop_folder.mkdir(parents=True, exist_ok=True)
+        (drop_folder / "note.md").write_text("drop note\n", encoding="utf-8")
+        repo_root = self._init_repo(
+            {
+                **self._phase9_project_files(),
+                "agent-bootstrap.toml": (
+                    "version = 1\n"
+                    f'[[watch_folders]]\npath = "{drop_folder.as_posix()}"\n'
+                    'target_project = "example"\n'
+                    'source_label = "external-drop"\n'
+                ),
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(tools["memory_scan_drop_zone"]())
+        payload = json.loads(raw)
+
+        self.assertEqual(payload["staged_count"], 1)
+        self.assertEqual(payload["duplicate_count"], 0)
+        self.assertTrue(
+            (repo_root / "memory" / "working" / "projects" / "example" / "IN" / "note.md").exists()
+        )
+
+    def test_memory_run_eval_requires_tier2(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/skills/eval-scenarios/basic-plan-lifecycle.yaml": self._eval_scenario_yaml(),
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        old_val = os.environ.pop("ENGRAM_TIER2", None)
+        try:
+            with self.assertRaises(self.errors.ValidationError) as exc_info:
+                asyncio.run(
+                    tools["memory_run_eval"](
+                        session_id="memory/activity/2026/03/27/chat-201",
+                        scenario_id="basic-plan-lifecycle",
+                    )
+                )
+        finally:
+            if old_val is not None:
+                os.environ["ENGRAM_TIER2"] = old_val
+
+        self.assertIn("ENGRAM_TIER2", str(exc_info.exception))
+
+    def test_memory_run_eval_runs_scenario_and_records_trace(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/skills/eval-scenarios/basic-plan-lifecycle.yaml": self._eval_scenario_yaml(),
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        old_val = os.environ.get("ENGRAM_TIER2")
+        os.environ["ENGRAM_TIER2"] = "1"
+        try:
+            raw = asyncio.run(
+                tools["memory_run_eval"](
+                    session_id="memory/activity/2026/03/27/chat-202",
+                    scenario_id="basic-plan-lifecycle",
+                )
+            )
+        finally:
+            if old_val is None:
+                os.environ.pop("ENGRAM_TIER2", None)
+            else:
+                os.environ["ENGRAM_TIER2"] = old_val
+
+        payload = json.loads(raw)
+        self.assertEqual(payload["summary"]["passed"], 1)
+        self.assertEqual(payload["results"][0]["scenario_id"], "basic-plan-lifecycle")
+        self.assertEqual(payload["metrics"]["task_success"], 1.0)
+
+        trace_path = (
+            repo_root / "memory" / "activity" / "2026" / "03" / "27" / "chat-202.traces.jsonl"
+        )
+        trace_spans = [
+            json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()
+        ]
+        eval_spans = [span for span in trace_spans if span["name"] == "eval:basic-plan-lifecycle"]
+        self.assertEqual(len(eval_spans), 1)
+        self.assertEqual(eval_spans[0]["metadata"]["eval_status"], "pass")
+
+    def test_memory_eval_report_returns_runs_for_scenario(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/skills/eval-scenarios/basic-plan-lifecycle.yaml": self._eval_scenario_yaml(),
+                "memory/skills/eval-scenarios/secondary-lifecycle.yaml": self._eval_scenario_yaml(
+                    scenario_id="secondary-lifecycle",
+                    tags=["secondary"],
+                ),
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        old_val = os.environ.get("ENGRAM_TIER2")
+        os.environ["ENGRAM_TIER2"] = "1"
+        try:
+            asyncio.run(
+                tools["memory_run_eval"](
+                    session_id="memory/activity/2026/03/27/chat-203",
+                    tag="lifecycle",
+                )
+            )
+            raw = asyncio.run(
+                tools["memory_eval_report"](
+                    scenario_id="basic-plan-lifecycle",
+                    date_from="2026-03-27",
+                    date_to="2026-03-27",
+                )
+            )
+        finally:
+            if old_val is None:
+                os.environ.pop("ENGRAM_TIER2", None)
+            else:
+                os.environ["ENGRAM_TIER2"] = old_val
+
+        payload = json.loads(raw)
+        self.assertEqual(payload["scenario_id"], "basic-plan-lifecycle")
+        self.assertEqual(payload["summary"]["total"], 1)
+        self.assertEqual(payload["summary"]["passed"], 1)
+        self.assertEqual(payload["runs"][0]["scenario_id"], "basic-plan-lifecycle")
+        self.assertEqual(payload["metrics"]["task_success"], 1.0)
 
 
 if __name__ == "__main__":

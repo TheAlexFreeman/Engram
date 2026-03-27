@@ -8,11 +8,12 @@ See `core/governance/scratchpad-guidelines.md` for the full write protocol, prom
 
 ## Active threads
 
-_None_
+- **Harness expansion** — All 5 phases complete (commit daa3c50). Project finished. See `core/memory/working/projects/harness-expansion/SUMMARY.md`.
+- **Codebase survey** — All 6 phases complete. All knowledge files at `trust: medium`. Pending human review for promotion from IN/ to `knowledge/codebase/` via OUT/. See `core/memory/working/projects/codebase-survey/plans/survey-plan.yaml`.
 
 ## Immediate next actions
 
-_None_
+- Codebase survey: promote IN/ files to knowledge/codebase/ after user reviews them.
 
 ## Open questions
 

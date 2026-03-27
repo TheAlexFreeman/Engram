@@ -798,6 +798,17 @@ def validate_frontmatter(path: Path, root: Path, result: ValidationResult) -> No
     validate_iso_date(frontmatter["created"], path, "created", result)
     if "last_verified" in frontmatter:
         validate_iso_date(frontmatter["last_verified"], path, "last_verified", result)
+    if "expires" in frontmatter:
+        validate_iso_date(frontmatter["expires"], path, "expires", result)
+    if "superseded_by" in frontmatter:
+        superseded_by = frontmatter["superseded_by"]
+        if not isinstance(superseded_by, str) or not superseded_by.strip():
+            result.error(f"{path}: superseded_by must be a non-empty string (repo-relative path)")
+        else:
+            # Validate the successor path exists in the repo
+            successor_path = root / "core" / superseded_by
+            if not successor_path.exists():
+                result.warn(f"{path}: superseded_by target does not exist: {superseded_by}")
 
     origin_session = frontmatter["origin_session"]
     if origin_session in SPECIAL_ORIGIN_SESSION_VALUES:

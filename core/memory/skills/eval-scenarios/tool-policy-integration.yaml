@@ -1,0 +1,57 @@
+id: tool-policy-integration
+description: Seed registry policy metadata during scenario setup and verify the registry artifact is present.
+tags:
+  - core
+  - tool-policy
+  - registry
+setup:
+  plan:
+    id: tool-policy-integration-plan
+    project: eval-suite
+    phases:
+      - id: phase-one
+        title: Use registry-backed setup
+        postconditions:
+          - description: Registry-backed output exists
+            type: check
+            target: memory/working/notes/tool-policy.txt
+        changes:
+          - path: memory/working/notes/tool-policy.txt
+            action: create
+            description: Create tool policy output file
+  files:
+    - path: memory/working/notes/tool-policy.txt
+      content: tool policy output
+  registry_tools:
+    - name: eval-scenario-lint
+      description: Eval-only registry entry for seeded scenario coverage
+      provider: shell
+      approval_required: false
+      cost_tier: free
+      timeout_seconds: 15
+      tags:
+        - eval
+        - lint
+steps:
+  - action: start_phase
+    phase_id: phase-one
+    expect:
+      phase_status: in-progress
+  - action: complete_phase
+    phase_id: phase-one
+    commit_sha: eval-policy-001
+    verify: true
+    expect:
+      phase_status: completed
+      plan_status: completed
+assertions:
+  - type: plan_status
+    expected: completed
+  - type: file_exists
+    path: memory/skills/tool-registry/shell.yaml
+  - type: file_contains
+    path: memory/skills/tool-registry/shell.yaml
+    pattern: eval-scenario-lint
+  - type: metric
+    name: task_success
+    expected: 1.0

@@ -1,0 +1,61 @@
+id: approval-pause-resume
+description: Pause on approval, resolve it, resume execution, and verify completion.
+tags:
+  - core
+  - approval
+  - hitl
+setup:
+  plan:
+    id: approval-pause-resume-plan
+    project: eval-suite
+    phases:
+      - id: phase-one
+        title: Execute gated work
+        requires_approval: true
+        postconditions:
+          - description: Approved output exists
+            type: check
+            target: memory/working/notes/approval.txt
+        changes:
+          - path: memory/working/notes/approval.txt
+            action: create
+            description: Create approved output file
+  files:
+    - path: memory/working/notes/approval.txt
+      content: approval output
+steps:
+  - action: start_phase
+    phase_id: phase-one
+    expect:
+      plan_status: paused
+      approval_status: pending
+  - action: resolve_approval
+    phase_id: phase-one
+    resolution: approve
+    expect:
+      plan_status: active
+      approval_status: approved
+  - action: start_phase
+    phase_id: phase-one
+    expect:
+      phase_status: in-progress
+  - action: complete_phase
+    phase_id: phase-one
+    commit_sha: eval-approval-001
+    verify: true
+    expect:
+      phase_status: completed
+      plan_status: completed
+assertions:
+  - type: approval_status
+    phase_id: phase-one
+    expected: approved
+  - type: phase_status
+    phase_id: phase-one
+    expected: completed
+  - type: metric
+    name: human_intervention_count
+    expected: 2.0
+  - type: metric
+    name: task_success
+    expected: 1.0

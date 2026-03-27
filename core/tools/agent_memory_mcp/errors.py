@@ -31,6 +31,26 @@ class ValidationError(AgentMemoryError):
     """Frontmatter schema violation, broken invariant, or malformed content."""
 
 
+class DuplicateContentError(AgentMemoryError):
+    """Content hash already exists in the staging registry.
+
+    Attributes:
+        content_hash: The SHA-256 digest for the duplicate content.
+        existing_filename: The previously staged filename tied to this hash.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        content_hash: str = "",
+        existing_filename: str = "",
+    ):
+        super().__init__(message)
+        self.content_hash = content_hash
+        self.existing_filename = existing_filename
+
+
 class AlreadyDoneError(AgentMemoryError):
     """Idempotency: the operation is already in the target state.
 

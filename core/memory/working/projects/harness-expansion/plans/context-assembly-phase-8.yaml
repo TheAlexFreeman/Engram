@@ -1,0 +1,189 @@
+id: context-assembly-phase-8
+project: harness-expansion
+created: '2026-03-27'
+origin_session: memory/activity/2026/03/27/chat-001
+status: completed
+sessions_used: 1
+budget:
+  deadline: '2026-06-15'
+  max_sessions: 5
+  advisory: true
+purpose:
+  summary: Add a context assembly tool that produces a single briefing packet for
+    any plan phase, reducing agent overhead from 3-6 tool calls to one.
+  context: >
+    The deep research report emphasizes context engineering as a first-class
+    concern: "Summarizing and compressing history while preserving decisions,
+    constraints, unresolved issues, and other load-bearing facts."
+
+    Currently, an agent beginning work on a phase must call memory_plan_execute
+    inspect, manually read each source file, check next_action for failure
+    history, query traces, and check approval status — 3-6 sequential tool
+    calls before starting actual work. This phase adds assemble_briefing() and
+    memory_plan_briefing to produce all that context in a single call with
+    configurable budgeting.
+
+    Design document: IN/phase-8-context-assembly-design.md
+
+    Dependencies: Benefits from all prior phases (assembles their outputs) but
+    has no hard blockers — each assembly component degrades gracefully if the
+    underlying subsystem data is absent.
+  questions:
+  - Resolved in implementation: default max_context_chars remains 8000, with 0 meaning unlimited.
+  - Resolved in implementation: source truncation uses a smart head/tail excerpt.
+  - Resolved in implementation: briefing results are not cached yet; direct reads keep behavior simple and deterministic.
+work:
+  phases:
+  - id: briefing-design
+    title: Finalize briefing assembly algorithm and context budget strategy
+    status: completed
+    blockers: []
+    requires_approval: true
+    sources:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-8-context-assembly-design.md
+      type: internal
+      intent: Reference the full design for assemble_briefing(), return schema, context
+        budget allocation priorities, and truncation strategy.
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Read phase_payload(), next_action(), load_approval(), record_trace() to
+        understand data available for assembly.
+    postconditions:
+    - description: Assembly algorithm finalized in IN/phase-8-context-assembly-design.md with
+        budget allocation priorities documented
+      type: manual
+    - description: Decision on default max_context_chars, truncation strategy, and caching
+        recorded
+      type: manual
+    - description: Return schema finalized with all section types and metadata
+      type: manual
+    changes:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-8-context-assembly-design.md
+      action: update
+      description: Finalize design decisions for budget allocation, truncation, caching, and
+        return schema.
+
+  - id: briefing-impl
+    title: Implement assemble_briefing() helper in plan_utils.py
+    status: completed
+    blockers: []
+    sources:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-8-context-assembly-design.md
+      type: internal
+      intent: Follow the finalized assembly algorithm, budget allocation, and return schema.
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Add assemble_briefing() alongside existing helpers. Use phase_payload(),
+        load_approval(), and trace reading for data assembly.
+    postconditions:
+    - description: assemble_briefing() function exists in plan_utils.py
+      type: grep
+      target: def assemble_briefing::core/tools/agent_memory_mcp/plan_utils.py
+    - description: Function reads source files with truncation to budget
+      type: manual
+    - description: Function includes failure summary, recent traces, approval status when
+        applicable
+      type: manual
+    - description: context_budget metadata tracks total chars, estimated tokens, truncation
+        flag, per-section breakdown
+      type: manual
+    - description: Missing source files produce graceful error entries (not exceptions)
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      action: update
+      description: Add assemble_briefing() function (~80-120 lines) composing phase_payload,
+        source file contents, failure summaries, traces, approval status, and budget metadata.
+
+  - id: briefing-mcp-tool
+    title: Implement memory_plan_briefing MCP tool
+    status: completed
+    blockers: []
+    sources:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-8-context-assembly-design.md
+      type: internal
+      intent: Reference the MCP tool design, parameters, annotations, and behavioral contract.
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      type: internal
+      intent: Follow existing MCP tool patterns. Wire to assemble_briefing() helper.
+    postconditions:
+    - description: memory_plan_briefing registered in MCP server
+      type: grep
+      target: memory_plan_briefing::core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+    - description: Tool accepts plan_id, phase_id, max_context_chars parameters
+      type: manual
+    - description: Tool defaults to next actionable phase when phase_id omitted
+      type: manual
+    - description: Tool annotated as readOnlyHint=true, idempotentHint=true
+      type: manual
+    - description: Tool emits trace span for self-instrumentation
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      action: update
+      description: Add memory_plan_briefing MCP tool. Resolve plan/phase, call
+        assemble_briefing(), emit trace, return JSON response.
+
+  - id: briefing-tests
+    title: Add test coverage for assemble_briefing and memory_plan_briefing
+    status: completed
+    blockers: []
+    sources:
+    - path: core/tools/tests/test_plan_schema_extensions.py
+      type: internal
+      intent: Follow existing test patterns. Add tests for briefing assembly.
+    - path: core/memory/working/projects/harness-expansion/IN/phase-8-context-assembly-design.md
+      type: internal
+      intent: Reference required test scenarios from design doc.
+    postconditions:
+    - description: TestAssembleBriefing class exists with 8+ tests
+      type: grep
+      target: class TestAssembleBriefing::core/tools/tests/test_plan_schema_extensions.py
+    - description: Tests cover missing sources, truncated output, zero-budget unlimited,
+        approval-included, traces-included, no-failures, multi-failure phases
+      type: manual
+    - description: Full test suite passes
+      type: test
+      target: pytest core/tools/tests/ -q
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/tests/test_plan_schema_extensions.py
+      action: update
+      description: Add TestAssembleBriefing class testing all assembly scenarios.
+
+  - id: briefing-docs
+    title: Update documentation for context assembly
+    status: completed
+    blockers: []
+    sources:
+    - path: HUMANS/docs/MCP.md
+      type: internal
+      intent: Add memory_plan_briefing documentation following existing format.
+    - path: HUMANS/docs/DESIGN.md
+      type: internal
+      intent: Add context assembly section to design documentation.
+    postconditions:
+    - description: MCP.md documents memory_plan_briefing tool with parameters and examples
+      type: manual
+    - description: DESIGN.md includes context assembly section
+      type: manual
+    - description: CHANGELOG.md updated with Phase 8 entry
+      type: manual
+    changes:
+    - path: HUMANS/docs/MCP.md
+      action: update
+      description: Document memory_plan_briefing tool.
+    - path: HUMANS/docs/DESIGN.md
+      action: update
+      description: Add context assembly section describing briefing assembly and budget strategy.
+    - path: CHANGELOG.md
+      action: update
+      description: Add Phase 8 entry.

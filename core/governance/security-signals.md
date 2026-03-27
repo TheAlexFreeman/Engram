@@ -21,6 +21,14 @@ These can diverge: a `trust: high` file can be stale (verified a year ago), and 
 
 Trust and relevance decay over time. For decay calculations, use `last_verified` when present; otherwise fall back to `created` as the effective verification date. The rules: `trust: low` unverified past the active threshold → auto-archive. `trust: medium` unverified past the active threshold → flag for re-verification or demotion. `trust: high` → not subject to automatic decay, but mention files older than 365 days during periodic review.
 
+### Explicit expiration (`expires`)
+
+Files may declare an `expires` frontmatter field (ISO date). When the current date exceeds `expires`, the file is treated as expired regardless of trust level. Expired files enter the same review/archive path as trust-decayed files. `expires` takes precedence over trust-based thresholds — if a file would normally survive decay but has passed its `expires` date, it is still flagged. This is especially useful for `_unverified/` content with a known shelf life and time-bound project context.
+
+### Supersession (`superseded_by`)
+
+Files may declare a `superseded_by` frontmatter field pointing to a successor file. Superseded files are not auto-archived but are deprioritized in retrieval: audit tools surface them in a dedicated "superseded" bucket, and agents should prefer the successor when both are candidates. Supersession is a soft signal — the old file remains searchable for historical queries. During periodic review, verify that the successor path still exists; if the successor was itself retired, clear the `superseded_by` field or archive the original.
+
 ## Access anomaly detection
 
 _Active anomaly thresholds are in `core/INIT.md` § "Decision guide: anomaly detection". The signal taxonomy and response protocol are below._

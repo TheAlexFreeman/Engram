@@ -92,10 +92,10 @@ When reviewing reflection notes during periodic review, look for recurring theme
 
 ## Conflict resolution protocol
 
-1. **Explicit correction wins.** User says "actually, I prefer X now" → update immediately.
+1. **Explicit correction wins.** User says "actually, I prefer X now" → update immediately. When creating a corrected replacement, set `superseded_by` on the old file pointing to the new one.
 2. **Recent observation wins over old inference.** A `[tentative]` from today outweighs an `[inferred]` from six months ago.
 3. **When uncertain, flag and ask.** Add both versions with a `[CONFLICT]` tag and raise it with the user.
-4. **Never silently discard.** Git history is your safety net.
+4. **Never silently discard.** Git history is your safety net. Prefer `superseded_by` over deletion — it preserves retrievability for historical queries while directing agents to current truth.
 
 ## Content boundaries
 

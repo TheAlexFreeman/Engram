@@ -1,0 +1,57 @@
+id: trace-recording-validation
+description: Validate trace coverage for start, verification, and completion operations.
+tags:
+  - core
+  - observability
+  - traces
+setup:
+  plan:
+    id: trace-recording-validation-plan
+    project: eval-suite
+    phases:
+      - id: phase-one
+        title: Produce traced output
+        postconditions:
+          - description: Traced output exists
+            type: check
+            target: memory/working/notes/traces.txt
+        changes:
+          - path: memory/working/notes/traces.txt
+            action: create
+            description: Create traced output file
+  files:
+    - path: memory/working/notes/traces.txt
+      content: traced output
+steps:
+  - action: start_phase
+    phase_id: phase-one
+    expect:
+      phase_status: in-progress
+  - action: verify_phase
+    phase_id: phase-one
+    expect:
+      all_passed: true
+  - action: complete_phase
+    phase_id: phase-one
+    commit_sha: eval-trace-001
+    verify: true
+    expect:
+      phase_status: completed
+      plan_status: completed
+assertions:
+  - type: trace_span_count
+    filter:
+      span_type: plan_action
+    exact: 2
+  - type: trace_span_count
+    filter:
+      span_type: verification
+    exact: 2
+  - type: trace_metadata
+    filter:
+      span_type: verification
+    key: passed
+    expected: 1
+  - type: metric
+    name: steps_to_success
+    expected: 4.0

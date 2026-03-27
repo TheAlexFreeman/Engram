@@ -9,13 +9,27 @@ from typing import TYPE_CHECKING, Any, cast
 
 from ...path_policy import validate_session_id, validate_slug
 from ...plan_utils import (
+    APPROVAL_RESOLUTIONS,
+    COST_TIERS,
+    TRACE_SPAN_TYPES,
+    TRACE_STATUSES,
+    ApprovalDocument,
     PlanDocument,
     PlanPurpose,
+    ToolDefinition,
+    _all_registry_tools,
     append_operations_log,
+    approval_filename,
+    approvals_summary_path,
+    assemble_briefing,
+    budget_status,
     build_review_from_input,
+    coerce_budget_input,
     coerce_phase_inputs,
     exportable_artifacts,
+    load_approval,
     load_plan,
+    load_registry,
     next_action,
     outbox_summary_path,
     phase_change_class,
@@ -24,9 +38,19 @@ from ...plan_utils import (
     plan_title,
     project_outbox_root,
     project_plan_path,
+    record_trace,
+    regenerate_approvals_summary,
+    regenerate_registry_summary,
+    registry_file_path,
     resolve_phase,
+    save_approval,
     save_plan,
+    save_registry,
+    scan_drop_zone,
+    stage_external_file,
+    trace_file_path,
     unresolved_blockers,
+    verify_postconditions,
 )
 from ...preview_contract import build_governed_preview, preview_target
 
@@ -240,10 +264,20 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         phases: list[dict[str, Any]],
         session_id: str,
         questions: list[str] | None = None,
+        budget: dict[str, Any] | None = None,
         status: str = "active",
         preview: bool = False,
     ) -> str:
-        """Create a structured YAML plan file inside a project."""
+        """Create a structured YAML plan file inside a project.
+
+        Phases may include sources (list of {path, type, intent, uri?}),
+        postconditions (list of strings or {description, type?, target?}),
+        and requires_approval (bool). These flow through to the plan schema
+        and are surfaced in execution directives.
+
+        budget is an optional dict with keys: deadline (YYYY-MM-DD),
+        max_sessions (int >= 1), advisory (bool, default true).
+        """
         from ...errors import ValidationError
         from ...frontmatter_utils import today_str
         from ...models import MemoryWriteResult
@@ -257,6 +291,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             raise ValidationError("memory_plan_create status must be 'draft' or 'active'")
 
         plan_path, resolved_project_id = _resolve_new_plan_path(root, plan_id, project_id)
+        coerced_budget = coerce_budget_input(budget)
         plan = PlanDocument(
             id=plan_id,
             project=resolved_project_id,
@@ -270,6 +305,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             ),
             phases=coerce_phase_inputs(phases),
             review=None,
+            budget=coerced_budget,
         )
 
         files_changed = [
@@ -278,13 +314,16 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             "memory/working/projects/SUMMARY.md",
             f"memory/working/projects/{resolved_project_id}/operations.jsonl",
         ]
-        new_state = {
+        new_state: dict[str, Any] = {
             "plan_path": plan_path,
             "project_id": resolved_project_id,
             "status": plan.status,
             "phase_count": len(plan.phases),
             "next_action": next_action(plan),
         }
+        bs = budget_status(plan)
+        if bs is not None:
+            new_state["budget_status"] = bs
         commit_msg = f"[plan] Create {plan_id}"
         preview_payload = _create_preview(
             mode="preview" if preview else "apply",
@@ -333,7 +372,14 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             detail=plan_title(plan),
         )
         _sync_project_navigation(root, repo, resolved_project_id, files_changed)
-
+        record_trace(
+            root,
+            session_id,
+            span_type="plan_action",
+            name="create",
+            status="ok",
+            metadata={"plan_id": plan.id, "project_id": resolved_project_id, "action": "create"},
+        )
         commit_result = repo.commit(commit_msg)
         return MemoryWriteResult.from_commit(
             files_changed=files_changed,
@@ -362,9 +408,20 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         session_id: str | None = None,
         commit_sha: str | None = None,
         review: dict[str, Any] | None = None,
+        verify: bool = False,
+        reason: str | None = None,
+        verification_results: list[dict[str, Any]] | None = None,
         preview: bool = False,
     ) -> str:
-        """Inspect, start, block, or complete a structured plan phase."""
+        """Inspect, start, block, complete, or record failure on a plan phase.
+
+        When action="complete" and verify=True, postconditions are evaluated
+        before completion. If any fail or error, the phase stays in-progress
+        and verification_results are returned instead.
+
+        When action="record_failure", appends a PhaseFailure to the phase.
+        Requires reason (free text). Optional verification_results to attach.
+        """
         from ...errors import AlreadyDoneError, ValidationError
         from ...frontmatter_utils import today_str
         from ...models import MemoryWriteResult
@@ -384,10 +441,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         if action == "inspect":
             return json.dumps(payload, indent=2)
 
-        if action not in {"start", "complete"}:
-            raise ValidationError("action must be one of: inspect, start, complete")
+        if action not in {"start", "complete", "record_failure"}:
+            raise ValidationError("action must be one of: inspect, start, complete, record_failure")
         if session_id is None:
-            raise ValidationError("session_id is required for start and complete actions")
+            raise ValidationError(
+                "session_id is required for start, complete, and record_failure actions"
+            )
         validate_session_id(session_id)
 
         change_class = phase_change_class(phase)
@@ -398,18 +457,32 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             f"memory/working/projects/{resolved_project_id}/operations.jsonl",
         ]
 
+        # Guard: paused plans cannot be advanced (only inspect works)
+        if plan.status == "paused" and action in {"start", "complete"}:
+            paused_msg = (
+                f"Plan is paused, awaiting approval for phase '{phase.id}'. "
+                "Use `memory_resolve_approval` to approve or reject."
+            )
+            return json.dumps(
+                {"plan_status": "paused", "phase_id": phase.id, "message": paused_msg},
+                indent=2,
+            )
+
         if action == "start" and blockers:
             plan.status = "blocked"
             if phase.status == "pending":
                 phase.status = "blocked"
             commit_msg = f"[plan] Block {plan.id}:{phase.id}"
-            blocked_state = {
+            blocked_state: dict[str, Any] = {
                 "plan_status": plan.status,
                 "phase_status": phase.status,
                 "phase_id": phase.id,
                 "blocked_by": blockers,
                 "next_action": next_action(plan),
             }
+            bs = budget_status(plan)
+            if bs is not None:
+                blocked_state["budget_status"] = bs
             preview_payload = _create_preview(
                 mode="preview" if preview else "apply",
                 change_class=change_class,
@@ -471,16 +544,194 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 raise AlreadyDoneError(f"Phase '{phase.id}' is already complete")
             if phase.status == "in-progress":
                 raise AlreadyDoneError(f"Phase '{phase.id}' is already in progress")
+
+            # ── requires_approval: auto-create approval and pause ────────────
+            if phase.requires_approval:
+                from datetime import datetime, timezone
+
+                existing_approval = load_approval(root, plan.id, phase.id)
+
+                if existing_approval is not None and existing_approval.status == "approved":
+                    pass  # Approved — fall through to normal start
+
+                elif existing_approval is not None and existing_approval.status == "pending":
+                    # Already awaiting approval; plan should be paused
+                    return json.dumps(
+                        {
+                            "plan_status": "paused",
+                            "phase_id": phase.id,
+                            "message": (
+                                f"Awaiting approval for phase '{phase.id}'. "
+                                "Use `memory_resolve_approval` to approve or reject."
+                            ),
+                            "approval": existing_approval.to_dict(),
+                        },
+                        indent=2,
+                    )
+
+                elif existing_approval is not None and existing_approval.status in {
+                    "rejected",
+                    "expired",
+                }:
+                    # Rejected or expired → block the plan
+                    plan.status = "blocked"
+                    commit_msg_rej = (
+                        f"[plan] Block {plan.id}:{phase.id} (approval {existing_approval.status})"
+                    )
+                    rej_state: dict[str, Any] = {
+                        "plan_status": plan.status,
+                        "phase_id": phase.id,
+                        "approval_status": existing_approval.status,
+                        "message": (
+                            f"Approval for phase '{phase.id}' was {existing_approval.status}. "
+                            "Call `memory_request_approval` to re-request or abandon the plan."
+                        ),
+                        "approval": existing_approval.to_dict(),
+                    }
+                    if not preview:
+                        save_plan(abs_plan, plan, root)
+                        repo.add(plan_path)
+                        _append_plan_log(
+                            root,
+                            repo,
+                            resolved_project_id,
+                            files_changed,
+                            session_id=session_id,
+                            action="phase-blocked",
+                            plan_id=plan.id,
+                            phase_id=phase.id,
+                            detail=f"Approval {existing_approval.status}",
+                        )
+                        _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+                        commit_result_rej = repo.commit(commit_msg_rej)
+                        return MemoryWriteResult.from_commit(
+                            files_changed=files_changed,
+                            commit_result=commit_result_rej,
+                            commit_message=commit_msg_rej,
+                            new_state=rej_state,
+                            warnings=warnings,
+                        ).to_json()
+                    return json.dumps(rej_state, indent=2)
+
+                else:
+                    # No approval document → auto-create and pause plan
+                    now_dt = datetime.now(timezone.utc)
+                    now_str = now_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    expires_str = now_dt.replace(
+                        day=min(now_dt.day + 7, 28) if now_dt.month == 2 else now_dt.day
+                    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    # Use timedelta for correct 7-day calculation
+                    from datetime import timedelta
+
+                    expires_str = (now_dt + timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    bs_ctx = budget_status(plan)
+                    approval_context: dict[str, Any] = {
+                        "phase_title": phase.title,
+                        "phase_summary": (
+                            f"Phase '{phase.id}' requires human approval before execution. "
+                            f"Sources: {len(phase.sources)}, "
+                            f"Changes: {len(phase.changes)}"
+                        ),
+                        "sources": [s.path for s in phase.sources],
+                        "changes": [c.to_dict() for c in phase.changes],
+                        "change_class": change_class,
+                    }
+                    if bs_ctx is not None:
+                        approval_context["budget_status"] = bs_ctx
+                    new_approval = ApprovalDocument(
+                        plan_id=plan.id,
+                        phase_id=phase.id,
+                        project_id=resolved_project_id,
+                        status="pending",
+                        requested=now_str,
+                        expires=expires_str,
+                        context=approval_context,
+                    )
+                    plan.status = "paused"
+                    approval_file = (
+                        f"memory/working/approvals/pending/{approval_filename(plan.id, phase.id)}"
+                    )
+                    approval_files_changed = list(files_changed) + [
+                        approval_file,
+                        approvals_summary_path(),
+                    ]
+                    commit_msg_pause = f"[plan] Pause {plan.id}:{phase.id} pending approval"
+                    paused_state: dict[str, Any] = {
+                        "plan_status": "paused",
+                        "phase_id": phase.id,
+                        "approval_file": approval_file,
+                        "expires": expires_str,
+                        "message": (
+                            f"Phase '{phase.id}' requires human approval. "
+                            "Approval request created. Use `memory_resolve_approval` "
+                            "to approve or reject."
+                        ),
+                    }
+                    if not preview:
+                        save_approval(root, new_approval)
+                        regenerate_approvals_summary(root)
+                        save_plan(abs_plan, plan, root)
+                        repo.add(plan_path)
+                        repo.add(approval_file)
+                        repo.add(approvals_summary_path())
+                        _append_plan_log(
+                            root,
+                            repo,
+                            resolved_project_id,
+                            approval_files_changed,
+                            session_id=session_id,
+                            action="approval-requested",
+                            plan_id=plan.id,
+                            phase_id=phase.id,
+                            detail=f"Auto-paused: approval required for {phase.id}",
+                        )
+                        _sync_project_navigation(
+                            root, repo, resolved_project_id, approval_files_changed
+                        )
+                        record_trace(
+                            root,
+                            session_id,
+                            span_type="plan_action",
+                            name="approval-requested",
+                            status="ok",
+                            metadata={
+                                "plan_id": plan.id,
+                                "phase_id": phase.id,
+                                "expires": expires_str,
+                            },
+                        )
+                        commit_result_pause = repo.commit(commit_msg_pause)
+                        return MemoryWriteResult.from_commit(
+                            files_changed=approval_files_changed,
+                            commit_result=commit_result_pause,
+                            commit_message=commit_msg_pause,
+                            new_state=paused_state,
+                            warnings=warnings,
+                        ).to_json()
+                    return json.dumps(paused_state, indent=2)
+            # ── end requires_approval block ──────────────────────────────────
+
             plan.status = "active"
             phase.status = "in-progress"
             commit_msg = f"[plan] Start {plan.id}:{phase.id}"
-            start_state = {
+            start_state: dict[str, Any] = {
                 "plan_status": plan.status,
                 "phase_status": phase.status,
                 "phase_id": phase.id,
                 "next_action": phase.title,
                 "change_class": change_class,
+                "requires_approval": phase.requires_approval,
+                "approval_required": (
+                    phase.requires_approval or change_class in {"proposed", "protected"}
+                ),
             }
+            if phase.sources:
+                start_state["sources"] = [s.to_dict() for s in phase.sources]
+            if phase.postconditions:
+                start_state["postconditions"] = [pc.to_dict() for pc in phase.postconditions]
+            bs = budget_status(plan)
+            if bs is not None:
+                start_state["budget_status"] = bs
             preview_payload = _create_preview(
                 mode="preview" if preview else "apply",
                 change_class=change_class,
@@ -527,12 +778,123 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 detail=phase.title,
             )
             _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+            record_trace(
+                root,
+                session_id,
+                span_type="plan_action",
+                name="start",
+                status="ok",
+                metadata={"plan_id": plan.id, "phase_id": phase.id, "action": "start"},
+            )
             commit_result = repo.commit(commit_msg)
             return MemoryWriteResult.from_commit(
                 files_changed=files_changed,
                 commit_result=commit_result,
                 commit_message=commit_msg,
                 new_state=start_state,
+                warnings=warnings,
+                preview=preview_payload,
+            ).to_json()
+
+        if action == "record_failure":
+            from datetime import datetime, timezone
+
+            from ...plan_utils import PhaseFailure
+
+            if not reason or not reason.strip():
+                raise ValidationError("reason is required when recording a failure")
+            if phase.status not in {"in-progress", "pending"}:
+                raise ValidationError(
+                    f"Cannot record failure on phase '{phase.id}' with status '{phase.status}'"
+                )
+            failure = PhaseFailure(
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                reason=reason.strip(),
+                verification_results=verification_results,
+                attempt=len(phase.failures) + 1,
+            )
+            phase.failures.append(failure)
+
+            commit_msg = f"[plan] Record failure {plan.id}:{phase.id} (attempt {failure.attempt})"
+            failure_state: dict[str, Any] = {
+                "plan_status": plan.status,
+                "phase_status": phase.status,
+                "phase_id": phase.id,
+                "failure_recorded": failure.to_dict(),
+                "total_failures": len(phase.failures),
+                "attempt_number": len(phase.failures) + 1,
+            }
+            preview_payload = _create_preview(
+                mode="preview" if preview else "apply",
+                change_class=change_class,
+                summary=f"Record failure on phase {phase.id} in plan {plan.id}.",
+                reasoning=(
+                    "Recording failures provides structured context for retry "
+                    "attempts and enables agents to learn from prior mistakes."
+                ),
+                target_files=[
+                    (plan_path, "update"),
+                    (
+                        _project_summary_path(resolved_project_id),
+                        "update",
+                    ),
+                    ("memory/working/projects/SUMMARY.md", "update"),
+                    (
+                        f"memory/working/projects/{resolved_project_id}/operations.jsonl",
+                        "append",
+                    ),
+                ],
+                invariant_effects=[
+                    "Appends a PhaseFailure record to the phase.",
+                    "Logs the failure event in the project operations log.",
+                ],
+                commit_message=commit_msg,
+                resulting_state=failure_state,
+                warnings=warnings,
+            )
+            if preview:
+                return MemoryWriteResult(
+                    files_changed=files_changed,
+                    commit_sha=None,
+                    commit_message=None,
+                    new_state=failure_state,
+                    warnings=warnings,
+                    preview=preview_payload,
+                ).to_json()
+
+            save_plan(abs_plan, plan, root)
+            repo.add(plan_path)
+            _append_plan_log(
+                root,
+                repo,
+                resolved_project_id,
+                files_changed,
+                session_id=session_id,
+                action="phase-failure",
+                plan_id=plan.id,
+                phase_id=phase.id,
+                detail=reason.strip(),
+            )
+            _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+            record_trace(
+                root,
+                session_id,
+                span_type="plan_action",
+                name="record_failure",
+                status="ok",
+                metadata={
+                    "plan_id": plan.id,
+                    "phase_id": phase.id,
+                    "action": "record_failure",
+                    "attempt": failure.attempt,
+                },
+            )
+            commit_result = repo.commit(commit_msg)
+            return MemoryWriteResult.from_commit(
+                files_changed=files_changed,
+                commit_result=commit_result,
+                commit_message=commit_msg,
+                new_state=failure_state,
                 warnings=warnings,
                 preview=preview_payload,
             ).to_json()
@@ -547,10 +909,44 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         if phase.status == "completed":
             raise AlreadyDoneError(f"Phase '{phase.id}' is already complete")
 
+        # Optional inline verification before completing
+        if verify:
+            verification = verify_postconditions(plan, phase, root)
+            if not verification["all_passed"]:
+                verification_state: dict[str, Any] = {
+                    "status": "verification_failed",
+                    "plan_status": plan.status,
+                    "phase_status": phase.status,
+                    "phase_id": phase.id,
+                    **verification,
+                }
+                return json.dumps(verification_state, indent=2)
+            # Verification passed — include results in completion response
+            warnings.append(
+                f"Verification passed: {verification['summary']['passed']} passed, "
+                f"{verification['summary']['skipped']} skipped"
+            )
+
         phase.status = "completed"
         phase.commit = commit_sha.strip()
+        plan.sessions_used += 1
         done, total = plan_progress(plan)
         all_done = done == total
+
+        # Budget warnings
+        bs = budget_status(plan)
+        if bs is not None:
+            if bs.get("past_deadline"):
+                warnings.append(
+                    f"Budget warning: past deadline ({bs['deadline']})"
+                    + (" [advisory]" if bs.get("advisory") else " [ENFORCED]")
+                )
+            if bs.get("over_session_budget"):
+                warnings.append(
+                    f"Budget warning: session budget exhausted "
+                    f"({bs['sessions_used']}/{bs['max_sessions']})"
+                    + (" [advisory]" if bs.get("advisory") else " [ENFORCED]")
+                )
         if all_done:
             plan.status = "completed"
             if review is not None:
@@ -579,9 +975,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             "phase_id": phase.id,
             "phase_commit": phase.commit,
             "plan_progress": [done, total],
+            "sessions_used": plan.sessions_used,
             "next_action": next_action(plan),
             "review_written": plan.review is not None,
         }
+        if bs is not None:
+            completion_state["budget_status"] = bs
         preview_payload = _create_preview(
             mode="preview" if preview else "apply",
             change_class=change_class,
@@ -642,6 +1041,20 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 detail=plan_title(plan),
             )
         _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+        record_trace(
+            root,
+            session_id,
+            span_type="plan_action",
+            name="complete",
+            status="ok",
+            metadata={
+                "plan_id": plan.id,
+                "phase_id": phase.id,
+                "action": "complete",
+                "commit": phase.commit,
+                "plan_done": all_done,
+            },
+        )
         commit_result = repo.commit(commit_msg)
         return MemoryWriteResult.from_commit(
             files_changed=files_changed,
@@ -851,26 +1264,988 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             if status is not None and plan.status != status:
                 continue
             done, total = plan_progress(plan)
-            plans.append(
-                {
-                    "plan_id": plan.id,
-                    "project_id": plan.project,
-                    "path": plan_file.relative_to(root).as_posix(),
-                    "title": plan_title(plan),
-                    "status": plan.status,
-                    "next_action": next_action(plan),
-                    "created": plan.created,
-                    "phase_progress": {"done": done, "total": total},
-                }
-            )
+            entry: dict[str, Any] = {
+                "plan_id": plan.id,
+                "project_id": plan.project,
+                "path": plan_file.relative_to(root).as_posix(),
+                "title": plan_title(plan),
+                "status": plan.status,
+                "next_action": next_action(plan),
+                "created": plan.created,
+                "phase_progress": {"done": done, "total": total},
+            }
+            bs = budget_status(plan)
+            if bs is not None:
+                entry["budget_status"] = bs
+            plans.append(entry)
 
         return _json.dumps(plans, indent=2)
+
+    @mcp.tool(
+        name="memory_plan_verify",
+        annotations=_tool_annotations(
+            title="Verify Plan Postconditions",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_plan_verify(
+        plan_id: str,
+        phase_id: str,
+        project_id: str | None = None,
+    ) -> str:
+        """Evaluate postconditions on a plan phase without modifying plan state.
+
+        Returns structured pass/fail/skip/error results for each postcondition.
+        Manual postconditions are skipped. check/grep/test types are evaluated
+        automatically. test-type evaluation requires ENGRAM_TIER2=1.
+        """
+        import json as _json
+
+        root = get_root()
+
+        plan_path, resolved_project_id = _resolve_existing_plan_path(root, plan_id, project_id)
+        abs_plan = root / plan_path
+        plan = load_plan(abs_plan, root)
+        phase = resolve_phase(plan, phase_id)
+        verification = verify_postconditions(plan, phase, root)
+        verification["plan_id"] = plan.id
+        verification["project_id"] = resolved_project_id
+        verification["phase_id"] = phase.id
+
+        # Emit a verification span when a session_id is available via env.
+        import os as _os
+
+        _env_sid = _os.environ.get("MEMORY_SESSION_ID", "").strip()
+        if _env_sid:
+            summary = verification.get("summary", {})
+            record_trace(
+                root,
+                _env_sid,
+                span_type="verification",
+                name=f"verify:{phase.id}",
+                status="ok" if verification.get("all_passed") else "error",
+                metadata={
+                    "plan_id": plan.id,
+                    "phase_id": phase.id,
+                    "passed": summary.get("passed", 0),
+                    "failed": summary.get("failed", 0),
+                    "skipped": summary.get("skipped", 0),
+                    "errors": summary.get("errors", 0),
+                },
+            )
+
+        return _json.dumps(verification, indent=2)
+
+    @mcp.tool(
+        name="memory_record_trace",
+        annotations=_tool_annotations(
+            title="Record Trace Span",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_record_trace(
+        session_id: str,
+        span_type: str,
+        name: str,
+        status: str,
+        duration_ms: int | None = None,
+        metadata: dict | None = None,
+        cost: dict | None = None,
+        parent_span_id: str | None = None,
+    ) -> str:
+        """Append a trace span to the session's TRACES.jsonl file.
+
+        Spans are append-only and do not modify plan state.  Recording is
+        non-blocking — the tool returns a failed status rather than raising if
+        writing fails for any reason.
+
+        span_type must be one of: tool_call, plan_action, retrieval,
+        verification, guardrail_check.
+        status must be one of: ok, error, denied.
+        """
+        import json as _json
+
+        from ...errors import ValidationError
+
+        validate_session_id(session_id)
+
+        if span_type not in TRACE_SPAN_TYPES:
+            raise ValidationError(
+                f"span_type must be one of {sorted(TRACE_SPAN_TYPES)}: {span_type!r}"
+            )
+        if status not in TRACE_STATUSES:
+            raise ValidationError(f"status must be one of {sorted(TRACE_STATUSES)}: {status!r}")
+
+        root = get_root()
+        span_id = record_trace(
+            root,
+            session_id,
+            span_type=span_type,
+            name=name,
+            status=status,
+            duration_ms=duration_ms,
+            metadata=metadata,
+            cost=cost,
+            parent_span_id=parent_span_id,
+        )
+
+        result = {
+            "span_id": span_id,
+            "trace_file": trace_file_path(session_id),
+            "status": "recorded" if span_id else "failed",
+        }
+        return _json.dumps(result, indent=2)
+
+    @mcp.tool(
+        name="memory_query_traces",
+        annotations=_tool_annotations(
+            title="Query Trace Spans",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_query_traces(
+        session_id: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        span_type: str | None = None,
+        plan_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> str:
+        """Query trace spans from TRACES.jsonl files.
+
+        Filter by session_id (exact match), date range (YYYY-MM-DD), span_type,
+        plan_id (matched against metadata.plan_id), or status.  Returns spans
+        newest-first up to ``limit``, plus aggregates: total_duration_ms,
+        by_type counts, by_status counts, error_rate.
+        """
+        import json as _json
+        import re as _re
+
+        from ...errors import ValidationError
+
+        if span_type is not None and span_type not in TRACE_SPAN_TYPES:
+            raise ValidationError(
+                f"span_type must be one of {sorted(TRACE_SPAN_TYPES)}: {span_type!r}"
+            )
+        if status is not None and status not in TRACE_STATUSES:
+            raise ValidationError(f"status must be one of {sorted(TRACE_STATUSES)}: {status!r}")
+
+        _date_pat = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
+        if date_from is not None and not _date_pat.match(date_from):
+            raise ValidationError("date_from must be in YYYY-MM-DD format")
+        if date_to is not None and not _date_pat.match(date_to):
+            raise ValidationError("date_to must be in YYYY-MM-DD format")
+
+        root = get_root()
+        activity_root = root / "memory" / "activity"
+        trace_files: list[Any] = []
+
+        if session_id is not None:
+            validate_session_id(session_id)
+            candidate = root / trace_file_path(session_id)
+            if candidate.exists():
+                trace_files = [candidate]
+        else:
+            if activity_root.is_dir():
+                for tf in sorted(activity_root.rglob("*.traces.jsonl"), reverse=True):
+                    parts = tf.relative_to(activity_root).parts
+                    if len(parts) >= 4:
+                        year, month, day = parts[0], parts[1], parts[2]
+                        file_date = f"{year}-{month}-{day}"
+                        if date_from is not None and file_date < date_from:
+                            continue
+                        if date_to is not None and file_date > date_to:
+                            continue
+                    trace_files.append(tf)
+
+        all_spans: list[dict[str, Any]] = []
+        for tf in trace_files:
+            try:
+                for raw_line in tf.read_text(encoding="utf-8").splitlines():
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    try:
+                        span = _json.loads(line)
+                        if not isinstance(span, dict):
+                            continue
+                        if span_type is not None and span.get("span_type") != span_type:
+                            continue
+                        if status is not None and span.get("status") != status:
+                            continue
+                        if plan_id is not None:
+                            meta = span.get("metadata") or {}
+                            if meta.get("plan_id") != plan_id:
+                                continue
+                        all_spans.append(span)
+                    except (_json.JSONDecodeError, KeyError):
+                        continue
+            except OSError:
+                continue
+
+        all_spans.sort(key=lambda s: s.get("timestamp", ""), reverse=True)
+        total_matched = len(all_spans)
+        limited_spans = all_spans[: max(1, limit)]
+
+        total_duration_ms = sum(s.get("duration_ms") or 0 for s in all_spans)
+        by_type: dict[str, int] = {}
+        by_status: dict[str, int] = {}
+        error_count = 0
+        for span in all_spans:
+            st = span.get("span_type", "unknown")
+            by_type[st] = by_type.get(st, 0) + 1
+            ss = span.get("status", "unknown")
+            by_status[ss] = by_status.get(ss, 0) + 1
+            if ss == "error":
+                error_count += 1
+
+        result: dict[str, Any] = {
+            "spans": limited_spans,
+            "total_matched": total_matched,
+            "aggregates": {
+                "total_duration_ms": total_duration_ms,
+                "by_type": by_type,
+                "by_status": by_status,
+                "error_rate": round(error_count / total_matched, 3) if total_matched > 0 else 0.0,
+            },
+        }
+
+        return _json.dumps(result, indent=2)
+
+    @mcp.tool(
+        name="memory_plan_briefing",
+        annotations=_tool_annotations(
+            title="Read Plan Briefing",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_plan_briefing(
+        plan_id: str,
+        phase_id: str | None = None,
+        project_id: str | None = None,
+        max_context_chars: int = 8000,
+        include_sources: bool = True,
+        include_traces: bool = True,
+        include_approval: bool = True,
+    ) -> str:
+        """Return a single-call briefing packet for a plan phase."""
+        import json as _json
+        import os as _os
+
+        from ...errors import ValidationError
+
+        if isinstance(include_sources, str):
+            include_sources = include_sources.lower() not in {"", "0", "false", "no"}
+        if isinstance(include_traces, str):
+            include_traces = include_traces.lower() not in {"", "0", "false", "no"}
+        if isinstance(include_approval, str):
+            include_approval = include_approval.lower() not in {"", "0", "false", "no"}
+
+        try:
+            max_chars = int(max_context_chars)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("max_context_chars must be an integer >= 0") from exc
+        if max_chars < 0:
+            raise ValidationError("max_context_chars must be >= 0")
+
+        root = get_root()
+        plan_path, resolved_project_id = _resolve_existing_plan_path(root, plan_id, project_id)
+        abs_plan = root / plan_path
+        plan = load_plan(abs_plan, root)
+
+        env_session_id = _os.environ.get("MEMORY_SESSION_ID", "").strip() or None
+        if env_session_id is not None:
+            validate_session_id(env_session_id)
+
+        if phase_id is None:
+            directive = next_action(plan)
+            if directive is None:
+                result: dict[str, Any] = {
+                    "plan_id": plan.id,
+                    "project_id": resolved_project_id,
+                    "plan_status": plan.status,
+                    "purpose": plan.purpose.to_dict(),
+                    "progress": {
+                        "done": plan_progress(plan)[0],
+                        "total": plan_progress(plan)[1],
+                        "next_action": None,
+                    },
+                    "phase": None,
+                    "message": "Plan has no actionable phase.",
+                }
+                plan_budget = budget_status(plan)
+                if plan_budget is not None:
+                    result["budget_status"] = plan_budget
+                if env_session_id is not None:
+                    record_trace(
+                        root,
+                        env_session_id,
+                        span_type="tool_call",
+                        name="memory_plan_briefing",
+                        status="ok",
+                        metadata={
+                            "plan_id": plan.id,
+                            "phase_id": None,
+                            "context_chars": len(_json.dumps(result, ensure_ascii=False)),
+                            "truncated": False,
+                        },
+                    )
+                return _json.dumps(result, indent=2)
+            phase = resolve_phase(plan, str(directive["id"]))
+        else:
+            phase = resolve_phase(plan, phase_id)
+
+        result = assemble_briefing(
+            plan,
+            phase,
+            root,
+            max_context_chars=max_chars,
+            include_sources=bool(include_sources),
+            include_traces=bool(include_traces),
+            include_approval=bool(include_approval),
+            session_id=env_session_id,
+        )
+
+        if env_session_id is not None:
+            context_budget = result.get("context_budget", {})
+            record_trace(
+                root,
+                env_session_id,
+                span_type="tool_call",
+                name="memory_plan_briefing",
+                status="ok",
+                metadata={
+                    "plan_id": plan.id,
+                    "phase_id": phase.id,
+                    "context_chars": context_budget.get("total_chars"),
+                    "truncated": context_budget.get("truncated", False),
+                },
+            )
+
+        return _json.dumps(result, indent=2)
+
+    @mcp.tool(
+        name="memory_stage_external",
+        annotations=_tool_annotations(
+            title="Stage External Content",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_stage_external(
+        project: str,
+        filename: str,
+        content: str,
+        source_url: str,
+        fetched_date: str,
+        source_label: str,
+        dry_run: bool = False,
+    ) -> str:
+        """Stage external content into a project's IN/ directory."""
+        import json as _json
+        import os as _os
+
+        root = get_root()
+        env_session_id = _os.environ.get("MEMORY_SESSION_ID", "").strip() or None
+        result = stage_external_file(
+            project,
+            filename,
+            content,
+            source_url,
+            fetched_date,
+            source_label,
+            root=root,
+            session_id=env_session_id,
+            dry_run=bool(dry_run),
+        )
+        if env_session_id is not None:
+            record_trace(
+                root,
+                env_session_id,
+                span_type="tool_call",
+                name="memory_stage_external",
+                status="ok",
+                metadata={
+                    "project_id": result.get("project"),
+                    "target_path": result.get("target_path"),
+                    "dry_run": bool(dry_run),
+                    "staged": result.get("staged", False),
+                },
+            )
+        return _json.dumps(result, indent=2)
+
+    @mcp.tool(
+        name="memory_scan_drop_zone",
+        annotations=_tool_annotations(
+            title="Scan Drop Zone",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_scan_drop_zone(project_filter: str | None = None) -> str:
+        """Scan configured watch folders and stage newly discovered content."""
+        import json as _json
+        import os as _os
+
+        root = get_root()
+        env_session_id = _os.environ.get("MEMORY_SESSION_ID", "").strip() or None
+        result = scan_drop_zone(root=root, project_filter=project_filter, session_id=env_session_id)
+        if env_session_id is not None:
+            record_trace(
+                root,
+                env_session_id,
+                span_type="tool_call",
+                name="memory_scan_drop_zone",
+                status="ok",
+                metadata={
+                    "project_filter": project_filter,
+                    "staged_count": result.get("staged_count", 0),
+                    "duplicate_count": result.get("duplicate_count", 0),
+                    "error_count": result.get("error_count", 0),
+                },
+            )
+        return _json.dumps(result, indent=2)
+
+    @mcp.tool(
+        name="memory_run_eval",
+        annotations=_tool_annotations(
+            title="Run Eval Scenarios",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_run_eval(
+        session_id: str,
+        scenario_id: str | None = None,
+        tag: str | None = None,
+    ) -> str:
+        """Run offline eval scenarios and record compact summary spans.
+
+        Scenarios are loaded from memory/skills/eval-scenarios/. Execution is
+        isolated in temporary directories; only eval summary spans are recorded
+        back into the live session trace.
+
+        Requires ENGRAM_TIER2=1 because scenarios may invoke verification on
+        test-type postconditions.
+        """
+        import json as _json
+        import os as _os
+        import tempfile as _tempfile
+
+        from ...errors import NotFoundError, ValidationError
+        from ...eval_utils import (
+            aggregate_results,
+            run_suite,
+            scenario_result_trace_metadata,
+            select_scenarios,
+        )
+
+        validate_session_id(session_id)
+        if _os.environ.get("ENGRAM_TIER2", "").strip().lower() not in {"1", "true", "yes", "on"}:
+            raise ValidationError("memory_run_eval requires ENGRAM_TIER2=1")
+
+        root = get_root()
+        scenarios = select_scenarios(root, scenario_id=scenario_id, tag=tag)
+        if not scenarios:
+            target = (
+                f"scenario_id={scenario_id!r}"
+                if scenario_id
+                else f"tag={tag!r}"
+                if tag
+                else "all scenarios"
+            )
+            raise NotFoundError(f"No eval scenarios matched {target}")
+
+        with _tempfile.TemporaryDirectory(prefix="engram-eval-") as tmp:
+            results = run_suite(scenarios, Path(tmp), session_id)
+
+        aggregated = aggregate_results(results)
+        for scenario_result in results:
+            record_trace(
+                root,
+                session_id,
+                span_type="verification",
+                name=f"eval:{scenario_result.scenario_id}",
+                status="ok" if scenario_result.status == "pass" else "error",
+                metadata=scenario_result_trace_metadata(scenario_result),
+            )
+
+        payload: dict[str, Any] = {
+            "results": [result.to_dict() for result in results],
+            "summary": aggregated["summary"],
+            "metrics": aggregated["metrics"],
+        }
+        if scenario_id is not None:
+            payload["scenario_id"] = scenario_id
+        if tag is not None:
+            payload["tag"] = tag
+        return _json.dumps(payload, indent=2)
+
+    @mcp.tool(
+        name="memory_eval_report",
+        annotations=_tool_annotations(
+            title="Read Eval Report",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_eval_report(
+        date_from: str | None = None,
+        date_to: str | None = None,
+        scenario_id: str | None = None,
+    ) -> str:
+        """Return historical eval runs and aggregate trends from trace spans."""
+        import json as _json
+        import re as _re
+
+        from ...errors import ValidationError
+        from ...eval_utils import build_eval_report
+
+        _date_pat = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
+        if date_from is not None and not _date_pat.match(date_from):
+            raise ValidationError("date_from must be in YYYY-MM-DD format")
+        if date_to is not None and not _date_pat.match(date_to):
+            raise ValidationError("date_to must be in YYYY-MM-DD format")
+
+        root = get_root()
+        result = build_eval_report(
+            root,
+            date_from=date_from,
+            date_to=date_to,
+            scenario_id=scenario_id,
+        )
+        if scenario_id is not None:
+            result["scenario_id"] = scenario_id
+        return _json.dumps(result, indent=2)
+
+    # ── Approval workflow MCP tools ──────────────────────────────────────────
+
+    async def memory_request_approval(
+        plan_id: str,
+        phase_id: str,
+        project_id: str | None = None,
+        context: str | None = None,
+        expires_days: int = 7,
+    ) -> str:
+        """Request human approval for a plan phase.
+
+        Creates a pending approval document in ``working/approvals/pending/`` and
+        transitions the plan status to ``paused``.  If an approval already exists for
+        this phase and is still pending, returns the existing document without creating
+        a duplicate.
+
+        Returns JSON with ``approval_file``, ``status``, ``expires``,
+        and ``plan_status``.
+        """
+        import json as _json
+        from datetime import datetime, timedelta, timezone
+
+        from ...errors import ValidationError as _VE
+        from ...models import MemoryWriteResult
+
+        repo = get_repo()
+        root = get_root()
+
+        plan_path_r, resolved_project_id = _resolve_existing_plan_path(root, plan_id, project_id)
+        abs_plan = repo.abs_path(plan_path_r)
+        plan = load_plan(abs_plan, root)
+        phase = resolve_phase(plan, phase_id)
+
+        if phase.status not in {"pending", "in-progress"}:
+            raise _VE(
+                f"Phase '{phase.id}' must be pending or in-progress to request approval "
+                f"(current status: {phase.status!r})"
+            )
+
+        # Check for existing pending approval
+        existing = load_approval(root, plan.id, phase.id)
+        if existing is not None and existing.status == "pending":
+            return _json.dumps(
+                {
+                    "approval_file": (
+                        f"memory/working/approvals/pending/{approval_filename(plan.id, phase.id)}"
+                    ),
+                    "status": "pending",
+                    "expires": existing.expires,
+                    "plan_status": plan.status,
+                    "message": "Approval already pending; returning existing document.",
+                },
+                indent=2,
+            )
+
+        now_dt = datetime.now(timezone.utc)
+        now_str = now_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        try:
+            days = max(1, int(expires_days))
+        except (TypeError, ValueError):
+            days = 7
+        expires_str = (now_dt + timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        change_class_val = phase_change_class(phase)
+        bs_ctx = budget_status(plan)
+        approval_context: dict[str, Any] = {
+            "phase_title": phase.title,
+            "phase_summary": (
+                f"Phase '{phase.id}' requires human approval before execution. "
+                f"Sources: {len(phase.sources)}, Changes: {len(phase.changes)}"
+            ),
+            "sources": [s.path for s in phase.sources],
+            "changes": [c.to_dict() for c in phase.changes],
+            "change_class": change_class_val,
+        }
+        if bs_ctx is not None:
+            approval_context["budget_status"] = bs_ctx
+        if context:
+            approval_context["additional_context"] = context.strip()
+
+        new_approval = ApprovalDocument(
+            plan_id=plan.id,
+            phase_id=phase.id,
+            project_id=resolved_project_id,
+            status="pending",
+            requested=now_str,
+            expires=expires_str,
+            context=approval_context,
+        )
+        plan.status = "paused"
+        save_approval(root, new_approval)
+        approval_file_req = (
+            f"memory/working/approvals/pending/{approval_filename(plan.id, phase.id)}"
+        )
+        regenerate_approvals_summary(root)
+        save_plan(abs_plan, plan, root)
+        repo.add(plan_path_r)
+        repo.add(approval_file_req)
+        repo.add(approvals_summary_path())
+
+        files_req = [
+            plan_path_r,
+            approval_file_req,
+            _project_summary_path(resolved_project_id),
+            "memory/working/projects/SUMMARY.md",
+            f"memory/working/projects/{resolved_project_id}/operations.jsonl",
+            approvals_summary_path(),
+        ]
+        _append_plan_log(
+            root,
+            repo,
+            resolved_project_id,
+            files_req,
+            session_id=None,
+            action="approval-requested",
+            plan_id=plan.id,
+            phase_id=phase.id,
+            detail=f"Expires {expires_str}",
+        )
+        _sync_project_navigation(root, repo, resolved_project_id, files_req)
+        record_trace(
+            root,
+            None,
+            span_type="plan_action",
+            name="approval-requested",
+            status="ok",
+            metadata={"plan_id": plan.id, "phase_id": phase.id, "expires": expires_str},
+        )
+        commit_msg_req = f"[plan] Request approval {plan.id}:{phase.id}"
+        commit_result_req = repo.commit(commit_msg_req)
+        result_req: dict[str, Any] = {
+            "approval_file": (
+                f"memory/working/approvals/pending/{approval_filename(plan.id, phase.id)}"
+            ),
+            "status": "pending",
+            "expires": expires_str,
+            "plan_status": "paused",
+        }
+        return MemoryWriteResult.from_commit(
+            files_changed=files_req,
+            commit_result=commit_result_req,
+            commit_message=commit_msg_req,
+            new_state=result_req,
+            warnings=[],
+        ).to_json()
+
+    async def memory_resolve_approval(
+        plan_id: str,
+        phase_id: str,
+        resolution: str,
+        comment: str | None = None,
+    ) -> str:
+        """Resolve a pending approval request (approve or reject).
+
+        Moves the approval document from ``pending/`` to ``resolved/`` and updates
+        the plan status: ``active`` on approval, ``blocked`` on rejection.
+
+        ``resolution`` must be ``"approve"`` or ``"reject"``.
+
+        Returns JSON with ``approval_file``, ``status``, and ``plan_status``.
+        """
+        from datetime import datetime, timezone
+
+        from ...errors import NotFoundError
+        from ...errors import ValidationError as _VE
+        from ...models import MemoryWriteResult
+
+        repo = get_repo()
+        root = get_root()
+
+        if resolution not in APPROVAL_RESOLUTIONS:
+            raise _VE(f"resolution must be one of {sorted(APPROVAL_RESOLUTIONS)}: {resolution!r}")
+
+        plan_path_r, resolved_project_id = _resolve_existing_plan_path(root, plan_id, None)
+        abs_plan = repo.abs_path(plan_path_r)
+        plan = load_plan(abs_plan, root)
+        phase = resolve_phase(plan, phase_id)
+
+        existing = load_approval(root, plan.id, phase.id)
+        if existing is None:
+            raise NotFoundError(
+                f"No approval document found for plan '{plan.id}' phase '{phase.id}'"
+            )
+        if existing.status != "pending":
+            raise _VE(
+                f"Approval for phase '{phase.id}' is already resolved (status: {existing.status!r})"
+            )
+
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        existing.resolution = resolution
+        existing.reviewer = "user"
+        existing.resolved_at = now_str
+        existing.comment = comment.strip() if comment else None
+        existing.status = "approved" if resolution == "approve" else "rejected"
+
+        # Move from pending/ to resolved/
+        from ...plan_utils import _find_approvals_root
+
+        approvals_root = _find_approvals_root(root)
+        filename_r = approval_filename(plan.id, phase.id)
+        approval_pending_file = f"memory/working/approvals/pending/{filename_r}"
+        approval_resolved_file = f"memory/working/approvals/resolved/{filename_r}"
+        pending_path_r = approvals_root / "pending" / filename_r
+        resolved_dir_r = approvals_root / "resolved"
+        resolved_dir_r.mkdir(parents=True, exist_ok=True)
+        save_approval(root, existing)  # saves to resolved/ since status != pending
+        if pending_path_r.exists():
+            pending_path_r.unlink()
+
+        if resolution == "approve":
+            plan.status = "active"
+        else:
+            plan.status = "blocked"
+
+        regenerate_approvals_summary(root)
+        save_plan(abs_plan, plan, root)
+        repo.add(plan_path_r)
+        repo.add(approval_pending_file)
+        repo.add(approval_resolved_file)
+        repo.add(approvals_summary_path())
+
+        files_res = [
+            plan_path_r,
+            approval_pending_file,
+            approval_resolved_file,
+            _project_summary_path(resolved_project_id),
+            "memory/working/projects/SUMMARY.md",
+            f"memory/working/projects/{resolved_project_id}/operations.jsonl",
+            approvals_summary_path(),
+        ]
+        _append_plan_log(
+            root,
+            repo,
+            resolved_project_id,
+            files_res,
+            session_id=None,
+            action=f"approval-{resolution}d",
+            plan_id=plan.id,
+            phase_id=phase.id,
+            detail=comment or "",
+        )
+        _sync_project_navigation(root, repo, resolved_project_id, files_res)
+        record_trace(
+            root,
+            None,
+            span_type="plan_action",
+            name=f"approval-{resolution}d",
+            status="ok",
+            metadata={"plan_id": plan.id, "phase_id": phase.id, "resolution": resolution},
+        )
+        commit_msg_res = (
+            f"[plan] {'Approve' if resolution == 'approve' else 'Reject'} {plan.id}:{phase.id}"
+        )
+        commit_result_res = repo.commit(commit_msg_res)
+        result_res: dict[str, Any] = {
+            "approval_file": (
+                f"memory/working/approvals/resolved/{approval_filename(plan.id, phase.id)}"
+            ),
+            "status": existing.status,
+            "plan_status": plan.status,
+        }
+        return MemoryWriteResult.from_commit(
+            files_changed=files_res,
+            commit_result=commit_result_res,
+            commit_message=commit_msg_res,
+            new_state=result_res,
+            warnings=[],
+        ).to_json()
+
+    # ── Tool Registry MCP tools ──────────────────────────────────────────────
+
+    async def memory_register_tool(
+        name: str,
+        description: str,
+        provider: str,
+        approval_required: bool = False,
+        cost_tier: str = "free",
+        schema: dict[str, Any] | None = None,
+        rate_limit: str | None = None,
+        timeout_seconds: int = 30,
+        tags: list[str] | None = None,
+        notes: str | None = None,
+    ) -> str:
+        """Register or update an external tool definition in the tool registry.
+
+        Creates a new entry if the tool name is unknown for this provider, or
+        replaces the existing entry if it already exists. SUMMARY.md is
+        regenerated after every call.
+
+        Returns JSON with ``tool_name``, ``provider``, ``registry_file``,
+        and ``action`` ("created" or "updated").
+        """
+        import json as _json
+
+        root = get_root()
+        # MCP framework may pass booleans as strings
+        if isinstance(approval_required, str):
+            approval_required = approval_required.lower() not in {"false", "0", "no", ""}
+        try:
+            timeout_int = int(timeout_seconds)
+        except (TypeError, ValueError):
+            timeout_int = 30
+
+        tool = ToolDefinition(
+            name=name,
+            description=description,
+            provider=provider,
+            schema=schema if isinstance(schema, dict) else None,
+            approval_required=bool(approval_required),
+            cost_tier=cost_tier,
+            rate_limit=rate_limit,
+            timeout_seconds=timeout_int,
+            tags=list(tags or []),
+            notes=notes,
+        )
+
+        existing = load_registry(root, provider)
+        action = "created"
+        updated: list[ToolDefinition] = []
+        for existing_tool in existing:
+            if existing_tool.name == tool.name:
+                action = "updated"
+                updated.append(tool)
+            else:
+                updated.append(existing_tool)
+        if action == "created":
+            updated.append(tool)
+
+        save_registry(root, provider, updated)
+        regenerate_registry_summary(root)
+
+        result: dict[str, Any] = {
+            "tool_name": tool.name,
+            "provider": provider,
+            "registry_file": registry_file_path(provider),
+            "action": action,
+        }
+        return _json.dumps(result, indent=2)
+
+    async def memory_get_tool_policy(
+        tool_name: str | None = None,
+        provider: str | None = None,
+        tags: list[str] | None = None,
+        cost_tier: str | None = None,
+    ) -> str:
+        """Query the tool registry for matching tool policies.
+
+        At least one filter parameter must be provided. When ``tool_name`` is
+        given, returns at most one result. All other filters return all matching
+        tools. An empty result is not an error.
+
+        Returns JSON with ``tools`` (list of tool dicts) and ``count``.
+        """
+        import json as _json
+
+        from ...errors import ValidationError as _VE
+
+        if not any([tool_name, provider, tags, cost_tier]):
+            raise _VE(
+                "at least one filter parameter is required: tool_name, provider, tags, or cost_tier"
+            )
+        if cost_tier is not None and cost_tier not in COST_TIERS:
+            raise _VE(f"cost_tier must be one of {sorted(COST_TIERS)}: {cost_tier!r}")
+
+        root = get_root()
+        all_tools = _all_registry_tools(root)
+
+        filtered: list[ToolDefinition] = []
+        for tool in all_tools:
+            if tool_name is not None and tool.name != tool_name:
+                continue
+            if provider is not None and tool.provider != provider:
+                continue
+            if cost_tier is not None and tool.cost_tier != cost_tier:
+                continue
+            if tags is not None:
+                tool_tag_set = set(tool.tags)
+                if not any(t in tool_tag_set for t in tags):
+                    continue
+            filtered.append(tool)
+
+        if tool_name is not None:
+            filtered = filtered[:1]
+
+        result: dict[str, Any] = {
+            "tools": [{"provider": t.provider, **t.to_dict()} for t in filtered],
+            "count": len(filtered),
+        }
+        return _json.dumps(result, indent=2)
 
     return {
         "memory_plan_create": memory_plan_create,
         "memory_plan_execute": memory_plan_execute,
+        "memory_plan_briefing": memory_plan_briefing,
+        "memory_stage_external": memory_stage_external,
+        "memory_scan_drop_zone": memory_scan_drop_zone,
         "memory_plan_review": memory_plan_review,
         "memory_list_plans": memory_list_plans,
+        "memory_plan_verify": memory_plan_verify,
+        "memory_run_eval": memory_run_eval,
+        "memory_eval_report": memory_eval_report,
+        "memory_record_trace": memory_record_trace,
+        "memory_query_traces": memory_query_traces,
+        "memory_register_tool": memory_register_tool,
+        "memory_get_tool_policy": memory_get_tool_policy,
+        "memory_request_approval": memory_request_approval,
+        "memory_resolve_approval": memory_resolve_approval,
     }
 
 

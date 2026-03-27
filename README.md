@@ -149,7 +149,7 @@ Platform adapter files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) all point to t
 │   │   ├── QUICKSTART.md    ← Getting started. Start here if you are a person.
 │   │   ├── CORE.md          ← Core design decisions (12 decisions, architectural rationale).
 │   │   ├── DESIGN.md        ← Design philosophy, use cases, and future directions.
-│   │   ├── MCP.md           ← MCP architecture guide (51+ tools, 4 resources, 4 prompts).
+│   │   ├── MCP.md           ← MCP architecture guide (95+ tools, 4 resources, 4 prompts).
 │   │   ├── WORKTREE.md      ← Worktree deployment, CI exemptions, MCP client wiring.
 │   │   ├── INTEGRATIONS.md  ← Third-party tool integrations.
 │   │   ├── HELP.md          ← Troubleshooting and debugging guide.
@@ -194,7 +194,7 @@ python -m engram_mcp.agent_memory_mcp.server_main
 
 ### Tool surface
 
-The MCP server registers 51+ tools organized into three tiers:
+The MCP server registers 95+ tools organized into three tiers:
 
 | Tier | Access | Purpose |
 |---|---|---|
@@ -286,7 +286,7 @@ Entries are counted since the last aggregation. Do not count `ACCESS_SCANS.jsonl
 
 ### How to propose changes
 
-Changes follow a three-tier model based on provenance metadata. Each content file carries YAML frontmatter specifying `source`, `trust`, `origin_session`, and `created`.
+Changes follow a three-tier model based on provenance metadata. Each content file carries YAML frontmatter specifying `source`, `trust`, `origin_session`, and `created`. Optional lifecycle fields include `last_verified`, `superseded_by` (marks a file as replaced by a successor), and `expires` (declares an explicit expiration date).
 
 | Change class | Scope | Approval needed |
 |---|---|---|

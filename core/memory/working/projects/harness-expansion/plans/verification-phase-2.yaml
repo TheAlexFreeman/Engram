@@ -1,0 +1,271 @@
+id: verification-phase-2
+project: harness-expansion
+created: '2026-03-26'
+origin_session: memory/activity/2026/03/26/chat-002
+status: completed
+budget:
+  deadline: '2026-05-01'
+  max_sessions: 6
+sessions_used: 7
+purpose:
+  summary: Add inline postcondition verification, failure recording, and retry-with-context
+    to make plan execution self-correcting.
+  context: |-
+    Phase 1 added PostconditionSpec with typed validators (check, grep, test, manual)
+    but no automated evaluation. Postconditions are surfaced in tool responses so the
+    agent can self-check, but there's no tool to run the checks programmatically.
+
+    The harness report's #1 reliability recommendation is "tool-grounded checkpoints":
+    interleave reasoning with actions, verify before proceeding. This phase closes the
+    loop by adding a verification tool, wiring it into the completion flow, and recording
+    failures for informed retry.
+
+    Design document: IN/phase-2-verification-design.md
+  questions:
+  - Should test-type postconditions use a command allowlist or a denylist?
+  - Should verification failures block phase completion or just warn?
+  - How many retry attempts should be recorded before suggesting plan revision?
+  - Should the verify tool return partial results if one postcondition errors?
+work:
+  phases:
+  - id: verify-tool-design
+    title: Design memory_plan_verify MCP tool interface
+    status: completed
+    commit: ef954c3
+    blockers: []
+    sources:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Read PostconditionSpec, POSTCONDITION_TYPES, and phase_payload() to understand
+        the existing schema that verification will evaluate.
+    - path: core/memory/working/projects/harness-expansion/IN/phase-2-verification-design.md
+      type: internal
+      intent: 'Reference the full design specification for the verify tool: validator implementations,
+        security constraints, behavioral contract.'
+    - path: core/memory/working/notes/harness-expansion-analysis.md
+      type: internal
+      intent: Ground the tool design in the gap analysis recommendations for inline verification
+        and tool-grounded checkpoints.
+    - path: core/governance/security-signals.md
+      type: internal
+      intent: Review security signal patterns to ensure test-type execution respects Engram's
+        security posture.
+    postconditions:
+    - description: Tool interface design documented in IN/phase-2-verification-design.md with
+        finalized parameter list, return schema, and security constraints
+    - description: Command allowlist for test-type postconditions defined and documented
+    - description: Design decision on verify=true blocking vs warning recorded
+    requires_approval: true
+    changes:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-2-verification-design.md
+      action: update
+      description: 'Finalize tool interface decisions: allowlist contents, blocking behavior,
+        partial-result handling. Record rationale for each decision.'
+  - id: verify-tool-impl
+    title: Implement memory_plan_verify tool with check/grep/test validators
+    status: completed
+    commit: 05f3264
+    blockers:
+    - verify-tool-design
+    sources:
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      type: internal
+      intent: Understand existing plan tool patterns (parameter handling, preview envelope,
+        MemoryWriteResult construction) to match conventions.
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Read PostconditionSpec to_dict() and phase_payload() for integration points.
+    - path: core/tools/agent_memory_mcp/errors.py
+      type: internal
+      intent: Use existing error types (NotFoundError, ValidationError) for consistent error
+        handling.
+    - path: core/memory/working/projects/harness-expansion/IN/phase-2-verification-design.md
+      type: internal
+      intent: Follow the finalized design for validator implementations and security constraints.
+    postconditions:
+    - description: memory_plan_verify tool registered in MCP server
+      type: grep
+      target: memory_plan_verify::core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+    - description: check validator returns pass when file exists, fail when missing
+    - description: grep validator returns pass when pattern matches, fail when not found
+    - description: test validator runs allowlisted commands and returns pass/fail based on
+        exit code
+    - description: manual postconditions return skip status (not evaluated)
+    - description: Non-allowlisted test commands return error status with explanation
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      action: update
+      description: Add memory_plan_verify function. Implement check/grep/test/manual validator
+        dispatch. Add command allowlist. Return verification_results as MemoryWriteResult
+        with pass/fail per postcondition.
+  - id: verify-integration
+    title: Wire verification into memory_plan_execute complete action
+    status: completed
+    commit: 1722efd
+    blockers:
+    - verify-tool-impl
+    sources:
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      type: internal
+      intent: Read memory_plan_execute complete action flow to find the insertion point for
+        optional verification.
+    postconditions:
+    - description: memory_plan_execute complete action accepts verify=true parameter
+      type: grep
+      target: verify::core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+    - description: When verify=true and postconditions pass, phase is completed normally
+    - description: When verify=true and postconditions fail, phase stays in-progress and verification_results
+        are returned
+    - description: When verify=false (default), existing behavior is unchanged
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      action: update
+      description: Add verify parameter to complete action in memory_plan_execute. When true,
+        run postcondition checks before completing. On failure, return verification_results
+        without changing phase status.
+  - id: failure-recording
+    title: Add PhaseFailure dataclass and record_failure action
+    status: completed
+    commit: faac001
+    blockers:
+    - verify-integration
+    sources:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Read PlanPhase dataclass to understand where failures field fits and how to
+        extend to_dict/_coerce_phases for serialization.
+    - path: core/memory/working/projects/harness-expansion/IN/phase-2-verification-design.md
+      type: internal
+      intent: 'Reference PhaseFailure schema: timestamp, reason, verification_results, attempt
+        number.'
+    postconditions:
+    - description: PhaseFailure dataclass exists with timestamp, reason, verification_results,
+        attempt fields
+      type: grep
+      target: class PhaseFailure::core/tools/agent_memory_mcp/plan_utils.py
+    - description: PlanPhase has failures field defaulting to empty list
+      type: grep
+      target: failures::core/tools/agent_memory_mcp/plan_utils.py
+    - description: memory_plan_execute accepts action="record_failure" with reason parameter
+      type: grep
+      target: record_failure::core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+    - description: Empty failures lists omitted from YAML output
+    - description: 'Round-trip: plan with failures survives save/load cycle'
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      action: update
+      description: Add PhaseFailure dataclass. Add failures field to PlanPhase. Update to_dict(),
+        _coerce_phases(), save_plan() for round-trip. Omit empty failures from YAML.
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      action: update
+      description: Add record_failure action to memory_plan_execute. Append PhaseFailure to
+        phase, commit to git.
+  - id: retry-context
+    title: Surface failure history in phase_payload and next_action
+    status: completed
+    commit: 4515f83
+    blockers:
+    - failure-recording
+    sources:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Read phase_payload() and next_action() to add failures and attempt_number to
+        their return dicts.
+    postconditions:
+    - description: phase_payload() includes failures list and attempt_number
+    - description: next_action() includes has_prior_failures and attempt_number
+    - description: Phases with no failures return attempt_number=1 and empty failures
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      action: update
+      description: Include failures (list of dicts) and attempt_number (int) in phase_payload().
+        Include has_prior_failures (bool) and attempt_number in next_action().
+  - id: test-coverage-verification
+    title: Add test coverage for verification, failure recording, and retry
+    status: completed
+    commit: 9f8dcd3
+    blockers:
+    - retry-context
+    sources:
+    - path: core/tools/tests/test_plan_schema_extensions.py
+      type: internal
+      intent: Follow existing test patterns for plan schema tests.
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Read final state of PhaseFailure, verification helpers, and enriched phase_payload/next_action
+        for comprehensive coverage.
+    postconditions:
+    - description: memory_plan_verify unit tests cover all four postcondition types
+    - description: Verification integration tests cover verify=true pass and fail paths
+    - description: PhaseFailure serialization and backward compat tests pass
+    - description: Retry context tests verify failures appear in phase_payload
+    - description: All pre-existing tests still pass
+      type: test
+      target: python -m pytest core/tools/tests/ -q
+    changes:
+    - path: core/tools/tests/test_plan_schema_extensions.py
+      action: update
+      description: Add tests for memory_plan_verify (check/grep/test/manual), verify integration
+        with complete action, PhaseFailure round-trip, failure recording, retry context in
+        phase_payload and next_action.
+  - id: docs-verification
+    title: Update documentation for verification and failure recording
+    status: completed
+    commit: 73a8152
+    blockers:
+    - test-coverage-verification
+    sources:
+    - path: HUMANS/docs/DESIGN.md
+      type: internal
+      intent: Read current plan documentation to find insertion points.
+    - path: HUMANS/docs/MCP.md
+      type: internal
+      intent: Document new tool and updated parameters.
+    - path: CHANGELOG.md
+      type: internal
+      intent: Add entry for Phase 2 changes.
+    postconditions:
+    - description: DESIGN.md documents verification tool and failure recording
+      type: grep
+      target: memory_plan_verify::HUMANS/docs/DESIGN.md
+    - description: MCP.md documents new tool parameters and response fields
+      type: grep
+      target: memory_plan_verify::HUMANS/docs/MCP.md
+    - description: CHANGELOG.md has entry for Phase 2 inline verification
+      type: grep
+      target: verification::CHANGELOG.md
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: HUMANS/docs/DESIGN.md
+      action: update
+      description: 'Add section on inline verification: memory_plan_verify tool, verify parameter
+        on complete action, failure recording and retry pattern.'
+    - path: HUMANS/docs/MCP.md
+      action: update
+      description: Document memory_plan_verify tool, record_failure action, verify parameter,
+        PhaseFailure in responses.
+    - path: CHANGELOG.md
+      action: update
+      description: Add entry for Phase 2 inline verification.
+review:
+  completed: '2026-03-26'
+  completed_session: memory/activity/2026/03/26/chat-003
+  outcome: completed
+  purpose_assessment: Execution completed; a detailed purpose assessment still needs to be
+    written.
+  unresolved: []
+  follow_up: null

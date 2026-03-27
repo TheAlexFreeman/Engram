@@ -421,3 +421,36 @@
 .analysis-insufficient {
   text-align: center; padding: 2rem; color: var(--color-text-secondary);
 }
+
+/* ── 3D perspective mode ─────────────────────────── */
+.graph-canvas-wrap.perspective-3d {
+  /* CSS perspective kept for potential UI overlays; main rotation is canvas-based */
+}
+#graph-3d-btn.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+/* ── 3D rotation indicator ───────────────────────── */
+.graph-rotation-hint {
+  position: absolute; bottom: 1.25rem; right: 1.25rem;
+  z-index: 3; padding: 0.4rem 0.65rem;
+  background: var(--color-surface); border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card); box-shadow: var(--shadow-card);
+  font-size: 0.65rem; color: var(--color-text-secondary);
+  pointer-events: none; opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.graph-canvas-wrap.perspective-3d .graph-rotation-hint {
+  opacity: 1; pointer-events: auto;
+}
+.graph-rotation-hint kbd {
+  display: inline-block; padding: 0.1rem 0.3rem;
+  background: rgba(130,130,130,0.15); border-radius: 3px;
+  font-family: var(--font-mono, monospace); font-size: 0.6rem;
+}
+.graph-rotation-values {
+  margin-top: 0.2rem; font-family: var(--font-mono, monospace);
+  font-size: 0.58rem; color: var(--color-text-faint);
+}

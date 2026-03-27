@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Engram &#8212; Approvals</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="engram-shared.css">
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<style>
+/* ── Layout ──────────────────────────────────────────── */
+.approvals-header {
+  background: var(--dark-bg); color: var(--dark-text);
+  padding: var(--space-md) var(--space-lg);
+}
+.approvals-header h1 { color: #fff; margin-bottom: var(--space-xs); }
+.approvals-header .subtitle { color: var(--dark-text-muted); }
+.approvals-header .nav-link { color: var(--dark-text-muted); font-size: var(--text-sm); }
+.approvals-header .nav-link:hover { color: #fff; }
+
+.approvals-body {
+  max-width: 900px; margin: 0 auto;
+  padding: var(--space-lg);
+}
+
+/* ── Section ──────────────────────────────────────────── */
+.section-heading {
+  font-size: var(--text-base); font-weight: 600;
+  color: var(--color-text); margin-bottom: var(--space-sm);
+  padding-bottom: 0.4rem; border-bottom: 2px solid var(--color-border);
+}
+
+/* ── Approval card ────────────────────────────────────── */
+.approval-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  margin-bottom: var(--space-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.approval-card.expired {
+  border-color: var(--color-warn);
+  background: #fffdf0;
+}
+.approval-card.resolved-approved { border-left: 4px solid var(--color-ok); }
+.approval-card.resolved-rejected { border-left: 4px solid var(--color-error); }
+.approval-card.resolved-expired  { border-left: 4px solid var(--color-warn); }
+
+.card-header {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-border-light);
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+}
+.card-header h3 { margin: 0; font-size: var(--text-base); flex: 1; }
+.badge {
+  display: inline-block; padding: 0.15rem 0.55rem;
+  border-radius: 999px; font-size: var(--text-xs); font-weight: 600;
+}
+.badge-pending  { background: #fff3cd; color: #856404; }
+.badge-approved { background: #d1e7dd; color: #0f5132; }
+.badge-rejected { background: #f8d7da; color: #842029; }
+.badge-expired  { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+
+.card-meta {
+  font-size: var(--text-xs); color: var(--color-text-secondary);
+}
+
+.card-body { padding: var(--space-md); }
+
+.expiry-countdown {
+  font-size: var(--text-sm); font-weight: 600;
+  padding: 0.25rem 0.6rem; border-radius: var(--radius-small);
+  background: #fff3cd; color: #856404;
+}
+.expiry-countdown.urgent { background: #f8d7da; color: #842029; }
+.expiry-countdown.expired-label { background: #f8d7da; color: #842029; }
+
+/* ── Context details ──────────────────────────────────── */
+.context-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+  margin-bottom: var(--space-sm);
+}
+@media (max-width: 600px) { .context-grid { grid-template-columns: 1fr; } }
+
+.context-field label {
+  display: block; font-size: var(--text-xs); font-weight: 600;
+  color: var(--color-text-secondary); text-transform: uppercase;
+  letter-spacing: 0.05em; margin-bottom: 0.2rem;
+}
+.context-field .value {
+  font-size: var(--text-sm); color: var(--color-text);
+}
+
+.change-list, .source-list {
+  list-style: none; padding: 0; margin: 0;
+  font-size: var(--text-sm); color: var(--color-text);
+}
+.change-list li, .source-list li {
+  padding: 0.2rem 0;
+  border-bottom: 1px dashed var(--color-border-light);
+}
+.change-list li:last-child, .source-list li:last-child { border-bottom: none; }
+.action-tag {
+  display: inline-block; padding: 0.05rem 0.4rem;
+  background: var(--color-bg); border: 1px solid var(--color-border);
+  border-radius: 3px; font-size: 0.7rem; font-weight: 600;
+  color: var(--color-text-secondary); margin-right: 0.4rem;
+}
+
+/* ── Action form ──────────────────────────────────────── */
+.action-form {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border-light);
+}
+.action-form textarea {
+  width: 100%; box-sizing: border-box;
+  border: 1px solid var(--color-border); border-radius: var(--radius-small);
+  padding: 0.5rem; font-family: inherit; font-size: var(--text-sm);
+  resize: vertical; min-height: 70px;
+  background: var(--color-bg);
+}
+.action-form textarea:focus { outline: none; border-color: var(--color-link); }
+
+.action-buttons {
+  display: flex; gap: 0.75rem; margin-top: 0.5rem; flex-wrap: wrap;
+}
+.btn-approve {
+  padding: 0.45rem 1.2rem; border: none;
+  border-radius: var(--radius-button); font-family: inherit;
+  font-size: var(--text-sm); font-weight: 600; cursor: pointer;
+  background: #198754; color: #fff;
+  transition: background 0.15s;
+}
+.btn-approve:hover { background: #157347; }
+.btn-reject {
+  padding: 0.45rem 1.2rem; border: 1px solid #dc3545;
+  border-radius: var(--radius-button); font-family: inherit;
+  font-size: var(--text-sm); font-weight: 600; cursor: pointer;
+  background: #fff; color: #dc3545;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-reject:hover { background: #dc3545; color: #fff; }
+.btn-disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Resolution summary ───────────────────────────────── */
+.resolution-summary {
+  font-size: var(--text-sm);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-small);
+  margin-top: var(--space-sm);
+}
+.resolution-summary.approved { background: #d1e7dd; color: #0f5132; }
+.resolution-summary.rejected { background: #f8d7da; color: #842029; }
+
+/* ── Empty state ──────────────────────────────────────── */
+.empty-state {
+  text-align: center; padding: 2rem;
+  color: var(--color-text-secondary); font-size: var(--text-sm);
+}
+
+/* ── Toolbar ──────────────────────────────────────────── */
+.toolbar {
+  display: flex; align-items: center; gap: 0.75rem;
+  flex-wrap: wrap; margin-bottom: var(--space-lg);
+}
+.toolbar .status {
+  font-size: var(--text-sm); color: var(--dark-text-muted);
+  margin-left: auto;
+}
+.btn-primary {
+  padding: 0.45rem 1.25rem; border: none;
+  border-radius: var(--radius-button); font-family: inherit;
+  font-size: var(--text-sm); font-weight: 600; cursor: pointer;
+  background: var(--color-btn-primary); color: #fff;
+  transition: background 0.15s;
+}
+.btn-primary:hover { background: var(--color-btn-primary-hover); }
+
+/* ── Expired alert ────────────────────────────────────── */
+.expired-alert {
+  background: #fff3cd; border: 1px solid #ffc107;
+  border-radius: var(--radius-small); padding: 0.5rem 0.75rem;
+  font-size: var(--text-sm); color: #856404;
+  margin-bottom: var(--space-md);
+}
+</style>
+</head>
+<body>
+
+<header class="approvals-header">
+  <div style="max-width:900px;margin:0 auto;">
+    <div style="margin-bottom:0.5rem;">
+      <a href="index.html" class="nav-link">&#8592; Engram</a>
+    </div>
+    <h1>&#9989; Approval Queue</h1>
+    <p class="subtitle">Human-in-the-loop review for plan phases requiring approval.</p>
+  </div>
+</header>
+
+<main class="approvals-body">
+  <div id="error-banner" style="display:none;" class="expired-alert"></div>
+
+  <div class="toolbar">
+    <button class="btn-primary" id="btn-open-folder">Open Repository Folder</button>
+    <button class="btn-primary" id="btn-refresh" style="display:none;">&#8635; Refresh</button>
+    <span class="status" id="status-bar">No folder selected.</span>
+  </div>
+
+  <div id="content" style="display:none;">
+    <div id="expired-alerts"></div>
+
+    <h2 class="section-heading">Pending Approvals</h2>
+    <div id="pending-list"></div>
+
+    <h2 class="section-heading" style="margin-top:2rem;">Resolved History</h2>
+    <div id="resolved-list"></div>
+  </div>
+</main>
+
+<script src="engram-utils.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.Engram;
+
+  // ── State ────────────────────────────────────────────
+  var repoHandle = null;  // Root directory FileSystemDirectoryHandle
+
+  // ── DOM refs ─────────────────────────────────────────
+  var btnOpen    = document.getElementById('btn-open-folder');
+  var btnRefresh = document.getElementById('btn-refresh');
+  var statusBar  = document.getElementById('status-bar');
+  var content    = document.getElementById('content');
+  var errBanner  = document.getElementById('error-banner');
+  var pendingEl  = document.getElementById('pending-list');
+  var resolvedEl = document.getElementById('resolved-list');
+  var expiredAlertsEl = document.getElementById('expired-alerts');
+
+  // ── Utilities ─────────────────────────────────────────
+  function showErr(msg) {
+    errBanner.textContent = msg;
+    errBanner.style.display = 'block';
+  }
+  function hideErr() { errBanner.style.display = 'none'; }
+
+  function setStatus(msg) { statusBar.textContent = msg; }
+
+  function daysUntil(isoStr) {
+    try {
+      var exp = new Date(isoStr);
+      var now = new Date();
+      return Math.round((exp - now) / 86400000);
+    } catch (e) { return null; }
+  }
+
+  function isExpired(isoStr) {
+    try { return new Date(isoStr) < new Date(); }
+    catch (e) { return false; }
+  }
+
+  function countdownLabel(isoStr) {
+    var d = daysUntil(isoStr);
+    if (d === null) return '';
+    if (d < 0) return 'EXPIRED';
+    if (d === 0) return 'Expires today';
+    if (d === 1) return 'Expires tomorrow';
+    return 'Expires in ' + d + ' days';
+  }
+
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function makeYaml(obj) {
+    return jsyaml.dump(obj, { lineWidth: 88, noRefs: true });
+  }
+
+  // ── File System helpers ──────────────────────────────
+  async function getNestedDir(root, parts) {
+    var dir = root;
+    for (var p of parts) {
+      dir = await dir.getDirectoryHandle(p, { create: false }).catch(() => null);
+      if (!dir) return null;
+    }
+    return dir;
+  }
+
+  async function readYaml(dir, filename) {
+    try {
+      var fh = await dir.getFileHandle(filename);
+      var file = await fh.getFile();
+      var text = await file.text();
+      return jsyaml.load(text);
+    } catch (e) { return null; }
+  }
+
+  async function listYamlFiles(dir) {
+    if (!dir) return [];
+    var names = [];
+    for await (var [name] of dir.entries()) {
+      if (name.endsWith('.yaml') || name.endsWith('.yml')) {
+        if (!name.startsWith('.')) names.push(name);
+      }
+    }
+    return names.sort();
+  }
+
+  async function writeYaml(dir, filename, obj) {
+    var fh = await dir.getFileHandle(filename, { create: true });
+    var writable = await fh.createWritable();
+    await writable.write(makeYaml(obj));
+    await writable.close();
+  }
+
+  async function deleteFile(dir, filename) {
+    try { await dir.removeEntry(filename); } catch (e) {}
+  }
+
+  async function rewriteSummary(approvalsDir, pendingItems, resolvedItems) {
+    var lines = [
+      '# Approval Queue',
+      '',
+      'Human-in-the-loop approval requests. Managed by `memory_request_approval` and `memory_resolve_approval`.',
+      '',
+      '## Pending',
+      ''
+    ];
+    if (!pendingItems.length) {
+      lines.push('_No pending approvals._');
+    } else {
+      lines.push('| Plan | Phase | Requested | Expires |', '|---|---|---|---|');
+      pendingItems.forEach(function (ap) {
+        var title = (ap.context && ap.context.phase_title) ? ap.context.phase_title : ap.phase_id;
+        lines.push('| ' + ap.plan_id + ' | ' + title + ' | ' +
+          String(ap.requested || '').slice(0, 10) + ' | ' +
+          String(ap.expires || '').slice(0, 10) + ' |');
+      });
+    }
+    lines.push('', '## Resolved', '');
+    if (!resolvedItems.length) {
+      lines.push('_No resolved approvals._');
+    } else {
+      lines.push('| Plan | Phase | Status | Resolved |', '|---|---|---|---|');
+      resolvedItems.forEach(function (ap) {
+        var title = (ap.context && ap.context.phase_title) ? ap.context.phase_title : ap.phase_id;
+        lines.push('| ' + ap.plan_id + ' | ' + title + ' | ' + ap.status + ' | ' +
+          String(ap.resolved_at || '').slice(0, 10) + ' |');
+      });
+    }
+    lines.push('');
+    try {
+      var summaryFh = await approvalsDir.getFileHandle('SUMMARY.md', { create: true });
+      var writable = await summaryFh.createWritable();
+      await writable.write(lines.join('\n') + '\n');
+      await writable.close();
+    } catch (e) {}
+  }
+
+  // ── Resolve an approval ──────────────────────────────
+  async function resolveApproval(approval, resolution, comment, cardEl) {
+    if (!repoHandle) { showErr('No folder open.'); return; }
+
+    var approvalsDir = await getNestedDir(repoHandle, ['core', 'memory', 'working', 'approvals'])
+                    || await getNestedDir(repoHandle, ['memory', 'working', 'approvals']);
+    if (!approvalsDir) { showErr('Cannot locate working/approvals/'); return; }
+
+    var pendingDir  = await getNestedDir(approvalsDir, ['pending']);
+    var resolvedDir = await approvalsDir.getDirectoryHandle('resolved', { create: true });
+    if (!pendingDir) { showErr('pending/ directory not found.'); return; }
+
+    var now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    var updated = Object.assign({}, approval, {
+      status: resolution === 'approve' ? 'approved' : 'rejected',
+      resolution: resolution,
+      reviewer: 'user',
+      resolved_at: now,
+      comment: comment || null
+    });
+
+    var filename = approval.plan_id + '--' + approval.phase_id + '.yaml';
+    await writeYaml(resolvedDir, filename, updated);
+    await deleteFile(pendingDir, filename);
+
+    // Reload and re-render
+    await loadAndRender();
+    setStatus('Approval ' + updated.status + ' — ' + approval.plan_id + ':' + approval.phase_id);
+  }
+
+  // ── Render a pending card ────────────────────────────
+  function renderPendingCard(approval) {
+    var ctx = approval.context || {};
+    var expired = isExpired(approval.expires);
+    var days = daysUntil(approval.expires);
+    var urgent = days !== null && days <= 1 && !expired;
+
+    var card = document.createElement('div');
+    card.className = 'approval-card' + (expired ? ' expired' : '');
+
+    var header = document.createElement('div');
+    header.className = 'card-header';
+
+    var h3 = document.createElement('h3');
+    h3.textContent = ctx.phase_title || approval.phase_id;
+    header.appendChild(h3);
+
+    var badge = document.createElement('span');
+    badge.className = 'badge ' + (expired ? 'badge-expired' : 'badge-pending');
+    badge.textContent = expired ? 'EXPIRED' : 'Pending';
+    header.appendChild(badge);
+
+    var countdown = document.createElement('span');
+    countdown.className = 'expiry-countdown' + (expired ? ' expired-label' : urgent ? ' urgent' : '');
+    countdown.textContent = countdownLabel(approval.expires);
+    header.appendChild(countdown);
+
+    card.appendChild(header);
+
+    var body = document.createElement('div');
+    body.className = 'card-body';
+
+    // Meta row
+    var meta = document.createElement('div');
+    meta.className = 'card-meta';
+    meta.style.marginBottom = '0.75rem';
+    meta.innerHTML = '<strong>Plan:</strong> ' + escHtml(approval.plan_id) +
+      ' &nbsp;|&nbsp; <strong>Phase:</strong> ' + escHtml(approval.phase_id) +
+      ' &nbsp;|&nbsp; <strong>Requested:</strong> ' + escHtml(String(approval.requested || '').slice(0, 10)) +
+      ' &nbsp;|&nbsp; <strong>Expires:</strong> ' + escHtml(String(approval.expires || '').slice(0, 10));
+    body.appendChild(meta);
+
+    // Context grid
+    if (ctx.change_class || ctx.phase_summary) {
+      var grid = document.createElement('div');
+      grid.className = 'context-grid';
+
+      if (ctx.phase_summary) {
+        var summaryField = document.createElement('div');
+        summaryField.className = 'context-field';
+        summaryField.innerHTML = '<label>Summary</label><div class="value">' + escHtml(ctx.phase_summary) + '</div>';
+        grid.appendChild(summaryField);
+      }
+      if (ctx.change_class) {
+        var ccField = document.createElement('div');
+        ccField.className = 'context-field';
+        ccField.innerHTML = '<label>Change Class</label><div class="value"><code>' + escHtml(ctx.change_class) + '</code></div>';
+        grid.appendChild(ccField);
+      }
+      if (ctx.budget_status) {
+        var bs = ctx.budget_status;
+        var bsField = document.createElement('div');
+        bsField.className = 'context-field';
+        bsField.innerHTML = '<label>Budget</label><div class="value">' +
+          (bs.sessions_used !== undefined ? bs.sessions_used + '/' + (bs.max_sessions || '?') + ' sessions' : '') +
+          (bs.days_remaining !== undefined ? ', ' + bs.days_remaining + 'd remaining' : '') + '</div>';
+        grid.appendChild(bsField);
+      }
+      body.appendChild(grid);
+    }
+
+    // Changes
+    if (ctx.changes && ctx.changes.length) {
+      var chLabel = document.createElement('div');
+      chLabel.className = 'context-field';
+      chLabel.style.marginBottom = '0.5rem';
+      var chInner = '<label>Changes (' + ctx.changes.length + ')</label><ul class="change-list">';
+      ctx.changes.forEach(function (ch) {
+        chInner += '<li><span class="action-tag">' + escHtml(ch.action || '') + '</span>' +
+          escHtml(ch.path || '') + '</li>';
+      });
+      chInner += '</ul>';
+      chLabel.innerHTML = chInner;
+      body.appendChild(chLabel);
+    }
+
+    // Sources
+    if (ctx.sources && ctx.sources.length) {
+      var srcField = document.createElement('div');
+      srcField.className = 'context-field';
+      srcField.style.marginBottom = '0.5rem';
+      var srcInner = '<label>Sources (' + ctx.sources.length + ')</label><ul class="source-list">';
+      ctx.sources.forEach(function (s) {
+        srcInner += '<li>' + escHtml(s) + '</li>';
+      });
+      srcInner += '</ul>';
+      srcField.innerHTML = srcInner;
+      body.appendChild(srcField);
+    }
+
+    if (!expired) {
+      // Action form
+      var form = document.createElement('div');
+      form.className = 'action-form';
+      var textarea = document.createElement('textarea');
+      textarea.placeholder = 'Optional reviewer comment…';
+      form.appendChild(textarea);
+      var btns = document.createElement('div');
+      btns.className = 'action-buttons';
+      var btnApprove = document.createElement('button');
+      btnApprove.className = 'btn-approve';
+      btnApprove.textContent = '✓ Approve';
+      var btnReject = document.createElement('button');
+      btnReject.className = 'btn-reject';
+      btnReject.textContent = '✗ Reject';
+      btns.appendChild(btnApprove);
+      btns.appendChild(btnReject);
+      form.appendChild(btns);
+      body.appendChild(form);
+
+      btnApprove.addEventListener('click', function () {
+        btnApprove.disabled = true; btnReject.disabled = true;
+        btnApprove.textContent = 'Approving…';
+        resolveApproval(approval, 'approve', textarea.value.trim(), card)
+          .catch(function (e) {
+            showErr('Error: ' + e.message);
+            btnApprove.disabled = false; btnReject.disabled = false;
+            btnApprove.textContent = '✓ Approve';
+          });
+      });
+      btnReject.addEventListener('click', function () {
+        btnApprove.disabled = true; btnReject.disabled = true;
+        btnReject.textContent = 'Rejecting…';
+        resolveApproval(approval, 'reject', textarea.value.trim(), card)
+          .catch(function (e) {
+            showErr('Error: ' + e.message);
+            btnApprove.disabled = false; btnReject.disabled = false;
+            btnReject.textContent = '✗ Reject';
+          });
+      });
+    } else {
+      var expiredNote = document.createElement('div');
+      expiredNote.className = 'expired-alert';
+      expiredNote.style.marginTop = '0.75rem';
+      expiredNote.textContent = 'This approval has expired. The agent must call memory_request_approval again to re-request, or the plan should be abandoned.';
+      body.appendChild(expiredNote);
+    }
+
+    card.appendChild(body);
+    return card;
+  }
+
+  // ── Render a resolved card ───────────────────────────
+  function renderResolvedCard(approval) {
+    var ctx = approval.context || {};
+    var card = document.createElement('div');
+    card.className = 'approval-card resolved-' + (approval.status || 'expired');
+
+    var header = document.createElement('div');
+    header.className = 'card-header';
+    var h3 = document.createElement('h3');
+    h3.textContent = ctx.phase_title || approval.phase_id;
+    header.appendChild(h3);
+    var badge = document.createElement('span');
+    badge.className = 'badge badge-' + (approval.status === 'approved' ? 'approved' : approval.status === 'rejected' ? 'rejected' : 'expired');
+    badge.textContent = (approval.status || 'unknown').charAt(0).toUpperCase() + (approval.status || '').slice(1);
+    header.appendChild(badge);
+    card.appendChild(header);
+
+    var body = document.createElement('div');
+    body.className = 'card-body';
+    var meta = document.createElement('div');
+    meta.className = 'card-meta';
+    meta.innerHTML = '<strong>Plan:</strong> ' + escHtml(approval.plan_id) +
+      ' &nbsp;|&nbsp; <strong>Phase:</strong> ' + escHtml(approval.phase_id) +
+      ' &nbsp;|&nbsp; <strong>Resolved:</strong> ' + escHtml(String(approval.resolved_at || '').slice(0, 10)) +
+      (approval.reviewer ? ' &nbsp;|&nbsp; <strong>By:</strong> ' + escHtml(approval.reviewer) : '');
+    body.appendChild(meta);
+
+    if (approval.comment) {
+      var summary = document.createElement('div');
+      summary.className = 'resolution-summary ' + (approval.status === 'approved' ? 'approved' : 'rejected');
+      summary.innerHTML = '<strong>Comment:</strong> ' + escHtml(approval.comment);
+      body.appendChild(summary);
+    }
+
+    card.appendChild(body);
+    return card;
+  }
+
+  // ── Load and render all approvals ────────────────────
+  async function loadAndRender() {
+    if (!repoHandle) return;
+    hideErr();
+
+    var approvalsDir = await getNestedDir(repoHandle, ['core', 'memory', 'working', 'approvals'])
+                    || await getNestedDir(repoHandle, ['memory', 'working', 'approvals']);
+    if (!approvalsDir) {
+      showErr('Cannot locate working/approvals/ in the selected folder.');
+      return;
+    }
+
+    var pendingDir  = await getNestedDir(approvalsDir, ['pending']);
+    var resolvedDir = await getNestedDir(approvalsDir, ['resolved']);
+
+    // Load pending
+    var pendingApprovals = [];
+    if (pendingDir) {
+      var pNames = await listYamlFiles(pendingDir);
+      for (var name of pNames) {
+        var doc = await readYaml(pendingDir, name);
+        if (doc && doc.plan_id) pendingApprovals.push(doc);
+      }
+    }
+
+    // Load resolved
+    var resolvedApprovals = [];
+    if (resolvedDir) {
+      var rNames = await listYamlFiles(resolvedDir);
+      for (var name of rNames) {
+        var doc = await readYaml(resolvedDir, name);
+        if (doc && doc.plan_id) resolvedApprovals.push(doc);
+      }
+      resolvedApprovals.sort(function (a, b) {
+        return (b.resolved_at || '') > (a.resolved_at || '') ? 1 : -1;
+      });
+    }
+
+    // Expired alerts
+    E.clearNode(expiredAlertsEl);
+    var hasExpired = pendingApprovals.some(function (ap) { return isExpired(ap.expires); });
+    if (hasExpired) {
+      var alert = document.createElement('div');
+      alert.className = 'expired-alert';
+      alert.textContent = '⚠ One or more pending approvals have expired. The agent must re-request approval or abandon the plan.';
+      expiredAlertsEl.appendChild(alert);
+    }
+
+    // Render pending
+    E.clearNode(pendingEl);
+    if (!pendingApprovals.length) {
+      pendingEl.innerHTML = '<div class="empty-state">No pending approvals. &#10003;</div>';
+    } else {
+      pendingApprovals.forEach(function (ap) {
+        pendingEl.appendChild(renderPendingCard(ap));
+      });
+    }
+
+    // Render resolved
+    E.clearNode(resolvedEl);
+    if (!resolvedApprovals.length) {
+      resolvedEl.innerHTML = '<div class="empty-state">No resolved approvals yet.</div>';
+    } else {
+      resolvedApprovals.slice(0, 20).forEach(function (ap) {
+        resolvedEl.appendChild(renderResolvedCard(ap));
+      });
+    }
+
+    // Rewrite SUMMARY.md
+    await rewriteSummary(approvalsDir, pendingApprovals, resolvedApprovals);
+
+    content.style.display = 'block';
+    setStatus('Loaded — ' + pendingApprovals.length + ' pending, ' + resolvedApprovals.length + ' resolved.');
+  }
+
+  // ── Open folder ───────────────────────────────────────
+  btnOpen.addEventListener('click', async function () {
+    if (!window.showDirectoryPicker) {
+      showErr('File System Access API is not supported in this browser. Use Chrome or Edge.');
+      return;
+    }
+    try {
+      repoHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      btnRefresh.style.display = 'inline-block';
+      setStatus('Folder opened. Loading…');
+      await loadAndRender();
+    } catch (e) {
+      if (e.name !== 'AbortError') showErr('Could not open folder: ' + e.message);
+    }
+  });
+
+  btnRefresh.addEventListener('click', function () {
+    setStatus('Refreshing…');
+    loadAndRender().catch(function (e) { showErr(e.message); });
+  });
+
+})();
+</script>
+</body>
+</html>

@@ -77,6 +77,8 @@ semantic_extensions = [
   "memory_plan_create",
   "memory_plan_execute",
   "memory_plan_review",
+  "memory_stage_external",
+  "memory_scan_drop_zone",
   "memory_add_knowledge_file",
   "memory_reorganize_path",
   "memory_promote_knowledge_batch",
@@ -266,6 +268,8 @@ commit_suggestion = "Commit Suggestion"
 fallback_behavior = "Fallback Behavior"
 
 [ui_feedback.result_field_labels]
+content_hash = "Content Hash"
+target_path = "Target Path"
 plan_path = "Plan File"
 status = "Status"
 next_action = "Next Action"
@@ -325,6 +329,11 @@ output_path = "Output Path"
 knowledge_path = "Knowledge Subtree"
 names_count = "Names Indexed"
 files_scanned = "Files Scanned"
+files_found = "Files Found"
+folders_scanned = "Folders Scanned"
+staged_count = "Staged Count"
+duplicate_count = "Duplicate Count"
+error_count = "Error Count"
 
 [shared_result]
 fields = [
@@ -336,7 +345,7 @@ fields = [
   "preview",
 ]
 raw_commit_model = "stage_then_memory_commit"
-semantic_commit_model = "auto_commit_on_success"
+semantic_commit_model = "operation_defined"
 
 [access_logging]
 task_ids = ["plan-review", "research-write", "validation", "health-check"]
@@ -440,6 +449,11 @@ status = "implemented"
 meaning = "Input, frontmatter, or invariant contract is invalid."
 recovery = "Fix the request shape or normalize content before retrying."
 
+[error_taxonomy.DuplicateContentError]
+status = "implemented"
+meaning = "A staged external-content hash already exists for the target project."
+recovery = "Treat as already-ingested content or choose a different file after reviewing the existing staged filename."
+
 [error_taxonomy.StagingError]
 status = "implemented"
 meaning = "git add, mv, rm, or commit failed while sealing the change."
@@ -485,6 +499,25 @@ change_class = "proposed"
 preview_support = true
 preview_mode = "preview"
 preview_argument = "preview"
+
+[desktop_operations.stage_external]
+status = "implemented"
+tool = "memory_stage_external"
+tier = "semantic"
+operation_group = "project"
+change_class = "automatic"
+notes = "Stages external research into a project inbox with enforced low trust and per-project deduplication."
+preview_support = true
+preview_mode = "dry_run"
+preview_argument = "dry_run"
+
+[desktop_operations.scan_drop_zone]
+status = "implemented"
+tool = "memory_scan_drop_zone"
+tier = "semantic"
+operation_group = "project"
+change_class = "automatic"
+notes = "Bulk-ingests configured watch folders into project inboxes; rejects watch folders that point inside the Engram repository."
 
 [desktop_operations.add_knowledge_file]
 status = "implemented"
@@ -728,6 +761,53 @@ owns_review_queue = []
 result_fields = ["outbox_root", "exported_artifacts"]
 fallback_tools = ["memory_write", "memory_commit"]
 error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+
+[operations.memory_stage_external]
+group = "project"
+tier = "semantic"
+change_class = "automatic"
+preview_support = true
+preview_mode = "dry_run"
+preview_argument = "dry_run"
+commit_model = "auto_commit_exception_direct_write"
+commit_category_hint = "plan"
+writes = [
+  "memory/working/projects/{project}/IN/{file}.md",
+  "memory/working/projects/{project}/.staged-hashes.jsonl",
+]
+owns_frontmatter = ["memory/working/projects/{project}/IN/{file}.md"]
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["target_path", "content_hash", "status"]
+fallback_tools = []
+error_kinds = ["DuplicateContentError", "NotFoundError", "ValidationError"]
+notes = "Direct project-inbox write; stages external research without creating a git commit."
+
+[operations.memory_scan_drop_zone]
+group = "project"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit_exception_direct_write"
+commit_category_hint = "plan"
+writes = [
+  "memory/working/projects/{target_project}/IN/**",
+  "memory/working/projects/{target_project}/.staged-hashes.jsonl",
+]
+owns_frontmatter = ["memory/working/projects/{target_project}/IN/**"]
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "folders_scanned",
+  "files_found",
+  "staged_count",
+  "duplicate_count",
+  "error_count",
+]
+fallback_tools = []
+error_kinds = ["DuplicateContentError", "NotFoundError", "ValidationError"]
+notes = "Bulk project-inbox write driven by configured watch folders; per-file errors are reported in-band instead of aborting the whole scan."
 
 [operations.memory_add_knowledge_file]
 group = "knowledge"

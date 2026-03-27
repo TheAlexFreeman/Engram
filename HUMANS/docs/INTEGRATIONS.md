@@ -73,6 +73,28 @@ These frameworks specialize in retrieval-augmented generation and can treat Engr
 | **Letta (MemGPT)** | Adds tiered memory (core, recall, archival) to LLM agents. | Map Letta's archival memory to Engram's knowledge tree. Use Letta for conversation-window management; Engram for durable storage. |
 | **Cognee** | Builds a knowledge graph from documents with automatic entity extraction and relationship mapping. | Run Cognee's pipeline on the knowledge tree to extract entities and relationships, then expose the resulting graph for agent queries. |
 
+## External ingestion workflow
+
+Engram now includes a governed external-intake path for research artifacts and fetched context. The workflow is intentionally simple:
+
+1. `memory_plan_execute` and `memory_plan_briefing` can surface `fetch_directives` and `mcp_calls` when a phase references `type: external` or `type: mcp` sources that are still missing on disk.
+2. An agent fetches the content externally, then calls `memory_stage_external` to place it in `memory/working/projects/{project}/IN/` with enforced `source: external-research`, `trust: low`, sanitized `origin_url`, and per-project SHA-256 deduplication.
+3. For local research inboxes, `memory_scan_drop_zone` reads `[[watch_folders]]` entries from `agent-bootstrap.toml` and bulk-stages supported `.md`, `.txt`, and optional `.pdf` inputs into the same project inbox path.
+4. Once staged content has been reviewed and distilled, the existing knowledge-promotion flow can move the durable result into `_unverified/` or a verified knowledge domain.
+
+Example watch-folder configuration:
+
+```toml
+[[watch_folders]]
+path = "C:/Users/example/research-inbox"
+target_project = "harness-expansion"
+source_label = "local-research-inbox"
+extensions = [".md", ".txt", ".pdf"]
+recursive = false
+```
+
+This preserves the same governance boundary as the rest of the system: external systems may fetch, index, or prepare data, but durable Markdown intake still flows through repo-owned MCP semantics rather than ad hoc file mutation.
+
 ## Developer workflow tools
 
 | Tool | Why it fits | Integration sketch |

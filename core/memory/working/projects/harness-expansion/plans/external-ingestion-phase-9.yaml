@@ -1,0 +1,333 @@
+id: external-ingestion-phase-9
+project: harness-expansion
+created: '2026-03-27'
+origin_session: memory/activity/2026/03/27/chat-001
+status: completed
+sessions_used: 1
+budget:
+  deadline: '2026-07-15'
+  max_sessions: 6
+  advisory: true
+purpose:
+  summary: Add external content ingestion affordances so agents can stage web-fetched
+    or drop-zone content into project inboxes with auto-generated trust frontmatter
+    and SHA-256 deduplication.
+  context: >
+    The system already has governance plumbing for external content: a
+    `source: external-research` frontmatter type, `trust: low` initial
+    assignment, `_unverified/` quarantine, and a promotion pipeline. What is
+    missing is the tool surface. Agents must currently use raw Tier 2 write
+    tools, hand-craft frontmatter, and manually enforce trust assignment.
+    This bypasses governance, creates provenance drift, and makes ingestion
+    behavior agent-specific rather than system-defined.
+
+    This phase adds three affordances: (1) `memory_stage_external` — an
+    MCP tool that accepts content from an agent and stages it in
+    `projects/{project}/IN/` with auto-generated frontmatter and SHA-256
+    deduplication; (2) `fetch_directives` / `mcp_calls` structured hints
+    surfaced in `phase_payload()` for phases with `type: external` or
+    `type: mcp` sources, providing agents actionable guidance on what to
+    fetch before starting work; (3) `memory_scan_drop_zone` — a bulk
+    ingestion tool that reads configured `watch_folders` from
+    agent-bootstrap.toml, SHA-256 hashes file contents to prevent
+    re-staging, and emits a structured scan report.
+
+    Design document: IN/phase-9-external-ingestion-design.md
+
+    Dependencies: Phase 1 SourceSpec provides the `type: external|mcp`
+    vocabulary. Phase 5 HITL preview envelope pattern informs
+    `memory_stage_external` return contract. Phases 6-8 are independent.
+  questions:
+  - "Resolved in implementation: SHA-256 deduplication is per-project via .staged-hashes.jsonl in each project root."
+  - "Resolved in implementation: PDF extraction is soft optional; missing libraries produce per-file scan errors instead of failing the whole tool."
+  - "Resolved in implementation: fetch_directives and mcp_calls are emitted only when the referenced staged file is absent."
+  - "Resolved in implementation: memory_stage_external stages into projects/{project}/IN/ and leaves promotion to later review flows."
+  - "Resolved in implementation: watch_folders supports path, target_project, source_label, extensions, and recursive; trust stays system-enforced at low."
+work:
+  phases:
+  - id: ingestion-design
+    title: Finalize external ingestion API contracts and security rules
+    status: completed
+    blockers: []
+    requires_approval: true
+    sources:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-9-external-ingestion-design.md
+      type: internal
+      intent: Use as the working design document. Flesh out full API contracts, frontmatter
+        schema, security rules, and resolve the implementation questions. Update in place.
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Understand existing SourceSpec.type field, phase_payload() response structure,
+        and dataclass patterns to follow for new helpers.
+    - path: core/tools/agent_memory_mcp/tools/semantic/knowledge_tools.py
+      type: internal
+      intent: Understand the existing _unverified/ promotion pipeline, trust assignment
+        rules, and frontmatter writing patterns to align with.
+    - path: HUMANS/docs/MCP.md
+      type: internal
+      intent: Understand existing MCP tool documentation format to match for Phase 9 docs.
+    - path: agent-bootstrap.toml
+      type: internal
+      intent: Understand existing config key conventions so watch_folders entries follow
+        the same TOML structure.
+    postconditions:
+    - description: memory_stage_external parameter list finalized (project, filename, content,
+        source_url, fetched_date, source_label, dry_run)
+      type: manual
+    - description: Staging target decision recorded (IN/ vs _unverified/) with rationale
+      type: manual
+    - description: fetch_directives and mcp_calls field schemas finalized with all required keys
+      type: manual
+    - description: watch_folders TOML config key format decided with all supported fields
+      type: manual
+    - description: Security rules documented — URL sanitization (query-string stripping),
+        max content size cap (500K chars), SHA-256 algorithm, path traversal prevention
+      type: manual
+    - description: SHA-256 scope decision recorded (per-project vs global)
+      type: manual
+    - description: Implementation questions resolved and recorded in design doc
+      type: manual
+    changes:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-9-external-ingestion-design.md
+      action: update
+      description: Expand stub into full design specification with finalized API contracts,
+        resolved implementation questions, storage schema, and security section rationale.
+
+  - id: stage-external-tool
+    title: Implement stage_external_file() helper and memory_stage_external MCP tool
+    status: completed
+    blockers: []
+    sources:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-9-external-ingestion-design.md
+      type: internal
+      intent: Follow the finalized API contract, frontmatter schema, preview envelope
+        format, and staging target decision.
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Add stage_external_file() alongside existing helpers. Follow dataclass
+        patterns, file I/O conventions, and error handling style.
+    - path: core/tools/agent_memory_mcp/tools/semantic/knowledge_tools.py
+      type: internal
+      intent: Reference _normalize_batch_source_paths() and frontmatter writing patterns;
+        understand how trust is assigned to new files in the system.
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      type: internal
+      intent: Register memory_stage_external following existing MCP tool registration
+        patterns; use correct TextAnnotation fields.
+    postconditions:
+    - description: stage_external_file() function exists in plan_utils.py
+      type: grep
+      target: def stage_external_file::core/tools/agent_memory_mcp/plan_utils.py
+    - description: memory_stage_external tool registered in plan_tools.py
+      type: grep
+      target: memory_stage_external::core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+    - description: Staged files are written to projects/{project}/IN/ with correct frontmatter
+        (source, trust, origin_url, fetched_date, source_label, staged_by fields)
+      type: manual
+    - description: URL query strings and fragments are stripped before storing in origin_url
+      type: manual
+    - description: Preview envelope returned with target_path, frontmatter_preview,
+        content_chars, content_hash, duplicate, staged fields
+      type: manual
+    - description: SHA-256 content hash computed and checked against .staged-hashes.jsonl
+        before writing; duplicate raises DuplicateContentError
+      type: manual
+    - description: Content size cap enforced (500K chars); oversized content raises clear error
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      action: update
+      description: Add stage_external_file() helper (~70-90 lines) with frontmatter generation,
+        URL sanitization, SHA-256 hashing, .staged-hashes.jsonl read/write, and preview envelope
+        construction. Add DuplicateContentError exception class.
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      action: update
+      description: Register memory_stage_external MCP tool. Accept project, filename, content,
+        source_url, fetched_date, source_label, dry_run parameters. Call stage_external_file()
+        and return JSON envelope.
+
+  - id: phase-payload-enrichment
+    title: Add fetch_directives and mcp_calls hints to phase_payload()
+    status: completed
+    blockers: []
+    sources:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-9-external-ingestion-design.md
+      type: internal
+      intent: Follow the finalized fetch_directives and mcp_calls field schemas, including
+        emission condition (only when source file is absent on disk).
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Extend phase_payload() to inspect SourceSpec.type for each source and emit
+        fetch_directives and mcp_calls lists in the response.
+    postconditions:
+    - description: phase_payload() response includes fetch_directives key (list, may be empty)
+      type: manual
+    - description: Entries appear in fetch_directives only for type=external sources whose
+        file does not yet exist on disk
+      type: manual
+    - description: phase_payload() response includes mcp_calls key (list, may be empty)
+      type: manual
+    - description: Entries appear in mcp_calls only for type=mcp sources with mcp_server
+        and mcp_tool fields whose file does not yet exist on disk
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      action: update
+      description: Extend phase_payload() to iterate SourceSpec entries, check file existence
+        for type=external and type=mcp sources, and emit fetch_directives and mcp_calls lists.
+
+  - id: drop-zone-tool
+    title: Implement scan_drop_zone() helper and memory_scan_drop_zone MCP tool
+    status: completed
+    blockers: [stage-external-tool]
+    sources:
+    - path: core/memory/working/projects/harness-expansion/IN/phase-9-external-ingestion-design.md
+      type: internal
+      intent: Follow the finalized watch_folders config schema, scan report format,
+        SHA-256 dedup logic, PDF extraction strategy, and path traversal prevention rules.
+    - path: agent-bootstrap.toml
+      type: internal
+      intent: Add [[watch_folders]] example config block following existing TOML
+        conventions for array-of-tables entries.
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      type: internal
+      intent: Add scan_drop_zone() helper. Reuse stage_external_file() from the
+        stage-external-tool phase for per-file staging.
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      type: internal
+      intent: Register memory_scan_drop_zone MCP tool. Accept optional project_filter
+        parameter. Return JSON scan report.
+    postconditions:
+    - description: scan_drop_zone() function exists in plan_utils.py
+      type: grep
+      target: def scan_drop_zone::core/tools/agent_memory_mcp/plan_utils.py
+    - description: memory_scan_drop_zone tool registered in plan_tools.py
+      type: grep
+      target: memory_scan_drop_zone::core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+    - description: watch_folders config key documented with an example [[watch_folders]]
+        block in agent-bootstrap.toml
+      type: manual
+    - description: Scan report includes folders_scanned, files_found, staged_count,
+        duplicate_count, error_count, and per-file items list
+      type: manual
+    - description: SHA-256 hash registry prevents re-staging of already-staged files
+        across multiple scan runs
+      type: manual
+    - description: PDF files handled gracefully — extracted if library available, error
+        entry emitted if not (tool does not fail)
+      type: manual
+    - description: Missing or inaccessible watch_folder emits error entry; tool continues
+        scanning remaining folders
+      type: manual
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/agent_memory_mcp/plan_utils.py
+      action: update
+      description: Add scan_drop_zone() helper (~80-100 lines). Read watch_folders from
+        agent-bootstrap.toml, iterate files, call stage_external_file() for each, collect
+        per-file outcomes, return scan report dict.
+    - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+      action: update
+      description: Register memory_scan_drop_zone MCP tool. Accept optional project_filter
+        parameter. Call scan_drop_zone() and return JSON scan report.
+    - path: agent-bootstrap.toml
+      action: update
+      description: Add commented-out [[watch_folders]] example block with path,
+        target_project, source_label, extensions, and recursive fields.
+
+  - id: ingestion-tests
+    title: Add test coverage for all three ingestion affordances
+    status: completed
+    blockers: [stage-external-tool]
+    sources:
+    - path: core/tools/tests/test_plan_schema_extensions.py
+      type: internal
+      intent: Follow existing test class and fixture patterns (_minimal_plan, tmp_path,
+        monkeypatch). Add TestStageExternal and TestScanDropZone classes.
+    - path: core/memory/working/projects/harness-expansion/IN/phase-9-external-ingestion-design.md
+      type: internal
+      intent: Reference security rules, edge cases, and API contracts to derive test
+        scenarios from.
+    postconditions:
+    - description: TestStageExternal class exists with 10+ test methods
+      type: grep
+      target: class TestStageExternal::core/tools/tests/test_plan_schema_extensions.py
+    - description: TestScanDropZone class exists with 8+ test methods
+      type: grep
+      target: class TestScanDropZone::core/tools/tests/test_plan_schema_extensions.py
+    - description: Tests cover — correct frontmatter generated, URL query-string stripped,
+        content size cap enforced, duplicate hash rejected with DuplicateContentError,
+        staging to correct IN/ path, fetch_directives emitted for absent external source,
+        mcp_calls emitted for absent mcp source, no directive for present file,
+        scan report staged/duplicate/error counts correct, missing watch_folder graceful error
+      type: manual
+    - description: Full test suite passes (target 210-220 total tests)
+      type: test
+      target: pytest core/tools/tests/ -q
+    - description: pre-commit hooks pass
+      type: test
+      target: pre-commit run --all-files
+    changes:
+    - path: core/tools/tests/test_plan_schema_extensions.py
+      action: update
+      description: Add TestStageExternal class (10+ tests covering staging, dedup, URL
+        sanitization, size cap, preview envelope) and TestScanDropZone class (8+ tests
+        covering scan report, PDF skip, missing folder, project filter).
+
+  - id: ingestion-docs
+    title: Update documentation for all three ingestion affordances
+    status: completed
+    blockers: [ingestion-tests]
+    requires_approval: true
+    sources:
+    - path: HUMANS/docs/MCP.md
+      type: internal
+      intent: Add memory_stage_external and memory_scan_drop_zone tool entries following
+        the existing documentation format for each tool.
+    - path: HUMANS/docs/INTEGRATIONS.md
+      type: internal
+      intent: Add an external ingestion workflow section describing the stage-to-promote
+        pipeline and watch_folders configuration.
+    - path: HUMANS/tooling/agent-memory-capabilities.toml
+      type: internal
+      intent: Register new ingestion capabilities following existing capability entry
+        conventions.
+    postconditions:
+    - description: MCP.md documents memory_stage_external with parameters, frontmatter output,
+        preview envelope, and security behavior
+      type: manual
+    - description: MCP.md documents memory_scan_drop_zone with parameters, watch_folders
+        config, scan report format, and PDF handling
+      type: manual
+    - description: INTEGRATIONS.md includes an external ingestion workflow section describing
+        the stage → IN/ → promote pipeline
+      type: manual
+    - description: CHANGELOG.md updated with Phase 9 entry
+      type: manual
+    - description: agent-memory-capabilities.toml registers memory_stage_external and
+        memory_scan_drop_zone capabilities
+      type: manual
+    changes:
+    - path: HUMANS/docs/MCP.md
+      action: update
+      description: Add memory_stage_external and memory_scan_drop_zone tool documentation
+        entries with parameters, return values, and usage examples.
+    - path: HUMANS/docs/INTEGRATIONS.md
+      action: update
+      description: Add external ingestion workflow section describing the three affordances,
+        watch_folders config, and the ingestion-to-promotion pipeline.
+    - path: CHANGELOG.md
+      action: update
+      description: Add Phase 9 entry summarizing external ingestion affordances.
+    - path: HUMANS/tooling/agent-memory-capabilities.toml
+      action: update
+      description: Register memory_stage_external and memory_scan_drop_zone as new
+        ingestion capabilities.

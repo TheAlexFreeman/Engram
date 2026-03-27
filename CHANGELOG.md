@@ -18,6 +18,132 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-27] Phase 9: External ingestion affordances
+
+**Changed:** Added the Phase 9 external-intake layer for plan execution and project research staging.
+
+- **`SourceSpec` and `phase_payload()` in `core/tools/agent_memory_mcp/plan_utils.py`** — `SourceSpec` now supports `mcp_server`, `mcp_tool`, and `mcp_arguments` for `type: mcp` sources. `phase_payload()` now emits `fetch_directives` and `mcp_calls` for missing external and MCP-backed sources so agents can fetch prerequisite context before starting work.
+- **`stage_external_file()` and `scan_drop_zone()`** — new helpers in `plan_utils.py`. `stage_external_file()` writes project-local inbox files under `memory/working/projects/{project}/IN/` with enforced `source: external-research`, `trust: low`, sanitized `origin_url`, and a per-project `.staged-hashes.jsonl` SHA-256 registry. `scan_drop_zone()` reads `[[watch_folders]]` from `agent-bootstrap.toml`, stages supported `.md`, `.txt`, and `.pdf` files, and returns a structured scan report with staged, duplicate, and error counts.
+- **`memory_stage_external` / `memory_scan_drop_zone`** — new MCP tools in `plan_tools.py`. `memory_stage_external` supports preview-first via `dry_run`, while `memory_scan_drop_zone` bulk-processes configured watch folders and degrades gracefully when PDF extraction libraries are unavailable.
+- **Tests and docs** — expanded schema/helper coverage and MCP integration coverage for both new tools, finalized the Phase 9 project design docs, documented the tools in `HUMANS/docs/MCP.md`, added the ingestion workflow to `HUMANS/docs/INTEGRATIONS.md`, and registered the new capabilities in `HUMANS/tooling/agent-memory-capabilities.toml`.
+
+**Reasoning:** Earlier harness phases made sources and phase context first-class, but the system still lacked a governed path for turning fetched external material into project-local artifacts. Phase 9 closes that gap by making external intake explicit, deduplicated, and discoverable in both the plan payload contract and the MCP tool surface.
+
+**Approved by:** user
+
+## [2026-03-27] Phase 8: Context assembly briefing packet
+
+**Changed:** Added the Phase 8 context-assembly layer for plan execution.
+
+- **`assemble_briefing()` in `core/tools/agent_memory_mcp/plan_utils.py`** — new helper that composes `phase_payload()` with source-file excerpts, failure summaries, approval status, recent trace spans, and context-budget accounting. Internal sources degrade gracefully when files are missing, and the source allocator truncates via smart head/tail excerpts within a configurable `max_context_chars` budget.
+- **`memory_plan_briefing`** — new read-only MCP tool in `plan_tools.py`. It returns a single-call briefing packet for a requested phase or, when `phase_id` is omitted, for the next actionable phase. If no actionable phase exists, it returns a plan summary instead. When `MEMORY_SESSION_ID` is present, the tool records a self-instrumentation `tool_call` trace span.
+- **Tests** — expanded schema-level coverage with `TestAssembleBriefing` and added MCP integration tests for `memory_plan_briefing`, covering truncation, missing sources, unlimited budgets, approval inclusion, trace inclusion/fallback, failure summaries, summary-mode behavior, and trace emission.
+- **Docs** — documented the new tool in `HUMANS/docs/MCP.md`, added the context-assembly design note to `HUMANS/docs/DESIGN.md`, and finalized the Phase 8 design decisions in the harness-expansion project docs.
+
+**Reasoning:** By Phase 7, the harness had the raw ingredients for rich execution context — structured phase payloads, failure history, approval state, and traces — but agents still needed several sequential tool calls before they could begin work on a phase. Phase 8 closes that gap with a single-call read surface that assembles those pieces into a budget-aware briefing packet without changing plan state.
+
+**Approved by:** user
+
+## [2026-03-27] Phase 7: Offline evaluation framework
+
+**Changed:** Added the Phase 7 offline evaluation layer for harness workflows.
+
+- **`core/tools/agent_memory_mcp/eval_utils.py`** — new eval runtime with `EvalScenario`, `EvalStep`, `EvalAssertion`, `StepResult`, `AssertionResult`, and `ScenarioResult`; YAML loading/validation; direct `run_scenario()` / `run_suite()` execution; metrics aggregation; scenario selection; trace-backed historical report helpers.
+- **`memory_run_eval` / `memory_eval_report`** — new MCP tools in `plan_tools.py`. `memory_run_eval` runs seeded YAML scenarios from `memory/skills/eval-scenarios/`, records compact `eval:{scenario_id}` verification spans, and is gated behind `ENGRAM_TIER2=1`. `memory_eval_report` summarizes historical eval runs and trend deltas from those trace spans.
+- **Seeded scenario suite** — added `core/memory/skills/eval-scenarios/` with five scenario YAMLs and a navigator: basic plan lifecycle, verification failure + retry, trace coverage validation, tool-registry bootstrap, and approval pause/resume.
+- **Tests and docs** — expanded eval-focused test coverage to execute the seeded suite directly, documented both MCP tools in `HUMANS/docs/MCP.md`, and indexed the scenario suite from `core/memory/skills/SUMMARY.md`.
+
+**Reasoning:** Phase 3 provided traces, but Engram still lacked a declarative way to define expected workflows, execute them against isolated fixtures, and compare results over time. The Phase 7 eval framework closes that gap with a reusable scenario format, an execution/runtime surface, a minimal reporting loop, and seeded coverage for the core harness behaviors that previous phases introduced.
+
+**Approved by:** user
+
+## [2026-03-26] Phase 5: Structured HITL (ApprovalDocument, memory_request_approval, memory_resolve_approval, paused plan status)
+
+**Changed:** Operationalized `requires_approval` as a full interrupt/resume workflow:
+
+- **`ApprovalDocument` dataclass** — YAML schema with `plan_id`, `phase_id`, `project_id`, `status` (pending/approved/rejected/expired), `requested`, `expires`, `context` (phase_title, phase_summary, sources, changes, change_class, budget_status), `resolution`, `reviewer`, `resolved_at`, `comment`. Stored at `memory/working/approvals/pending/{plan_id}--{phase_id}.yaml` while pending, moved to `resolved/` on resolution.
+- **`memory_request_approval` MCP tool** — creates pending approval document and pauses plan. Auto-deduplicates: returns existing document if pending approval already exists.
+- **`memory_resolve_approval` MCP tool** — resolves pending approval (approve/reject), moves document to `resolved/`, sets plan status to `active` or `blocked`. Regenerates SUMMARY.md after every operation.
+- **`paused` plan status** — added to `PLAN_STATUSES`. Expresses "waiting for human input" (vs. `blocked` = technical dependency). Transitions: `active → paused` (approval requested), `paused → active` (approved), `paused → blocked` (rejected or expired).
+- **Auto-pause on `requires_approval` phases** — `memory_plan_execute` start action automatically creates an approval document and pauses the plan when it encounters a `requires_approval: true` phase with no existing approval. Handles all approval states: pending (return awaiting), approved (proceed), rejected/expired (block).
+- **Paused plan guard** — `memory_plan_execute` start and complete actions return an error when `plan.status == "paused"`.
+- **Lazy expiry** — `load_approval()` checks `expires` on every read; if past, status transitions to `expired`, file moves to `resolved/`. Default expiry window: 7 days.
+- **`working/approvals/` directory** — `pending/.gitkeep`, `resolved/.gitkeep`, and `SUMMARY.md` (approval queue navigator, regenerated after every operation).
+- **`HUMANS/views/approvals.html`** — browser UI with pending approvals list (expiry countdowns, phase context, approve/reject buttons with comment field), resolved history, and expired alerts. Writes resolution YAML via File System Access API; no server required.
+- **38 new tests** (190 total) — `TestApprovalDocumentDataclass` (14), `TestApprovalStorage` (8), `TestApprovalExpiry` (6), `TestApprovalsSummaryRegeneration` (3), `TestPlanPauseStatus` (5).
+- **Documentation** — DESIGN.md and MCP.md updated with approval lifecycle, tool parameters, and plan status transitions.
+
+**Reasoning:** The harness report identified the missing "workflow" layer: `requires_approval` existed as a flag but provided no structured mechanism to create, track, or resolve approval requests. This phase closes the loop — the agent can now create a serialized approval document, pause, and resume with full human oversight at decisional phase boundaries.
+
+**Approved by:** user
+
+## [2026-03-26] Phase 4: External tool registry (ToolDefinition, memory_register_tool, memory_get_tool_policy)
+
+**Changed:** Added a policy storage layer for external tools so agents and orchestrators can query tool constraints before invoking them:
+
+- **`core/memory/skills/tool-registry/`** — new directory with YAML registry files grouped by provider (`shell.yaml`, `api.yaml`, `mcp-external.yaml`). Each entry captures `name` (slug), `description`, `approval_required`, `cost_tier` (free/low/medium/high), `timeout_seconds`, optional `rate_limit`, `tags`, `schema`, and `notes`.
+- **`ToolDefinition` dataclass** — added to `plan_utils.py` with full field validation (slug names, valid cost tiers, timeout ≥ 1, non-empty description/provider, dict schema). `load_registry()`, `save_registry()`, `_all_registry_tools()`, and `regenerate_registry_summary()` helpers handle YAML round-trips.
+- **`memory_register_tool`** — new MCP tool; creates a new definition or replaces an existing one (no duplicates). Regenerates SUMMARY.md on every call.
+- **`memory_get_tool_policy`** — new MCP tool; queries by tool_name, provider, tags (any-match), or cost_tier. Returns matching definitions with count. At least one filter required; empty results are not errors.
+- **`phase_payload()` integration** — now includes a `tool_policies` field that auto-resolves registry entries matching `test`-type postcondition targets. Matching is best-effort (command-prefix slug normalization); unregistered tools yield an empty list.
+- **Seed data** — `shell.yaml` ships with `pre-commit-run` (60s), `pytest-run` (120s), and `ruff-check` (30s) definitions, all free-tier and immediately useful for plan policy integration.
+- **Tests** — 29 new tests (152 total); ruff clean.
+
+**Reasoning:** The harness report identified the lack of tool policy metadata as a gap preventing the harness from advising agents on tool constraints. Engram knows about memory tools but nothing about the external tools agents actually invoke (shell commands, APIs). This phase closes that gap without adding execution — policy storage only. Phase 5 (HITL) can now use `approval_required` from registered tools in its approval-workflow design.
+
+**Approved by:** user
+
+## [2026-03-26] Phase 3: Structured observability (TRACES.jsonl, trace recording, query, viewer)
+
+**Changed:** Added structured trace recording across the MCP server, enabling session-level observability:
+
+- **TRACES.jsonl schema** — per-session trace files stored at `memory/activity/YYYY/MM/DD/chat-NNN.traces.jsonl`. Each line is a JSON span with: `span_id` (12-char UUID4 hex), `session_id`, `timestamp` (ISO 8601 with ms), `span_type` (tool_call, plan_action, retrieval, verification, guardrail_check), `name`, `status` (ok, error, denied), optional `duration_ms`, `metadata` (sanitized), and `cost`.
+- **`memory_record_trace`** — new MCP tool for agent-initiated trace spans. Non-blocking; errors are caught and silently swallowed.
+- **`memory_query_traces`** — new MCP tool for querying spans across sessions or date ranges. Filters by session_id, date, span_type, plan_id (in metadata), and status. Returns spans newest-first with aggregates (total_duration_ms, by_type, by_status, error_rate).
+- **Internal instrumentation** — plan_create, plan_execute (start/complete/record_failure), and plan_verify all emit `plan_action` or `verification` spans automatically.
+- **Metadata sanitization** — strings >200 chars truncated, credential-like field names redacted, objects >2 levels deep stringified, total metadata capped at 2 KB.
+- **ACCESS.jsonl extension** — retrieval entries now include `event_type: "retrieval"`; `parse_co_access` filters by this field.
+- **Session summary enrichment** — summaries include a `metrics:` frontmatter block when TRACES.jsonl exists.
+- **Trace viewer UI** — `HUMANS/views/traces.html` with session selector, timeline view, filter chips, and stats bar.
+- **25 new tests** covering all new functionality.
+
+**Reasoning:** The harness expansion analysis identified observability as the biggest operational gap. This phase adds structured, queryable evidence of what happened in a session.
+
+**Approved by:** user
+
+## [2026-03-27] Phase 2: Inline verification, failure recording, and retry context
+
+**Changed:** Extended the plan execution system with three new capabilities:
+
+- **`memory_plan_verify`** — new MCP tool that evaluates a phase's postconditions without modifying plan state. Four validator types: `check` (file existence), `grep` (pattern::path regex search), `test` (allowlisted shell command with ENGRAM_TIER2 gate, metacharacter rejection, and 30s timeout), and `manual` (always skipped by automation).
+- **`verify=true` on `memory_plan_execute` complete** — when set, evaluates postconditions before completing the phase. If any postcondition fails, the phase stays `in-progress` and `verification_results` are returned for diagnosis.
+- **`PhaseFailure` dataclass and `record_failure` action** — phases can now accumulate a failure log. Each failure records a timestamp, reason, optional verification results, and attempt number. Failure history is surfaced in `phase_payload()` (as `failures` list and `attempt_number`) and `next_action()` (as `has_prior_failures`, `attempt_number`, and `suggest_revision` when attempts ≥ 3).
+- **29 new tests** covering all four validator types, PhaseFailure serialization/round-trip/backward-compat, retry context in phase_payload and next_action, and suggest_revision threshold.
+
+Security measures: test-type commands are allowlisted (pytest, ruff, pre-commit, mypy prefixes only), shell metacharacters are rejected, proxy environment variables are stripped, and command output is truncated to 2000 characters.
+
+**Reasoning:** The plan system could track phases and tasks but had no way to verify that work actually met its postconditions, record failures for diagnostic context, or signal when a phase should be revised rather than retried. This closes the feedback loop between plan execution and plan governance.
+
+**Approved by:** agent (pending review)
+
+## [2026-03-26] Plan schema extensions: sources, postconditions, approval gates, budget
+
+**Changed:** Extended the plan schema with four new structural features and updated the MCP tool surface to expose them:
+
+- **`SourceSpec`** — new dataclass on `PlanPhase.sources`. Each source has `path`, `type` (`internal`/`external`/`mcp`), `intent`, and optional `uri`. Internal sources are validated for existence at save time. The `next_action()` and `phase_payload()` responses include sources so agents know what to read before acting.
+- **`PostconditionSpec`** — new dataclass on `PlanPhase.postconditions`. Each postcondition has a free-text `description` and optional typed validator (`check`/`grep`/`test`/`manual` with a `target`). Bare strings coerce to `manual` type. Postconditions are surfaced in `inspect` and `start` responses.
+- **`requires_approval`** — boolean flag on `PlanPhase` (default `False`). When true, the `start` action returns `approval_required: true` and `requires_approval: true` in `resulting_state`, signalling the agent to pause before writing.
+- **`PlanBudget`** — new top-level dataclass on `PlanDocument.budget`. Fields: `deadline` (YYYY-MM-DD), `max_sessions` (int ≥ 1), `advisory` (bool, default `True`). Advisory budgets emit warnings; enforced budgets raise errors when exhausted. `sessions_used` is incremented by each `complete` action and persisted in the plan YAML. `budget_status()` returns `days_remaining`, `sessions_remaining`, `over_budget`, and related fields.
+- **`next_action()`** now returns a structured dict (`id`, `title`, `sources`, `postconditions`, `requires_approval`) instead of a plain string.
+- **`memory_plan_create`** accepts a `budget` parameter and phase dicts with all new fields.
+- **`memory_plan_execute`**: `inspect` includes full new fields in the phase payload; `start` surfaces sources, postconditions, approval gate, and budget status; `complete` increments `sessions_used` and emits budget warnings.
+
+All changes are backward-compatible: plans created before this revision load without modification and default all new fields to empty/false/null.
+
+**Reasoning:** The original plan schema could store phases and tasks but gave agents no structured cue for what to read before acting, what must be true after, when to pause for human input, or when a project budget was exceeded. This left the agent harness incomplete — plans were passive records rather than active execution surfaces. These extensions close that gap by making plans the primary source of per-phase pre-work directives and approval constraints.
+
+**Approved by:** agent (pending review)
+
 ## [2026-03-24] Split INTEGRATIONS.md into WORKTREE.md + INTEGRATIONS.md
 
 **Changed:** Split `HUMANS/docs/INTEGRATIONS.md` into two focused documents:

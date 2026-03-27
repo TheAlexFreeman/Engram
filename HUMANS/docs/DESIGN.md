@@ -20,7 +20,7 @@ Engram solves this by externalizing memory into a structured, version-controlled
 
 **2. Model-agnostic by construction.** The memory system doesn't depend on any model's capabilities, context window size, or tool-use abilities. It works with Claude, GPT, Gemini, Llama, or any future model that can read text files. The bootstrap sequence in README.md is written as instructions any competent model can follow. Platform-specific adapters (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) are thin pointers to the canonical source of truth, not duplicated rule sets. The machine-readable `agent-bootstrap.toml` mirrors the routing logic in `core/INIT.md` with token budgets and per-step metadata, giving tool-use-capable agents a structured alternative to parsing markdown.
 
-**3. Progressive disclosure.** The system has significant depth — trust-weighted retrieval, instruction containment, temporal decay, maturity-adaptive thresholds, emergent categorization, 73 MCP tools across three tiers — but none of this complexity is visible to a new user. Setup offers a browser-based wizard or a shell script with eight starter profiles. The first session is a four-phase collaborative conversation: the agent does real work with the user on a seed task, demonstrates capabilities inline, discovers the user's working style through observation, and confirms a profile at the end. The governance layer operates silently. The MCP tool surface is invisible unless the user looks. Complexity reveals itself only as the system matures and the user engages more deeply.
+**3. Progressive disclosure.** The system has significant depth — trust-weighted retrieval, instruction containment, temporal decay, maturity-adaptive thresholds, emergent categorization, 74 MCP tools across three tiers — but none of this complexity is visible to a new user. Setup offers a browser-based wizard or a shell script with eight starter profiles. The first session is a four-phase collaborative conversation: the agent does real work with the user on a seed task, demonstrates capabilities inline, discovers the user's working style through observation, and confirms a profile at the end. The governance layer operates silently. The MCP tool surface is invisible unless the user looks. Complexity reveals itself only as the system matures and the user engages more deeply.
 
 **4. The user owns the truth.** Every piece of memory has provenance metadata tracking where it came from, when it was last verified, and how much to trust it. The user can inspect, edit, revert, or delete anything at any time. Git provides a complete audit trail. The system never writes to protected files without explicit approval. The browser dashboard and viewers let users see their memory without starting an AI session. This is a fundamental architectural commitment: the human is always the authority, and the system must make its state transparent enough for the human to exercise that authority.
 
@@ -48,7 +48,7 @@ The repository treats the memory contract and the MCP server as two distinct lay
 
 **Format layer.** The modules under `core/tools/agent_memory_mcp/core/` expose the file-format and validation contract without depending on `mcp`. They re-export the canonical implementations in `core/tools/agent_memory_mcp/{errors,frontmatter_utils,git_repo,models,path_policy}.py`, which cover exception types, frontmatter parsing, git subprocess operations, structured write results, and path-policy validation. Human-facing tooling such as validators and setup scripts can import this layer directly.
 
-**Runtime layer.** The MCP server lives in `core/tools/agent_memory_mcp/server.py` and the tool registration modules under `core/tools/agent_memory_mcp/tools/`. This layer requires the `mcp` package and is responsible for exposing the governed read/write surface to agents. It organizes 73 tools into three tiers: Tier 0 (38 read-only), Tier 1 (28 semantic operations), and Tier 2 (7 gated write primitives). See [MCP.md](MCP.md) for the full tool reference.
+**Runtime layer.** The MCP server lives in `core/tools/agent_memory_mcp/server.py` and the tool registration modules under `core/tools/agent_memory_mcp/tools/`. This layer requires the `mcp` package and is responsible for exposing the governed read/write surface to agents. It organizes 74 tools into three tiers: Tier 0 (38 read-only), Tier 1 (29 semantic operations), and Tier 2 (7 gated write primitives). See [MCP.md](MCP.md) for the full tool reference.
 
 The package root (`engram_mcp.agent_memory_mcp`) is lazy by design: it doesn't import the server until a caller asks for `mcp`, `create_mcp`, or another runtime export. That keeps the boundary structural rather than purely documentary.
 
@@ -73,13 +73,40 @@ Most meaningful work spans multiple sessions. Engram's **plan system** treats mu
 - **Phases and tasks** — hierarchical breakdown with status tracking.
 - **Execution state** — `status`, `next_action`, phase progress percentages.
 - **Task-local sequencing** — plans are the one place outside `skills/` and `governance/` that may contain procedural instructions, scoped to that specific investigation.
+- **Sources** — per-phase reading list declaring what the agent should review before acting, along with the intent for each source.
+- **Postconditions** — per-phase success criteria (free-text, or typed with `check`/`grep`/`test`/`manual` validators) that declare what must be true after the phase is done.
+- **Approval gates** — `requires_approval: true` on a phase tells downstream tooling to pause and surface the gate before writing anything.
+- **Execution budget** — a top-level `budget` block with an optional `deadline` (YYYY-MM-DD), `max_sessions` cap, and an `advisory` flag that controls whether the cap is enforced or advisory-only.
 
-Four MCP tools manage the plan lifecycle:
+Five MCP tools manage the plan lifecycle:
 
 - `memory_plan_create` — create a structured plan with phases and tasks.
-- `memory_plan_execute` — advance phases, mark items complete, update execution state.
+- `memory_plan_execute` — advance phases, mark items complete, record failures, update execution state.
+- `memory_plan_verify` — evaluate a phase's postconditions without modifying state.
 - `memory_plan_review` — review outcomes, finalize or archive.
 - `memory_list_plans` — inventory plans in a project.
+
+#### Phase execution cycle
+
+For each phase, the recommended execution cycle is:
+
+1. **`inspect`** — confirm sources, postconditions, approval gate, and budget status before touching anything.
+2. **`start`** — transition the phase to `in-progress`; the response includes sources to read and whether approval is required.
+3. *(agent reads sources and performs the work)*
+4. **`complete`** (with `verify=true`) — evaluate postconditions, then seal the phase with a commit SHA if all pass. If postconditions fail, the phase stays `in-progress` and the response includes `verification_results` so the agent can diagnose and retry.
+5. On failure: **`record_failure`** — append a `PhaseFailure` entry (timestamped reason plus optional verification results) to the phase's failure log, then retry from step 3.
+
+The `inspect` and `start` responses both surface `sources`, `postconditions`, `requires_approval`, and `budget_status` so that agents have the full execution context without additional file reads.
+
+#### Single-call context assembly
+
+Phase 8 adds a complementary read path for the plan system: `memory_plan_briefing`. Instead of requiring an agent to chain `inspect`, source-file reads, approval lookup, and trace queries before starting work, the server can now assemble a single briefing packet for the requested phase. The packet composes `phase_payload()` with source excerpts, failure history, recent plan traces, approval state, and explicit context-budget metadata so the agent can trade fidelity against context cost deliberately. This keeps the plan system's write path unchanged while reducing setup overhead on every execution cycle.
+
+#### Inline verification and retry context
+
+Postconditions can be validated automatically via `memory_plan_verify` (read-only) or inline during `complete` (with `verify=true`). Four validator types are supported: `check` (file existence), `grep` (pattern search), `test` (allowlisted shell command, gated behind `ENGRAM_TIER2`), and `manual` (human-evaluated, always skipped by automation).
+
+When a phase fails, the agent records a `PhaseFailure` with `record_failure`. Failure history is surfaced in both `phase_payload()` (as `failures` list and `attempt_number`) and `next_action()` (as `has_prior_failures`, `attempt_number`, and `suggest_revision` when attempts ≥ 3). This gives agents full retry context without re-reading the plan file.
 
 Plans solve a specific problem: without persistent multi-session roadmaps, agents either lose track of complex work between conversations or rely on the user to re-supply the project context every session. With plans, the project's full context — goals, progress, decisions, next steps — is always available.
 
@@ -202,7 +229,13 @@ These capabilities were future aspirations when the system was first designed. T
 
 **Expanded starter profiles.** The browser-based setup wizard (`HUMANS/views/setup.html`) and the shell-based setup script (`HUMANS/setup/setup.sh`) offer eight starter profiles — from Software Developer and Researcher to Student, Creative Writer, and a blank template — covering a broad range of personas.
 
-**Browser-based memory visualization.** Six standalone HTML pages under `HUMANS/views/`: a seven-panel dashboard (user portrait, system health, active projects, recent activity, knowledge base, scratchpad, skills), a knowledge explorer with canvas-based force-directed knowledge graph, a project viewer with YAML plan timelines and phase indicators, a skills browser, a users browser, and a docs viewer. All client-side via the File System Access API.
+**Browser-based memory visualization.** Seven standalone HTML pages under `HUMANS/views/`: a seven-panel dashboard (user portrait, system health, active projects, recent activity, knowledge base, scratchpad, skills), a knowledge explorer with canvas-based force-directed knowledge graph, a project viewer with YAML plan timelines and phase indicators, a skills browser, a users browser, a docs viewer, and a trace viewer (`traces.html`) for exploring per-session span timelines. All client-side via the File System Access API.
+
+**Structured observability (TRACES.jsonl).** Every session now emits a `chat-NNN.traces.jsonl` file alongside its summary. Each line is a JSON span with `span_id`, `session_id`, `timestamp`, `span_type` (tool_call, plan_action, retrieval, verification, guardrail_check), `name`, `status` (ok, error, denied), optional `duration_ms`, `metadata`, and `cost`. Span recording is always-on and non-blocking — trace write failures never cause tool errors. The `memory_record_trace` MCP tool allows agents to emit custom spans; `memory_query_traces` supports filtering by session, date, span_type, plan_id, and status with aggregate statistics. Plan actions (create, start, complete, record_failure) and verification runs emit spans automatically. Session summaries include a `metrics:` frontmatter block (tool_calls, plan_actions, retrievals, errors, total_duration_ms, verification counts) when trace data exists. ACCESS.jsonl entries now include `event_type: "retrieval"` to distinguish retrieval events from future tool-call events; curation algorithms filter by this field. Trace files follow the session summary retention lifecycle.
+
+**Structured HITL (approval workflow).** `requires_approval: true` on a plan phase now triggers a full interrupt/resume workflow rather than a bare flag. When `memory_plan_execute` starts a `requires_approval` phase, it automatically creates a YAML approval document in `core/memory/working/approvals/pending/{plan_id}--{phase_id}.yaml`, transitions the plan to `paused`, and returns the approval context. The human reviews via `HUMANS/views/approvals.html` (File System Access API, no server required) or calls `memory_resolve_approval` directly. Approving transitions the plan back to `active`; rejecting transitions it to `blocked`. Expired approvals (default 7-day window) are detected lazily on read and moved to `resolved/` with status `expired`. A `paused` plan status was added to `PLAN_STATUSES` to express "waiting for human input" separately from `blocked` (technical dependency). The approval UI shows pending approvals with expiry countdowns, approve/reject buttons with comment fields, and a resolved history. `SUMMARY.md` under `working/approvals/` is regenerated after every operation. `memory_request_approval` and `memory_resolve_approval` are the explicit MCP tools; the auto-create path makes manual calls optional.
+
+**External tool registry.** `core/memory/skills/tool-registry/` stores YAML-based tool definitions grouped by provider (`shell.yaml`, `api.yaml`, `mcp-external.yaml`). Each definition captures `name` (slug), `description`, `approval_required`, `cost_tier` (free/low/medium/high), `timeout_seconds`, optional `rate_limit`, `tags`, `schema` (JSON Schema for inputs), and `notes`. Engram does not execute external tools — it stores metadata so agents and orchestrators can consult policies before invoking them. The `memory_register_tool` MCP tool creates or updates definitions; `memory_get_tool_policy` queries by name, provider, tags, or cost tier. `phase_payload()` now includes a `tool_policies` field that auto-resolves registry entries matching `test`-type postcondition targets (e.g. a postcondition targeting `"pre-commit run --all-files"` surfaces the `pre-commit-run` policy). SUMMARY.md is regenerated after every registration. The registry ships with seed entries for `pre-commit-run`, `pytest-run`, and `ruff-check`.
 
 **MCP health and analytics tools.** `memory_session_health_check` (session-start maintenance status), `memory_validate` (system integrity check), `memory_get_maturity_signals` (maturity indicators), `memory_access_analytics` (retrieval metrics), `memory_check_knowledge_freshness` (staleness detection), and `memory_audit_trust` (trust decay audit) provide programmatic system health reporting.
 

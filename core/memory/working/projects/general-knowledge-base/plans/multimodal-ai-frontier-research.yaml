@@ -1,0 +1,230 @@
+id: multimodal-ai-frontier-research
+project: general-knowledge-base
+created: '2026-03-26'
+origin_session: memory/activity/2026/03/26/chat-003
+status: not_started
+sessions_used: 0
+budget:
+  deadline: '2026-05-31'
+  max_sessions: 4
+  advisory: true
+purpose:
+  summary: >-
+    Build a multimodal/ subdomain under ai/frontier/ covering vision-language
+    models, audio-language systems, and embodied AI — areas where the existing
+    AI domain has only a single file (colpali.md).
+  context: |
+    By 2026, multimodal capability is central to frontier AI: GPT-4o, Gemini,
+    and open-source VLMs are routinely deployed in production. Yet the ai/
+    domain, despite 31 frontier files, covers this only through colpali.md
+    (visual document retrieval). There is no coverage of contrastive
+    vision-language pretraining (CLIP), generative vision models, audio
+    understanding, or embodied agents grounded in perception.
+
+    This plan creates core/memory/knowledge/ai/frontier/multimodal/ with
+    6–8 files. Because the existing frontier/ tree has well-established structure
+    (alignment/, architectures/, reasoning/ etc.), these files should match
+    that depth and style. The plan also produces a synthesis file for the RAG
+    system — multimodal retrieval is an important uncharted extension of the
+    existing RAG coverage.
+  questions:
+    - Does contrastive pretraining (CLIP) represent a distinct paradigm from
+      generative multimodal training, or is the distinction collapsing in 2026?
+    - How much should embodied AI (RT-2, GATO) be scoped here vs. under
+      a hypothetical future robotics domain?
+    - How should the multimodal synthesis connect to the existing
+      agentic-rag-patterns.md and long-context-architecture.md files?
+work:
+  phases:
+    - id: orientation
+      title: Orient to existing AI frontier coverage and define multimodal scope
+      status: not_started
+      blockers: []
+      sources:
+        - path: core/memory/knowledge/ai/frontier/retrieval-memory/colpali-visual-document-retrieval.md
+          type: internal
+          intent: >-
+            Understand what multimodal retrieval is already covered so the new
+            files extend rather than duplicate the colpali treatment.
+        - path: core/memory/knowledge/ai/frontier/retrieval-memory/agentic-rag-patterns.md
+          type: internal
+          intent: >-
+            Understand the RAG framing so the multimodal synthesis correctly
+            locates vision-language retrieval within the broader RAG picture.
+        - path: core/memory/knowledge/ai/frontier/retrieval-memory/long-context-architecture.md
+          type: internal
+          intent: >-
+            Check how long-context and retrieval tradeoffs are discussed — the
+            multimodal synthesis should address where multimodal context fits
+            in the long-context vs retrieval tradeoff.
+        - path: core/memory/knowledge/ai/frontier/multi-agent/agent-architecture-patterns.md
+          type: internal
+          intent: >-
+            Review agent architecture coverage to identify where multimodal
+            perception should slot into the agent architecture picture.
+        - path: core/memory/knowledge/ai/frontier-synthesis.md
+          type: internal
+          intent: >-
+            Understand the cross-cutting frontier synthesis so the multimodal
+            phase-4 synthesis extends it coherently.
+      postconditions:
+        - Scope note written to IN/ defining the 6–8 target files and their one-paragraph summaries
+        - Overlap with colpali.md identified and documented in scope note
+        - Confirmed target subdirectory path (ai/frontier/multimodal/)
+      requires_approval: false
+      changes:
+        - path: core/memory/working/projects/general-knowledge-base/IN/multimodal-scope-note.md
+          action: create
+          description: >-
+            Scope note defining the multimodal/ subdomain, target file list with
+            one-paragraph scopes, and notes on where each file connects to
+            existing frontier coverage.
+
+    - id: vision-language-models
+      title: Write files on vision-language models and generative vision
+      status: not_started
+      blockers:
+        - orientation
+      sources:
+        - path: core/memory/working/projects/general-knowledge-base/IN/multimodal-scope-note.md
+          type: internal
+          intent: Follow the finalized file list.
+        - path: core/memory/knowledge/ai/frontier/architectures/mixture-of-experts.md
+          type: internal
+          intent: >-
+            Check depth and formatting conventions for ai/frontier/ knowledge
+            files before writing new ones.
+        - path: core/memory/knowledge/ai/history/language-models/attention-and-the-transformer-breakthrough.md
+          type: internal
+          intent: >-
+            Review how architectural history is handled so the VLM files
+            accurately locate CLIP in the post-Transformer lineage.
+      postconditions:
+        - clip-contrastive-vision-language-pretraining.md created (trust medium)
+        - generative-vision-models-dalle-stable-diffusion.md created (trust medium)
+        - vision-language-models-gpt4v-gemini-llava.md created (trust medium)
+        - Each file has correct YAML frontmatter and related cross-references
+        - pre-commit hooks pass
+      requires_approval: false
+      changes:
+        - path: core/memory/knowledge/ai/frontier/multimodal/clip-contrastive-vision-language-pretraining.md
+          action: create
+          description: >-
+            Radford et al. CLIP (2021): contrastive image-text pretraining;
+            zero-shot transfer to vision tasks; the image encoder + text encoder
+            dual-tower architecture; ALIGN, BASIC, SigLIP extensions. Why
+            contrastive pretraining works — alignment in a shared embedding
+            space; semantic similarity geometry. Downstream: image search,
+            classification, VLM foundations.
+        - path: core/memory/knowledge/ai/frontier/multimodal/generative-vision-models-dalle-stable-diffusion.md
+          action: create
+          description: >-
+            DALL-E 1 (VQ-VAE + Transformer), DALL-E 2 (CLIP + diffusion
+            decoder), DALL-E 3 (T5 text + noise diffusion). Stable Diffusion:
+            latent diffusion, U-Net, VAE compression; classifier-free guidance.
+            Imagen: cascaded diffusion with T5. The text-to-image paradigm
+            shift; inpainting/outpainting/editing; aesthetic and copyright
+            debates.
+        - path: core/memory/knowledge/ai/frontier/multimodal/vision-language-models-gpt4v-gemini-llava.md
+          action: create
+          description: >-
+            GPT-4V and GPT-4o: visual token processing, chart/document/image
+            reasoning capabilities, measured benchmarks (MMMU, ScienceQA).
+            Google Gemini: native multimodality vs post-hoc fusion. Open-source
+            VLMs: LLaVA, InstructBLIP, Idefics — architecture patterns. The
+            benchmark landscape for VLM capability evaluation.
+
+    - id: audio-and-embodied
+      title: Write files on audio-language models and embodied AI
+      status: not_started
+      blockers:
+        - vision-language-models
+      sources:
+        - path: core/memory/knowledge/ai/frontier/multimodal/clip-contrastive-vision-language-pretraining.md
+          type: internal
+          intent: >-
+            Build on vision-language grounding established in phase 2 when
+            treating audio-language models (shared objective-function patterns).
+        - path: core/memory/knowledge/ai/frontier/reasoning/reasoning-models.md
+          type: internal
+          intent: >-
+            Check how reasoning capability is discussed — embodied AI files
+            should fit coherently with how planning and reasoning are treated
+            elsewhere in the frontier subdomain.
+      postconditions:
+        - audio-language-models-whisper-speech.md created (trust medium)
+        - embodied-ai-rt2-gato-saycan.md created (trust medium)
+        - pre-commit hooks pass
+      requires_approval: false
+      changes:
+        - path: core/memory/knowledge/ai/frontier/multimodal/audio-language-models-whisper-speech.md
+          action: create
+          description: >-
+            OpenAI Whisper: encoder-decoder transformer for ASR; multilingual;
+            robustness via diverse pre-training. AudioLM and AudioPaLM:
+            conditional audio generation with semantic and acoustic tokens.
+            MusicGen, AudioCraft: music and audio generation objectives.
+            GPT-4o audio modality. ASR benchmarks (WER on LibriSpeech, CommonVoice).
+        - path: core/memory/knowledge/ai/frontier/multimodal/embodied-ai-rt2-gato-saycan.md
+          action: create
+          description: >-
+            Google RT-2: VLM weights fine-tuned as robot policy; the vision-
+            language-action model paradigm. DeepMind GATO: one generalist agent
+            across text, images, games, robot control. SayCan (Google): LLMs
+            for affordance-grounded robot planning; combining language model
+            priors with physical affordance scoring. Challenges: distribution
+            shift, sim-to-real transfer, data requirements.
+
+    - id: synthesis-multimodal-rag
+      title: Write multimodal synthesis and RAG extension file
+      status: not_started
+      blockers:
+        - audio-and-embodied
+      sources:
+        - path: core/memory/knowledge/ai/frontier/retrieval-memory/agentic-rag-patterns.md
+          type: internal
+          intent: >-
+            Directly extend the RAG patterns file by grounding multimodal
+            retrieval in the existing agentic RAG framework.
+        - path: core/memory/knowledge/ai/frontier/retrieval-memory/colpali-visual-document-retrieval.md
+          type: internal
+          intent: >-
+            Connect and contextualize colpali within the broader multimodal
+            retrieval landscape now established.
+        - path: core/memory/knowledge/ai/frontier-synthesis.md
+          type: internal
+          intent: >-
+            Ensure the synthesis correctly updates the frontier-level picture
+            with multimodal developments.
+      postconditions:
+        - multimodal-rag-retrieval-patterns.md created (trust medium)
+        - multimodal-synthesis-agent-implications.md created (trust medium)
+        - multimodal/ SUMMARY.md created listing all 7 files with one-line descriptions
+        - All 7 files have correct frontmatter; pre-commit hooks pass
+        - IN/ scope note archived
+      requires_approval: true
+      changes:
+        - path: core/memory/knowledge/ai/frontier/multimodal/multimodal-rag-retrieval-patterns.md
+          action: create
+          description: >-
+            Retrieval over heterogeneous corpora (text + image + audio).
+            Late-interaction multimodal retrieval (ColPali extended). Cross-modal
+            query expansion: text query → image retrieval; image query → text
+            chunks. Embedding space alignment for multimodal search. Hybrid
+            retrieval pipelines; reranking across modalities. Benchmark:
+            BEIR extended for multimodal, ViDoRe.
+        - path: core/memory/knowledge/ai/frontier/multimodal/multimodal-synthesis-agent-implications.md
+          action: create
+          description: >-
+            Synthesis: the shift from text-only to natively multimodal agents;
+            perception as a first-class capability; cross-modal alignment as
+            the central technical challenge. Implications for Engram-adjacent
+            systems: multimodal memory, perception-action loops, multimodal
+            context window management. Future directions: unified tokenization,
+            any-to-any generation.
+        - path: core/memory/knowledge/ai/frontier/multimodal/SUMMARY.md
+          action: create
+          description: >-
+            Domain summary listing all 7 files with one-line descriptions,
+            recommended reading order, and cross-references to retrieval-memory/,
+            architectures/, and colpali.md.

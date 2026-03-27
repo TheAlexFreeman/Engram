@@ -198,7 +198,65 @@ def _append_markdown_block(existing: str, block: str) -> str:
     return trimmed_existing + "\n\n---\n\n" + trimmed_block + "\n"
 
 
-def _build_chat_summary_content(session_id: str, summary: str, key_topics: str = "") -> str:
+def _compute_trace_metrics(root: "Path", session_id: str) -> dict[str, object] | None:
+    """Read session trace file and return a metrics dict, or None if unavailable."""
+    import json as _json
+
+    from ...plan_utils import trace_file_path
+
+    abs_trace = root / trace_file_path(session_id)
+    if not abs_trace.exists():
+        return None
+
+    tool_calls = 0
+    plan_actions = 0
+    retrievals = 0
+    errors = 0
+    total_duration_ms = 0
+    verification_passes = 0
+    verification_failures = 0
+
+    try:
+        for line in abs_trace.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                span = _json.loads(line)
+            except _json.JSONDecodeError:
+                continue
+            stype = span.get("span_type", "")
+            sstatus = span.get("status", "")
+            if stype == "tool_call":
+                tool_calls += 1
+            elif stype == "plan_action":
+                plan_actions += 1
+            elif stype == "retrieval":
+                retrievals += 1
+            elif stype == "verification":
+                meta = span.get("metadata") or {}
+                verification_passes += int(meta.get("passed", 0))
+                verification_failures += int(meta.get("failed", 0))
+            if sstatus == "error":
+                errors += 1
+            total_duration_ms += span.get("duration_ms") or 0
+    except OSError:
+        return None
+
+    return {
+        "tool_calls": tool_calls,
+        "plan_actions": plan_actions,
+        "retrievals": retrievals,
+        "errors": errors,
+        "total_duration_ms": total_duration_ms,
+        "verification_passes": verification_passes,
+        "verification_failures": verification_failures,
+    }
+
+
+def _build_chat_summary_content(
+    session_id: str, summary: str, key_topics: str = "", root: "Path | None" = None
+) -> str:
     from ...frontmatter_utils import today_str
 
     today = today_str()
@@ -211,6 +269,11 @@ def _build_chat_summary_content(session_id: str, summary: str, key_topics: str =
     topics = [topic.strip() for topic in key_topics.split(",") if topic.strip()]
     if topics:
         fm_dict["key_topics"] = topics
+
+    if root is not None:
+        metrics = _compute_trace_metrics(root, session_id)
+        if metrics is not None:
+            fm_dict["metrics"] = metrics
 
     import frontmatter as fmlib  # type: ignore[import-untyped]
 
@@ -358,6 +421,7 @@ def _normalize_access_entry(
     min_helpfulness = _normalize_min_helpfulness(min_helpfulness_value)
 
     entry: dict[str, object] = {
+        "event_type": "retrieval",
         "file": file_path,
         "date": today_str(),
         "task": task_value.strip(),
@@ -988,7 +1052,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         today = today_str()
         abs_session_summary.write_text(
-            _build_chat_summary_content(session_id, summary, key_topics),
+            _build_chat_summary_content(session_id, summary, key_topics, root=root),
             encoding="utf-8",
         )
         repo.add(session_summary_rel)
@@ -1325,7 +1389,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         files_changed = [session_summary_rel]
         abs_session_summary.write_text(
-            _build_chat_summary_content(session_id, summary, key_topics),
+            _build_chat_summary_content(session_id, summary, key_topics, root=root),
             encoding="utf-8",
         )
         repo.add(session_summary_rel)

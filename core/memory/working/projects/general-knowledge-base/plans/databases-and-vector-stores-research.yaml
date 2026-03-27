@@ -1,0 +1,245 @@
+id: databases-and-vector-stores-research
+project: general-knowledge-base
+created: '2026-03-26'
+origin_session: memory/activity/2026/03/26/chat-003
+status: not_started
+sessions_used: 0
+budget:
+  deadline: '2026-05-15'
+  max_sessions: 4
+  advisory: true
+purpose:
+  summary: >-
+    Fill the zero-file gap in database systems beyond PostgreSQL by building
+    a databases/ subdomain under software-engineering/, covering vector stores,
+    graph databases, document stores, and polyglot persistence patterns.
+  context: |
+    The software-engineering/ domain has 69 files but its database coverage
+    is limited to PostgreSQL-in-Django (django-orm-postgres.md,
+    psycopg3-and-connection-management.md, django-database-pooling.md).
+    There are no files on vector databases (central to the RAG architecture
+    that the AI domain documents at length), graph databases, or document
+    stores. This gap is both a software-engineering blind spot and an
+    architectural inconsistency: the ai/frontier/retrieval-memory/ files
+    treat Chroma, Pinecone, and Weaviate as established technology without
+    any foundational coverage of how vector stores actually work.
+
+    This plan creates core/memory/knowledge/software-engineering/databases/
+    with 8–10 files, bridging the SE and AI domains.
+  questions:
+    - Should the vector store files focus on the index algorithms (HNSW, IVF)
+      or on the product comparison (Pinecone vs Weaviate vs Chroma)? Both?
+    - How much Neo4j-specific knowledge belongs here vs a more abstract
+      property-graph treatment?
+    - Is Redis coverage here the right place, or should it stay in the SE/devops
+      domain where redis-internals-and-operations.md already lives?
+    - What is the right depth for SQL fundamentals — is there already enough
+      in the Django ORM file?
+work:
+  phases:
+    - id: orientation
+      title: Orient to existing SE database coverage and define databases/ scope
+      status: not_started
+      blockers: []
+      sources:
+        - path: core/memory/knowledge/ai/frontier/retrieval-memory/rag-architecture.md
+          type: internal
+          intent: >-
+            Understand how vector databases are treated in the AI domain so
+            the SE databases/ files provide the technical grounding that the
+            RAG files assume without explaining.
+        - path: core/memory/knowledge/ai/frontier/retrieval-memory/persistent-memory-architectures.md
+          type: internal
+          intent: >-
+            Identify what persistent storage patterns are already covered for
+            AI memory to avoid duplicating agent-memory-specific storage
+            discussion in the general databases/ files.
+        - path: core/memory/knowledge/software-engineering/systems-architecture/content-addressable-storage-and-integrity.md
+          type: internal
+          intent: >-
+            Review existing systems-architecture files to understand what
+            lower-level storage concepts are already covered, so databases/
+            files build on these without re-explaining content-addressing,
+            WAL, and append-only logs.
+        - path: core/memory/knowledge/software-engineering/devops/redis-internals-and-operations.md
+          type: internal
+          intent: >-
+            Check what Redis coverage already exists — scope the databases/
+            Redis treatment to complement rather than duplicate the devops
+            file (focus on data structures and use-case selection rather
+            than ops).
+      postconditions:
+        - Scope note written to IN/ defining the 8–10 target files and their one-paragraph summaries
+        - Boundary with existing postgres/Redis/RAG files documented
+        - Confirmed target subdirectory (software-engineering/databases/)
+      requires_approval: false
+      changes:
+        - path: core/memory/working/projects/general-knowledge-base/IN/databases-scope-note.md
+          action: create
+          description: >-
+            Scope note defining the databases/ subdomain, target file list
+            with one-paragraph scopes, and boundaries with existing SE and
+            AI coverage.
+
+    - id: vector-databases
+      title: Write files on vector database internals and the market landscape
+      status: not_started
+      blockers:
+        - orientation
+      sources:
+        - path: core/memory/working/projects/general-knowledge-base/IN/databases-scope-note.md
+          type: internal
+          intent: Follow the finalized file list.
+        - path: core/memory/knowledge/mathematics/information-theory/pac-learning-sample-complexity.md
+          type: internal
+          intent: >-
+            Check conventions for mathematical depth in knowledge files —
+            the ANN index algorithm file will need to reference distance
+            geometry and probabilistic guarantees.
+        - path: core/memory/knowledge/ai/frontier/retrieval-memory/agentic-rag-patterns.md
+          type: internal
+          intent: >-
+            Ensure the vector database files provide the foundational grounding
+            that agentic-rag-patterns.md builds on — write to be the primer
+            that the RAG file expects.
+      postconditions:
+        - ann-index-algorithms-hnsw-ivf-lsh.md created (trust medium)
+        - vector-database-landscape-pinecone-weaviate-chroma.md created (trust medium)
+        - hybrid-search-sparse-dense-retrieval.md created (trust medium)
+        - Each file has correct YAML frontmatter and related cross-references
+        - pre-commit hooks pass
+      requires_approval: false
+      changes:
+        - path: core/memory/knowledge/software-engineering/databases/ann-index-algorithms-hnsw-ivf-lsh.md
+          action: create
+          description: >-
+            Approximate Nearest Neighbour search problem: exact kNN complexity;
+            why exhaustive search fails at scale. HNSW (Hierarchical Navigable
+            Small World): skip-list-inspired layered graph; insert and search
+            algorithms; ef_construction and ef_search parameters; recall-speed
+            tradeoff. IVF (Inverted File Index): k-means quantization; probe
+            count tradeoff. LSH (Locality-Sensitive Hashing): random projection
+            hash families; AND/OR constructions; false positive/negative rates.
+            Benchmarks: ANN-benchmarks.com methodology.
+        - path: core/memory/knowledge/software-engineering/databases/vector-database-landscape-pinecone-weaviate-chroma.md
+          action: create
+          description: >-
+            Pinecone: managed serverless; namespaces; metadata filtering;
+            sparse+dense hybrid; pricing model. Weaviate: open-source;
+            GraphQL API; multi-modal objects; modules system (text2vec,
+            img2vec); Kubernetes deployment. Chroma: embedded-first; Python
+            native; SQLite persistence; fast local dev. Qdrant: Rust native;
+            payload indexing; sparse vectors for BM25; payload conditions.
+            pgvector: PostgreSQL extension; IVFFLAT and HNSW; operational
+            simplicity tradeoff. Selection criteria matrix.
+        - path: core/memory/knowledge/software-engineering/databases/hybrid-search-sparse-dense-retrieval.md
+          action: create
+          description: >-
+            The hybrid search paradigm: dense vector similarity + sparse
+            keyword scoring. BM25 as sparse retrieval baseline: term frequency,
+            inverse document frequency, length normalisation. Score fusion
+            strategies: Reciprocal Rank Fusion (RRF), linear combination,
+            learned fusion. When hybrid outperforms dense-only (head queries,
+            rare terminology, exact-match requirements). Implementation in
+            Elasticsearch, Weaviate, Qdrant.
+
+    - id: graph-and-document-stores
+      title: Write files on graph databases and document stores
+      status: not_started
+      blockers:
+        - vector-databases
+      sources:
+        - path: core/memory/knowledge/software-engineering/databases/ann-index-algorithms-hnsw-ivf-lsh.md
+          type: internal
+          intent: >-
+            Maintain consistent depth and formatting established in the previous
+            phase when writing graph and document store files.
+        - path: core/memory/knowledge/mathematics/game-theory/mechanism-design-revelation-principle.md
+          type: internal
+          intent: >-
+            Check mathematical notation conventions — graph database files
+            will use graph-theoretic notation that should be handled similarly.
+      postconditions:
+        - property-graphs-neo4j-cypher.md created (trust medium)
+        - document-stores-mongodb-patterns.md created (trust medium)
+        - rdf-sparql-knowledge-graphs.md created (trust medium)
+        - pre-commit hooks pass
+      requires_approval: false
+      changes:
+        - path: core/memory/knowledge/software-engineering/databases/property-graphs-neo4j-cypher.md
+          action: create
+          description: >-
+            Property graph data model: nodes, relationships, labels, properties.
+            Neo4j architecture: store layout, native graph storage, index-free
+            adjacency. Cypher query language: MATCH/WHERE/RETURN; CREATE/MERGE
+            patterns; aggregation; WITH chaining. Use cases: recommendation
+            engines, fraud detection, knowledge graphs. Comparison with
+            relational joins at scale. APOC procedures and GDS library overview.
+        - path: core/memory/knowledge/software-engineering/databases/document-stores-mongodb-patterns.md
+          action: create
+          description: >-
+            MongoDB document model: BSON, flexible schema, embedded docs vs
+            references. Aggregation pipeline: $match, $group, $lookup, $unwind.
+            Indexing: single field, compound, text, geospatial, partial.
+            Data modelling patterns: one-to-many embedding vs referencing;
+            the materialized path pattern for trees; bucket pattern.
+            Transactions (multi-document ACID since 4.0). When to choose
+            MongoDB vs PostgreSQL JSONB.
+        - path: core/memory/knowledge/software-engineering/databases/rdf-sparql-knowledge-graphs.md
+          action: create
+          description: >-
+            RDF data model: subject-predicate-object triples; IRIs and blank
+            nodes; literals; named graphs. SPARQL: SELECT/CONSTRUCT/ASK/
+            DESCRIBE; OPTIONAL; FILTER; UNION; property paths. Ontology
+            languages: RDFS, OWL (class hierarchy, property restrictions).
+            Triple stores: Apache Jena, Virtuoso, Amazon Neptune. Knowledge
+            graph vs property graph tradeoffs. Wikidata as a worked example.
+
+    - id: synthesis-polyglot-persistence
+      title: Write polyglot persistence synthesis and databases/ SUMMARY
+      status: not_started
+      blockers:
+        - graph-and-document-stores
+      sources:
+        - path: core/memory/knowledge/software-engineering/databases/vector-database-landscape-pinecone-weaviate-chroma.md
+          type: internal
+          intent: >-
+            Draw from all preceding files to build the synthesis.
+        - path: core/memory/knowledge/software-engineering/systems-architecture/schema-evolution-strategies.md
+          type: internal
+          intent: >-
+            Connect the synthesis to existing systems-architecture coverage —
+            schema evolution concerns apply across all database paradigms.
+        - path: core/memory/knowledge/ai/frontier/retrieval-memory/rag-architecture.md
+          type: internal
+          intent: >-
+            Ensure the synthesis provides clear guidance on choosing between
+            vector stores, graph databases, and document stores for RAG-adjacent
+            use cases.
+      postconditions:
+        - polyglot-persistence-selection-guide.md created (trust medium)
+        - databases/ SUMMARY.md created listing all 8 files
+        - All 8 files have correct frontmatter; pre-commit hooks pass
+        - IN/ scope note archived
+        - software-engineering/SUMMARY.md updated to mention databases/ subdomain
+      requires_approval: true
+      changes:
+        - path: core/memory/knowledge/software-engineering/databases/polyglot-persistence-selection-guide.md
+          action: create
+          description: >-
+            Decision framework for database selection: PostgreSQL for relational
+            + JSONB + vector (via pgvector) when operational simplicity matters;
+            dedicated vector store when scale or advanced filtering required;
+            graph DB when traversal patterns dominate; document store when
+            schema flexibility and horizontal scale are primary; Redis for
+            sub-millisecond caching and ephemeral state. Multi-database
+            architectures: when to use each combination; data synchronisation
+            patterns; failure mode analysis. Specific guidance for RAG and
+            agent memory system use cases.
+        - path: core/memory/knowledge/software-engineering/databases/SUMMARY.md
+          action: create
+          description: >-
+            Domain summary listing all 8 files with one-line descriptions,
+            recommended reading order, and cross-references to
+            systems-architecture/, ai/frontier/retrieval-memory/, and
+            the existing Django ORM and devops Redis files.

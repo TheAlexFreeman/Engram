@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Engram &#8212; Traces</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="engram-shared.css">
+<style>
+/* ── Layout ──────────────────────────────────────────── */
+.traces-header {
+  background: var(--dark-bg); color: var(--dark-text);
+  padding: var(--space-md) var(--space-lg);
+}
+.traces-header h1 { color: #fff; margin-bottom: var(--space-xs); }
+.traces-header .subtitle { color: var(--dark-text-muted); }
+.traces-header .nav-link { color: var(--dark-text-muted); font-size: var(--text-sm); }
+.traces-header .nav-link:hover { color: #fff; }
+
+.traces-body {
+  max-width: 1100px; margin: 0 auto;
+  padding: var(--space-lg);
+}
+
+/* ── Session selector ────────────────────────────────── */
+.session-selector {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+.date-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: var(--text-sm); color: var(--color-text-secondary);
+}
+.date-row input[type="date"] {
+  border: 1px solid var(--color-border); border-radius: var(--radius-small);
+  padding: 0.3rem 0.5rem; font-family: inherit; font-size: var(--text-sm);
+  background: var(--color-surface);
+}
+.session-list-wrap {
+  flex: 1; min-width: 220px;
+}
+select.session-select {
+  width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-small);
+  padding: 0.35rem 0.5rem; font-family: inherit; font-size: var(--text-sm);
+  background: var(--color-surface); cursor: pointer;
+}
+
+/* ── Filters ─────────────────────────────────────────── */
+.filters-row {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+.filter-chip {
+  padding: 0.2rem 0.65rem; border-radius: 999px;
+  font-size: var(--text-xs); font-weight: 500; cursor: pointer;
+  border: 1px solid var(--color-border); background: var(--color-surface);
+  transition: background 0.12s;
+  user-select: none;
+}
+.filter-chip.active { background: var(--color-btn-primary); color: #fff; border-color: transparent; }
+.filter-chip:hover:not(.active) { background: var(--color-bg); }
+
+/* ── Stats bar ───────────────────────────────────────── */
+.stats-bar {
+  display: flex; gap: var(--space-md); flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+}
+.stat-item { text-align: center; }
+.stat-value { font-size: 1.25rem; font-weight: 700; color: var(--color-text-primary); }
+.stat-label { font-size: var(--text-xs); color: var(--color-text-secondary); margin-top: 2px; }
+
+/* ── Span type colors ────────────────────────────────── */
+:root {
+  --span-plan-action:   #6366f1;
+  --span-tool-call:     #0ea5e9;
+  --span-retrieval:     #10b981;
+  --span-verification:  #f59e0b;
+  --span-guardrail:     #ef4444;
+  --span-unknown:       #94a3b8;
+}
+
+/* ── Timeline / waterfall ────────────────────────────── */
+.timeline { display: flex; flex-direction: column; gap: 4px; }
+
+.span-row {
+  display: grid;
+  grid-template-columns: 10px 140px 1fr 70px 60px;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius-small);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  font-size: var(--text-sm);
+}
+.span-row:hover { background: var(--color-bg); border-color: var(--color-border-light); }
+.span-row.expanded { background: var(--color-bg); border-color: var(--color-border); }
+
+.span-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.span-dot.plan_action   { background: var(--span-plan-action); }
+.span-dot.tool_call     { background: var(--span-tool-call); }
+.span-dot.retrieval     { background: var(--span-retrieval); }
+.span-dot.verification  { background: var(--span-verification); }
+.span-dot.guardrail_check { background: var(--span-guardrail); }
+
+.span-name {
+  font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.span-bar-wrap { position: relative; height: 6px; background: var(--color-border-light); border-radius: 3px; }
+.span-bar {
+  position: absolute; left: 0; top: 0; height: 100%;
+  border-radius: 3px; min-width: 3px;
+}
+.span-duration {
+  text-align: right; font-size: var(--text-xs); color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.span-status { text-align: center; }
+.badge {
+  display: inline-block; padding: 1px 6px; border-radius: 999px;
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+}
+.badge.ok      { background: #d1fae5; color: #065f46; }
+.badge.error   { background: #fee2e2; color: #991b1b; }
+.badge.denied  { background: #fef3c7; color: #92400e; }
+
+/* ── Span detail ─────────────────────────────────────── */
+.span-detail {
+  display: none; margin: 0 0 4px 20px;
+  background: var(--color-bg); border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-sm);
+}
+.span-detail.visible { display: block; }
+.span-detail table { border-collapse: collapse; width: 100%; }
+.span-detail td { padding: 3px 8px 3px 0; vertical-align: top; }
+.span-detail td:first-child {
+  font-weight: 500; color: var(--color-text-secondary);
+  white-space: nowrap; width: 130px;
+}
+.span-detail pre {
+  background: var(--color-surface); border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-small); padding: 0.5rem; margin: 0.25rem 0 0 0;
+  overflow-x: auto; font-size: 11px; line-height: 1.5;
+}
+
+/* ── Legend ──────────────────────────────────────────── */
+.legend {
+  display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;
+  margin-bottom: var(--space-sm);
+  font-size: var(--text-xs); color: var(--color-text-secondary);
+}
+.legend-item { display: flex; align-items: center; gap: 0.3rem; }
+.legend-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.legend-dot.plan_action   { background: var(--span-plan-action); }
+.legend-dot.tool_call     { background: var(--span-tool-call); }
+.legend-dot.retrieval     { background: var(--span-retrieval); }
+.legend-dot.verification  { background: var(--span-verification); }
+.legend-dot.guardrail_check { background: var(--span-guardrail); }
+
+/* ── Empty / loading ─────────────────────────────────── */
+.state-msg {
+  text-align: center; padding: 3rem 1rem;
+  color: var(--color-text-secondary); font-size: var(--text-sm);
+}
+</style>
+</head>
+<body>
+
+<header class="traces-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem">
+    <div>
+      <h1 style="margin:0;font-size:1.5rem">Trace Viewer</h1>
+      <p class="subtitle" style="margin:4px 0 0">Session spans &mdash; tool calls, plan actions, retrievals</p>
+    </div>
+    <nav style="display:flex;gap:1rem">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="dashboard.html">Dashboard</a>
+      <a class="nav-link" href="projects.html">Projects</a>
+    </nav>
+  </div>
+</header>
+
+<main class="traces-body">
+
+  <!-- Toolbar -->
+  <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:var(--space-md);flex-wrap:wrap">
+    <button class="btn-primary" id="btn-open" onclick="openDir()">Open memory folder&hellip;</button>
+    <span id="dir-label" style="font-size:var(--text-sm);color:var(--color-text-secondary)">No folder selected</span>
+    <div style="margin-left:auto">
+      <button class="btn-small" onclick="refresh()">Refresh</button>
+    </div>
+  </div>
+
+  <!-- Session selector -->
+  <div class="session-selector" id="session-selector" style="display:none">
+    <div class="date-row">
+      <label for="date-from">From</label>
+      <input type="date" id="date-from" onchange="scanSessions()">
+      <label for="date-to">to</label>
+      <input type="date" id="date-to" onchange="scanSessions()">
+    </div>
+    <div class="session-list-wrap">
+      <select class="session-select" id="session-select" onchange="loadSession()">
+        <option value="">— select a session —</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-row" id="filters-row" style="display:none">
+    <span style="font-size:var(--text-xs);color:var(--color-text-secondary);font-weight:500">TYPE</span>
+    <div class="filter-chip active" data-filter-type="all" onclick="setTypeFilter('all',this)">All</div>
+    <div class="filter-chip" data-filter-type="plan_action" onclick="setTypeFilter('plan_action',this)">plan_action</div>
+    <div class="filter-chip" data-filter-type="tool_call" onclick="setTypeFilter('tool_call',this)">tool_call</div>
+    <div class="filter-chip" data-filter-type="retrieval" onclick="setTypeFilter('retrieval',this)">retrieval</div>
+    <div class="filter-chip" data-filter-type="verification" onclick="setTypeFilter('verification',this)">verification</div>
+    <div class="filter-chip" data-filter-type="guardrail_check" onclick="setTypeFilter('guardrail_check',this)">guardrail</div>
+    <span style="margin-left:0.5rem;font-size:var(--text-xs);color:var(--color-text-secondary);font-weight:500">STATUS</span>
+    <div class="filter-chip active" data-filter-status="all" onclick="setStatusFilter('all',this)">All</div>
+    <div class="filter-chip" data-filter-status="ok" onclick="setStatusFilter('ok',this)">ok</div>
+    <div class="filter-chip" data-filter-status="error" onclick="setStatusFilter('error',this)">error</div>
+    <div class="filter-chip" data-filter-status="denied" onclick="setStatusFilter('denied',this)">denied</div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar" id="stats-bar" style="display:none">
+    <div class="stat-item"><div class="stat-value" id="stat-total">0</div><div class="stat-label">Total spans</div></div>
+    <div class="stat-item"><div class="stat-value" id="stat-duration">—</div><div class="stat-label">Total duration</div></div>
+    <div class="stat-item"><div class="stat-value" id="stat-errors">0</div><div class="stat-label">Errors</div></div>
+    <div class="stat-item"><div class="stat-value" id="stat-plan-actions">0</div><div class="stat-label">Plan actions</div></div>
+    <div class="stat-item"><div class="stat-value" id="stat-retrievals">0</div><div class="stat-label">Retrievals</div></div>
+    <div class="stat-item"><div class="stat-value" id="stat-verifications">0</div><div class="stat-label">Verifications</div></div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend" id="legend" style="display:none">
+    <div class="legend-item"><div class="legend-dot plan_action"></div> plan_action</div>
+    <div class="legend-item"><div class="legend-dot tool_call"></div> tool_call</div>
+    <div class="legend-item"><div class="legend-dot retrieval"></div> retrieval</div>
+    <div class="legend-item"><div class="legend-dot verification"></div> verification</div>
+    <div class="legend-item"><div class="legend-dot guardrail_check"></div> guardrail_check</div>
+  </div>
+
+  <!-- Timeline -->
+  <div id="main-content">
+    <div class="state-msg">Open your Engram memory folder to view traces.</div>
+  </div>
+
+</main>
+
+<script src="engram-utils.js"></script>
+<script>
+var rootHandle = null;
+var allSpans = [];
+var activeTypeFilter = 'all';
+var activeStatusFilter = 'all';
+
+/* ── Directory ──────────────────────────────────────── */
+async function openDir() {
+  try {
+    rootHandle = await window.showDirectoryPicker({ mode: 'read' });
+    document.getElementById('dir-label').textContent = rootHandle.name;
+    // Set default date range to last 14 days
+    var today = new Date();
+    var twoWeeksAgo = new Date(today.getTime() - 14 * 86400000);
+    document.getElementById('date-to').value = formatDate(today);
+    document.getElementById('date-from').value = formatDate(twoWeeksAgo);
+    document.getElementById('session-selector').style.display = '';
+    await scanSessions();
+  } catch (e) {
+    if (e.name !== 'AbortError') alert('Could not open folder: ' + e.message);
+  }
+}
+
+function formatDate(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+/* ── Session scanning ───────────────────────────────── */
+async function scanSessions() {
+  if (!rootHandle) return;
+  var dateFrom = document.getElementById('date-from').value;
+  var dateTo = document.getElementById('date-to').value;
+  var actRoot = 'core/memory/activity';
+  var sessions = [];
+
+  // Iterate years
+  var yearsListing = await listDir(rootHandle, actRoot);
+  for (var y of (yearsListing.dirs || [])) {
+    var monthsListing = await listDir(rootHandle, actRoot + '/' + y);
+    for (var m of (monthsListing.dirs || [])) {
+      var daysListing = await listDir(rootHandle, actRoot + '/' + y + '/' + m);
+      for (var d of (daysListing.dirs || [])) {
+        var dateStr = y + '-' + m + '-' + d;
+        if (dateFrom && dateStr < dateFrom) continue;
+        if (dateTo && dateStr > dateTo) continue;
+        // Look for *.traces.jsonl files in this date directory
+        var filesListing = await listDir(rootHandle, actRoot + '/' + y + '/' + m + '/' + d);
+        for (var fname of (filesListing.files || [])) {
+          if (fname.endsWith('.traces.jsonl')) {
+            var sessionName = fname.replace('.traces.jsonl', '');
+            var sessionId = 'memory/activity/' + y + '/' + m + '/' + d + '/' + sessionName;
+            sessions.push({ id: sessionId, label: dateStr + ' / ' + sessionName, path: actRoot + '/' + y + '/' + m + '/' + d + '/' + fname });
+          }
+        }
+      }
+    }
+  }
+
+  // Sort newest first
+  sessions.sort(function(a, b) { return b.label.localeCompare(a.label); });
+
+  var sel = document.getElementById('session-select');
+  var prev = sel.value;
+  sel.innerHTML = '<option value="">— select a session —</option>';
+  for (var s of sessions) {
+    var opt = document.createElement('option');
+    opt.value = JSON.stringify(s);
+    opt.textContent = s.label;
+    sel.appendChild(opt);
+  }
+  if (prev) {
+    for (var i = 0; i < sel.options.length; i++) {
+      try { if (JSON.parse(sel.options[i].value).id === JSON.parse(prev).id) { sel.selectedIndex = i; break; } } catch (_) {}
+    }
+  }
+  if (sessions.length > 0 && !sel.value) {
+    sel.selectedIndex = 1;
+    await loadSession();
+  }
+}
+
+/* ── Session loading ────────────────────────────────── */
+async function loadSession() {
+  var sel = document.getElementById('session-select');
+  if (!sel.value) { clearView(); return; }
+  var session;
+  try { session = JSON.parse(sel.value); } catch (_) { return; }
+  document.getElementById('main-content').innerHTML = '<div class="state-msg">Loading&hellip;</div>';
+  var text = await readFile(rootHandle, session.path);
+  if (!text) { document.getElementById('main-content').innerHTML = '<div class="state-msg">Trace file not found.</div>'; return; }
+  allSpans = [];
+  for (var line of text.split('\n')) {
+    line = line.trim();
+    if (!line) continue;
+    try { allSpans.push(JSON.parse(line)); } catch (_) {}
+  }
+  // Sort oldest first for timeline
+  allSpans.sort(function(a, b) { return (a.timestamp || '').localeCompare(b.timestamp || ''); });
+  showUI();
+  renderTimeline();
+}
+
+function clearView() {
+  document.getElementById('main-content').innerHTML = '<div class="state-msg">Select a session to view its traces.</div>';
+  document.getElementById('stats-bar').style.display = 'none';
+  document.getElementById('filters-row').style.display = 'none';
+  document.getElementById('legend').style.display = 'none';
+}
+
+function showUI() {
+  document.getElementById('filters-row').style.display = '';
+  document.getElementById('stats-bar').style.display = '';
+  document.getElementById('legend').style.display = '';
+}
+
+/* ── Filters ────────────────────────────────────────── */
+function setTypeFilter(val, el) {
+  activeTypeFilter = val;
+  document.querySelectorAll('[data-filter-type]').forEach(function(c) { c.classList.remove('active'); });
+  el.classList.add('active');
+  renderTimeline();
+}
+
+function setStatusFilter(val, el) {
+  activeStatusFilter = val;
+  document.querySelectorAll('[data-filter-status]').forEach(function(c) { c.classList.remove('active'); });
+  el.classList.add('active');
+  renderTimeline();
+}
+
+/* ── Timeline rendering ─────────────────────────────── */
+function renderTimeline() {
+  var filtered = allSpans.filter(function(s) {
+    if (activeTypeFilter !== 'all' && s.span_type !== activeTypeFilter) return false;
+    if (activeStatusFilter !== 'all' && s.status !== activeStatusFilter) return false;
+    return true;
+  });
+
+  updateStats(filtered);
+
+  if (filtered.length === 0) {
+    document.getElementById('main-content').innerHTML = '<div class="state-msg">No spans match the current filters.</div>';
+    return;
+  }
+
+  var maxDuration = Math.max.apply(null, filtered.map(function(s) { return s.duration_ms || 0; }));
+
+  var html = '<div class="timeline">';
+  filtered.forEach(function(span, idx) {
+    var dotClass = span.span_type || 'unknown';
+    var barPct = maxDuration > 0 ? Math.max(2, Math.round((span.duration_ms || 0) / maxDuration * 100)) : 0;
+    var barColor = spanColor(span.span_type);
+    var durLabel = span.duration_ms != null ? span.duration_ms + 'ms' : '—';
+    var statusBadge = '<span class="badge ' + (span.status || '') + '">' + (span.status || '?') + '</span>';
+    var nameLabel = escHtml(span.name || span.span_type || '?');
+    html += '<div class="span-row" onclick="toggleDetail(' + idx + ',this)">';
+    html += '  <div class="span-dot ' + escHtml(dotClass) + '"></div>';
+    html += '  <div class="span-name" title="' + escHtml(span.span_type || '') + '">' + nameLabel + '</div>';
+    html += '  <div class="span-bar-wrap"><div class="span-bar" style="width:' + barPct + '%;background:' + barColor + '"></div></div>';
+    html += '  <div class="span-duration">' + escHtml(durLabel) + '</div>';
+    html += '  <div class="span-status">' + statusBadge + '</div>';
+    html += '</div>';
+    html += '<div class="span-detail" id="detail-' + idx + '">' + buildDetailHtml(span) + '</div>';
+  });
+  html += '</div>';
+  document.getElementById('main-content').innerHTML = html;
+}
+
+function toggleDetail(idx, row) {
+  var detail = document.getElementById('detail-' + idx);
+  var open = detail.classList.toggle('visible');
+  row.classList.toggle('expanded', open);
+}
+
+function buildDetailHtml(span) {
+  var rows = [
+    ['span_id', span.span_id],
+    ['session_id', span.session_id],
+    ['timestamp', span.timestamp],
+    ['span_type', span.span_type],
+    ['status', span.status],
+    ['duration_ms', span.duration_ms != null ? span.duration_ms + ' ms' : '—'],
+  ];
+  if (span.parent_span_id) rows.push(['parent_span_id', span.parent_span_id]);
+  var html = '<table>';
+  rows.forEach(function(r) {
+    html += '<tr><td>' + escHtml(r[0]) + '</td><td>' + escHtml(String(r[1] != null ? r[1] : '—')) + '</td></tr>';
+  });
+  html += '</table>';
+  if (span.metadata && Object.keys(span.metadata).length > 0) {
+    html += '<pre>' + escHtml(JSON.stringify(span.metadata, null, 2)) + '</pre>';
+  }
+  if (span.cost && Object.keys(span.cost).length > 0) {
+    html += '<div style="margin-top:4px;font-size:11px;color:var(--color-text-secondary)">cost: ' + escHtml(JSON.stringify(span.cost)) + '</div>';
+  }
+  return html;
+}
+
+/* ── Stats ──────────────────────────────────────────── */
+function updateStats(spans) {
+  var totalDuration = 0, errors = 0, planActions = 0, retrievals = 0, verifications = 0;
+  spans.forEach(function(s) {
+    totalDuration += s.duration_ms || 0;
+    if (s.status === 'error') errors++;
+    if (s.span_type === 'plan_action') planActions++;
+    if (s.span_type === 'retrieval') retrievals++;
+    if (s.span_type === 'verification') verifications++;
+  });
+  document.getElementById('stat-total').textContent = spans.length;
+  document.getElementById('stat-duration').textContent = totalDuration > 0 ? (totalDuration >= 1000 ? (totalDuration / 1000).toFixed(1) + 's' : totalDuration + 'ms') : '—';
+  document.getElementById('stat-errors').textContent = errors;
+  document.getElementById('stat-plan-actions').textContent = planActions;
+  document.getElementById('stat-retrievals').textContent = retrievals;
+  document.getElementById('stat-verifications').textContent = verifications;
+}
+
+/* ── Utilities ──────────────────────────────────────── */
+function spanColor(type) {
+  var colors = {
+    plan_action: '#6366f1', tool_call: '#0ea5e9', retrieval: '#10b981',
+    verification: '#f59e0b', guardrail_check: '#ef4444'
+  };
+  return colors[type] || '#94a3b8';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function refresh() { if (rootHandle) await scanSessions(); }
+</script>
+</body>
+</html>

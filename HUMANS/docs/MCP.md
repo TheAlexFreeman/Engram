@@ -122,7 +122,7 @@ For worktree deployments, set `MEMORY_REPO_ROOT` to the worktree path and `HOST_
 
 ## Tool surface
 
-The MCP server exposes **51+ tools** organized into three tiers. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
+The MCP server exposes **95+ tools** organized into three tiers. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
 
 ### Tier 0: Read-only tools
 
@@ -251,9 +251,195 @@ These are the normal write path. Each tool represents a bounded operation with b
 
 | Tool | Description |
 | --- | --- |
-| `memory_plan_create` | Create a new structured plan with phases and tasks. |
-| `memory_plan_execute` | Inspect, start, block, or complete a plan phase. |
+| `memory_plan_create` | Create a new structured plan with phases, sources, postconditions, and an optional budget. |
+| `memory_plan_execute` | Inspect, start, complete, or record failure on a plan phase; surfaces sources, approval gates, budget status, and verification results. |
+| `memory_plan_verify` | Evaluate a phase's postconditions without modifying plan state. Returns per-postcondition results and a pass/fail summary. |
 | `memory_plan_review` | Scan completed plans or export completed-plan artifacts. |
+| `memory_record_trace` | Emit a trace span to the session's TRACES.jsonl file. Non-blocking; always returns span_id on success. |
+| `memory_query_traces` | Query trace spans across sessions or date ranges. Returns spans (newest-first) with aggregates. |
+| `memory_plan_briefing` | Return a single-call briefing packet for a requested or next-actionable phase, including source excerpts, failures, recent traces, approval state, and context-budget metadata. |
+| `memory_stage_external` | Stage externally fetched content into a project `IN/` folder with governed frontmatter, URL sanitization, and per-project SHA-256 deduplication. |
+| `memory_scan_drop_zone` | Scan configured `[[watch_folders]]` entries from `agent-bootstrap.toml` and bulk-stage new `.md`, `.txt`, or `.pdf` content into project inboxes. |
+| `memory_run_eval` | Run declarative offline eval scenarios from `memory/skills/eval-scenarios/` and record compact eval summary spans. |
+| `memory_eval_report` | Read historical eval runs from trace spans and aggregate summary metrics and trends. |
+| `memory_register_tool` | Register or update an external tool definition in the tool registry. Returns action ("created"\|"updated") and registry_file path. |
+| `memory_get_tool_policy` | Query the tool registry by tool name, provider, tags, or cost tier. Returns matching definitions. |
+| `memory_request_approval` | Create a pending approval document for a plan phase and pause the plan. Returns approval_file, expires, and plan_status. |
+| `memory_resolve_approval` | Approve or reject a pending approval. Moves document to resolved/, updates plan status to active (approve) or blocked (reject). |
+
+**`memory_plan_create` key parameters**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `phases` | list | Phase dicts. Each phase may include `sources` (list of `{path, type, intent, uri?}`), `postconditions` (list of strings or `{description, type?, target?}`), and `requires_approval` (bool). |
+| `budget` | dict \| null | Optional budget: `deadline` (YYYY-MM-DD), `max_sessions` (int ≥ 1), `advisory` (bool, default `true`). |
+
+The `resulting_state` includes a `budget_status` block when a budget is set.
+
+**`memory_plan_execute` actions and response fields**
+
+| Action | Effect | Key response fields |
+| --- | --- | --- |
+| `inspect` | Read-only: returns full phase payload. | `phase.sources`, `phase.postconditions`, `phase.failures`, `phase.attempt_number`, `phase.requires_approval`, `budget_status` |
+| `start` | Transitions phase to `in-progress`. | `sources`, `postconditions`, `requires_approval`, `approval_required`, `budget_status` |
+| `complete` | Seals phase; increments `sessions_used`; emits budget warnings when limits are approached. When `verify=true`, evaluates postconditions first and blocks completion on failure. | `sessions_used`, `budget_status`, `warnings`, `verification_results` (when verify=true) |
+| `record_failure` | Appends a `PhaseFailure` entry to the phase (timestamp, reason, optional verification_results). | `failures`, `attempt_number` |
+
+`advisory: true` budgets emit warnings only. `advisory: false` budgets raise an error when the session cap is exceeded.
+
+**`memory_plan_verify` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `plan_id` | str | Plan identifier. |
+| `phase_id` | str | Phase to verify. |
+| `project_id` | str \| null | Optional project scope. |
+
+Returns `verification_results` (per-postcondition status/detail), `summary` (total/passed/failed/skipped/errors counts), and `all_passed` (bool). Four validator types: `check` (file existence), `grep` (pattern::path regex search), `test` (allowlisted shell command, requires `ENGRAM_TIER2=1`), `manual` (always skipped).
+
+**`memory_record_trace` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `session_id` | str | Session path, e.g. `memory/activity/2026/04/01/chat-001`. |
+| `span_type` | str | One of: `tool_call`, `plan_action`, `retrieval`, `verification`, `guardrail_check`. |
+| `name` | str | Human-readable operation name (e.g. `"complete"`, `"memory_plan_execute"`). |
+| `status` | str | One of: `ok`, `error`, `denied`. |
+| `duration_ms` | int \| null | Wall-clock duration in milliseconds. |
+| `metadata` | dict \| null | Type-specific context (sanitized: no secrets, strings truncated at 200 chars, max 2 KB). |
+| `cost` | dict \| null | Token counts: `{tokens_in, tokens_out}`. |
+| `parent_span_id` | str \| null | Parent span ID for nested operations. |
+
+Returns `{span_id, trace_file, status}`. `trace_file` is the TRACES.jsonl path for the session. Plan tools (create, start, complete, record_failure, verify) emit `plan_action` and `verification` spans automatically when a `session_id` is available.
+
+**`memory_query_traces` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `session_id` | str \| null | Exact session to query. |
+| `date_from` | str \| null | Start date (YYYY-MM-DD, inclusive). |
+| `date_to` | str \| null | End date (YYYY-MM-DD, inclusive). |
+| `span_type` | str \| null | Filter by span type. |
+| `plan_id` | str \| null | Filter by `metadata.plan_id`. |
+| `status` | str \| null | Filter by status. |
+| `limit` | int | Max spans to return (default 100). |
+
+Returns `{spans, total_matched, aggregates: {total_duration_ms, by_type, by_status, error_rate}}`.
+
+**`memory_plan_briefing` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `plan_id` | str | Plan identifier. |
+| `phase_id` | str \| null | Optional phase to brief on. Defaults to the next actionable phase. |
+| `project_id` | str \| null | Optional project scope. |
+| `max_context_chars` | int | Character budget for assembled context (default 8000, 0 = unlimited). |
+| `include_sources` | bool | Include source-file contents and excerpts. |
+| `include_traces` | bool | Include recent trace spans for the plan. |
+| `include_approval` | bool | Include approval document state when applicable. |
+
+Returns a single packet with `{plan_id, project_id, phase_id, phase, source_contents, failure_summary, recent_traces, approval_status, context_budget}`. When no actionable phase exists and `phase_id` is omitted, the tool returns a read-only plan summary with progress instead. If `MEMORY_SESSION_ID` is present, the tool records a `tool_call` trace span named `memory_plan_briefing`.
+
+**`memory_stage_external` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `project` | str | Target project slug. Content is staged under `memory/working/projects/{project}/IN/`. |
+| `filename` | str | Basename for the staged file. Path separators and traversal segments are rejected. |
+| `content` | str | Non-empty UTF-8 text content to persist. Limited to 500,000 characters. |
+| `source_url` | str | Original external URL. Query strings and fragments are stripped before persistence. |
+| `fetched_date` | str | Source fetch date in `YYYY-MM-DD` format. |
+| `source_label` | str | Human-readable source label written into frontmatter. |
+| `dry_run` | bool | When true, return the preview envelope without writing the file. |
+
+Returns `{action, project, target_path, frontmatter_preview, content_chars, content_hash, duplicate, staged}`. The tool always computes a SHA-256 content hash and checks `memory/working/projects/{project}/.staged-hashes.jsonl` before writing; duplicate content raises `DuplicateContentError`. Successful writes are direct project-inbox writes, not auto-commit operations. When `MEMORY_SESSION_ID` is present, the tool records a trace span for self-instrumentation.
+
+**`memory_scan_drop_zone` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `project_filter` | str \| null | Optional project slug; when set, scan only matching `[[watch_folders]]` entries. |
+
+The tool reads `[[watch_folders]]` from `agent-bootstrap.toml`. Supported keys per entry are `path`, `target_project`, `source_label`, `extensions`, and `recursive`. Relative paths resolve from the repo root. Watch folders inside the Engram repository are rejected so the scanner cannot ingest tracked repo files back into itself.
+
+Returns `{folders_scanned, files_found, staged_count, duplicate_count, error_count, items}`. Each `items` entry includes `{filename, target_project, outcome, hash, error_message}` where `outcome` is `staged`, `duplicate`, or `error`. `.pdf` files are extracted with `pypdf` first and `pdfminer.six` second; if neither library is available, the tool records a per-file error and continues scanning the remaining inputs. When `MEMORY_SESSION_ID` is present, the tool records a trace span for self-instrumentation.
+
+**`memory_run_eval` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `session_id` | str | Session path where eval summary spans should be recorded. |
+| `scenario_id` | str \| null | Optional single scenario slug to run. |
+| `tag` | str \| null | Optional tag filter; runs all matching scenarios. |
+
+Scenarios are loaded from `memory/skills/eval-scenarios/` and executed in isolated temporary directories. Only compact summary spans are written back to the live trace tree, one per scenario, with `name: eval:{scenario_id}` and metric metadata.
+
+`memory_run_eval` is gated behind `ENGRAM_TIER2=1` because scenarios may invoke verification on `test`-type postconditions. Returns `{results, summary, metrics}` and echoes `scenario_id` or `tag` when provided.
+
+**`memory_eval_report` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `date_from` | str \| null | Start date (YYYY-MM-DD, inclusive). |
+| `date_to` | str \| null | End date (YYYY-MM-DD, inclusive). |
+| `scenario_id` | str \| null | Optional single scenario slug filter. |
+
+Returns `{runs, summary, metrics, trends}` sourced from existing `eval:*` trace spans. `summary` reports total/pass/fail/error counts, `metrics` reports mean values across matching runs, and `trends` includes `{first, last, delta}` for metrics when at least two runs are available.
+
+**`memory_register_tool` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `name` | str | Tool identifier — kebab-case slug (required). |
+| `description` | str | What the tool does (required). |
+| `provider` | str | Provider group slug: `shell`, `api`, `mcp-external`, etc. (required). |
+| `approval_required` | bool | Whether invocation requires human approval (default false). |
+| `cost_tier` | str | `free` \| `low` \| `medium` \| `high` (default `free`). |
+| `schema` | dict \| null | JSON Schema for tool inputs. |
+| `rate_limit` | str \| null | Human-readable rate limit (e.g. `"100/day"`). |
+| `timeout_seconds` | int | Expected invocation timeout (default 30). |
+| `tags` | list[str] \| null | Categorization tags (e.g. `["lint", "test"]`). |
+| `notes` | str \| null | Usage notes, gotchas, or warnings. |
+
+Returns `{tool_name, provider, registry_file, action}` where `action` is `"created"` or `"updated"`. SUMMARY.md at `memory/skills/tool-registry/SUMMARY.md` is regenerated on every call.
+
+**`memory_get_tool_policy` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `tool_name` | str \| null | Exact tool name (returns at most one result). |
+| `provider` | str \| null | Filter by provider group. |
+| `tags` | list[str] \| null | Filter by tags (any-match). |
+| `cost_tier` | str \| null | Filter by cost tier. |
+
+At least one filter parameter is required. Returns `{tools: [...], count}`. An empty result is not an error. Each tool entry includes `provider`, `name`, `description`, `approval_required`, `cost_tier`, `timeout_seconds`, and optional `schema`, `rate_limit`, `tags`, `notes`.
+
+**`memory_request_approval` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `plan_id` | str | Plan slug. |
+| `phase_id` | str | Phase slug. Phase must be `pending` or `in-progress`. |
+| `project_id` | str \| null | Optional; inferred if unambiguous. |
+| `context` | str \| null | Additional context appended to auto-generated phase summary. |
+| `expires_days` | int | Days until expiry (default 7). |
+
+Creates a YAML approval document at `memory/working/approvals/pending/{plan_id}--{phase_id}.yaml` and sets `plan.status = "paused"`. If a pending approval already exists, returns the existing document without creating a duplicate. Returns `{approval_file, status: "pending", expires, plan_status: "paused"}`.
+
+**`memory_resolve_approval` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `plan_id` | str | Plan slug. |
+| `phase_id` | str | Phase slug. |
+| `resolution` | str | `"approve"` or `"reject"`. |
+| `comment` | str \| null | Optional reviewer comment. |
+
+Moves the approval document from `pending/` to `resolved/`, sets `plan.status = "active"` (approve) or `"blocked"` (reject), and regenerates `working/approvals/SUMMARY.md`. Errors if no pending approval document exists. Returns `{approval_file, status, plan_status}`.
+
+**Approval lifecycle**
+
+Plan statuses now include `paused` (awaiting human approval), in addition to `draft`, `active`, `blocked`, `completed`, and `abandoned`. Transitions: `active` → `paused` (approval requested), `paused` → `active` (approved), `paused` → `blocked` (rejected or expired). Expiry is lazy: checked on read of the approval document; expired approvals move to `resolved/` with `status: expired`. `memory_plan_execute` with `action: "start"` on a `requires_approval` phase automatically invokes the approval creation logic if no document exists.
 
 **Knowledge lifecycle**
 
