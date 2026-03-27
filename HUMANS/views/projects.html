@@ -1119,11 +1119,56 @@
     }
 
     // Graceful fallback if the YAML parser is unavailable or parsing fails.
+    // Extracts enough structure for plan cards and flowcharts to render.
     var minimal = {};
     var idMatch = text.match(/^\s*id:\s*(.+)\s*$/m);
     var statusMatch = text.match(/^\s*status:\s*(.+)\s*$/m);
     if (idMatch) minimal.id = idMatch[1];
     if (statusMatch) minimal.status = statusMatch[1];
+
+    var summaryMatch = text.match(/purpose:\s*\n\s+summary:\s*(.+)/);
+    if (summaryMatch) minimal.summary = summaryMatch[1];
+
+    // Extract phases from indented blocks
+    var phasesStart = text.indexOf('phases:');
+    if (phasesStart >= 0) {
+      var phasesText = text.substring(phasesStart);
+      var phaseBlocks = phasesText.split(/\n\s{4}- id:\s*/);
+      phaseBlocks.shift();
+      var phases = [];
+      for (var pi = 0; pi < phaseBlocks.length; pi++) {
+        var block = phaseBlocks[pi];
+        var phase = {};
+        phase.id = block.split(/\r?\n/)[0].trim();
+        var titleM = block.match(/title:\s*(.+)/);
+        if (titleM) phase.title = titleM[1].trim();
+        var statusM = block.match(/status:\s*(.+)/);
+        if (statusM) phase.status = statusM[1].trim();
+        var blockersM = block.match(/blockers:\s*\[([^\]]*)\]/);
+        if (blockersM && blockersM[1].trim()) {
+          phase.blockers = blockersM[1].split(',').map(function (b) {
+            return b.trim().replace(/^["']|["']$/g, '');
+          }).filter(Boolean);
+        }
+        var changeBlocks = block.split(/\n\s{8}- path:\s*/);
+        changeBlocks.shift();
+        if (changeBlocks.length > 0) {
+          phase.changes = [];
+          for (var ci = 0; ci < changeBlocks.length; ci++) {
+            var cb = changeBlocks[ci];
+            var change = { path: cb.split(/\r?\n/)[0].trim() };
+            var actionM = cb.match(/action:\s*(.+)/);
+            if (actionM) change.action = actionM[1].trim();
+            var descM = cb.match(/description:\s*(.+)/);
+            if (descM) change.description = descM[1].trim();
+            phase.changes.push(change);
+          }
+        }
+        phases.push(phase);
+      }
+      minimal.work = { phases: phases };
+    }
+
     return normalizePlanModel(minimal, fallbackId);
   }
 

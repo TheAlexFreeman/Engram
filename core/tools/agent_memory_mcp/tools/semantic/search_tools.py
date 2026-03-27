@@ -255,24 +255,31 @@ class EmbeddingIndex:
                 except Exception:
                     stats["errors"] += 1
 
-        # Prune deleted files
+        # Prune deleted files — only within the requested scopes so
+        # that a partial rebuild does not remove chunks from untouched scopes.
+        scope_prefixes = tuple(s.rstrip("/") + "/" for s in scopes)
         with sqlite3.connect(str(self.db_path)) as conn:
             indexed_files = {
                 row[0] for row in conn.execute("SELECT file_path FROM file_meta").fetchall()
             }
         for old_file in indexed_files - seen_files:
-            self.remove_file(old_file)
-            stats["removed"] += 1
+            if any(old_file.startswith(prefix) for prefix in scope_prefixes):
+                self.remove_file(old_file)
+                stats["removed"] += 1
 
         return stats
 
     def search_vectors(
         self,
         query: str,
-        limit: int = 30,
+        limit: int | None = 30,
         scope: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Return chunks ranked by cosine similarity to *query*."""
+        """Return chunks ranked by cosine similarity to *query*.
+
+        When *limit* is ``None`` all matching chunks are returned (useful
+        when post-retrieval filtering such as trust filtering is planned).
+        """
         import numpy as np
 
         query_emb = self.model.encode([query], normalize_embeddings=True)[0]
@@ -302,7 +309,9 @@ class EmbeddingIndex:
                 }
             )
         results.sort(key=lambda x: x["similarity"], reverse=True)
-        return results[:limit]
+        if limit is not None:
+            return results[:limit]
+        return results
 
     def chunk_count(self) -> int:
         """Return total number of indexed chunks."""
@@ -499,28 +508,15 @@ def register_tools(
         if index.chunk_count() == 0:
             return "No files indexed. The memory repository may be empty."
 
-        # 1) Vector similarity
-        vector_results = index.search_vectors(query, limit=limit * 3, scope=scope)
+        # 1) Vector similarity — when trust filtering is active, fetch
+        # the full candidate set so high-trust matches are not dropped
+        # before the filter runs.
+        vector_limit = None if min_trust else limit * 3
+        vector_results = index.search_vectors(query, limit=vector_limit, scope=scope)
         if not vector_results:
             return f"No results found for: {query}"
 
-        # 2) BM25 scoring over matched chunks
-        corpus_tokens = [_tokenize(r["content"]) for r in vector_results]
-        bm25 = _BM25(corpus_tokens)
-        query_tokens = _tokenize(query)
-        for i, result in enumerate(vector_results):
-            result["bm25"] = bm25.score(query_tokens, i)
-
-        # Normalise BM25 scores to [0, 1]
-        max_bm25 = max((r["bm25"] for r in vector_results), default=1.0)
-        if max_bm25 > 0:
-            for r in vector_results:
-                r["bm25_norm"] = r["bm25"] / max_bm25
-        else:
-            for r in vector_results:
-                r["bm25_norm"] = 0.0
-
-        # 3) Freshness scoring
+        # 2) Freshness + trust metadata (needed before trust filtering)
         from ...freshness import effective_date, freshness_score
         from ...frontmatter_utils import read_with_frontmatter
 
@@ -543,10 +539,8 @@ def register_tools(
                     freshness_cache[fp] = 0.0
                     trust_cache[fp] = ""
 
-        # 4) Helpfulness scoring
-        helpfulness_map = _load_helpfulness_map(root) if helpfulness_weight > 0 else {}
-
-        # 5) Trust filtering
+        # 3) Trust filtering — applied before truncation so qualifying
+        # matches are never dropped by the candidate-pool limit.
         trust_levels = {"low": 0, "medium": 1, "high": 2}
         if min_trust and min_trust.lower() in trust_levels:
             min_trust_level = trust_levels[min_trust.lower()]
@@ -555,6 +549,31 @@ def register_tools(
                 for r in vector_results
                 if trust_levels.get(trust_cache.get(r["file_path"], ""), 0) >= min_trust_level
             ]
+
+        # Truncate to a manageable candidate pool after trust filtering
+        vector_results = vector_results[: limit * 3]
+
+        if not vector_results:
+            return f"No results found for: {query}"
+
+        # 4) BM25 scoring over matched chunks
+        corpus_tokens = [_tokenize(r["content"]) for r in vector_results]
+        bm25 = _BM25(corpus_tokens)
+        query_tokens = _tokenize(query)
+        for i, result in enumerate(vector_results):
+            result["bm25"] = bm25.score(query_tokens, i)
+
+        # Normalise BM25 scores to [0, 1]
+        max_bm25 = max((r["bm25"] for r in vector_results), default=1.0)
+        if max_bm25 > 0:
+            for r in vector_results:
+                r["bm25_norm"] = r["bm25"] / max_bm25
+        else:
+            for r in vector_results:
+                r["bm25_norm"] = 0.0
+
+        # 5) Helpfulness scoring
+        helpfulness_map = _load_helpfulness_map(root) if helpfulness_weight > 0 else {}
 
         # 6) Compute combined scores
         for r in vector_results:
