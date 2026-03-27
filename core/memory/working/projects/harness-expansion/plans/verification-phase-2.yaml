@@ -103,7 +103,7 @@ work:
         with pass/fail per postcondition.
   - id: verify-integration
     title: Wire verification into memory_plan_execute complete action
-    status: pending
+    status: in-progress
     commit: null
     blockers:
     - verify-tool-impl
