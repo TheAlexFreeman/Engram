@@ -17,6 +17,7 @@ import yaml
 from engram_mcp.agent_memory_mcp.errors import NotFoundError, ValidationError
 from engram_mcp.agent_memory_mcp.plan_utils import (
     ChangeSpec,
+    PhaseFailure,
     PlanBudget,
     PlanDocument,
     PlanPhase,
@@ -33,6 +34,7 @@ from engram_mcp.agent_memory_mcp.plan_utils import (
     project_plan_path,
     save_plan,
     validate_plan_references,
+    verify_postconditions,
 )
 
 # ---------------------------------------------------------------------------
@@ -1030,6 +1032,380 @@ class TestSourceSpecContentPrefix(unittest.TestCase):
             s = SourceSpec(path="core/missing.py", type="internal", intent="Read")
             with self.assertRaises(ValidationError):
                 s.validate_exists(content_root)
+
+
+# ===========================================================================
+# PhaseFailure dataclass
+# ===========================================================================
+
+
+class TestPhaseFailure(unittest.TestCase):
+    def test_valid_failure(self) -> None:
+        f = PhaseFailure(timestamp="2026-03-26T12:00:00Z", reason="Test failed")
+        self.assertEqual(f.attempt, 1)
+        self.assertIsNone(f.verification_results)
+
+    def test_failure_with_verification_results(self) -> None:
+        results = [{"postcondition": "File exists", "status": "fail"}]
+        f = PhaseFailure(
+            timestamp="2026-03-26T12:00:00Z",
+            reason="Postcondition check failed",
+            verification_results=results,
+            attempt=2,
+        )
+        self.assertEqual(f.attempt, 2)
+        self.assertEqual(f.verification_results, results)
+
+    def test_empty_timestamp_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            PhaseFailure(timestamp="", reason="Failed")
+
+    def test_empty_reason_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            PhaseFailure(timestamp="2026-03-26T12:00:00Z", reason="")
+
+    def test_zero_attempt_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            PhaseFailure(timestamp="2026-03-26T12:00:00Z", reason="Failed", attempt=0)
+
+    def test_negative_attempt_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            PhaseFailure(timestamp="2026-03-26T12:00:00Z", reason="Failed", attempt=-1)
+
+    def test_to_dict_omits_verification_results_when_none(self) -> None:
+        f = PhaseFailure(timestamp="2026-03-26T12:00:00Z", reason="Failed")
+        d = f.to_dict()
+        self.assertNotIn("verification_results", d)
+        self.assertEqual(d["timestamp"], "2026-03-26T12:00:00Z")
+        self.assertEqual(d["reason"], "Failed")
+        self.assertEqual(d["attempt"], 1)
+
+    def test_to_dict_includes_verification_results_when_set(self) -> None:
+        results = [{"status": "fail"}]
+        f = PhaseFailure(
+            timestamp="2026-03-26T12:00:00Z",
+            reason="Failed",
+            verification_results=results,
+            attempt=3,
+        )
+        d = f.to_dict()
+        self.assertIn("verification_results", d)
+        self.assertEqual(d["attempt"], 3)
+
+    def test_whitespace_trimmed(self) -> None:
+        f = PhaseFailure(timestamp="  2026-03-26T12:00:00Z  ", reason="  Failed  ")
+        self.assertEqual(f.timestamp, "2026-03-26T12:00:00Z")
+        self.assertEqual(f.reason, "Failed")
+
+
+# ===========================================================================
+# PhaseFailure round-trip serialization
+# ===========================================================================
+
+
+class TestPhaseFailureRoundTrip(unittest.TestCase):
+    def test_failures_survive_save_load(self) -> None:
+        plan = _minimal_plan()
+        plan.phases[0].failures = [
+            PhaseFailure(
+                timestamp="2026-03-26T12:00:00Z",
+                reason="First attempt failed",
+                attempt=1,
+            ),
+            PhaseFailure(
+                timestamp="2026-03-26T13:00:00Z",
+                reason="Second attempt failed",
+                verification_results=[{"status": "fail", "detail": "missing"}],
+                attempt=2,
+            ),
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan_path = Path(tmpdir) / "plan.yaml"
+            save_plan(plan_path, plan)
+            loaded = load_plan(plan_path)
+
+        self.assertEqual(len(loaded.phases[0].failures), 2)
+        self.assertEqual(loaded.phases[0].failures[0].reason, "First attempt failed")
+        self.assertEqual(loaded.phases[0].failures[1].attempt, 2)
+        self.assertEqual(
+            loaded.phases[0].failures[1].verification_results,
+            [{"status": "fail", "detail": "missing"}],
+        )
+
+    def test_empty_failures_omitted_from_yaml(self) -> None:
+        plan = _minimal_plan()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan_path = Path(tmpdir) / "plan.yaml"
+            save_plan(plan_path, plan)
+            raw = plan_path.read_text(encoding="utf-8")
+        self.assertNotIn("failures:", raw)
+
+    def test_old_plan_without_failures_loads(self) -> None:
+        old_plan_dict = {
+            "id": "old-plan",
+            "project": "test-project",
+            "created": "2026-01-01",
+            "origin_session": "memory/activity/2026/01/01/chat-001",
+            "status": "active",
+            "purpose": {"summary": "Old plan", "context": "No failures field."},
+            "work": {
+                "phases": [
+                    {
+                        "id": "p1",
+                        "title": "Phase 1",
+                        "status": "pending",
+                        "commit": None,
+                        "blockers": [],
+                        "changes": [
+                            {
+                                "path": "memory/working/notes/x.md",
+                                "action": "create",
+                                "description": "Test",
+                            },
+                        ],
+                    },
+                ],
+            },
+            "review": None,
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan_path = _write_plan_yaml(Path(tmpdir), old_plan_dict)
+            plan = load_plan(plan_path)
+        self.assertEqual(plan.phases[0].failures, [])
+
+
+# ===========================================================================
+# verify_postconditions — all four types
+# ===========================================================================
+
+
+class TestVerifyPostconditions(unittest.TestCase):
+    def test_manual_postcondition_skipped(self) -> None:
+        plan = _minimal_plan()
+        plan.phases[0].postconditions = [PostconditionSpec(description="Manual check")]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = verify_postconditions(plan, plan.phases[0], Path(tmpdir))
+        self.assertTrue(result["all_passed"])
+        self.assertEqual(result["summary"]["skipped"], 1)
+        self.assertEqual(result["verification_results"][0]["status"], "skip")
+
+    def test_check_postcondition_pass(self) -> None:
+        plan = _minimal_plan()
+        plan.phases[0].postconditions = [
+            PostconditionSpec(description="File exists", type="check", target="test.txt"),
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "test.txt").write_text("content")
+            result = verify_postconditions(plan, plan.phases[0], root)
+        self.assertTrue(result["all_passed"])
+        self.assertEqual(result["verification_results"][0]["status"], "pass")
+
+    def test_check_postcondition_fail(self) -> None:
+        plan = _minimal_plan()
+        plan.phases[0].postconditions = [
+            PostconditionSpec(description="File exists", type="check", target="missing.txt"),
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = verify_postconditions(plan, plan.phases[0], Path(tmpdir))
+        self.assertFalse(result["all_passed"])
+        self.assertEqual(result["verification_results"][0]["status"], "fail")
+
+    def test_grep_postcondition_pass(self) -> None:
+        plan = _minimal_plan()
+        plan.phases[0].postconditions = [
+            PostconditionSpec(
+                description="Pattern found",
+                type="grep",
+                target="hello::test.txt",
+            ),
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "test.txt").write_text("say hello world")
+            result = verify_postconditions(plan, plan.phases[0], root)
+        self.assertTrue(result["all_passed"])
+        self.assertEqual(result["verification_results"][0]["status"], "pass")
+
+    def test_grep_postcondition_fail(self) -> None:
+        plan = _minimal_plan()
+        plan.phases[0].postconditions = [
+            PostconditionSpec(
+                description="Pattern found",
+                type="grep",
+                target="nonexistent_pattern::test.txt",
+            ),
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "test.txt").write_text("no match here")
+            result = verify_postconditions(plan, plan.phases[0], root)
+        self.assertFalse(result["all_passed"])
+        self.assertEqual(result["verification_results"][0]["status"], "fail")
+
+    def test_grep_postcondition_bad_format(self) -> None:
+        plan = _minimal_plan()
+        plan.phases[0].postconditions = [
+            PostconditionSpec(
+                description="Bad format",
+                type="grep",
+                target="no-double-colon",
+            ),
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = verify_postconditions(plan, plan.phases[0], Path(tmpdir))
+        self.assertFalse(result["all_passed"])
+        self.assertEqual(result["verification_results"][0]["status"], "error")
+
+    def test_test_postcondition_requires_engram_tier2(self) -> None:
+        import os
+
+        plan = _minimal_plan()
+        plan.phases[0].postconditions = [
+            PostconditionSpec(description="Tests pass", type="test", target="pytest -q"),
+        ]
+        old_val = os.environ.pop("ENGRAM_TIER2", None)
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                result = verify_postconditions(plan, plan.phases[0], Path(tmpdir))
+        finally:
+            if old_val is not None:
+                os.environ["ENGRAM_TIER2"] = old_val
+        self.assertFalse(result["all_passed"])
+        self.assertIn("ENGRAM_TIER2", result["verification_results"][0]["detail"])
+
+    def test_test_postcondition_rejects_non_allowlisted(self) -> None:
+        import os
+
+        plan = _minimal_plan()
+        plan.phases[0].postconditions = [
+            PostconditionSpec(description="Bad cmd", type="test", target="rm -rf /"),
+        ]
+        old_val = os.environ.get("ENGRAM_TIER2")
+        os.environ["ENGRAM_TIER2"] = "1"
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                result = verify_postconditions(plan, plan.phases[0], Path(tmpdir))
+        finally:
+            if old_val is None:
+                os.environ.pop("ENGRAM_TIER2", None)
+            else:
+                os.environ["ENGRAM_TIER2"] = old_val
+        self.assertFalse(result["all_passed"])
+        self.assertIn("not in allowlist", result["verification_results"][0]["detail"])
+
+    def test_test_postcondition_rejects_metacharacters(self) -> None:
+        import os
+
+        plan = _minimal_plan()
+        plan.phases[0].postconditions = [
+            PostconditionSpec(description="Injected", type="test", target="pytest; rm -rf /"),
+        ]
+        old_val = os.environ.get("ENGRAM_TIER2")
+        os.environ["ENGRAM_TIER2"] = "1"
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                result = verify_postconditions(plan, plan.phases[0], Path(tmpdir))
+        finally:
+            if old_val is None:
+                os.environ.pop("ENGRAM_TIER2", None)
+            else:
+                os.environ["ENGRAM_TIER2"] = old_val
+        self.assertFalse(result["all_passed"])
+        self.assertIn("metacharacters", result["verification_results"][0]["detail"])
+
+    def test_empty_postconditions_all_passed(self) -> None:
+        plan = _minimal_plan()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = verify_postconditions(plan, plan.phases[0], Path(tmpdir))
+        self.assertTrue(result["all_passed"])
+        self.assertEqual(result["summary"]["total"], 0)
+
+    def test_mixed_postconditions_summary(self) -> None:
+        plan = _minimal_plan()
+        plan.phases[0].postconditions = [
+            PostconditionSpec(description="Manual", type="manual"),
+            PostconditionSpec(description="Check exists", type="check", target="found.txt"),
+            PostconditionSpec(description="Check missing", type="check", target="missing.txt"),
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "found.txt").write_text("x")
+            result = verify_postconditions(plan, plan.phases[0], root)
+        self.assertFalse(result["all_passed"])
+        self.assertEqual(result["summary"]["passed"], 1)
+        self.assertEqual(result["summary"]["failed"], 1)
+        self.assertEqual(result["summary"]["skipped"], 1)
+
+
+# ===========================================================================
+# Retry context in phase_payload and next_action
+# ===========================================================================
+
+
+class TestRetryContext(unittest.TestCase):
+    def test_phase_payload_no_failures_default_attempt(self) -> None:
+        plan = _minimal_plan()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = phase_payload(plan, plan.phases[0], Path(tmpdir))
+        self.assertEqual(payload["phase"]["failures"], [])
+        self.assertEqual(payload["phase"]["attempt_number"], 1)
+
+    def test_phase_payload_with_failures(self) -> None:
+        plan = _minimal_plan()
+        plan.phases[0].failures = [
+            PhaseFailure(timestamp="2026-03-26T12:00:00Z", reason="First fail", attempt=1),
+            PhaseFailure(timestamp="2026-03-26T13:00:00Z", reason="Second fail", attempt=2),
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = phase_payload(plan, plan.phases[0], Path(tmpdir))
+        self.assertEqual(len(payload["phase"]["failures"]), 2)
+        self.assertEqual(payload["phase"]["attempt_number"], 3)
+
+    def test_next_action_no_failures(self) -> None:
+        plan = _minimal_plan()
+        result = next_action(plan)
+        self.assertEqual(result["attempt_number"], 1)
+        self.assertFalse(result["has_prior_failures"])
+        self.assertNotIn("suggest_revision", result)
+
+    def test_next_action_with_failures(self) -> None:
+        plan = _minimal_plan()
+        plan.phases[0].failures = [
+            PhaseFailure(timestamp="2026-03-26T12:00:00Z", reason="Failed", attempt=1),
+        ]
+        result = next_action(plan)
+        self.assertEqual(result["attempt_number"], 2)
+        self.assertTrue(result["has_prior_failures"])
+        self.assertNotIn("suggest_revision", result)
+
+    def test_next_action_suggest_revision_at_three_failures(self) -> None:
+        plan = _minimal_plan()
+        plan.phases[0].failures = [
+            PhaseFailure(
+                timestamp=f"2026-03-26T{12 + i}:00:00Z",
+                reason=f"Fail {i + 1}",
+                attempt=i + 1,
+            )
+            for i in range(3)
+        ]
+        result = next_action(plan)
+        self.assertEqual(result["attempt_number"], 4)
+        self.assertTrue(result["has_prior_failures"])
+        self.assertTrue(result["suggest_revision"])
+
+    def test_next_action_suggest_revision_above_three(self) -> None:
+        plan = _minimal_plan()
+        plan.phases[0].failures = [
+            PhaseFailure(
+                timestamp=f"2026-03-26T{12 + i}:00:00Z",
+                reason=f"Fail {i + 1}",
+                attempt=i + 1,
+            )
+            for i in range(5)
+        ]
+        result = next_action(plan)
+        self.assertTrue(result["suggest_revision"])
 
 
 if __name__ == "__main__":
