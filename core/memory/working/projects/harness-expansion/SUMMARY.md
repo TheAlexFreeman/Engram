@@ -2,7 +2,7 @@
 active_plans: 0
 cognitive_mode: implementation
 created: 2026-03-26
-current_focus: 'Phases 1-7 are complete; Phases 8-9 remain planned.'
+current_focus: 'Phases 1-8 are complete; Phase 9 remains planned.'
 last_activity: '2026-03-27'
 open_questions: 0
 origin_session: memory/activity/2026/03/26/chat-001
@@ -37,7 +37,7 @@ Implementation mode. Phase 1 (schema extensions) is complete. Phases 2–5 have 
 | hitl-phase-5 | 5: Structured HITL | completed | 8/8 | 1/8 sessions |
 | integration-tests-phase-6 | 6: Integration Tests | completed | 6/6 | 2/6 sessions |
 | eval-framework-phase-7 | 7: Eval Framework | completed | 7/7 | 3/8 sessions |
-| context-assembly-phase-8 | 8: Context Assembly | draft | 0/5 | 0/5 sessions |
+| context-assembly-phase-8 | 8: Context Assembly | completed | 5/5 | 1/5 sessions |
 | external-ingestion-phase-9 | 9: External Ingestion | draft | 0/6 | 0/6 sessions |
 
 ## Inter-plan dependencies
@@ -76,8 +76,8 @@ Cross-phase integration tests. Design doc: IN/phase-6-integration-tests-design.m
 ## Phase 7 outcome (completed 2026-03-27)
 Offline evaluation framework. Design doc: IN/phase-7-eval-framework-design.md. Plan: plans/eval-framework-phase-7.yaml. `eval_utils.py` now provides EvalScenario/EvalStep/EvalAssertion plus StepResult/AssertionResult/ScenarioResult dataclasses, YAML loading/validation, a direct plan-utils runner (`run_scenario` / `run_suite`), standard metrics computation, scenario selection helpers, aggregated reporting, and trace-backed history loading. The semantic tool layer exposes `memory_run_eval` (Tier 2 gated, scenario/tag selection, summary trace emission) and `memory_eval_report` (historical runs and trends from eval trace spans). The seeded suite now lives under `skills/eval-scenarios/` with five scenarios covering lifecycle, verification/retry, trace coverage, tool-registry bootstrap, and approval pause/resume. Documentation and changelog wiring are complete, and the eval test suite now validates the real seeded scenarios end to end.
 
-## Phase 8 outcome (pending)
-Context assembly briefing tool. Design doc: IN/phase-8-context-assembly-design.md. Plan: plans/context-assembly-phase-8.yaml. assemble_briefing() helper + memory_plan_briefing MCP tool. Single-call context packet with source file contents, failure summaries, traces, approval status, tool policies, and configurable budget (default ~8000 chars).
+## Phase 8 outcome (completed 2026-03-27)
+Context assembly briefing tool. Design doc: IN/phase-8-context-assembly-design.md. Plan: plans/context-assembly-phase-8.yaml. `assemble_briefing()` now composes `phase_payload()` with source excerpts, failure summaries, approval state, recent plan traces, and context-budget metadata. `memory_plan_briefing` exposes that packet as a read-only MCP tool that defaults to the next actionable phase, falls back to plan-summary mode when no actionable phase exists, and records a self-instrumentation trace span when `MEMORY_SESSION_ID` is set. The implementation uses smart head/tail source truncation within a configurable character budget, degrades gracefully when sources are missing, and is covered by direct schema tests plus MCP integration tests.
 
 ## Phase 9 outcome (pending)
 External content ingestion affordances. Design doc: IN/phase-9-external-ingestion-design.md. Plan: plans/external-ingestion-phase-9.yaml. Three affordances: (1) memory_stage_external MCP tool — agents call after fetching content externally; stages to projects/{project}/IN/ with auto-generated trust frontmatter (source: external-research, trust: low, origin_url with query strings stripped) and SHA-256 deduplication; (2) fetch_directives and mcp_calls lists added to phase_payload() response for phases with type: external or type: mcp sources that do not yet exist on disk; (3) memory_scan_drop_zone MCP tool — reads [[watch_folders]] entries from agent-bootstrap.toml, bulk-stages new files with dedup, emits scan report with staged/duplicate/error counts. PDF extraction optional via pdfminer.six/pypdf subprocess.

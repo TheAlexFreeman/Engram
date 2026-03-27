@@ -878,6 +878,285 @@ def phase_payload(plan: PlanDocument, phase: PlanPhase, root: Path) -> dict[str,
     return result
 
 
+def _serialized_length(value: Any) -> int:
+    try:
+        return len(json.dumps(value, ensure_ascii=False, sort_keys=True))
+    except TypeError:
+        return len(str(value))
+
+
+def _truncate_briefing_text(text: str, limit: int) -> tuple[str, bool]:
+    if limit <= 0:
+        return "", bool(text)
+    if len(text) <= limit:
+        return text, False
+
+    marker = "\n...\n"
+    if limit <= len(marker) + 20:
+        return text[:limit], True
+
+    head = max(1, (limit - len(marker)) // 2)
+    tail = max(1, limit - len(marker) - head)
+    return f"{text[:head]}{marker}{text[-tail:]}", True
+
+
+def _allocate_source_budgets(lengths: list[int], total_budget: int) -> list[int]:
+    if not lengths:
+        return []
+    if total_budget <= 0:
+        return [0] * len(lengths)
+
+    total_length = sum(lengths)
+    if total_length <= total_budget:
+        return list(lengths)
+
+    minimum = 200
+    count = len(lengths)
+    if total_budget < minimum * count:
+        even_share = total_budget // count
+        return [min(length, even_share) for length in lengths]
+
+    budgets = [min(length, minimum) for length in lengths]
+    remaining = total_budget - sum(budgets)
+    desired = [max(length - budget, 0) for length, budget in zip(lengths, budgets, strict=False)]
+    desired_total = sum(desired)
+
+    if remaining <= 0 or desired_total <= 0:
+        return budgets
+
+    allocations = [0] * count
+    allocated = 0
+    for index, want in enumerate(desired):
+        share = min(want, (remaining * want) // desired_total)
+        allocations[index] = share
+        allocated += share
+
+    leftover = remaining - allocated
+    for index, want in sorted(enumerate(desired), key=lambda item: item[1], reverse=True):
+        if leftover <= 0:
+            break
+        spare = want - allocations[index]
+        if spare <= 0:
+            continue
+        bump = min(spare, leftover)
+        allocations[index] += bump
+        leftover -= bump
+
+    return [
+        min(length, budget + allocations[index])
+        for index, (length, budget) in enumerate(zip(lengths, budgets, strict=False))
+    ]
+
+
+def _failure_summary(phase: PlanPhase) -> list[dict[str, Any]]:
+    summary: list[dict[str, Any]] = []
+    for failure in reversed(phase.failures):
+        entry = {
+            "attempt": failure.attempt,
+            "timestamp": failure.timestamp,
+            "reason": failure.reason,
+        }
+        failed_postconditions: list[str] = []
+        for result in failure.verification_results or []:
+            status = str(result.get("status", ""))
+            if status not in {"fail", "error"}:
+                continue
+            description = result.get("description") or result.get("target") or result.get("type")
+            if description is not None:
+                failed_postconditions.append(str(description))
+        if failed_postconditions:
+            entry["failed_postconditions"] = failed_postconditions
+        summary.append(entry)
+    return summary
+
+
+def _collect_recent_plan_traces(
+    root: Path,
+    plan_id: str,
+    *,
+    session_id: str | None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    def _matching_from_files(trace_files: list[Path]) -> list[dict[str, Any]]:
+        spans: list[dict[str, Any]] = []
+        for trace_file in trace_files:
+            try:
+                lines = trace_file.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            for raw_line in reversed(lines):
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    span = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(span, dict):
+                    continue
+                metadata = span.get("metadata")
+                if not isinstance(metadata, dict) or metadata.get("plan_id") != plan_id:
+                    continue
+                spans.append(
+                    {
+                        "span_type": span.get("span_type"),
+                        "name": span.get("name"),
+                        "status": span.get("status"),
+                        "duration_ms": span.get("duration_ms"),
+                        "timestamp": span.get("timestamp"),
+                    }
+                )
+                if len(spans) >= limit:
+                    return spans
+        return spans
+
+    preferred_files: list[Path] = []
+    seen_files: set[Path] = set()
+    if session_id:
+        preferred = root / trace_file_path(session_id)
+        if preferred.exists():
+            preferred_files.append(preferred)
+            seen_files.add(preferred)
+
+    preferred_spans = _matching_from_files(preferred_files)
+    if preferred_spans:
+        return preferred_spans[:limit]
+
+    activity_root = root / "memory" / "activity"
+    if not activity_root.is_dir():
+        return []
+
+    fallback_files = [
+        trace_file
+        for trace_file in sorted(activity_root.rglob("*.traces.jsonl"), reverse=True)
+        if trace_file not in seen_files
+    ]
+    return _matching_from_files(fallback_files)[:limit]
+
+
+def assemble_briefing(
+    plan: PlanDocument,
+    phase: PlanPhase,
+    root: Path,
+    *,
+    max_context_chars: int = 8000,
+    include_sources: bool = True,
+    include_traces: bool = True,
+    include_approval: bool = True,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """Assemble a single-call briefing packet for a plan phase."""
+    if max_context_chars < 0:
+        raise ValidationError("max_context_chars must be >= 0")
+
+    phase_section = phase_payload(plan, phase, root)
+    failure_summary = _failure_summary(phase)
+
+    approval_status: dict[str, Any] | None = None
+    if include_approval and phase.requires_approval:
+        approval = load_approval(root, plan.id, phase.id)
+        if approval is not None:
+            approval_status = approval.to_dict()
+
+    recent_traces: list[dict[str, Any]] = []
+    trace_truncated = False
+    if include_traces:
+        recent_traces = _collect_recent_plan_traces(root, plan.id, session_id=session_id)
+        if max_context_chars > 0:
+            trace_budget = max(0, int(max_context_chars * 0.15))
+            while recent_traces and _serialized_length(recent_traces) > trace_budget:
+                recent_traces.pop()
+                trace_truncated = True
+
+    phase_chars = _serialized_length(phase_section)
+    failure_chars = _serialized_length(failure_summary)
+    approval_chars = _serialized_length(approval_status) if approval_status is not None else 0
+    trace_chars = _serialized_length(recent_traces)
+
+    source_contents: list[dict[str, Any]] = []
+    internal_sources: list[tuple[dict[str, Any], str]] = []
+    if include_sources:
+        for source in phase.sources:
+            entry: dict[str, Any] = {
+                "path": source.path,
+                "type": source.type,
+                "intent": source.intent,
+            }
+            if source.uri is not None:
+                entry["uri"] = source.uri
+
+            if source.type != "internal":
+                entry["content"] = None
+                source_contents.append(entry)
+                continue
+
+            resolved = _resolve_verify_path(root, source.path)
+            if resolved is None or not resolved.is_file():
+                entry["content"] = None
+                entry["error"] = "file not found"
+                source_contents.append(entry)
+                continue
+
+            try:
+                text = resolved.read_text(encoding="utf-8")
+            except OSError as exc:
+                entry["content"] = None
+                entry["error"] = str(exc)
+                source_contents.append(entry)
+                continue
+
+            internal_sources.append((entry, text))
+
+        source_budget = 0
+        if max_context_chars == 0:
+            source_budgets = [len(text) for _, text in internal_sources]
+        else:
+            fixed_chars = phase_chars + failure_chars + approval_chars + trace_chars
+            source_budget = max(max_context_chars - fixed_chars, 0)
+            source_budgets = _allocate_source_budgets(
+                [len(text) for _, text in internal_sources],
+                source_budget,
+            )
+
+        for (entry, text), budget in zip(internal_sources, source_budgets, strict=False):
+            content = text
+            truncated = False
+            if max_context_chars != 0:
+                content, truncated = _truncate_briefing_text(text, budget)
+            entry["content"] = content
+            entry["full_length"] = len(text)
+            entry["truncated"] = truncated
+            source_contents.append(entry)
+
+    source_chars = _serialized_length(source_contents)
+    total_chars = phase_chars + failure_chars + approval_chars + trace_chars + source_chars
+    truncated = trace_truncated or any(entry.get("truncated") for entry in source_contents)
+
+    return {
+        "plan_id": plan.id,
+        "project_id": plan.project,
+        "phase_id": phase.id,
+        "phase": phase_section,
+        "source_contents": source_contents,
+        "failure_summary": failure_summary,
+        "recent_traces": recent_traces,
+        "approval_status": approval_status,
+        "context_budget": {
+            "max_context_chars": max_context_chars,
+            "total_chars": total_chars,
+            "estimated_tokens": (total_chars + 3) // 4,
+            "truncated": truncated,
+            "breakdown": {
+                "phase": phase_chars,
+                "source_contents": source_chars,
+                "failure_summary": failure_chars,
+                "recent_traces": trace_chars,
+                "approval_status": approval_chars,
+            },
+        },
+    }
+
+
 def resolve_phase(plan: PlanDocument, phase_id: str | None = None) -> PlanPhase:
     if phase_id is not None:
         return _resolve_phase(plan, validate_slug(phase_id, field_name="phase_id"))

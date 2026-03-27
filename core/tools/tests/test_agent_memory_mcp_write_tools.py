@@ -8173,6 +8173,44 @@ trust: high
             "memory/working/notes/ref.md": "# Ref\n",
         }
 
+    def _phase8_plan_yaml(self, *, completed: bool = False) -> str:
+        payload = {
+            "id": "tracked-plan",
+            "project": "example",
+            "created": "2026-03-27",
+            "origin_session": "memory/activity/2026/03/27/chat-200",
+            "status": "completed" if completed else "active",
+            "purpose": {
+                "summary": "Phase 8 test plan",
+                "context": "Exercise the plan briefing read path.",
+            },
+            "work": {
+                "phases": [
+                    {
+                        "id": "phase-a",
+                        "title": "Briefing phase",
+                        "status": "completed" if completed else "pending",
+                        "sources": [
+                            {
+                                "path": "core/context.md",
+                                "type": "internal",
+                                "intent": "Read the briefing source.",
+                            }
+                        ],
+                        "changes": [
+                            {
+                                "path": "memory/working/projects/example/notes/out.md",
+                                "action": "create",
+                                "description": "Create project note.",
+                            }
+                        ],
+                    }
+                ]
+            },
+            "review": None,
+        }
+        return yaml.dump(payload, sort_keys=False, allow_unicode=False)
+
     def test_memory_plan_execute_inspect_includes_sources_postconditions_budget(self) -> None:
         plan_yaml = self._plan_yaml_with_budget()
         repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
@@ -8710,6 +8748,88 @@ trust: high
 
         self.assertTrue(any("session budget" in w.lower() for w in payload["warnings"]))
         self.assertTrue(payload["new_state"]["budget_status"]["over_session_budget"])
+
+    def test_memory_plan_briefing_returns_next_action_phase_packet(self) -> None:
+        repo_root = self._init_repo(
+            {
+                **self._plan_repo_files(self._phase8_plan_yaml()),
+                "core/context.md": "Briefing source body\n" * 8,
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_plan_briefing"](
+                plan_id="tracked-plan",
+                project_id="example",
+                max_context_chars=600,
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertEqual(payload["plan_id"], "tracked-plan")
+        self.assertEqual(payload["phase_id"], "phase-a")
+        self.assertEqual(payload["phase"]["phase"]["id"], "phase-a")
+        self.assertEqual(payload["source_contents"][0]["path"], "core/context.md")
+        self.assertIn("context_budget", payload)
+
+    def test_memory_plan_briefing_returns_summary_when_no_actionable_phase(self) -> None:
+        repo_root = self._init_repo(
+            {
+                **self._plan_repo_files(self._phase8_plan_yaml(completed=True)),
+                "core/context.md": "Briefing source body\n",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_plan_briefing"](
+                plan_id="tracked-plan",
+                project_id="example",
+            )
+        )
+        payload = json.loads(raw)
+
+        self.assertIsNone(payload["phase"])
+        self.assertEqual(payload["progress"]["done"], 1)
+        self.assertEqual(payload["progress"]["total"], 1)
+        self.assertIn("no actionable phase", payload["message"].lower())
+
+    def test_memory_plan_briefing_records_trace_from_memory_session_env(self) -> None:
+        repo_root = self._init_repo(
+            {
+                **self._plan_repo_files(self._phase8_plan_yaml()),
+                "core/context.md": "Briefing source body\n",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        old_session = os.environ.get("MEMORY_SESSION_ID")
+        os.environ["MEMORY_SESSION_ID"] = "memory/activity/2026/03/27/chat-204"
+        try:
+            asyncio.run(
+                tools["memory_plan_briefing"](
+                    plan_id="tracked-plan",
+                    project_id="example",
+                )
+            )
+        finally:
+            if old_session is None:
+                os.environ.pop("MEMORY_SESSION_ID", None)
+            else:
+                os.environ["MEMORY_SESSION_ID"] = old_session
+
+        trace_path = (
+            repo_root / "memory" / "activity" / "2026" / "03" / "27" / "chat-204.traces.jsonl"
+        )
+        trace_spans = [
+            json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()
+        ]
+        briefing_spans = [span for span in trace_spans if span["name"] == "memory_plan_briefing"]
+
+        self.assertEqual(len(briefing_spans), 1)
+        self.assertEqual(briefing_spans[0]["metadata"]["plan_id"], "tracked-plan")
+        self.assertEqual(briefing_spans[0]["metadata"]["phase_id"], "phase-a")
 
     def test_memory_run_eval_requires_tier2(self) -> None:
         repo_root = self._init_repo(

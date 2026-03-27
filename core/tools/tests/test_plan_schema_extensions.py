@@ -33,6 +33,7 @@ from engram_mcp.agent_memory_mcp.plan_utils import (
     _check_approval_expiry,
     approval_filename,
     approvals_summary_path,
+    assemble_briefing,
     budget_status,
     coerce_budget_input,
     coerce_phase_inputs,
@@ -43,12 +44,14 @@ from engram_mcp.agent_memory_mcp.plan_utils import (
     phase_blockers,
     phase_payload,
     project_plan_path,
+    record_trace,
     regenerate_approvals_summary,
     regenerate_registry_summary,
     registry_file_path,
     save_approval,
     save_plan,
     save_registry,
+    trace_file_path,
     validate_plan_references,
     verify_postconditions,
 )
@@ -1584,8 +1587,6 @@ from engram_mcp.agent_memory_mcp.plan_utils import (  # noqa: E402
     TRACE_STATUSES,
     TraceSpan,
     _sanitize_metadata,
-    record_trace,
-    trace_file_path,
 )
 
 
@@ -3760,6 +3761,226 @@ class TestToolPolicyE2E(unittest.TestCase):
             self.assertFalse(policy["approval_required"])
             self.assertEqual(policy["cost_tier"], "high")
             self.assertEqual(policy["timeout_seconds"], 45)
+
+
+class TestAssembleBriefing(unittest.TestCase):
+    def test_truncates_internal_source_to_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "core").mkdir(parents=True, exist_ok=True)
+            source_text = "header\n" + ("0123456789" * 80)
+            (root / "core" / "context.md").write_text(source_text, encoding="utf-8")
+            plan = _minimal_plan(
+                phases=[
+                    PlanPhase(
+                        id="phase-one",
+                        title="Briefing phase",
+                        sources=[
+                            SourceSpec(
+                                path="core/context.md",
+                                type="internal",
+                                intent="Read the briefing source.",
+                            )
+                        ],
+                    )
+                ]
+            )
+
+            briefing = assemble_briefing(plan, plan.phases[0], root, max_context_chars=700)
+
+            source = briefing["source_contents"][0]
+            self.assertEqual(source["path"], "core/context.md")
+            self.assertTrue(source["truncated"])
+            self.assertLess(len(source["content"]), source["full_length"])
+            self.assertTrue(briefing["context_budget"]["truncated"])
+
+    def test_missing_internal_source_returns_error_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = _minimal_plan(
+                phases=[
+                    PlanPhase(
+                        id="phase-one",
+                        title="Briefing phase",
+                        sources=[
+                            SourceSpec(
+                                path="core/missing.md",
+                                type="internal",
+                                intent="Read the briefing source.",
+                            )
+                        ],
+                    )
+                ]
+            )
+
+            briefing = assemble_briefing(plan, plan.phases[0], root)
+
+            source = briefing["source_contents"][0]
+            self.assertIsNone(source["content"])
+            self.assertEqual(source["error"], "file not found")
+
+    def test_zero_budget_keeps_full_source_contents(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "core").mkdir(parents=True, exist_ok=True)
+            source_text = "zero-budget briefing source\n" * 20
+            (root / "core" / "context.md").write_text(source_text, encoding="utf-8")
+            plan = _minimal_plan(
+                phases=[
+                    PlanPhase(
+                        id="phase-one",
+                        title="Briefing phase",
+                        sources=[
+                            SourceSpec(
+                                path="core/context.md",
+                                type="internal",
+                                intent="Read the briefing source.",
+                            )
+                        ],
+                    )
+                ]
+            )
+
+            briefing = assemble_briefing(plan, plan.phases[0], root, max_context_chars=0)
+
+            source = briefing["source_contents"][0]
+            self.assertEqual(source["content"], source_text)
+            self.assertFalse(source["truncated"])
+            self.assertFalse(briefing["context_budget"]["truncated"])
+
+    def test_includes_approval_status_for_requires_approval_phase(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _setup_approval_dirs(root)
+            (root / "core").mkdir(parents=True, exist_ok=True)
+            (root / "core" / "context.md").write_text("approval source\n", encoding="utf-8")
+            plan = _approval_ready_plan()
+            phase = plan.phases[0]
+            save_approval(
+                root,
+                ApprovalDocument(
+                    plan_id=plan.id,
+                    phase_id=phase.id,
+                    project_id=plan.project,
+                    status="approved",
+                    requested="2026-03-27T09:00:00Z",
+                    expires="2026-04-03T09:00:00Z",
+                    resolution="approve",
+                    reviewer="Alex",
+                    resolved_at="2026-03-27T09:30:00Z",
+                    comment="Proceed.",
+                    context={"phase_title": phase.title},
+                ),
+            )
+
+            briefing = assemble_briefing(plan, phase, root)
+
+            assert briefing["approval_status"] is not None
+            self.assertEqual(briefing["approval_status"]["status"], "approved")
+            self.assertEqual(briefing["approval_status"]["comment"], "Proceed.")
+
+    def test_includes_recent_traces_for_current_session(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = _minimal_plan()
+            phase = plan.phases[0]
+            session_id = "memory/activity/2026/03/27/chat-301"
+            record_trace(
+                root,
+                session_id,
+                span_type="plan_action",
+                name="phase-start",
+                status="ok",
+                metadata={"plan_id": plan.id, "phase_id": phase.id},
+            )
+            record_trace(
+                root,
+                session_id,
+                span_type="tool_call",
+                name="other-plan",
+                status="ok",
+                metadata={"plan_id": "other-plan", "phase_id": "other-phase"},
+            )
+
+            briefing = assemble_briefing(
+                plan,
+                phase,
+                root,
+                include_sources=False,
+                session_id=session_id,
+            )
+
+            self.assertEqual(len(briefing["recent_traces"]), 1)
+            self.assertEqual(briefing["recent_traces"][0]["name"], "phase-start")
+
+    def test_falls_back_to_plan_trace_history_without_session_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = _minimal_plan()
+            phase = plan.phases[0]
+            record_trace(
+                root,
+                "memory/activity/2026/03/27/chat-302",
+                span_type="plan_action",
+                name="phase-complete",
+                status="ok",
+                metadata={"plan_id": plan.id, "phase_id": phase.id},
+            )
+
+            briefing = assemble_briefing(plan, phase, root, include_sources=False)
+
+            self.assertEqual(briefing["recent_traces"][0]["name"], "phase-complete")
+
+    def test_failure_summary_surfaces_failed_postconditions(self) -> None:
+        plan = _minimal_plan()
+        phase = plan.phases[0]
+        phase.failures = [
+            PhaseFailure(
+                timestamp="2026-03-27T10:00:00Z",
+                reason="Verification failed",
+                attempt=1,
+                verification_results=[
+                    {"description": "Output exists", "status": "fail"},
+                    {"description": "Marker present", "status": "pass"},
+                ],
+            )
+        ]
+
+        briefing = assemble_briefing(
+            plan, phase, Path("."), include_sources=False, include_traces=False
+        )
+
+        self.assertEqual(briefing["failure_summary"][0]["failed_postconditions"], ["Output exists"])
+
+    def test_external_and_mcp_sources_do_not_fetch_content(self) -> None:
+        plan = _minimal_plan(
+            phases=[
+                PlanPhase(
+                    id="phase-one",
+                    title="Briefing phase",
+                    sources=[
+                        SourceSpec(
+                            path="api-spec",
+                            type="external",
+                            intent="Reference the API contract.",
+                            uri="https://example.com/spec",
+                        ),
+                        SourceSpec(
+                            path="memory_search",
+                            type="mcp",
+                            intent="Use MCP search results.",
+                        ),
+                    ],
+                )
+            ]
+        )
+
+        briefing = assemble_briefing(plan, plan.phases[0], Path("."), include_traces=False)
+
+        self.assertEqual(len(briefing["source_contents"]), 2)
+        self.assertIsNone(briefing["source_contents"][0]["content"])
+        self.assertEqual(briefing["source_contents"][0]["uri"], "https://example.com/spec")
+        self.assertEqual(briefing["source_contents"][1]["type"], "mcp")
 
 
 class TestCrossCuttingRegression(unittest.TestCase):

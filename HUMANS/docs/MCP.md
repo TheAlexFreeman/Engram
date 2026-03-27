@@ -122,7 +122,7 @@ For worktree deployments, set `MEMORY_REPO_ROOT` to the worktree path and `HOST_
 
 ## Tool surface
 
-The MCP server exposes **51+ tools** organized into three tiers. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
+The MCP server exposes **52+ tools** organized into three tiers. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
 
 ### Tier 0: Read-only tools
 
@@ -257,6 +257,7 @@ These are the normal write path. Each tool represents a bounded operation with b
 | `memory_plan_review` | Scan completed plans or export completed-plan artifacts. |
 | `memory_record_trace` | Emit a trace span to the session's TRACES.jsonl file. Non-blocking; always returns span_id on success. |
 | `memory_query_traces` | Query trace spans across sessions or date ranges. Returns spans (newest-first) with aggregates. |
+| `memory_plan_briefing` | Return a single-call briefing packet for a requested or next-actionable phase, including source excerpts, failures, recent traces, approval state, and context-budget metadata. |
 | `memory_run_eval` | Run declarative offline eval scenarios from `memory/skills/eval-scenarios/` and record compact eval summary spans. |
 | `memory_eval_report` | Read historical eval runs from trace spans and aggregate summary metrics and trends. |
 | `memory_register_tool` | Register or update an external tool definition in the tool registry. Returns action ("created"\|"updated") and registry_file path. |
@@ -322,6 +323,20 @@ Returns `{span_id, trace_file, status}`. `trace_file` is the TRACES.jsonl path f
 | `limit` | int | Max spans to return (default 100). |
 
 Returns `{spans, total_matched, aggregates: {total_duration_ms, by_type, by_status, error_rate}}`.
+
+**`memory_plan_briefing` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `plan_id` | str | Plan identifier. |
+| `phase_id` | str \| null | Optional phase to brief on. Defaults to the next actionable phase. |
+| `project_id` | str \| null | Optional project scope. |
+| `max_context_chars` | int | Character budget for assembled context (default 8000, 0 = unlimited). |
+| `include_sources` | bool | Include source-file contents and excerpts. |
+| `include_traces` | bool | Include recent trace spans for the plan. |
+| `include_approval` | bool | Include approval document state when applicable. |
+
+Returns a single packet with `{plan_id, project_id, phase_id, phase, source_contents, failure_summary, recent_traces, approval_status, context_budget}`. When no actionable phase exists and `phase_id` is omitted, the tool returns a read-only plan summary with progress instead. If `MEMORY_SESSION_ID` is present, the tool records a `tool_call` trace span named `memory_plan_briefing`.
 
 **`memory_run_eval` parameters and response**
 

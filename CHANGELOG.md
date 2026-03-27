@@ -18,6 +18,19 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-27] Phase 8: Context assembly briefing packet
+
+**Changed:** Added the Phase 8 context-assembly layer for plan execution.
+
+- **`assemble_briefing()` in `core/tools/agent_memory_mcp/plan_utils.py`** — new helper that composes `phase_payload()` with source-file excerpts, failure summaries, approval status, recent trace spans, and context-budget accounting. Internal sources degrade gracefully when files are missing, and the source allocator truncates via smart head/tail excerpts within a configurable `max_context_chars` budget.
+- **`memory_plan_briefing`** — new read-only MCP tool in `plan_tools.py`. It returns a single-call briefing packet for a requested phase or, when `phase_id` is omitted, for the next actionable phase. If no actionable phase exists, it returns a plan summary instead. When `MEMORY_SESSION_ID` is present, the tool records a self-instrumentation `tool_call` trace span.
+- **Tests** — expanded schema-level coverage with `TestAssembleBriefing` and added MCP integration tests for `memory_plan_briefing`, covering truncation, missing sources, unlimited budgets, approval inclusion, trace inclusion/fallback, failure summaries, summary-mode behavior, and trace emission.
+- **Docs** — documented the new tool in `HUMANS/docs/MCP.md`, added the context-assembly design note to `HUMANS/docs/DESIGN.md`, and finalized the Phase 8 design decisions in the harness-expansion project docs.
+
+**Reasoning:** By Phase 7, the harness had the raw ingredients for rich execution context — structured phase payloads, failure history, approval state, and traces — but agents still needed several sequential tool calls before they could begin work on a phase. Phase 8 closes that gap with a single-call read surface that assembles those pieces into a budget-aware briefing packet without changing plan state.
+
+**Approved by:** user
+
 ## [2026-03-27] Phase 7: Offline evaluation framework
 
 **Changed:** Added the Phase 7 offline evaluation layer for harness workflows.

@@ -2,8 +2,8 @@ id: context-assembly-phase-8
 project: harness-expansion
 created: '2026-03-27'
 origin_session: memory/activity/2026/03/27/chat-001
-status: draft
-sessions_used: 0
+status: completed
+sessions_used: 1
 budget:
   deadline: '2026-06-15'
   max_sessions: 5
@@ -29,14 +29,14 @@ purpose:
     has no hard blockers — each assembly component degrades gracefully if the
     underlying subsystem data is absent.
   questions:
-  - Should the default max_context_chars be 8000 or configurable per plan?
-  - Should source file truncation prefer beginning, end, or smart excerpt?
-  - Should briefings be cached within a session to avoid re-reading files?
+  - Resolved in implementation: default max_context_chars remains 8000, with 0 meaning unlimited.
+  - Resolved in implementation: source truncation uses a smart head/tail excerpt.
+  - Resolved in implementation: briefing results are not cached yet; direct reads keep behavior simple and deterministic.
 work:
   phases:
   - id: briefing-design
     title: Finalize briefing assembly algorithm and context budget strategy
-    status: pending
+    status: completed
     blockers: []
     requires_approval: true
     sources:
@@ -65,7 +65,7 @@ work:
 
   - id: briefing-impl
     title: Implement assemble_briefing() helper in plan_utils.py
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-8-context-assembly-design.md
@@ -100,7 +100,7 @@ work:
 
   - id: briefing-mcp-tool
     title: Implement memory_plan_briefing MCP tool
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-8-context-assembly-design.md
@@ -132,7 +132,7 @@ work:
 
   - id: briefing-tests
     title: Add test coverage for assemble_briefing and memory_plan_briefing
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: core/tools/tests/test_plan_schema_extensions.py
@@ -161,7 +161,7 @@ work:
 
   - id: briefing-docs
     title: Update documentation for context assembly
-    status: pending
+    status: completed
     blockers: []
     sources:
     - path: HUMANS/docs/MCP.md

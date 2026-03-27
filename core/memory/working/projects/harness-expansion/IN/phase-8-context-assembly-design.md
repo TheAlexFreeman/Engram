@@ -165,6 +165,12 @@ The `max_context_chars` parameter (default 8000) controls total output size. Bud
 
 If `max_context_chars` is set to 0, no truncation is applied (unlimited).
 
+### Final decisions
+
+- `max_context_chars` defaults to `8000`; callers can set `0` to disable truncation entirely.
+- Source truncation uses a smart excerpt strategy: preserve the beginning and end of long files with a compact separator rather than keeping only the prefix.
+- Briefings are assembled directly on each call; session-local caching is deferred until there is evidence that repeated reads are a material bottleneck.
+
 ---
 
 ## Extension 2: `memory_plan_briefing` MCP tool
@@ -185,6 +191,7 @@ Parameters:
   max_context_chars: int    — context budget (default: 8000, 0 = unlimited)
   include_sources: bool     — include source file contents (default: true)
   include_traces: bool      — include recent trace spans (default: true)
+  include_approval: bool    — include approval document state when applicable (default: true)
 
 Returns: JSON from assemble_briefing()
 
@@ -206,6 +213,7 @@ Self-instrumentation:
 - Source files that don't exist are reported with `content: null, error: "file not found"` (graceful degradation, no exceptions)
 - The tool does not modify plan state — it is purely a read operation
 - Session_id is inferred from `MEMORY_SESSION_ID` env var (same pattern as `memory_plan_verify`)
+- When the current session has no matching plan traces, trace inclusion falls back to the most recent trace file containing spans for that plan
 
 ---
 

@@ -21,6 +21,7 @@ from ...plan_utils import (
     append_operations_log,
     approval_filename,
     approvals_summary_path,
+    assemble_briefing,
     budget_status,
     build_review_from_input,
     coerce_budget_input,
@@ -1516,6 +1517,121 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         return _json.dumps(result, indent=2)
 
     @mcp.tool(
+        name="memory_plan_briefing",
+        annotations=_tool_annotations(
+            title="Read Plan Briefing",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_plan_briefing(
+        plan_id: str,
+        phase_id: str | None = None,
+        project_id: str | None = None,
+        max_context_chars: int = 8000,
+        include_sources: bool = True,
+        include_traces: bool = True,
+        include_approval: bool = True,
+    ) -> str:
+        """Return a single-call briefing packet for a plan phase."""
+        import json as _json
+        import os as _os
+
+        from ...errors import ValidationError
+
+        if isinstance(include_sources, str):
+            include_sources = include_sources.lower() not in {"", "0", "false", "no"}
+        if isinstance(include_traces, str):
+            include_traces = include_traces.lower() not in {"", "0", "false", "no"}
+        if isinstance(include_approval, str):
+            include_approval = include_approval.lower() not in {"", "0", "false", "no"}
+
+        try:
+            max_chars = int(max_context_chars)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("max_context_chars must be an integer >= 0") from exc
+        if max_chars < 0:
+            raise ValidationError("max_context_chars must be >= 0")
+
+        root = get_root()
+        plan_path, resolved_project_id = _resolve_existing_plan_path(root, plan_id, project_id)
+        abs_plan = root / plan_path
+        plan = load_plan(abs_plan, root)
+
+        env_session_id = _os.environ.get("MEMORY_SESSION_ID", "").strip() or None
+        if env_session_id is not None:
+            validate_session_id(env_session_id)
+
+        if phase_id is None:
+            directive = next_action(plan)
+            if directive is None:
+                result: dict[str, Any] = {
+                    "plan_id": plan.id,
+                    "project_id": resolved_project_id,
+                    "plan_status": plan.status,
+                    "purpose": plan.purpose.to_dict(),
+                    "progress": {
+                        "done": plan_progress(plan)[0],
+                        "total": plan_progress(plan)[1],
+                        "next_action": None,
+                    },
+                    "phase": None,
+                    "message": "Plan has no actionable phase.",
+                }
+                plan_budget = budget_status(plan)
+                if plan_budget is not None:
+                    result["budget_status"] = plan_budget
+                if env_session_id is not None:
+                    record_trace(
+                        root,
+                        env_session_id,
+                        span_type="tool_call",
+                        name="memory_plan_briefing",
+                        status="ok",
+                        metadata={
+                            "plan_id": plan.id,
+                            "phase_id": None,
+                            "context_chars": len(_json.dumps(result, ensure_ascii=False)),
+                            "truncated": False,
+                        },
+                    )
+                return _json.dumps(result, indent=2)
+            phase = resolve_phase(plan, str(directive["id"]))
+        else:
+            phase = resolve_phase(plan, phase_id)
+
+        result = assemble_briefing(
+            plan,
+            phase,
+            root,
+            max_context_chars=max_chars,
+            include_sources=bool(include_sources),
+            include_traces=bool(include_traces),
+            include_approval=bool(include_approval),
+            session_id=env_session_id,
+        )
+
+        if env_session_id is not None:
+            context_budget = result.get("context_budget", {})
+            record_trace(
+                root,
+                env_session_id,
+                span_type="tool_call",
+                name="memory_plan_briefing",
+                status="ok",
+                metadata={
+                    "plan_id": plan.id,
+                    "phase_id": phase.id,
+                    "context_chars": context_budget.get("total_chars"),
+                    "truncated": context_budget.get("truncated", False),
+                },
+            )
+
+        return _json.dumps(result, indent=2)
+
+    @mcp.tool(
         name="memory_run_eval",
         annotations=_tool_annotations(
             title="Run Eval Scenarios",
@@ -2013,6 +2129,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     return {
         "memory_plan_create": memory_plan_create,
         "memory_plan_execute": memory_plan_execute,
+        "memory_plan_briefing": memory_plan_briefing,
         "memory_plan_review": memory_plan_review,
         "memory_list_plans": memory_list_plans,
         "memory_plan_verify": memory_plan_verify,
