@@ -18,6 +18,14 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-27] Runtime guard pipeline (Phase 12)
+
+**Changed:** Added `guard_pipeline.py` module with `Guard` abstract base class, `GuardPipeline`, `GuardContext`, `GuardResult`, and `PipelineResult`. Four built-in guards: `PathGuard` (wraps existing path_policy.py), `ContentSizeGuard` (100 KB default, configurable via `ENGRAM_MAX_FILE_SIZE`), `FrontmatterGuard` (validates source/trust enums), `TrustBoundaryGuard` (requires approval for agent-assigned trust:high). Pipeline short-circuits on block, accumulates warnings, emits `guardrail_check` trace spans. `default_pipeline()` convenience constructor. 28 tests in `test_guard_pipeline.py`. Updated DESIGN.md.
+
+**Reasoning:** Guardrails were limited to path_policy.py and prose governance docs. The deep research report recommends guardrails as a parallel control plane with structured validation. The guard pipeline centralizes validation into an extensible, observable system that new guards can plug into without modifying write paths.
+
+**Approved by:** user
+
 ## [2026-03-27] Tool policy enforcement (Phase 11)
 
 **Changed:** Made tool registry policies enforceable at runtime. Added `PolicyCheckResult` dataclass and `check_tool_policy()` function to `plan_utils.py` with approval gating, rate limit enforcement (sliding window from trace spans), cost tier awareness, and eval bypass. Added `policy_violation` to `TRACE_SPAN_TYPES`. Wired policy checks into `verify_postconditions()` for test-type postconditions with automatic trace emission on violations. Rate limit parsing supports `N/minute`, `N/hour`, `N/day`, and `N/session` formats. 14 new tests in `TestToolPolicyEnforcement`. Updated DESIGN.md and MCP.md.

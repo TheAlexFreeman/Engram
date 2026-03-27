@@ -378,6 +378,24 @@ The tool registry (Phase 4) stores metadata about external tools — approval re
 
 **Fail-open.** Unregistered tools (no policy in the registry) are always allowed. Policy enforcement is additive — it only gates tools that have explicit policies defined.
 
+## Part VII: Runtime Guard Pipeline
+
+The guard pipeline (`guard_pipeline.py`) provides a centralized, extensible pre-write validation layer. It implements the deep research report's recommendation for guardrails as a "parallel control plane" — cheap checks that run before expensive operations.
+
+**Architecture.** A `Guard` abstract base class defines a single `check(context) -> GuardResult` method. A `GuardPipeline` executes guards in order, accumulating warnings and short-circuiting on the first `block` or `require_approval` result. `GuardContext` carries the write target path, content, operation type, and metadata. `PipelineResult` aggregates all results with timing.
+
+**Built-in guards (in execution order):**
+1. **PathGuard** — wraps existing `path_policy.py` directory protection (protected roots, raw mutation roots)
+2. **ContentSizeGuard** — blocks files exceeding 100 KB (configurable via `ENGRAM_MAX_FILE_SIZE`)
+3. **FrontmatterGuard** — validates YAML frontmatter schema on markdown writes (source enum, trust enum, recommended fields)
+4. **TrustBoundaryGuard** — requires approval when `trust:high` is assigned by an agent (source is not `user-stated`)
+
+**Result types.** `pass` (no issue), `warn` (proceed but inform), `block` (hard stop), `require_approval` (needs human confirmation). Warnings accumulate across guards; blocks short-circuit the pipeline.
+
+**Observability.** Every pipeline run emits a `guardrail_check` trace span with guard count, block source, and accumulated warnings.
+
+**Extensibility.** New guards are added by subclassing `Guard` and registering in the pipeline. `default_pipeline()` builds the standard guard set; callers can customize the guard list.
+
 ---
 
 ## Summary
