@@ -5180,6 +5180,30 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         return json.dumps(commits, indent=2)
 
     # ------------------------------------------------------------------
+    # memory_git_health
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_git_health",
+        annotations=_tool_annotations(
+            title="Git Health Diagnostic",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_git_health() -> str:
+        """Run git health diagnostics: lock files, repo integrity, filesystem.
+
+        Returns a structured report with lock file status, repo validity,
+        HEAD state, index state, filesystem writability, and any warnings.
+        Safe to call at any time.
+        """
+        repo = get_repo()
+        report = repo.health_check()
+        return json.dumps(report, indent=2)
+
+    # ------------------------------------------------------------------
     # memory_check_knowledge_freshness
     # ------------------------------------------------------------------
     @mcp.tool(
@@ -6779,6 +6803,7 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         "memory_access_analytics": memory_access_analytics,
         "memory_diff_branch": memory_diff_branch,
         "memory_git_log": memory_git_log,
+        "memory_git_health": memory_git_health,
         "memory_session_health_check": memory_session_health_check,
         "memory_session_bootstrap": memory_session_bootstrap,
         "memory_prepare_unverified_review": memory_prepare_unverified_review,

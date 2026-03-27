@@ -18,6 +18,14 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-27] Git reliability hardening (Phase 15)
+
+**Changed:** Enhanced `git_repo.py` with retry resilience and diagnostics. Added `_is_transient_failure()` for classifying lock contention and I/O errors. `commit()` now retries up to 3 times with exponential backoff (0.5s, 1s, 2s) on transient failures. Added `_try_cleanup_stale_index_lock()` and `_try_cleanup_all_stale_locks()` alongside existing HEAD.lock cleanup. All lock cleanups now log warnings. Added `health_check()` method returning structured diagnostics (lock files, repo validity, HEAD state, index state, filesystem writability). Added `memory_git_health` MCP tool (Tier 0, read-only). 14 new tests in `test_git_reliability.py`. Resolved review queue item 2026-03-26-review-core-tools-agent-memory-mcp-git-repo-py.
+
+**Reasoning:** Git reliability is foundational — every write goes through git_repo.py. FUSE-mounted filesystems can leave orphaned lock files that block all commits. Retry with backoff and stale lock cleanup make git operations resilient to transient failures without manual intervention.
+
+**Approved by:** user
+
 ## [2026-03-27] Trace enrichment (Phase 14)
 
 **Changed:** Added `estimate_cost()` helper to `plan_utils.py` for character-to-token cost estimation (4 chars/token default). Plan execution traces (start, complete, record_failure) now include `cost: {tokens_in, tokens_out}`. `memory_query_traces` aggregates now include `total_cost` with summed token counts. `record_trace()` return value (`span_id`) supports parent-child span chaining via `parent_span_id`. 8 new tests in `TestTraceEnrichment`. Updated DESIGN.md.

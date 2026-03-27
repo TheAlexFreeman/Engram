@@ -15,6 +15,7 @@ Design notes:
 from __future__ import annotations
 
 import errno
+import logging
 import os
 import subprocess
 import tempfile
@@ -32,7 +33,26 @@ _WRITE_LOCK_NAME = "agent-memory-write.lock"
 _WRITE_LOCK_TIMEOUT_SECONDS = 5.0
 _WRITE_LOCK_POLL_INTERVAL_SECONDS = 0.05
 _HEAD_LOCK_NAME = "HEAD.lock"
+_INDEX_LOCK_NAME = "index.lock"
 _STALE_HEAD_LOCK_MAX_AGE_SECONDS = 30.0
+_RETRY_MAX_ATTEMPTS = 3
+_RETRY_BASE_DELAY_SECONDS = 0.5
+_TRANSIENT_MARKERS = (
+    "index.lock",
+    "head.lock",
+    "could not lock",
+    "unable to create",
+    "another git process",
+    "resource temporarily unavailable",
+)
+
+_log = logging.getLogger("engram.git_repo")
+
+
+def _is_transient_failure(error: StagingError) -> bool:
+    """Return True if the error looks like a lock contention or I/O transient."""
+    stderr = (error.stderr or str(error)).lower()
+    return any(marker in stderr for marker in _TRANSIENT_MARKERS)
 
 
 def _preserve_input_root_spelling(candidate_root: Path, reported_root: Path) -> Path:
@@ -388,17 +408,15 @@ class GitRepo:
             # Treat unknown errors as alive to avoid unsafe lock removal.
             return True
 
-    def _try_cleanup_stale_head_lock(self) -> bool:
-        lock_path = self._head_lock_path()
+    def _try_cleanup_stale_lock(self, lock_path: Path) -> bool:
+        """Remove a stale lock file if it's old and its owner PID is dead."""
         if not lock_path.exists():
             return False
         if not self._is_lock_older_than(lock_path, _STALE_HEAD_LOCK_MAX_AGE_SECONDS):
             return False
 
         pid = self._extract_pid_from_lock(lock_path)
-        if pid is None:
-            return False
-        if self._is_pid_alive(pid):
+        if pid is not None and self._is_pid_alive(pid):
             return False
 
         try:
@@ -407,7 +425,21 @@ class GitRepo:
             return False
         except OSError:
             return False
+        _log.warning("Removed stale lock file: %s (pid=%s)", lock_path.name, pid)
         return True
+
+    def _try_cleanup_stale_head_lock(self) -> bool:
+        return self._try_cleanup_stale_lock(self._head_lock_path())
+
+    def _try_cleanup_stale_index_lock(self) -> bool:
+        index_lock = self.git_dir / _INDEX_LOCK_NAME
+        return self._try_cleanup_stale_lock(index_lock)
+
+    def _try_cleanup_all_stale_locks(self) -> bool:
+        """Attempt to clean up all known stale lock files. Returns True if any were removed."""
+        head = self._try_cleanup_stale_head_lock()
+        index = self._try_cleanup_stale_index_lock()
+        return head or index
 
     @contextmanager
     def write_lock(self, purpose: str):
@@ -556,40 +588,59 @@ class GitRepo:
         paths: list[str] | None = None,
         allow_empty: bool = False,
     ) -> GitPublicationResult:
-        """Commit staged changes. Returns the new commit SHA.
+        """Commit staged changes with retry resilience.
+
+        Retries up to ``_RETRY_MAX_ATTEMPTS`` times with exponential backoff
+        on transient failures (lock contention, I/O errors).  Stale lock files
+        are cleaned between attempts.
 
         *paths* are content-relative; converted to git-relative internally.
         """
         self.ensure_author_identity()
         git_paths = [self._to_git_path(p) for p in paths] if paths else None
-        with self.write_lock("commit"):
-            try:
-                return self._commit_porcelain(message, paths=git_paths, allow_empty=allow_empty)
-            except StagingError as error:
-                if not self._should_fallback_to_plumbing(error):
-                    raise
+        last_error: StagingError | None = None
 
-                cleaned_stale_head_lock = self._try_cleanup_stale_head_lock()
+        with self.write_lock("commit"):
+            for attempt in range(1, _RETRY_MAX_ATTEMPTS + 1):
+                try:
+                    return self._commit_porcelain(message, paths=git_paths, allow_empty=allow_empty)
+                except StagingError as error:
+                    if not _is_transient_failure(error):
+                        raise
+                    last_error = error
+                    _log.warning(
+                        "Porcelain commit attempt %d/%d failed: %s",
+                        attempt,
+                        _RETRY_MAX_ATTEMPTS,
+                        error,
+                    )
+
+                self._try_cleanup_all_stale_locks()
 
                 try:
                     return self._commit_with_plumbing(
-                        message,
-                        paths=git_paths,
-                        allow_empty=allow_empty,
+                        message, paths=git_paths, allow_empty=allow_empty
                     )
                 except StagingError as plumbing_error:
-                    if not self._should_fallback_to_plumbing(plumbing_error):
+                    if not _is_transient_failure(plumbing_error):
                         raise
-                    cleaned_stale_head_lock = (
-                        self._try_cleanup_stale_head_lock() or cleaned_stale_head_lock
+                    last_error = plumbing_error
+                    _log.warning(
+                        "Plumbing commit attempt %d/%d failed: %s",
+                        attempt,
+                        _RETRY_MAX_ATTEMPTS,
+                        plumbing_error,
                     )
-                    if not cleaned_stale_head_lock:
-                        raise
-                    return self._commit_with_plumbing(
-                        message,
-                        paths=git_paths,
-                        allow_empty=allow_empty,
-                    )
+
+                self._try_cleanup_all_stale_locks()
+
+                if attempt < _RETRY_MAX_ATTEMPTS:
+                    delay = _RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1))
+                    _log.info("Retrying in %.1fs (attempt %d)", delay, attempt + 1)
+                    time.sleep(delay)
+
+            assert last_error is not None
+            raise last_error
 
     # ------------------------------------------------------------------
     # Inspection
@@ -865,3 +916,70 @@ class GitRepo:
     def rel_path(self, abs_path: Path) -> str:
         """Return content-relative path from an absolute path."""
         return str(abs_path.relative_to(self.content_root))
+
+    def health_check(self) -> dict:
+        """Run diagnostic checks and return a structured health report."""
+        report: dict = {
+            "root": str(self.root),
+            "git_dir": str(self.git_dir),
+            "locks": {},
+            "repo_valid": False,
+            "head_valid": False,
+            "index_valid": False,
+            "fs_writable": False,
+            "warnings": [],
+        }
+
+        head_lock = self._head_lock_path()
+        index_lock = self.git_dir / _INDEX_LOCK_NAME
+        write_lock = self._write_lock_path()
+        for name, path in [
+            ("HEAD.lock", head_lock),
+            ("index.lock", index_lock),
+            ("write.lock", write_lock),
+        ]:
+            if path.exists():
+                try:
+                    age = time.time() - path.stat().st_mtime
+                except OSError:
+                    age = None
+                pid = self._extract_pid_from_lock(path)
+                alive = self._is_pid_alive(pid) if pid is not None else None
+                report["locks"][name] = {
+                    "exists": True,
+                    "age_seconds": round(age, 1) if age is not None else None,
+                    "pid": pid,
+                    "pid_alive": alive,
+                }
+                if age is not None and age > _STALE_HEAD_LOCK_MAX_AGE_SECONDS and not alive:
+                    report["warnings"].append(
+                        f"Stale {name} detected (age={age:.0f}s, pid={pid} dead)"
+                    )
+
+        try:
+            self._run(["git", "rev-parse", "--git-dir"])
+            report["repo_valid"] = True
+        except StagingError:
+            report["warnings"].append("git rev-parse --git-dir failed")
+
+        try:
+            self._run(["git", "rev-parse", "HEAD"])
+            report["head_valid"] = True
+        except StagingError:
+            report["warnings"].append("HEAD is not valid (empty repo?)")
+
+        try:
+            self._run(["git", "diff-index", "--quiet", "--cached", "HEAD"], check=False)
+            report["index_valid"] = True
+        except StagingError:
+            report["warnings"].append("Index check failed")
+
+        test_path = self.root / ".engram-fs-test"
+        try:
+            test_path.write_text("test", encoding="utf-8")
+            test_path.unlink()
+            report["fs_writable"] = True
+        except OSError as exc:
+            report["warnings"].append(f"Filesystem write test failed: {exc}")
+
+        return report
