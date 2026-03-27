@@ -2,11 +2,11 @@ id: observability-phase-3
 project: harness-expansion
 created: '2026-03-26'
 origin_session: memory/activity/2026/03/26/chat-002
-status: active
+status: completed
 budget:
   deadline: '2026-05-15'
   max_sessions: 8
-sessions_used: 1
+sessions_used: 2
 purpose:
   summary: Add structured trace recording, querying, and visualization so agents and humans
     can see what happened during a session.
@@ -56,11 +56,9 @@ work:
         retention policy, opt-in vs always-on. Record rationale.'
   - id: trace-recording-impl
     title: Implement memory_record_trace tool and internal trace helper
-    status: pending
-    commit: null
-    blockers:
-    - trace-schema-design
-    - verification-phase-2:verify-integration
+    status: completed
+    commit: 15ca0d8
+    blockers: []
     sources:
     - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
       type: internal
@@ -92,10 +90,9 @@ work:
       description: Add trace span dataclass and helper for generating span IDs and timestamps.
   - id: access-jsonl-extension
     title: Extend ACCESS.jsonl format with tool-call events
-    status: pending
-    commit: null
-    blockers:
-    - trace-recording-impl
+    status: completed
+    commit: 15ca0d8
+    blockers: []
     sources:
     - path: core/memory/activity/ACCESS.jsonl
       type: internal
@@ -119,10 +116,9 @@ work:
         to include event_type in each line.
   - id: trace-query-impl
     title: Implement memory_query_traces tool for filtering and aggregation
-    status: pending
-    commit: null
-    blockers:
-    - trace-recording-impl
+    status: completed
+    commit: 15ca0d8
+    blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-3-observability-design.md
       type: internal
@@ -148,10 +144,9 @@ work:
         filtering, and aggregation logic.
   - id: session-summary-enrichment
     title: Enrich session summaries with trace-derived metrics
-    status: pending
-    commit: null
-    blockers:
-    - trace-recording-impl
+    status: completed
+    commit: 15ca0d8
+    blockers: []
     sources:
     - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
       type: internal
@@ -175,10 +170,9 @@ work:
         frontmatter when a TRACES.jsonl file exists.
   - id: trace-viewer-ui
     title: Build trace viewer in HUMANS/views/traces.html
-    status: pending
-    commit: null
-    blockers:
-    - trace-query-impl
+    status: completed
+    commit: 15ca0d8
+    blockers: []
     sources:
     - path: HUMANS/views/dashboard.html
       type: internal
@@ -207,11 +201,9 @@ work:
         expansion, filtering, and summary statistics.
   - id: test-coverage-observability
     title: Add test coverage for trace recording, querying, and ACCESS extension
-    status: pending
-    commit: null
-    blockers:
-    - session-summary-enrichment
-    - trace-query-impl
+    status: completed
+    commit: 15ca0d8
+    blockers: []
     sources:
     - path: core/tools/tests/test_plan_schema_extensions.py
       type: internal
@@ -231,11 +223,9 @@ work:
         summary enrichment.
   - id: docs-observability
     title: Update documentation for observability features
-    status: pending
-    commit: null
-    blockers:
-    - test-coverage-observability
-    - trace-viewer-ui
+    status: completed
+    commit: 15ca0d8
+    blockers: []
     sources:
     - path: HUMANS/docs/DESIGN.md
       type: internal
@@ -270,4 +260,3 @@ work:
     - path: CHANGELOG.md
       action: update
       description: Add entry for Phase 3 observability.
-review: null
