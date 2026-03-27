@@ -2,8 +2,8 @@
 active_plans: 1
 cognitive_mode: implementation
 created: 2026-03-26
-current_focus: 'Phase 3 active: trace-schema-design in-progress (requires_approval). Finalizing
-  opt-in/always-on, metadata sanitization, retention policy decisions.'
+current_focus: 'Phase 3 active: trace-schema-design in-progress (requires_approval).
+  Finalizing opt-in/always-on, metadata sanitization, retention policy decisions.'
 last_activity: '2026-03-26'
 open_questions: 4
 origin_session: memory/activity/2026/03/26/chat-001

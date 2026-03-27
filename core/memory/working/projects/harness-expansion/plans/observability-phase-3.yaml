@@ -6,6 +6,7 @@ status: active
 budget:
   deadline: '2026-05-15'
   max_sessions: 8
+sessions_used: 1
 purpose:
   summary: Add structured trace recording, querying, and visualization so agents and humans
     can see what happened during a session.
@@ -26,8 +27,8 @@ work:
   phases:
   - id: trace-schema-design
     title: Finalize TRACES.jsonl span schema and storage conventions
-    status: in-progress
-    commit: null
+    status: completed
+    commit: 59df7d5
     blockers: []
     sources:
     - path: core/memory/working/projects/harness-expansion/IN/phase-3-observability-design.md

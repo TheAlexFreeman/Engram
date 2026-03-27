@@ -18,6 +18,24 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-26] Phase 3: Structured observability (TRACES.jsonl, trace recording, query, viewer)
+
+**Changed:** Added structured trace recording across the MCP server, enabling session-level observability:
+
+- **TRACES.jsonl schema** — per-session trace files stored at `memory/activity/YYYY/MM/DD/chat-NNN.traces.jsonl`. Each line is a JSON span with: `span_id` (12-char UUID4 hex), `session_id`, `timestamp` (ISO 8601 with ms), `span_type` (tool_call, plan_action, retrieval, verification, guardrail_check), `name`, `status` (ok, error, denied), optional `duration_ms`, `metadata` (sanitized), and `cost`.
+- **`memory_record_trace`** — new MCP tool for agent-initiated trace spans. Non-blocking; errors are caught and silently swallowed.
+- **`memory_query_traces`** — new MCP tool for querying spans across sessions or date ranges. Filters by session_id, date, span_type, plan_id (in metadata), and status. Returns spans newest-first with aggregates (total_duration_ms, by_type, by_status, error_rate).
+- **Internal instrumentation** — plan_create, plan_execute (start/complete/record_failure), and plan_verify all emit `plan_action` or `verification` spans automatically.
+- **Metadata sanitization** — strings >200 chars truncated, credential-like field names redacted, objects >2 levels deep stringified, total metadata capped at 2 KB.
+- **ACCESS.jsonl extension** — retrieval entries now include `event_type: "retrieval"`; `parse_co_access` filters by this field.
+- **Session summary enrichment** — summaries include a `metrics:` frontmatter block when TRACES.jsonl exists.
+- **Trace viewer UI** — `HUMANS/views/traces.html` with session selector, timeline view, filter chips, and stats bar.
+- **25 new tests** covering all new functionality.
+
+**Reasoning:** The harness expansion analysis identified observability as the biggest operational gap. This phase adds structured, queryable evidence of what happened in a session.
+
+**Approved by:** user
+
 ## [2026-03-27] Phase 2: Inline verification, failure recording, and retry context
 
 **Changed:** Extended the plan execution system with three new capabilities:

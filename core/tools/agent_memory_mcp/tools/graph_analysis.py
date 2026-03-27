@@ -697,6 +697,11 @@ def parse_co_access(
             if not session_key:
                 continue
 
+            # Skip non-retrieval events (event_type field introduced in Phase 3)
+            event_type = entry.get("event_type")
+            if event_type is not None and event_type != "retrieval":
+                continue
+
             file_path = entry.get("file", "").strip()
             if file_path:
                 sessions.setdefault(session_key, set()).add(file_path)

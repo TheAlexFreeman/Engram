@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 from ...path_policy import validate_session_id, validate_slug
 from ...plan_utils import (
+    TRACE_SPAN_TYPES,
+    TRACE_STATUSES,
     PlanDocument,
     PlanPurpose,
     append_operations_log,
@@ -26,8 +28,10 @@ from ...plan_utils import (
     plan_title,
     project_outbox_root,
     project_plan_path,
+    record_trace,
     resolve_phase,
     save_plan,
+    trace_file_path,
     unresolved_blockers,
     verify_postconditions,
 )
@@ -351,7 +355,14 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             detail=plan_title(plan),
         )
         _sync_project_navigation(root, repo, resolved_project_id, files_changed)
-
+        record_trace(
+            root,
+            session_id,
+            span_type="plan_action",
+            name="create",
+            status="ok",
+            metadata={"plan_id": plan.id, "project_id": resolved_project_id, "action": "create"},
+        )
         commit_result = repo.commit(commit_msg)
         return MemoryWriteResult.from_commit(
             files_changed=files_changed,
@@ -572,6 +583,14 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 detail=phase.title,
             )
             _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+            record_trace(
+                root,
+                session_id,
+                span_type="plan_action",
+                name="start",
+                status="ok",
+                metadata={"plan_id": plan.id, "phase_id": phase.id, "action": "start"},
+            )
             commit_result = repo.commit(commit_msg)
             return MemoryWriteResult.from_commit(
                 files_changed=files_changed,
@@ -662,6 +681,19 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 detail=reason.strip(),
             )
             _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+            record_trace(
+                root,
+                session_id,
+                span_type="plan_action",
+                name="record_failure",
+                status="ok",
+                metadata={
+                    "plan_id": plan.id,
+                    "phase_id": phase.id,
+                    "action": "record_failure",
+                    "attempt": failure.attempt,
+                },
+            )
             commit_result = repo.commit(commit_msg)
             return MemoryWriteResult.from_commit(
                 files_changed=files_changed,
@@ -814,6 +846,20 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 detail=plan_title(plan),
             )
         _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+        record_trace(
+            root,
+            session_id,
+            span_type="plan_action",
+            name="complete",
+            status="ok",
+            metadata={
+                "plan_id": plan.id,
+                "phase_id": phase.id,
+                "action": "complete",
+                "commit": phase.commit,
+                "plan_done": all_done,
+            },
+        )
         commit_result = repo.commit(commit_msg)
         return MemoryWriteResult.from_commit(
             files_changed=files_changed,
@@ -1073,7 +1119,212 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         verification["plan_id"] = plan.id
         verification["project_id"] = resolved_project_id
         verification["phase_id"] = phase.id
+
+        # Emit a verification span when a session_id is available via env.
+        import os as _os
+
+        _env_sid = _os.environ.get("MEMORY_SESSION_ID", "").strip()
+        if _env_sid:
+            summary = verification.get("summary", {})
+            record_trace(
+                root,
+                _env_sid,
+                span_type="verification",
+                name=f"verify:{phase.id}",
+                status="ok" if verification.get("all_passed") else "error",
+                metadata={
+                    "plan_id": plan.id,
+                    "phase_id": phase.id,
+                    "passed": summary.get("passed", 0),
+                    "failed": summary.get("failed", 0),
+                    "skipped": summary.get("skipped", 0),
+                    "errors": summary.get("errors", 0),
+                },
+            )
+
         return _json.dumps(verification, indent=2)
+
+    @mcp.tool(
+        name="memory_record_trace",
+        annotations=_tool_annotations(
+            title="Record Trace Span",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_record_trace(
+        session_id: str,
+        span_type: str,
+        name: str,
+        status: str,
+        duration_ms: int | None = None,
+        metadata: dict | None = None,
+        cost: dict | None = None,
+        parent_span_id: str | None = None,
+    ) -> str:
+        """Append a trace span to the session's TRACES.jsonl file.
+
+        Spans are append-only and do not modify plan state.  Recording is
+        non-blocking — the tool returns a failed status rather than raising if
+        writing fails for any reason.
+
+        span_type must be one of: tool_call, plan_action, retrieval,
+        verification, guardrail_check.
+        status must be one of: ok, error, denied.
+        """
+        import json as _json
+
+        from ...errors import ValidationError
+
+        validate_session_id(session_id)
+
+        if span_type not in TRACE_SPAN_TYPES:
+            raise ValidationError(
+                f"span_type must be one of {sorted(TRACE_SPAN_TYPES)}: {span_type!r}"
+            )
+        if status not in TRACE_STATUSES:
+            raise ValidationError(f"status must be one of {sorted(TRACE_STATUSES)}: {status!r}")
+
+        root = get_root()
+        span_id = record_trace(
+            root,
+            session_id,
+            span_type=span_type,
+            name=name,
+            status=status,
+            duration_ms=duration_ms,
+            metadata=metadata,
+            cost=cost,
+            parent_span_id=parent_span_id,
+        )
+
+        result = {
+            "span_id": span_id,
+            "trace_file": trace_file_path(session_id),
+            "status": "recorded" if span_id else "failed",
+        }
+        return _json.dumps(result, indent=2)
+
+    @mcp.tool(
+        name="memory_query_traces",
+        annotations=_tool_annotations(
+            title="Query Trace Spans",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_query_traces(
+        session_id: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        span_type: str | None = None,
+        plan_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> str:
+        """Query trace spans from TRACES.jsonl files.
+
+        Filter by session_id (exact match), date range (YYYY-MM-DD), span_type,
+        plan_id (matched against metadata.plan_id), or status.  Returns spans
+        newest-first up to ``limit``, plus aggregates: total_duration_ms,
+        by_type counts, by_status counts, error_rate.
+        """
+        import json as _json
+        import re as _re
+
+        from ...errors import ValidationError
+
+        if span_type is not None and span_type not in TRACE_SPAN_TYPES:
+            raise ValidationError(
+                f"span_type must be one of {sorted(TRACE_SPAN_TYPES)}: {span_type!r}"
+            )
+        if status is not None and status not in TRACE_STATUSES:
+            raise ValidationError(f"status must be one of {sorted(TRACE_STATUSES)}: {status!r}")
+
+        _date_pat = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
+        if date_from is not None and not _date_pat.match(date_from):
+            raise ValidationError("date_from must be in YYYY-MM-DD format")
+        if date_to is not None and not _date_pat.match(date_to):
+            raise ValidationError("date_to must be in YYYY-MM-DD format")
+
+        root = get_root()
+        activity_root = root / "memory" / "activity"
+        trace_files: list[Any] = []
+
+        if session_id is not None:
+            validate_session_id(session_id)
+            candidate = root / trace_file_path(session_id)
+            if candidate.exists():
+                trace_files = [candidate]
+        else:
+            if activity_root.is_dir():
+                for tf in sorted(activity_root.rglob("*.traces.jsonl"), reverse=True):
+                    parts = tf.relative_to(activity_root).parts
+                    if len(parts) >= 4:
+                        year, month, day = parts[0], parts[1], parts[2]
+                        file_date = f"{year}-{month}-{day}"
+                        if date_from is not None and file_date < date_from:
+                            continue
+                        if date_to is not None and file_date > date_to:
+                            continue
+                    trace_files.append(tf)
+
+        all_spans: list[dict[str, Any]] = []
+        for tf in trace_files:
+            try:
+                for raw_line in tf.read_text(encoding="utf-8").splitlines():
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    try:
+                        span = _json.loads(line)
+                        if not isinstance(span, dict):
+                            continue
+                        if span_type is not None and span.get("span_type") != span_type:
+                            continue
+                        if status is not None and span.get("status") != status:
+                            continue
+                        if plan_id is not None:
+                            meta = span.get("metadata") or {}
+                            if meta.get("plan_id") != plan_id:
+                                continue
+                        all_spans.append(span)
+                    except (_json.JSONDecodeError, KeyError):
+                        continue
+            except OSError:
+                continue
+
+        all_spans.sort(key=lambda s: s.get("timestamp", ""), reverse=True)
+        total_matched = len(all_spans)
+        limited_spans = all_spans[: max(1, limit)]
+
+        total_duration_ms = sum(s.get("duration_ms") or 0 for s in all_spans)
+        by_type: dict[str, int] = {}
+        by_status: dict[str, int] = {}
+        error_count = 0
+        for span in all_spans:
+            st = span.get("span_type", "unknown")
+            by_type[st] = by_type.get(st, 0) + 1
+            ss = span.get("status", "unknown")
+            by_status[ss] = by_status.get(ss, 0) + 1
+            if ss == "error":
+                error_count += 1
+
+        result: dict[str, Any] = {
+            "spans": limited_spans,
+            "total_matched": total_matched,
+            "aggregates": {
+                "total_duration_ms": total_duration_ms,
+                "by_type": by_type,
+                "by_status": by_status,
+                "error_rate": round(error_count / total_matched, 3) if total_matched > 0 else 0.0,
+            },
+        }
+        return _json.dumps(result, indent=2)
 
     return {
         "memory_plan_create": memory_plan_create,
@@ -1081,6 +1332,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         "memory_plan_review": memory_plan_review,
         "memory_list_plans": memory_list_plans,
         "memory_plan_verify": memory_plan_verify,
+        "memory_record_trace": memory_record_trace,
+        "memory_query_traces": memory_query_traces,
     }
 
 

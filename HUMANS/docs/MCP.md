@@ -255,6 +255,8 @@ These are the normal write path. Each tool represents a bounded operation with b
 | `memory_plan_execute` | Inspect, start, complete, or record failure on a plan phase; surfaces sources, approval gates, budget status, and verification results. |
 | `memory_plan_verify` | Evaluate a phase's postconditions without modifying plan state. Returns per-postcondition results and a pass/fail summary. |
 | `memory_plan_review` | Scan completed plans or export completed-plan artifacts. |
+| `memory_record_trace` | Emit a trace span to the session's TRACES.jsonl file. Non-blocking; always returns span_id on success. |
+| `memory_query_traces` | Query trace spans across sessions or date ranges. Returns spans (newest-first) with aggregates. |
 
 **`memory_plan_create` key parameters**
 
@@ -285,6 +287,35 @@ The `resulting_state` includes a `budget_status` block when a budget is set.
 | `project_id` | str \| null | Optional project scope. |
 
 Returns `verification_results` (per-postcondition status/detail), `summary` (total/passed/failed/skipped/errors counts), and `all_passed` (bool). Four validator types: `check` (file existence), `grep` (pattern::path regex search), `test` (allowlisted shell command, requires `ENGRAM_TIER2=1`), `manual` (always skipped).
+
+**`memory_record_trace` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `session_id` | str | Session path, e.g. `memory/activity/2026/04/01/chat-001`. |
+| `span_type` | str | One of: `tool_call`, `plan_action`, `retrieval`, `verification`, `guardrail_check`. |
+| `name` | str | Human-readable operation name (e.g. `"complete"`, `"memory_plan_execute"`). |
+| `status` | str | One of: `ok`, `error`, `denied`. |
+| `duration_ms` | int \| null | Wall-clock duration in milliseconds. |
+| `metadata` | dict \| null | Type-specific context (sanitized: no secrets, strings truncated at 200 chars, max 2 KB). |
+| `cost` | dict \| null | Token counts: `{tokens_in, tokens_out}`. |
+| `parent_span_id` | str \| null | Parent span ID for nested operations. |
+
+Returns `{span_id, trace_file, status}`. `trace_file` is the TRACES.jsonl path for the session. Plan tools (create, start, complete, record_failure, verify) emit `plan_action` and `verification` spans automatically when a `session_id` is available.
+
+**`memory_query_traces` parameters and response**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `session_id` | str \| null | Exact session to query. |
+| `date_from` | str \| null | Start date (YYYY-MM-DD, inclusive). |
+| `date_to` | str \| null | End date (YYYY-MM-DD, inclusive). |
+| `span_type` | str \| null | Filter by span type. |
+| `plan_id` | str \| null | Filter by `metadata.plan_id`. |
+| `status` | str \| null | Filter by status. |
+| `limit` | int | Max spans to return (default 100). |
+
+Returns `{spans, total_matched, aggregates: {total_duration_ms, by_type, by_status, error_rate}}`.
 
 **Knowledge lifecycle**
 
