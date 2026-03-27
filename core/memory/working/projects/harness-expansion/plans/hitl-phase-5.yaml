@@ -1,0 +1,400 @@
+id: hitl-phase-5
+project: harness-expansion
+created: '2026-03-26'
+origin_session: memory/activity/2026/03/26/chat-002
+status: draft
+sessions_used: 0
+budget:
+  deadline: '2026-06-15'
+  max_sessions: 8
+  advisory: true
+purpose:
+  summary: >-
+    Add a structured approval workflow with pause/resume, persistent approval
+    documents, and a human-facing approval UI.
+  context: |
+    The harness report emphasizes: "Operationalize HITL as an interrupt/resume
+    mechanism with serialized run state." Phase 1 added requires_approval as a
+    flag, but there's no structured workflow: no way to create a pending approval
+    request, serialize the context, pause the plan, or resume after resolution.
+
+    This phase closes the loop by adding: (1) an approval document schema and
+    storage in working/approvals/, (2) MCP tools for requesting and resolving
+    approvals, (3) a paused plan status with automatic pause on requires_approval
+    phases, (4) approval expiry, and (5) an approval UI for humans.
+
+    Design document: IN/phase-5-hitl-design.md
+
+    Dependencies: Phase 2 verification (verify postconditions before requesting
+    approval) and Phase 3 trace recording (emit traces for approval actions).
+  questions:
+    - Should approval auto-create when starting a requires_approval phase, or require explicit request?
+    - What should the default expiry period be?
+    - Should rejected approvals allow re-request or require plan modification?
+    - How should the approval UI interact with the MCP server (direct file write vs API)?
+work:
+  phases:
+    # ── Approval workflow design ────────────────────────────────────────
+
+    - id: approval-workflow-design
+      title: Finalize approval lifecycle and document schema
+      status: pending
+      blockers:
+        - verification-phase-2:verify-integration
+        - observability-phase-3:trace-recording-impl
+      requires_approval: true
+      sources:
+        - path: core/memory/working/projects/harness-expansion/IN/phase-5-hitl-design.md
+          type: internal
+          intent: >-
+            Reference the full design: approval states, storage schema,
+            expiry mechanism, integration with existing HITL.
+        - path: core/governance/review-queue.md
+          type: internal
+          intent: >-
+            Understand the existing review queue to ensure the approval
+            workflow complements rather than conflicts.
+        - path: core/memory/working/notes/harness-expansion-analysis.md
+          type: internal
+          intent: >-
+            Ground the design in the gap analysis recommendations for
+            structured HITL as interrupt/resume.
+        - path: core/tools/agent_memory_mcp/plan_utils.py
+          type: internal
+          intent: >-
+            Read PLAN_STATUSES to understand where "paused" fits and
+            how status transitions work.
+      postconditions:
+        - description: >-
+            Approval lifecycle finalized in IN/phase-5-hitl-design.md with
+            state transitions, storage schema, and expiry rules
+          type: manual
+        - description: >-
+            Decision on auto-create vs explicit request for requires_approval
+            phases recorded
+          type: manual
+        - description: >-
+            Relationship between review-queue.md and working/approvals/
+            documented
+          type: manual
+      changes:
+        - path: core/memory/working/projects/harness-expansion/IN/phase-5-hitl-design.md
+          action: update
+          description: >-
+            Finalize design decisions: auto-create behavior, default expiry,
+            re-request after rejection, UI interaction model.
+
+    # ── Approval storage ────────────────────────────────────────────────
+
+    - id: approval-storage-impl
+      title: Implement working/approvals/ storage with YAML approval documents
+      status: pending
+      blockers:
+        - approval-workflow-design
+      sources:
+        - path: core/memory/working/projects/harness-expansion/IN/phase-5-hitl-design.md
+          type: internal
+          intent: >-
+            Follow the finalized approval document schema: fields, validation,
+            pending/resolved directory structure.
+        - path: core/tools/agent_memory_mcp/plan_utils.py
+          type: internal
+          intent: >-
+            Follow existing dataclass and YAML patterns for consistency.
+        - path: core/tools/agent_memory_mcp/path_policy.py
+          type: internal
+          intent: >-
+            Ensure working/approvals/ is writable by the MCP server.
+      postconditions:
+        - description: >-
+            ApprovalDocument dataclass exists with plan_id, phase_id,
+            project_id, status, requested, expires, context, resolution fields
+          type: grep
+          target: "class ApprovalDocument::core/tools/agent_memory_mcp/plan_utils.py"
+        - description: >-
+            working/approvals/pending/ and working/approvals/resolved/
+            directories created
+          type: check
+          target: core/memory/working/approvals/SUMMARY.md
+        - description: >-
+            load_approval() and save_approval() handle YAML round-trip
+          type: manual
+        - description: pre-commit hooks pass
+          type: test
+          target: pre-commit run --all-files
+      changes:
+        - path: core/tools/agent_memory_mcp/plan_utils.py
+          action: update
+          description: >-
+            Add ApprovalDocument dataclass, APPROVAL_STATUSES set,
+            load_approval() and save_approval() helpers. Add validation
+            for all fields.
+        - path: core/memory/working/approvals/SUMMARY.md
+          action: create
+          description: >-
+            Create approval queue navigator with pending/resolved sections.
+        - path: core/memory/working/approvals/pending/.gitkeep
+          action: create
+          description: Create pending approvals directory.
+        - path: core/memory/working/approvals/resolved/.gitkeep
+          action: create
+          description: Create resolved approvals directory.
+
+    # ── MCP tools ───────────────────────────────────────────────────────
+
+    - id: approval-mcp-tools
+      title: Implement memory_request_approval and memory_resolve_approval
+      status: pending
+      blockers:
+        - approval-storage-impl
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          type: internal
+          intent: >-
+            Follow existing MCP tool patterns. Understand how plan tools
+            load plans and construct MemoryWriteResult responses.
+        - path: core/memory/working/projects/harness-expansion/IN/phase-5-hitl-design.md
+          type: internal
+          intent: >-
+            Reference the tool designs: parameters, return schemas,
+            behavioral contracts for request and resolve.
+      postconditions:
+        - description: memory_request_approval registered in MCP server
+          type: grep
+          target: "memory_request_approval::core/tools/agent_memory_mcp/tools/semantic/plan_tools.py"
+        - description: memory_resolve_approval registered in MCP server
+          type: grep
+          target: "memory_resolve_approval::core/tools/agent_memory_mcp/tools/semantic/plan_tools.py"
+        - description: >-
+            Request creates pending approval document with auto-populated
+            phase context
+          type: manual
+        - description: >-
+            Resolve moves document from pending/ to resolved/ and updates
+            plan status
+          type: manual
+        - description: >-
+            SUMMARY.md regenerated after each operation
+          type: manual
+        - description: pre-commit hooks pass
+          type: test
+          target: pre-commit run --all-files
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          action: update
+          description: >-
+            Add memory_request_approval and memory_resolve_approval MCP tools.
+            Implement approval creation, context auto-population, resolution
+            with file move, SUMMARY regeneration.
+
+    # ── Plan pause/resume ───────────────────────────────────────────────
+
+    - id: plan-pause-resume
+      title: Add paused status and automatic pause on requires_approval phases
+      status: pending
+      blockers:
+        - approval-mcp-tools
+      sources:
+        - path: core/tools/agent_memory_mcp/plan_utils.py
+          type: internal
+          intent: >-
+            Read PLAN_STATUSES, next_action(), and plan status transition
+            logic to add "paused" and its transitions.
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          type: internal
+          intent: >-
+            Read memory_plan_execute start/complete actions to wire
+            automatic pause when requires_approval is true.
+      postconditions:
+        - description: >-
+            PLAN_STATUSES includes "paused"
+          type: grep
+          target: "paused::core/tools/agent_memory_mcp/plan_utils.py"
+        - description: >-
+            memory_plan_execute start on requires_approval phase auto-creates
+            approval request and pauses plan
+          type: manual
+        - description: >-
+            memory_plan_execute start/complete on paused plan returns error
+            with approval context
+          type: manual
+        - description: >-
+            Approved approval transitions plan back to active
+          type: manual
+        - description: >-
+            Rejected approval transitions plan to blocked
+          type: manual
+        - description: pre-commit hooks pass
+          type: test
+          target: pre-commit run --all-files
+      changes:
+        - path: core/tools/agent_memory_mcp/plan_utils.py
+          action: update
+          description: >-
+            Add "paused" to PLAN_STATUSES. Update next_action() and
+            status transition validation for pause/resume semantics.
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          action: update
+          description: >-
+            Update memory_plan_execute start action: auto-create approval
+            request for requires_approval phases, pause plan. Block
+            start/complete on paused plans. Resume on approval.
+
+    # ── Approval expiry ─────────────────────────────────────────────────
+
+    - id: approval-expiry
+      title: Implement lazy expiry for pending approvals
+      status: pending
+      blockers:
+        - plan-pause-resume
+      sources:
+        - path: core/memory/working/projects/harness-expansion/IN/phase-5-hitl-design.md
+          type: internal
+          intent: >-
+            Reference the expiry design: lazy evaluation on read, default
+            7-day window, expired transitions to blocked.
+      postconditions:
+        - description: >-
+            load_approval() checks expiry and transitions status to expired
+            when past deadline
+          type: manual
+        - description: >-
+            Expired approvals move to resolved/ with status=expired
+          type: manual
+        - description: >-
+            Expired approvals set plan status to blocked
+          type: manual
+        - description: >-
+            Default expiry is 7 days, configurable via expires_days
+          type: manual
+        - description: pre-commit hooks pass
+          type: test
+          target: pre-commit run --all-files
+      changes:
+        - path: core/tools/agent_memory_mcp/plan_utils.py
+          action: update
+          description: >-
+            Add expiry check to load_approval(). When expired, transition
+            status, move file, update plan.
+
+    # ── Approval UI ─────────────────────────────────────────────────────
+
+    - id: approval-ui
+      title: Build approval UI in HUMANS/views/approvals.html
+      status: pending
+      blockers:
+        - approval-expiry
+      sources:
+        - path: HUMANS/views/dashboard.html
+          type: internal
+          intent: >-
+            Follow existing view patterns for HTML structure, CSS includes,
+            and JS utilities.
+        - path: HUMANS/views/engram-shared.css
+          type: internal
+          intent: Reuse existing styles for consistent UI.
+        - path: HUMANS/views/engram-utils.js
+          type: internal
+          intent: Reuse existing utilities for data loading and rendering.
+        - path: core/memory/working/projects/harness-expansion/IN/phase-5-hitl-design.md
+          type: internal
+          intent: >-
+            Reference the approval UI design: features, layout, interactions.
+      postconditions:
+        - description: approvals.html exists in HUMANS/views/
+          type: check
+          target: HUMANS/views/approvals.html
+        - description: >-
+            Pending approvals list with phase context and expiry countdown
+          type: manual
+        - description: >-
+            Approve/reject buttons with comment field
+          type: manual
+        - description: >-
+            Resolved history with outcome and comments
+          type: manual
+        - description: >-
+            Expired approval alerts
+          type: manual
+      changes:
+        - path: HUMANS/views/approvals.html
+          action: create
+          description: >-
+            Create approval UI page with pending list, detail view, approve/
+            reject actions, resolved history, and expiry alerts.
+
+    # ── Quality and documentation ───────────────────────────────────────
+
+    - id: test-coverage-hitl
+      title: Add test coverage for approval workflow, pause/resume, and expiry
+      status: pending
+      blockers:
+        - approval-expiry
+      sources:
+        - path: core/tools/tests/test_plan_schema_extensions.py
+          type: internal
+          intent: Follow existing test patterns.
+      postconditions:
+        - description: ApprovalDocument validation and round-trip tests pass
+          type: manual
+        - description: Request/resolve approval lifecycle tests cover all states
+          type: manual
+        - description: Plan pause/resume transition tests pass
+          type: manual
+        - description: Approval expiry tests verify lazy evaluation
+          type: manual
+        - description: Auto-pause on requires_approval phase tests pass
+          type: manual
+        - description: All pre-existing tests still pass
+          type: test
+          target: python -m pytest core/tools/tests/ -q
+      changes:
+        - path: core/tools/tests/test_plan_schema_extensions.py
+          action: update
+          description: >-
+            Add tests for ApprovalDocument, request/resolve lifecycle,
+            pause/resume transitions, expiry, auto-pause.
+
+    - id: docs-hitl
+      title: Update documentation for structured HITL
+      status: pending
+      blockers:
+        - test-coverage-hitl
+        - approval-ui
+      sources:
+        - path: HUMANS/docs/DESIGN.md
+          type: internal
+          intent: Find insertion point for HITL section.
+        - path: HUMANS/docs/MCP.md
+          type: internal
+          intent: Document new tools.
+        - path: CHANGELOG.md
+          type: internal
+          intent: Add entry for Phase 5 changes.
+      postconditions:
+        - description: DESIGN.md documents approval workflow and pause/resume
+          type: grep
+          target: "approval::HUMANS/docs/DESIGN.md"
+        - description: MCP.md documents memory_request_approval and memory_resolve_approval
+          type: grep
+          target: "memory_request_approval::HUMANS/docs/MCP.md"
+        - description: CHANGELOG.md has entry for Phase 5 structured HITL
+          type: grep
+          target: "approval::CHANGELOG.md"
+        - description: pre-commit hooks pass
+          type: test
+          target: pre-commit run --all-files
+      changes:
+        - path: HUMANS/docs/DESIGN.md
+          action: update
+          description: >-
+            Add HITL section: approval lifecycle, pause/resume, expiry,
+            approval UI, relationship with review-queue.md.
+        - path: HUMANS/docs/MCP.md
+          action: update
+          description: >-
+            Document memory_request_approval and memory_resolve_approval
+            tools, paused plan status.
+        - path: CHANGELOG.md
+          action: update
+          description: Add entry for Phase 5 structured HITL.

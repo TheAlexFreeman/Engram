@@ -1,0 +1,365 @@
+id: observability-phase-3
+project: harness-expansion
+created: '2026-03-26'
+origin_session: memory/activity/2026/03/26/chat-002
+status: draft
+sessions_used: 0
+budget:
+  deadline: '2026-05-15'
+  max_sessions: 8
+  advisory: true
+purpose:
+  summary: >-
+    Add structured trace recording, querying, and visualization so agents
+    and humans can see what happened during a session.
+  context: |
+    The harness report calls observability "the biggest operational gap":
+    you cannot manage what you cannot see. Engram has git history, session
+    summaries, and ACCESS.jsonl (designed for retrieval tracking but currently
+    empty) — but no structured tool-call traces with timing, cost, or outcome.
+
+    This phase adds: (1) a TRACES.jsonl span schema, (2) a recording tool that
+    plan actions and retrieval operations use to emit spans, (3) an ACCESS.jsonl
+    extension for tool-call events, (4) a query tool for filtering and aggregating
+    traces, (5) session summary enrichment with trace-derived metrics, and (6)
+    a trace viewer UI.
+
+    Design document: IN/phase-3-observability-design.md
+  questions:
+    - Should trace recording be opt-in per session or always-on?
+    - How much metadata should be included in spans (balance detail vs size)?
+    - Should the trace viewer read files directly or go through MCP tools?
+    - What retention policy should apply to trace files?
+work:
+  phases:
+    # ── Trace schema and recording ──────────────────────────────────────
+
+    - id: trace-schema-design
+      title: Finalize TRACES.jsonl span schema and storage conventions
+      status: pending
+      blockers: []
+      requires_approval: true
+      sources:
+        - path: core/memory/working/projects/harness-expansion/IN/phase-3-observability-design.md
+          type: internal
+          intent: >-
+            Reference the full trace schema design: span fields, span types,
+            storage location, behavioral contract.
+        - path: core/memory/working/notes/harness-expansion-analysis.md
+          type: internal
+          intent: >-
+            Ground the schema in the gap analysis recommendations for
+            evaluation and observability.
+        - path: core/memory/activity/ACCESS.jsonl
+          type: internal
+          intent: >-
+            Understand the existing ACCESS.jsonl format to ensure the trace
+            schema is compatible and complementary.
+      postconditions:
+        - description: >-
+            Trace span schema finalized in IN/phase-3-observability-design.md
+            with all field definitions, span types, and examples
+          type: manual
+        - description: >-
+            Storage convention decided: per-session TRACES.jsonl alongside
+            session summaries
+          type: manual
+        - description: >-
+            Retention policy defined (e.g., traces follow session summary lifecycle)
+          type: manual
+      changes:
+        - path: core/memory/working/projects/harness-expansion/IN/phase-3-observability-design.md
+          action: update
+          description: >-
+            Finalize schema decisions: span ID format, metadata sanitization rules,
+            retention policy, opt-in vs always-on. Record rationale.
+
+    - id: trace-recording-impl
+      title: Implement memory_record_trace tool and internal trace helper
+      status: pending
+      blockers:
+        - trace-schema-design
+        - verification-phase-2:verify-integration
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          type: internal
+          intent: >-
+            Understand existing tool patterns for adding a new MCP tool.
+            Identify plan_execute/create/verify as instrumentation targets.
+        - path: core/memory/working/projects/harness-expansion/IN/phase-3-observability-design.md
+          type: internal
+          intent: >-
+            Follow the finalized design for memory_record_trace parameters
+            and return schema.
+        - path: core/tools/agent_memory_mcp/errors.py
+          type: internal
+          intent: >-
+            Ensure trace recording failures are caught, not propagated
+            (non-blocking contract).
+      postconditions:
+        - description: memory_record_trace tool registered in MCP server
+          type: grep
+          target: "memory_record_trace::core/tools/agent_memory_mcp/tools/semantic/plan_tools.py"
+        - description: >-
+            Internal record_trace() helper function exists for server-side
+            instrumentation
+          type: manual
+        - description: >-
+            Trace file created at correct path
+            (activity/YYYY/MM/DD/chat-NNN.traces.jsonl)
+          type: manual
+        - description: >-
+            Trace recording is non-blocking: exceptions caught and logged
+          type: manual
+        - description: pre-commit hooks pass
+          type: test
+          target: pre-commit run --all-files
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          action: update
+          description: >-
+            Add memory_record_trace MCP tool. Add internal record_trace()
+            helper. Instrument plan_execute, plan_create, plan_verify to
+            emit plan_action spans automatically.
+        - path: core/tools/agent_memory_mcp/plan_utils.py
+          action: update
+          description: >-
+            Add trace span dataclass and helper for generating span IDs
+            and timestamps.
+
+    - id: access-jsonl-extension
+      title: Extend ACCESS.jsonl format with tool-call events
+      status: pending
+      blockers:
+        - trace-recording-impl
+      sources:
+        - path: core/memory/activity/ACCESS.jsonl
+          type: internal
+          intent: >-
+            Read current ACCESS.jsonl format (if populated) and the
+            designed schema.
+        - path: core/governance/curation-policy.md
+          type: internal
+          intent: >-
+            Understand how ACCESS.jsonl data feeds curation algorithms
+            to ensure tool-call events don't break existing processing.
+      postconditions:
+        - description: >-
+            ACCESS.jsonl supports event_type field distinguishing retrieval
+            and tool_call events
+          type: manual
+        - description: >-
+            Existing curation code filters by event_type=retrieval and
+            is unaffected by new event types
+          type: manual
+        - description: pre-commit hooks pass
+          type: test
+          target: pre-commit run --all-files
+      changes:
+        - path: core/tools/agent_memory_mcp/plan_utils.py
+          action: update
+          description: >-
+            Add event_type field to ACCESS logging. Update access-logging
+            functions to include event_type in each line.
+
+    # ── Trace querying ──────────────────────────────────────────────────
+
+    - id: trace-query-impl
+      title: Implement memory_query_traces tool for filtering and aggregation
+      status: pending
+      blockers:
+        - trace-recording-impl
+      sources:
+        - path: core/memory/working/projects/harness-expansion/IN/phase-3-observability-design.md
+          type: internal
+          intent: >-
+            Reference the query tool design: parameters, return schema,
+            aggregation logic.
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          type: internal
+          intent: >-
+            Follow existing tool patterns for parameter handling and
+            response construction.
+      postconditions:
+        - description: memory_query_traces tool registered in MCP server
+          type: grep
+          target: "memory_query_traces::core/tools/agent_memory_mcp/tools/semantic/plan_tools.py"
+        - description: >-
+            Supports filtering by session_id, date range, span_type, plan_id, status
+          type: manual
+        - description: >-
+            Returns aggregates: total_duration_ms, by_type counts, by_status
+            counts, error_rate
+          type: manual
+        - description: >-
+            Respects limit parameter (default 100)
+          type: manual
+        - description: pre-commit hooks pass
+          type: test
+          target: pre-commit run --all-files
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          action: update
+          description: >-
+            Add memory_query_traces MCP tool. Implement file scanning,
+            JSON parsing, filtering, and aggregation logic.
+
+    # ── Session enrichment ──────────────────────────────────────────────
+
+    - id: session-summary-enrichment
+      title: Enrich session summaries with trace-derived metrics
+      status: pending
+      blockers:
+        - trace-recording-impl
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          type: internal
+          intent: >-
+            Find session summary recording logic (memory_record_session
+            or memory_record_chat_summary) to add metrics computation.
+        - path: core/memory/working/projects/harness-expansion/IN/phase-3-observability-design.md
+          type: internal
+          intent: >-
+            Reference the session enrichment design: metrics fields and
+            computation logic.
+      postconditions:
+        - description: >-
+            Session summaries include metrics section in frontmatter when
+            trace data exists
+          type: manual
+        - description: >-
+            Metrics include tool_calls, plan_actions, retrievals, errors,
+            total_duration_ms
+          type: manual
+        - description: >-
+            Sessions without trace data omit the metrics section
+          type: manual
+        - description: pre-commit hooks pass
+          type: test
+          target: pre-commit run --all-files
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          action: update
+          description: >-
+            Update session recording tools to compute and include trace
+            metrics in frontmatter when a TRACES.jsonl file exists.
+
+    # ── Trace viewer UI ─────────────────────────────────────────────────
+
+    - id: trace-viewer-ui
+      title: Build trace viewer in HUMANS/views/traces.html
+      status: pending
+      blockers:
+        - trace-query-impl
+      sources:
+        - path: HUMANS/views/dashboard.html
+          type: internal
+          intent: >-
+            Follow existing view patterns for HTML structure, CSS includes,
+            and JS utilities.
+        - path: HUMANS/views/engram-shared.css
+          type: internal
+          intent: Reuse existing styles for consistent UI.
+        - path: HUMANS/views/engram-utils.js
+          type: internal
+          intent: Reuse existing utilities for data loading and rendering.
+        - path: core/memory/working/projects/harness-expansion/IN/phase-3-observability-design.md
+          type: internal
+          intent: >-
+            Reference the trace viewer design: features, layout, interactions.
+      postconditions:
+        - description: traces.html exists in HUMANS/views/
+          type: check
+          target: HUMANS/views/traces.html
+        - description: >-
+            Session selector with date picker and session list
+          type: manual
+        - description: >-
+            Timeline/waterfall view of spans, color-coded by span_type
+          type: manual
+        - description: >-
+            Click-to-expand metadata details
+          type: manual
+        - description: >-
+            Filter by span_type and status
+          type: manual
+      changes:
+        - path: HUMANS/views/traces.html
+          action: create
+          description: >-
+            Create trace viewer page with session selector, timeline view,
+            span detail expansion, filtering, and summary statistics.
+
+    # ── Quality and documentation ───────────────────────────────────────
+
+    - id: test-coverage-observability
+      title: Add test coverage for trace recording, querying, and ACCESS extension
+      status: pending
+      blockers:
+        - session-summary-enrichment
+        - trace-query-impl
+      sources:
+        - path: core/tools/tests/test_plan_schema_extensions.py
+          type: internal
+          intent: Follow existing test patterns.
+      postconditions:
+        - description: Trace recording tests cover all span types
+          type: manual
+        - description: Trace query tests cover filtering and aggregation
+          type: manual
+        - description: ACCESS.jsonl extension tests verify backward compatibility
+          type: manual
+        - description: Session enrichment tests verify metrics computation
+          type: manual
+        - description: All pre-existing tests still pass
+          type: test
+          target: python -m pytest core/tools/tests/ -q
+      changes:
+        - path: core/tools/tests/test_plan_schema_extensions.py
+          action: update
+          description: >-
+            Add tests for trace recording, querying, ACCESS extension,
+            and session summary enrichment.
+
+    - id: docs-observability
+      title: Update documentation for observability features
+      status: pending
+      blockers:
+        - test-coverage-observability
+        - trace-viewer-ui
+      sources:
+        - path: HUMANS/docs/DESIGN.md
+          type: internal
+          intent: Find insertion point for observability section.
+        - path: HUMANS/docs/MCP.md
+          type: internal
+          intent: Document new tools and parameters.
+        - path: CHANGELOG.md
+          type: internal
+          intent: Add entry for Phase 3 changes.
+      postconditions:
+        - description: DESIGN.md documents trace schema and observability architecture
+          type: grep
+          target: "TRACES.jsonl::HUMANS/docs/DESIGN.md"
+        - description: MCP.md documents memory_record_trace and memory_query_traces
+          type: grep
+          target: "memory_record_trace::HUMANS/docs/MCP.md"
+        - description: CHANGELOG.md has entry for Phase 3 observability
+          type: grep
+          target: "observability::CHANGELOG.md"
+        - description: pre-commit hooks pass
+          type: test
+          target: pre-commit run --all-files
+      changes:
+        - path: HUMANS/docs/DESIGN.md
+          action: update
+          description: >-
+            Add observability section: trace schema, recording, querying,
+            ACCESS extension, session enrichment, trace viewer.
+        - path: HUMANS/docs/MCP.md
+          action: update
+          description: >-
+            Document memory_record_trace and memory_query_traces tools.
+        - path: CHANGELOG.md
+          action: update
+          description: Add entry for Phase 3 observability.
