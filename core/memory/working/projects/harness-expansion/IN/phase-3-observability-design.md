@@ -247,6 +247,83 @@ Implementation:
 
 ---
 
+---
+
+## Finalized design decisions
+
+_Recorded during trace-schema-design phase (2026-03-26). These resolve the open questions from the plan purpose._
+
+### Decision 1: Always-on trace recording (not opt-in)
+
+**Question:** Should trace recording be opt-in per session or always-on?
+
+**Decision: Always-on.**
+
+Rationale:
+- Traces are lightweight JSONL appends — the I/O cost is negligible compared to git commits that happen anyway.
+- Opt-in requires tracking a "tracing enabled" flag in session state, which adds complexity with no clear benefit. The user would need to remember to enable tracing to get observability.
+- The whole value of observability is completeness — a gap in traces (because tracing wasn't enabled for that session) is exactly the situation you want to avoid.
+- Non-blocking contract (exceptions caught and swallowed) means always-on carries no reliability risk.
+
+**Implementation:** `record_trace()` helper called unconditionally. If the session ID is unavailable (e.g., automation mode), trace is silently skipped.
+
+---
+
+### Decision 2: Metadata sanitization rules
+
+**Question:** How much metadata should be included in spans (balance detail vs size)?
+
+**Decision: Include structured identifiers and counts; exclude content and long strings.**
+
+Rules:
+- **Include:** tool names, plan IDs, phase IDs, action names, file paths (repo-relative), status values, integer counts (pass/fail/skip), boolean flags.
+- **Exclude:** file contents, raw query strings, user-entered free text beyond 200 characters, anything matching a credential pattern (strings containing `key`, `token`, `secret`, `password`, `auth` as substrings in field names are sanitized to `[redacted]`).
+- **Truncation:** Any string value exceeding 200 characters is truncated to 200 characters with a `[truncated]` suffix.
+- **Depth limit:** Metadata objects are at most 2 levels deep. Nested objects beyond depth 2 are serialized as their string representation.
+- **Size limit:** Total metadata object, JSON-serialized, must not exceed 2 KB. If exceeded, the tool emits a reduced metadata dict containing only top-level scalar fields.
+
+---
+
+### Decision 3: Retention policy — traces follow session summaries
+
+**Question:** What retention policy should apply to trace files?
+
+**Decision: Trace files follow the session summary lifecycle exactly.**
+
+Rules:
+- A trace file (`chat-NNN.traces.jsonl`) is created in the same directory as its session summary (`chat-NNN.md`).
+- Trace files are retained for as long as their session summary exists.
+- During periodic review archival (when session summaries are moved to compressed monthly/yearly archives), trace files move with them.
+- Trace files are never automatically deleted; removal follows the same manual process as session summary archives.
+- The rationale: traces are observability data for the session. If you care enough to keep the summary, the traces are similarly valuable. If you archive or delete old summaries, the traces become orphaned and can be pruned too.
+
+**Implementation:** No separate retention logic required — traces live alongside summaries and get archived by the same file operations.
+
+---
+
+### Decision 4: Trace viewer reads files directly (not via MCP tools)
+
+**Question:** Should the trace viewer read files directly or go through MCP tools?
+
+**Decision: Read files directly via `fetch()`**, consistent with existing views.
+
+Rationale:
+- All existing `HUMANS/views/` pages (dashboard, knowledge, projects, etc.) read files directly via `fetch()` from the filesystem. This pattern allows the views to work without the MCP server running — a key user-friendliness property of the views.
+- The MCP server may not be running when a user opens the trace viewer in a browser. Direct file reads work at `file://` (with appropriate CORS relaxation) and via a simple local HTTP server.
+- Following established patterns reduces implementation complexity and maintains consistency.
+
+**Implementation:** `traces.html` reads TRACES.jsonl files directly via `fetch()`, using the same path conventions as other views. The file list is discovered by fetching the session summary directory.
+
+---
+
+### Schema finalization — Span ID format
+
+**Decided:** 12-character lowercase hex string, derived from the first 12 hex characters of a UUID4 (hyphens stripped). Example: `"a3f2c1d8e94b"`. This matches the example in the schema above.
+
+Rationale: 12 hex chars = 48 bits of entropy, sufficient for collision-free span IDs within a session. UUID4 provides randomness without requiring a counter. Shorter than a full UUID4 string (32 chars) while still being human-scannable.
+
+---
+
 ## What this phase does NOT include
 
 - **Distributed tracing.** No trace context propagation across services. Traces are local to the MCP server.

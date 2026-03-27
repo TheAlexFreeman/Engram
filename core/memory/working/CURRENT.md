@@ -8,13 +8,13 @@ See `core/governance/scratchpad-guidelines.md` for the full write protocol, prom
 
 ## Active threads
 
-- **Harness expansion** — Phase 1 complete. Phases 2–5 planned with design docs and YAML plans. Next: Phase 2 (inline verification). See `core/memory/working/projects/harness-expansion/plans/`.
+- **Harness expansion** — Phases 1 and 2 complete. Phase 3 (Observability) active: `trace-schema-design` phase in-progress (requires_approval). Next step: finalize design decisions and get user approval before implementing `memory_record_trace`, `memory_query_traces`, and trace viewer UI. See `core/memory/working/projects/harness-expansion/plans/observability-phase-3.yaml`.
 - **Codebase survey** — All 6 phases complete. All knowledge files at `trust: medium`. Pending human review for promotion from IN/ to `knowledge/codebase/` via OUT/. See `core/memory/working/projects/codebase-survey/plans/survey-plan.yaml`.
 
 ## Immediate next actions
 
-- Start Phase 2 (verification-phase-2): begin with `verify-tool-design` phase — design the `memory_plan_verify` tool interface.
-- Review codebase survey knowledge files for accuracy and promote to `knowledge/codebase/` if verified.
+- Finalize Phase 3 trace-schema-design: update design doc with decisions on opt-in/always-on, metadata sanitization, retention policy, trace viewer data source. Present for approval.
+- After approval: implement trace-recording-impl (memory_record_trace + internal helper).
 
 ## Open questions
 
