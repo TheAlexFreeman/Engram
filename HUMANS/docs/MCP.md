@@ -500,6 +500,23 @@ Low-level mutation tools for operations that don't yet have a dedicated semantic
 
 Tier 2 tools use a **staged-transaction model**: mutations are staged in git's index without committing, and `memory_commit` seals them as a single atomic commit. They reject protected directories such as `memory/users/`, `governance/`, `memory/activity/`, and `memory/skills/`.
 
+### Semantic search (optional)
+
+When the `sentence-transformers` package is installed (`pip install agent-memory-mcp[search]`), two additional tools become available:
+
+| Tool | Description |
+| --- | --- |
+| `memory_semantic_search` | Hybrid vector + BM25 search with freshness and helpfulness reranking. Accepts `query`, optional `scope`, `limit`, `min_trust`, and tunable weights (`vector_weight`, `bm25_weight`, `freshness_weight`, `helpfulness_weight`). |
+| `memory_reindex` | Force a full or incremental rebuild of the embedding index. |
+
+The embedding index is stored in `.engram/search.db` (gitignored) and is built lazily on first search. It indexes all `.md` files under `memory/knowledge/`, `memory/skills/`, and `memory/users/`, using the `all-MiniLM-L6-v2` model (384 dimensions, local-only — no external API calls). Files are re-embedded only when their modification time changes.
+
+Hybrid scoring combines four signals with configurable weights (defaults in parentheses):
+- **Vector similarity** (0.4) — cosine similarity between query and chunk embeddings
+- **BM25** (0.3) — classical keyword relevance
+- **Freshness** (0.15) — exponential decay from `last_verified` or `created` date (180-day half-life)
+- **Helpfulness** (0.15) — mean helpfulness from ACCESS.jsonl retrieval logs
+
 ---
 
 ## MCP resources

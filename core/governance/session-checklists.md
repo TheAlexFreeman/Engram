@@ -22,6 +22,8 @@ Detail: `core/memory/skills/session-start.md`
 
 Checkpoint when the user requests it or when significant decisions have accumulated. Write `checkpoint.md` in the chat folder. Don't checkpoint trivially.
 
+If context pressure is detected (>75% of effective context window consumed, or platform signals compaction), trigger an automatic checkpoint per the context-pressure flush protocol. See `core/memory/skills/session-sync.md` § "Context-pressure flush".
+
 Detail: `core/memory/skills/session-sync.md`
 
 ## Session end

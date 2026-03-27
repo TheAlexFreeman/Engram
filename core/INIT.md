@@ -16,7 +16,9 @@ Use this file as the live operational router once you reach it:
 4. If this is a scheduled or recurring automation run (no interactive user), use the **Automation** manifest below.
 5. Otherwise, use the **Compact returning** manifest below and keep additional loads task-driven.
 
-**MCP preference:** When local agent-memory MCP tools are available, prefer them for memory reads, search, and governed writes; fall back to direct file access only when the MCP surface is unavailable or lacks the needed operation. If the host exposes Engram under a project-prefixed name, use the identifier shown in the available-server list.
+**MCP preference:** When local agent-memory MCP tools are available, prefer them for memory reads, search, and governed writes; fall back to direct file access only when the MCP surface is unavailable or lacks the needed operation. If the host exposes Engram under a project-prefixed name, use the identifier shown in the available-server list. When `memory_semantic_search` is available, prefer it for knowledge retrieval queries over structural navigation.
+
+**Retrieval discipline:** When asked about prior conversations, decisions, or stored knowledge, query the relevant SUMMARY files, ACCESS.jsonl, or `memory_search` before answering from loaded context alone. Do not claim to remember something that is not in the loaded or searched files.
 
 ---
 

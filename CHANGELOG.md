@@ -18,6 +18,48 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-28] Retrieval discipline directive
+
+**Changed:** Added a "Retrieval discipline" paragraph to `core/INIT.md` and a `[behavioral_directives]` section to `agent-bootstrap.toml` requiring agents to search memory before answering recall-type questions.
+
+**Reasoning:** Agents occasionally confabulate or rely on stale loaded context when asked about prior conversations or stored knowledge. Making "search before answering" an explicit protocol closes this gap, mirroring the retrieval-first pattern observed in OpenClaw's architecture.
+
+**Approved by:** user
+
+## [2026-03-28] Pre-compaction flush protocol
+
+**Changed:** Added a "Context-pressure flush" section to `core/memory/skills/session-sync.md`, a cross-reference in `core/governance/session-checklists.md`, and a `[compaction_flush]` section in `agent-bootstrap.toml`. The protocol auto-triggers a mid-session checkpoint when >75% of the context window is consumed or when the platform signals an impending compaction.
+
+**Reasoning:** Context compaction can silently discard uncommitted working state. By making pre-compaction flush an explicit, triggerable protocol, in-progress notes, decisions, and scratchpad content are preserved before the context window resets.
+
+**Approved by:** user
+
+## [2026-03-28] Freshness-weighted search ranking
+
+**Changed:** Created `core/tools/agent_memory_mcp/freshness.py` (shared utility with `parse_date`, `effective_date`, `freshness_score` using exponential decay, 180-day half-life). Modified `memory_search` in `read_tools.py` to accept an optional `freshness_weight` parameter (0.0–1.0, default 0.0) that re-ranks results by a combined text-match + temporal-decay score. Added 19 new tests in `test_search_freshness.py`. Documented the parameter in `agent-memory-capabilities.toml`.
+
+**Reasoning:** Pure text-match search returns results in file-system order with no recency signal. Adding optional freshness weighting lets agents prefer recently verified knowledge when relevance is otherwise equal, improving retrieval quality for evolving topics.
+
+**Approved by:** user
+
+## [2026-03-28] Semantic search with hybrid ranking
+
+**Changed:**
+
+- **`core/tools/agent_memory_mcp/tools/semantic/search_tools.py`** — new module implementing `EmbeddingIndex` class (SQLite-backed, incremental, `all-MiniLM-L6-v2` embeddings), `_BM25` scorer, and ACCESS.jsonl helpfulness loader. Exposes two MCP tools: `memory_semantic_search` (hybrid vector + BM25 + freshness + helpfulness ranking with configurable weights) and `memory_reindex` (force rebuild).
+- **`core/tools/agent_memory_mcp/tools/semantic/__init__.py`** — registered `search_tools` in the semantic package.
+- **`pyproject.toml`** — added `[search]` optional dependency group (`sentence-transformers>=2.6`, `numpy>=1.24`).
+- **`.gitignore`** — added `.engram/` for the embedding index cache.
+- **`HUMANS/tooling/agent-memory-capabilities.toml`** — added `memory_semantic_search` and `memory_reindex` to `semantic_extensions` tool set.
+- **`HUMANS/docs/MCP.md`** — added "Semantic search (optional)" section documenting both tools, hybrid scoring formula, and setup.
+- **`HUMANS/docs/DESIGN.md`** — moved "Semantic retrieval" from medium-term to "recently realized".
+- **`core/INIT.md`** — added preference note for `memory_semantic_search` when available.
+- **`core/tools/tests/test_semantic_search.py`** — 32 tests covering tokenization, BM25 scoring, file chunking, helpfulness loading, index database operations, embedding integration (skipped when deps not installed), MCP tool integration, and graceful degradation.
+
+**Reasoning:** Semantic (vector-based) search dramatically improves retrieval precision for natural language queries over growing knowledge bases. The hybrid scoring model (40% vector + 30% BM25 + 15% freshness + 15% helpfulness) leverages Engram's unique ACCESS.jsonl data as a reranking signal — something no other memory system offers. The local-only embedding model respects Engram's local-first principle.
+
+**Approved by:** user
+
 ## [2026-03-27] Phase 9: External ingestion affordances
 
 **Changed:** Added the Phase 9 external-intake layer for plan execution and project research staging.

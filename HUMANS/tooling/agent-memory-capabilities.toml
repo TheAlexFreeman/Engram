@@ -25,6 +25,8 @@ read_support = [
   "memory_read_file",
   "memory_list_folder",
   "memory_review_unverified",
+  # memory_search supports optional `freshness_weight` (0.0–1.0, default 0.0);
+  # when > 0 results are re-ranked by combined text-match + temporal-decay score.
   "memory_search",
   "memory_resolve_link",
   "memory_find_references",
@@ -121,6 +123,9 @@ semantic_extensions = [
   "memory_audit_link_density",
   "memory_prune_redundant_links",
   "memory_prune_weak_links",
+  # Semantic search tools (require sentence-transformers optional dep)
+  "memory_semantic_search",
+  "memory_reindex",
 ]
 declared_gaps = []
 
@@ -851,7 +856,13 @@ owns_frontmatter = []
 owns_summaries = []
 owns_access_logs = []
 owns_review_queue = []
-result_fields = ["plan_id", "project_id", "phase_id", "plan_status", "context_budget"]
+result_fields = [
+  "plan_id",
+  "project_id",
+  "phase_id",
+  "plan_status",
+  "context_budget",
+]
 fallback_tools = []
 error_kinds = ["NotFoundError", "ValidationError"]
 notes = "Briefing assembly is read-mostly, but it may append a tool-call trace span when MEMORY_SESSION_ID is available."
@@ -1663,7 +1674,13 @@ owns_frontmatter = ["memory/knowledge/**/*.md"]
 owns_summaries = []
 owns_access_logs = []
 owns_review_queue = []
-result_fields = ["files_changed", "total_removed", "details", "dry_run", "scope"]
+result_fields = [
+  "files_changed",
+  "total_removed",
+  "details",
+  "dry_run",
+  "scope",
+]
 fallback_tools = ["memory_edit", "memory_commit"]
 error_kinds = ["ValidationError", "StagingError"]
 

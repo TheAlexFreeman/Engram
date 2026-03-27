@@ -23,6 +23,9 @@ core = ["python-frontmatter>=1.1", "PyYAML>=6.0"]
 # Install with: pip install -e ".[server]"
 server = ["mcp>=1.0", "python-frontmatter>=1.1", "PyYAML>=6.0"]
 
+# Install with: pip install -e ".[search]"
+search = ["sentence-transformers>=2.6", "numpy>=1.24"]
+
 # Install with: pip install -e ".[dev]"
 dev = [
     "pre-commit>=3.7",
