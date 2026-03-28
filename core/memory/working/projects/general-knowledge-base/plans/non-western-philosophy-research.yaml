@@ -2,8 +2,8 @@ id: non-western-philosophy-research
 project: general-knowledge-base
 created: '2026-03-26'
 origin_session: memory/activity/2026/03/26/chat-003
-status: not_started
-sessions_used: 0
+status: active
+sessions_used: 4
 budget:
   deadline: '2026-06-30'
   max_sessions: 5
@@ -49,7 +49,7 @@ work:
   phases:
     - id: orientation
       title: Orient to existing non-Western coverage and define non-western/ scope
-      status: not_started
+      status: complete
       blockers: []
       sources:
         - path: core/memory/knowledge/philosophy/history/non-western/chinese-philosophy.md
@@ -95,7 +95,7 @@ work:
 
     - id: indian-philosophy-depth
       title: Write depth files on Indian philosophical traditions
-      status: not_started
+      status: complete
       blockers:
         - orientation
       sources:
@@ -169,7 +169,7 @@ work:
 
     - id: chinese-philosophy-depth
       title: Write depth files on Chinese philosophical traditions
-      status: not_started
+      status: complete
       blockers:
         - indian-philosophy-depth
       sources:
@@ -234,7 +234,7 @@ work:
 
     - id: cross-tradition-synthesis
       title: Write cross-tradition synthesis and non-western/ SUMMARY
-      status: not_started
+      status: complete
       blockers:
         - chinese-philosophy-depth
       sources:

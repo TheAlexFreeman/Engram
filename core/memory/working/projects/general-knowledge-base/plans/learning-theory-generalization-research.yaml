@@ -2,8 +2,8 @@ id: learning-theory-generalization-research
 project: general-knowledge-base
 created: '2026-03-26'
 origin_session: memory/activity/2026/03/26/chat-003
-status: not_started
-sessions_used: 0
+status: active
+sessions_used: 3
 budget:
   deadline: '2026-05-15'
   max_sessions: 3
@@ -39,7 +39,7 @@ work:
   phases:
     - id: orientation
       title: Orient to existing learning theory coverage and define learning-theory/ scope
-      status: not_started
+      status: complete
       blockers: []
       sources:
         - path: core/memory/knowledge/mathematics/information-theory/pac-learning-sample-complexity.md
@@ -86,7 +86,7 @@ work:
 
     - id: modern-generalization-theory
       title: Write files on post-classical generalization theory
-      status: not_started
+      status: complete
       blockers:
         - orientation
       sources:
@@ -154,7 +154,7 @@ work:
 
     - id: scale-and-synthesis
       title: Write files on scale, in-context learning theory, and synthesis
-      status: not_started
+      status: complete
       blockers:
         - modern-generalization-theory
       sources:

@@ -2,8 +2,8 @@ id: emotion-and-affect-research
 project: general-knowledge-base
 created: '2026-03-26'
 origin_session: memory/activity/2026/03/26/chat-003
-status: not_started
-sessions_used: 0
+status: active
+sessions_used: 4
 budget:
   deadline: '2026-05-15'
   max_sessions: 5
@@ -39,7 +39,7 @@ work:
   phases:
     - id: orientation
       title: Orient to existing cog-sci coverage and define affective scope
-      status: not_started
+      status: complete
       blockers: []
       sources:
         - path: core/memory/knowledge/cognitive-science/cognitive-science-synthesis.md
@@ -83,7 +83,7 @@ work:
 
     - id: core-emotion-science
       title: Write files on foundational theories of emotion
-      status: not_started
+      status: complete
       blockers:
         - orientation
       sources:
@@ -138,7 +138,7 @@ work:
 
     - id: cognitive-emotion-interface
       title: Write files on emotion-cognition integration
-      status: not_started
+      status: complete
       blockers:
         - core-emotion-science
       sources:
@@ -194,7 +194,7 @@ work:
 
     - id: synthesis-and-ai-relevance
       title: Write emotion synthesis and AI-welfare implications file
-      status: not_started
+      status: complete
       blockers:
         - cognitive-emotion-interface
       sources:
