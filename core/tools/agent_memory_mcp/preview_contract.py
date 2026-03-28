@@ -55,6 +55,7 @@ def build_governed_preview(
         "resulting_state": resulting_state,
     }
 
+
 def approval_token_for_operation(
     repo,
     *,

@@ -59,7 +59,9 @@ def validate_frontmatter_metadata(
         )
 
 
-def validate_trust_boundary(frontmatter: Mapping[str, Any], *, context: str = "frontmatter") -> None:
+def validate_trust_boundary(
+    frontmatter: Mapping[str, Any], *, context: str = "frontmatter"
+) -> None:
     """Require explicit approval for trust:high assignments outside user-stated facts."""
     trust = frontmatter.get("trust")
     source = frontmatter.get("source")

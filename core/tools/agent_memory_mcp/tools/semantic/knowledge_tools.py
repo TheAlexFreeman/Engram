@@ -11,12 +11,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from ...path_policy import (
-    forbid_prefix,
     require_under_prefix,
     resolve_repo_path,
     validate_knowledge_path,
     validate_session_id,
-    validate_top_level_root,
 )
 from ...preview_contract import build_governed_preview, preview_target
 from ..name_index import generate_names_index, write_names_index

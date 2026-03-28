@@ -144,7 +144,9 @@ class AgentMemoryWriteToolTests(unittest.TestCase):
         )
         return cast(dict[str, ToolCallable], tools)
 
-    def _preview_tool(self, tools: dict[str, ToolCallable], tool_name: str, **kwargs: Any) -> dict[str, Any]:
+    def _preview_tool(
+        self, tools: dict[str, ToolCallable], tool_name: str, **kwargs: Any
+    ) -> dict[str, Any]:
         return json.loads(asyncio.run(tools[tool_name](preview=True, **kwargs)))
 
     def _approval_token_for(
@@ -4743,7 +4745,9 @@ Load compact context.
         ).stdout.strip()
 
         self.assertEqual(applied["new_state"]["action"], "created")
-        self.assertEqual(applied["new_state"]["registry_file"], "memory/skills/tool-registry/test-provider.yaml")
+        self.assertEqual(
+            applied["new_state"]["registry_file"], "memory/skills/tool-registry/test-provider.yaml"
+        )
         self.assertIsNotNone(applied["commit_sha"])
         self.assertTrue(registry_path.exists())
         self.assertTrue(summary_path.exists())

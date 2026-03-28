@@ -535,6 +535,8 @@ class ValidateMemoryRepoTests(unittest.TestCase):
     def test_runtime_validator_and_docs_share_provenance_vocabulary(self) -> None:
         from core.tools.agent_memory_mcp.frontmatter_policy import (
             ALLOWED_SOURCE_VALUES as runtime_sources,
+        )
+        from core.tools.agent_memory_mcp.frontmatter_policy import (
             ALLOWED_TRUST_VALUES as runtime_trust,
         )
 

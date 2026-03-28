@@ -17,9 +17,10 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-import frontmatter as fmlib  # type: ignore[import-untyped]
-import yaml  # type: ignore[import-untyped]
-from core.tools.agent_memory_mcp.frontmatter_policy import (
+import frontmatter as fmlib  # type: ignore[import-untyped]  # noqa: E402
+import yaml  # type: ignore[import-untyped]  # noqa: E402
+
+from core.tools.agent_memory_mcp.frontmatter_policy import (  # noqa: E402
     ALLOWED_SOURCE_VALUES,
     ALLOWED_TRUST_VALUES,
     REQUIRED_FRONTMATTER_KEYS,
