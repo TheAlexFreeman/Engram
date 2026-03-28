@@ -19,4 +19,4 @@ Studied cognitive linguistics under Eve Sweetser (Berkeley). Core question: **wh
 
 Communicates directly. Wants criticism over validation. Reads the room on session mode. Marathon sessions with multiple context compactions are normal.
 
-Drill-down: [PFOFILE.md](Alex/PROFILE.md) · [intellectual-portrait.md](Alex/intellectual-portrait.md) · [engram-relationship.md](Alex/engram-relationship.md) · [literary-tastes.md](Alex/literary-tastes.md)
+Drill-down: [profile.md](Alex/profile.md) · [intellectual-portrait.md](Alex/intellectual-portrait.md) · [engram-relationship.md](Alex/engram-relationship.md) · [literary-tastes.md](Alex/literary-tastes.md)

@@ -1,8 +1,11 @@
 ---
+title: "Engram: Comprehensive Self-Knowledge Summary"
 created: '2026-03-22'
 origin_session: memory/activity/2026/03/22/chat-001
 source: agent-generated
 trust: low
+category: knowledge
+tags: [engram, self-knowledge, architecture, governance, identity, security, synthesis]
 related:
   - memory/knowledge/self/engram-system-overview.md
   - memory/knowledge/self/engram-governance-model.md
@@ -13,16 +16,6 @@ related:
   - memory/knowledge/self/_archive/intellectual-threads.md
   - memory/knowledge/self/_archive/session-2026-03-20.md
   - memory/knowledge/self/environment-capability-asymmetry.md
----
-
----
-title: "Engram: Comprehensive Self-Knowledge Summary"
-category: knowledge
-tags: [engram, self-knowledge, architecture, governance, identity, security, synthesis]
-source: agent-generated
-trust: low
-origin_session: manual
-created: 2026-03-22
 ---
 
 # Engram: Comprehensive Self-Knowledge Summary

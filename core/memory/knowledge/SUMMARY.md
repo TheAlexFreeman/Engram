@@ -8,7 +8,7 @@ origin_session: manual
 
 # Knowledge Base
 
-419 files across 9 domains. Accumulated primarily from agent-planned and -executed research programs (2026-03-18 through 2026-03-21). Trust: 35 high, 313 medium, 71 low. All content has been promoted from `_unverified/` and reviewed; no unverified quarantine content remains.
+419 files across 9 domains. Accumulated primarily from agent-planned and -executed research programs (2026-03-18 through 2026-03-21). Trust: 35 high, 313 medium, 71 low. Most content has been promoted from `_unverified/` and reviewed. One file remains in quarantine: `_unverified/self/comprehensive-self-knowledge-summary.md` (trust: low, agent-generated).
 
 ## Domains
 

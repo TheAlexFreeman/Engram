@@ -6,7 +6,7 @@
 
 ---
 
-## Current state: 11 files
+## Current state: 12 files (11 policy documents + this roadmap)
 
 | File | Role | Load pattern |
 |---|---|---|
@@ -48,7 +48,7 @@ These are observation-driven evaluations, not predetermined changes. Log finding
 
 **Periodic review integration:** Step 4 of the governance evaluation protocol in `security-signals.md` (consistency check) should include: "Flag any governance file whose `last_revised` date is more than two stage-transitions old."
 
-**Process:** Low-risk. Can be done as a single commit across all 11 files. No cross-reference updates needed.
+**Process:** Low-risk. Can be done as a single commit across all 12 files. No cross-reference updates needed.
 
 ---
 

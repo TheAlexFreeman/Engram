@@ -49,6 +49,7 @@ read_support = [
   # parameters; returned commit entries may include `truncated` when `n`
   # clips matches before the date window is exhausted.
   "memory_git_log",
+  "memory_git_health",
   "memory_session_health_check",
   "memory_session_bootstrap",
   "memory_prepare_unverified_review",
@@ -86,6 +87,7 @@ semantic_extensions = [
   "memory_plan_review",
   "memory_plan_verify",
   "memory_plan_briefing",
+  "memory_plan_resume",
   "memory_stage_external",
   "memory_scan_drop_zone",
   "memory_run_eval",
@@ -192,19 +194,19 @@ version = 1
 selection_mode = "host_side_narrowing_only"
 dynamic_runtime_switching = false
 list_changed_supported = false
-default_profile = "full"
+default_profile = "guided_write"
 profile_argument = "profile"
-compatibility_note = "Tool profiles are advisory metadata only; the MCP runtime exports a static tool surface."
+compatibility_note = "Tool profiles are advisory metadata only; the MCP runtime exports a static tool surface. The effective default is guided_write (Tier 0 + 1); setting MEMORY_ENABLE_RAW_WRITE_TOOLS=1 activates full (Tier 0 + 1 + 2)."
 
 [tool_profiles.full]
 label = "Full Surface"
 description = "Expose the complete governed surface, including raw fallback tools when the host opts in."
 tool_sets = ["read_support", "semantic_extensions", "raw_fallback"]
-default = true
 
 [tool_profiles.guided_write]
 label = "Guided Writes"
 description = "Prefer governed read and semantic tools while excluding raw fallback writes from host discovery."
+default = true
 tool_sets = ["read_support", "semantic_extensions"]
 
 [tool_profiles.read_only]
@@ -371,6 +373,10 @@ project_id = "Project Id"
 summary = "Summary"
 all_passed = "All Passed"
 context_budget = "Context Budget"
+resumption = "Resumption Point"
+phase_briefing = "Phase Briefing"
+intermediate_outputs = "Intermediate Outputs"
+has_run_state = "Has Run State"
 span_id = "Trace Span"
 trace_file = "Trace File"
 total_matched = "Matched Spans"
@@ -882,6 +888,30 @@ result_fields = [
 fallback_tools = []
 error_kinds = ["NotFoundError", "ValidationError"]
 notes = "Briefing assembly is read-mostly, but it may append a tool-call trace span when MEMORY_SESSION_ID is available."
+
+[operations.memory_plan_resume]
+group = "plan"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit_exception_direct_write"
+commit_category_hint = "plan"
+writes = ["memory/activity/YYYY/MM/DD/chat-NNN.traces.jsonl"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "plan_id",
+  "project_id",
+  "plan_status",
+  "resumption",
+  "phase_briefing",
+  "intermediate_outputs",
+  "has_run_state",
+]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError"]
+notes = "Load run state and assemble minimal restart context for resuming a plan. Emits a tool_call trace span."
 
 [operations.memory_record_trace]
 group = "plan"

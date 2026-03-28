@@ -157,7 +157,7 @@ All errors inherit from `AgentMemoryError`:
 | Knowledge files | 500–2000 words (split beyond) |
 | Skill files | 300–1000 words |
 | Chat summaries | 100–400 words per session |
-| Max file size | 512 KB default (`MEMORY_MAX_FILE_BYTES`) |
+| Max file size | 512 KB default (`ENGRAM_MAX_FILE_SIZE`) |
 
 ## Open questions
 

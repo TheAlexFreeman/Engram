@@ -33,8 +33,12 @@ _MAX_FRONTMATTER_BULK_UPDATES = 100
 
 
 def _max_file_bytes() -> int:
-    """Return the configured file-size ceiling (default 512 KB)."""
-    return int(os.environ.get("MEMORY_MAX_FILE_BYTES", "512000"))
+    """Return the configured file-size ceiling (default 512 KB).
+
+    Uses ENGRAM_MAX_FILE_SIZE — the same env var as ContentSizeGuard in
+    guard_pipeline.py — so a single override controls both checks.
+    """
+    return int(os.environ.get("ENGRAM_MAX_FILE_SIZE", "512000"))
 
 
 if TYPE_CHECKING:
@@ -192,7 +196,7 @@ def register(
         if content_bytes > max_bytes:
             raise ValidationError(
                 f"Content is {content_bytes:,} bytes, which exceeds the "
-                f"{max_bytes:,}-byte limit (set MEMORY_MAX_FILE_BYTES to override). "
+                f"{max_bytes:,}-byte limit (set ENGRAM_MAX_FILE_SIZE to override). "
                 "Summarize or split the content before writing."
             )
 
@@ -338,7 +342,7 @@ def register(
         Returns:
             MemoryWriteResult JSON.
         """
-        from ..errors import MemoryPermissionError, NotFoundError
+        from ..errors import MemoryPermissionError, NotFoundError, StagingError
         from ..models import MemoryWriteResult
 
         repo = get_repo()
@@ -365,11 +369,13 @@ def register(
         try:
             repo.rm(path)
             track_paths(path)
-        except Exception as e:
-            raise MemoryPermissionError(
+        except MemoryPermissionError:
+            raise
+        except (StagingError, OSError) as e:
+            raise StagingError(
                 f"Could not delete {path}: {e}.",
-                path=path,
-            )
+                stderr=getattr(e, "stderr", str(e)),
+            ) from e
 
         result = MemoryWriteResult(
             files_changed=[path],

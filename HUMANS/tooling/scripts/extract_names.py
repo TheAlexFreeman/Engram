@@ -1,7 +1,7 @@
 """Extract person names from the knowledge base and write NAMES.md index.
 
 Run from the repo root:
-    python extract_names.py
+    python HUMANS/tooling/scripts/extract_names.py
 
 Writes: core/memory/knowledge/NAMES.md
 Reads:  everything under core/memory/knowledge/ except _unverified/
@@ -11,11 +11,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.tools.agent_memory_mcp.tools.name_index import generate_names_index, write_names_index
+from engram_mcp.agent_memory_mcp.tools.name_index import generate_names_index, write_names_index
 
 
 def main() -> None:
-    repo_root = Path(__file__).parent
+    repo_root = Path(__file__).resolve().parents[3]
     payload = generate_names_index(repo_root / "core")
     target = write_names_index(repo_root / "core", payload["draft"], payload["output_path"])
 

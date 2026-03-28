@@ -5193,9 +5193,9 @@ current_focus: Example project.
         import os
 
         # Set a very small limit so we don't actually need a large payload
-        original = os.environ.get("MEMORY_MAX_FILE_BYTES")
+        original = os.environ.get("ENGRAM_MAX_FILE_SIZE")
         try:
-            os.environ["MEMORY_MAX_FILE_BYTES"] = "10"
+            os.environ["ENGRAM_MAX_FILE_SIZE"] = "10"
             with self.assertRaises(self.errors.ValidationError) as ctx:
                 asyncio.run(
                     tools["memory_write"](
@@ -5206,9 +5206,9 @@ current_focus: Example project.
             self.assertIn("bytes", str(ctx.exception))
         finally:
             if original is None:
-                os.environ.pop("MEMORY_MAX_FILE_BYTES", None)
+                os.environ.pop("ENGRAM_MAX_FILE_SIZE", None)
             else:
-                os.environ["MEMORY_MAX_FILE_BYTES"] = original
+                os.environ["ENGRAM_MAX_FILE_SIZE"] = original
 
     def test_memory_add_knowledge_file_rejects_oversized_content(self) -> None:
         repo_root = self._init_repo(
@@ -5218,9 +5218,9 @@ current_focus: Example project.
 
         import os
 
-        original = os.environ.get("MEMORY_MAX_FILE_BYTES")
+        original = os.environ.get("ENGRAM_MAX_FILE_SIZE")
         try:
-            os.environ["MEMORY_MAX_FILE_BYTES"] = "10"
+            os.environ["ENGRAM_MAX_FILE_SIZE"] = "10"
             with self.assertRaises(self.errors.ValidationError) as ctx:
                 asyncio.run(
                     tools["memory_add_knowledge_file"](
@@ -5233,9 +5233,9 @@ current_focus: Example project.
             self.assertIn("bytes", str(ctx.exception))
         finally:
             if original is None:
-                os.environ.pop("MEMORY_MAX_FILE_BYTES", None)
+                os.environ.pop("ENGRAM_MAX_FILE_SIZE", None)
             else:
-                os.environ["MEMORY_MAX_FILE_BYTES"] = original
+                os.environ["ENGRAM_MAX_FILE_SIZE"] = original
 
     # ------------------------------------------------------------------
     # P1: memory_log_access

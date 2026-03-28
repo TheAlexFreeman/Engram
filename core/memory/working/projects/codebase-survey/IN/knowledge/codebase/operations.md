@@ -136,7 +136,7 @@ Checks: directory structure, frontmatter schema compliance, ACCESS.jsonl format,
 - `memory_scan_frontmatter_health` (Tier 0) — frontmatter and heading health scan.
 - Git stderr is captured in `StagingError.stderr` when git operations fail.
 - Write lock contention surfaces as a timeout after 5 seconds (`agent-memory-write.lock`).
-- The `MEMORY_MAX_FILE_BYTES` env var (default 512 KB) prevents runaway file growth.
+- The `ENGRAM_MAX_FILE_SIZE` env var (default 512 KB) prevents runaway file growth.
 
 ## Open questions
 

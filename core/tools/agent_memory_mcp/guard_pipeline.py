@@ -32,7 +32,7 @@ _SOURCE_TYPES = {
     "template",
     "skill-discovery",
 }
-_DEFAULT_MAX_FILE_BYTES = 100_000
+_DEFAULT_MAX_FILE_BYTES = 512_000
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 

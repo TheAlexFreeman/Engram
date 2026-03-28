@@ -269,7 +269,7 @@ A session where the agent retrieved three knowledge files and noticed a boundary
 
 ### Review-queue entries
 [core/governance/review-queue.md]
-- type: boundary-violation, file: memory/knowledge/react-performance-patterns.md, pattern: "always use React.memo for list items" — imperative instruction detected; candidate for reclassification to memory/skills/
+- type: security, trigger: boundary-violation, file: memory/knowledge/react-performance-patterns.md, pattern: "always use React.memo for list items" — imperative instruction detected; candidate for reclassification to memory/skills/
 
 ### Other
 - `core/memory/knowledge/SUMMARY.md` needs "Usage patterns" updated: react-performance-patterns.md is high-value (6 retrievals, mean helpfulness 0.82)

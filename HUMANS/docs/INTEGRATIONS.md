@@ -106,7 +106,7 @@ This preserves the same governance boundary as the rest of the system: external 
 
 If you are deciding where to begin, these four integrations offer the highest value relative to setup cost:
 
-1. **LanceDB + Ollama embeddings.** Adds semantic search with zero external dependencies. Both run locally, store on disk, and need no API keys. Start by indexing `core/memory/knowledge/` into a Lance table and exposing a `memory_vector_search` tool.
+1. **LanceDB + Ollama embeddings.** Adds semantic search with zero external dependencies. Both run locally, store on disk, and need no API keys. Start by indexing `core/memory/knowledge/` into a Lance table and exposing a `memory_semantic_search` tool.
 
 2. **LangFuse.** Self-host with Docker Compose, instrument MCP tool dispatch, and get immediate visibility into how agents use the memory system. Helps validate that governance rules are working.
 

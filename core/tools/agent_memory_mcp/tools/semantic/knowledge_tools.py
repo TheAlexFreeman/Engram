@@ -1578,12 +1578,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         if trust != "low":
             raise ValidationError("trust must be 'low' for new unverified knowledge")
 
-        max_bytes = int(os.environ.get("MEMORY_MAX_FILE_BYTES", "512000"))
+        max_bytes = int(os.environ.get("ENGRAM_MAX_FILE_SIZE", "512000"))
         content_bytes = len(content.encode("utf-8"))
         if content_bytes > max_bytes:
             raise ValidationError(
                 f"Content is {content_bytes:,} bytes, which exceeds the "
-                f"{max_bytes:,}-byte limit (set MEMORY_MAX_FILE_BYTES to override). "
+                f"{max_bytes:,}-byte limit (set ENGRAM_MAX_FILE_SIZE to override). "
                 "Summarize or split the content before writing."
             )
         if abs_path.exists():

@@ -2501,6 +2501,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         "memory_get_tool_policy": memory_get_tool_policy,
         "memory_request_approval": memory_request_approval,
         "memory_resolve_approval": memory_resolve_approval,
+        "memory_plan_resume": memory_plan_resume,
     }
 
 

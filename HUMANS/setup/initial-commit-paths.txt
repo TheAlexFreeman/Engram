@@ -52,9 +52,11 @@ HUMANS/tooling/agent-memory-capabilities.toml
 HUMANS/tooling/agent-task-readiness.toml
 HUMANS/tooling/mcp-config-example.json
 HUMANS/tooling/onboard-export-template.md
+HUMANS/tooling/scripts/extract_names.py
 HUMANS/tooling/scripts/generate_initial_commit_manifest.py
 HUMANS/tooling/scripts/inspect_compact_budget.py
 HUMANS/tooling/scripts/onboard-export.sh
+HUMANS/tooling/scripts/prune_links.py
 HUMANS/tooling/scripts/resolve_bootstrap_manifest.py
 HUMANS/tooling/scripts/resolve_memory_capabilities.py
 HUMANS/tooling/scripts/resolve_task_readiness.py
@@ -701,6 +703,7 @@ core/memory/working/USER.md
 core/memory/working/approvals/SUMMARY.md
 core/memory/working/approvals/pending/.gitkeep
 core/memory/working/approvals/resolved/.gitkeep
+core/memory/working/notes/engram-harness-gap-analysis.md
 core/memory/working/notes/harness-expansion-analysis.md
 core/memory/working/projects/ACCESS.jsonl
 core/memory/working/projects/OUT/SUMMARY.md
@@ -830,10 +833,7 @@ core/tools/tests/test_plan_schema_extensions.py
 core/tools/tests/test_search_freshness.py
 core/tools/tests/test_semantic_search.py
 core/tools/tests/test_surface_unlinked.py
-engram-harness-gap-analysis.md
-extract_names.py
 index.html
-prune_links.py
 pyproject.toml
 setup.html
 setup.sh

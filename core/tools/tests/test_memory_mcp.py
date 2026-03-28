@@ -120,7 +120,7 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertGreaterEqual(payload["summary"]["total_tools"], 1)
         self.assertGreaterEqual(payload["summary"]["tool_profile_count"], 1)
         self.assertIn("full", payload["summary"]["tool_profiles"])
-        self.assertEqual(payload["summary"]["default_tool_profile"], "full")
+        self.assertEqual(payload["summary"]["default_tool_profile"], "guided_write")
         self.assertFalse(payload["summary"]["dynamic_profile_switching"])
         self.assertFalse(payload["summary"]["list_changed_supported"])
         self.assertGreaterEqual(payload["summary"]["resource_count"], 4)
@@ -141,7 +141,7 @@ class MemoryMCPTests(unittest.TestCase):
         raw = asyncio.run(self.module.memory_get_tool_profiles())
         payload = json.loads(raw)
 
-        self.assertEqual(payload["default_profile"], "full")
+        self.assertEqual(payload["default_profile"], "guided_write")
         self.assertFalse(payload["dynamic_runtime_switching"])
         self.assertFalse(payload["list_changed_supported"])
         self.assertIn("full", payload["profiles"])

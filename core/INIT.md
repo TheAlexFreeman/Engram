@@ -46,7 +46,7 @@ Load files in the listed order. Skip files marked _(skip if empty)_ when they co
 
 ### Governance notes
 
-**No access tracking:** `governance/` has no `ACCESS.json` files.
+**No access tracking:** `governance/` has no `ACCESS.jsonl` files.
 
 - Run metadata-first maintenance probes before loading extra governance files.
 - Load `core/governance/review-queue.md` only when it has real entries or the user asks.

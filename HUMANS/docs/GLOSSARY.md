@@ -108,7 +108,7 @@ Definitions for terms used across the Engram memory system. Canonical details li
 
 - **MCP (Model Context Protocol)** — The standardized protocol through which AI agents interact with Engram. The MCP server exposes governed tools for reading, searching, analyzing, and writing memory without each agent client reimplementing the repo's rules. See [MCP.md](MCP.md).
 
-- **Tool tiers** — The three-level permission model for MCP tools. *Tier 0* (read-only): analytics, search, validation, session health — 50 tools, always available. *Tier 1* (semantic operations): governed knowledge promotion, plans, session recording, aggregation — 40 tools, always available. *Tier 2* (write primitives): low-level staged file mutations — 7 tools, gated behind the `MEMORY_ENABLE_RAW_WRITE_TOOLS` environment flag. See [MCP.md](MCP.md).
+- **Tool tiers** — The three-level permission model for MCP tools. *Tier 0* (read-only): analytics, search, validation, session health — 43 tools, always available. *Tier 1* (semantic operations): governed knowledge promotion, plans, session recording, aggregation — 47 tools, always available. *Tier 2* (write primitives): low-level staged file mutations — 7 tools, gated behind the `MEMORY_ENABLE_RAW_WRITE_TOOLS` environment flag. See [MCP.md](MCP.md).
 
 - **Governed preview** — The default write workflow: the MCP server returns a preview of the proposed change (diff, affected files, commit message) before committing. Allows the agent or user to review and approve before mutation. Supported by all Tier 1 semantic tools and Tier 2 write primitives.
 
@@ -122,6 +122,6 @@ Definitions for terms used across the Engram memory system. Canonical details li
 
 - **Delete permission hook** — An optional external helper (`MEMORY_DELETE_PERMISSION_HELPER` env var) invoked before `memory_delete` removes a file. A non-zero exit status blocks the deletion. See `core/tools/agent_memory_mcp/server.py`.
 
-- **MCP resources** — Read-only data endpoints exposed alongside tools: `memory://session/health` (maintenance status) and `memory://plans/active` (current plan state). See `core/tools/agent_memory_mcp/tools/read_tools.py`.
+- **MCP resources** — Read-only data endpoints exposed alongside tools: `memory://capabilities/summary` (governed capability manifest), `memory://policy/summary` (current policy state), `memory://session/health` (maintenance status), and `memory://plans/active` (current plan state). See `core/tools/agent_memory_mcp/tools/read_tools/`.
 
 - **MCP prompts** — Pre-built workflow templates: unverified review, governed promotion preview, periodic review preparation, and session wrap-up. Help agents execute complex multi-step workflows consistently. See `core/tools/agent_memory_mcp/tools/read_tools.py`.

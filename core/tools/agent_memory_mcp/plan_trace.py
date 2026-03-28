@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import uuid
 from dataclasses import dataclass
@@ -11,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from .errors import ValidationError
+
+_log = logging.getLogger(__name__)
 
 TRACE_SPAN_TYPES = {
     "tool_call",
@@ -176,4 +179,5 @@ def record_trace(
             fh.write(json.dumps(span.to_dict(), ensure_ascii=False) + "\n")
         return span.span_id
     except Exception:  # noqa: BLE001
+        _log.debug("record_trace failed for session %s", session_id, exc_info=True)
         return None

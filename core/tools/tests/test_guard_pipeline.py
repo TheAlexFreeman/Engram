@@ -133,7 +133,7 @@ class TestContentSizeGuard(unittest.TestCase):
 
     def test_oversized_content_blocks(self):
         guard = ContentSizeGuard()
-        big = "x" * 200_000
+        big = "x" * 600_000
         result = guard.check(_ctx(content=big))
         self.assertEqual(result.status, "block")
         self.assertIn("exceeds", result.message)
@@ -251,7 +251,7 @@ class TestDefaultPipeline(unittest.TestCase):
 
     def test_oversized_blocks(self):
         pipeline = default_pipeline()
-        result = pipeline.run(_ctx(content="x" * 200_000))
+        result = pipeline.run(_ctx(content="x" * 600_000))
         self.assertFalse(result.allowed)
         self.assertEqual(result.blocked_by, "ContentSizeGuard")
 
