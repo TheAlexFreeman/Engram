@@ -2924,5 +2924,3 @@ def _build_knowledge_freshness_report(
         current_head=current_head,
     )
     return payload
-
-

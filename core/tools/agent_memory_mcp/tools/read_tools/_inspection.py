@@ -1,4 +1,5 @@
 """Read tools — inspection submodule."""
+
 from __future__ import annotations
 
 import json

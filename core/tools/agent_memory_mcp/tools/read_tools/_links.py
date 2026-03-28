@@ -1,4 +1,5 @@
 """Read tools — links submodule."""
+
 from __future__ import annotations
 
 import json

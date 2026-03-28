@@ -1,4 +1,5 @@
 """Read tools — health submodule."""
+
 from __future__ import annotations
 
 import json
@@ -13,7 +14,12 @@ if TYPE_CHECKING:
 
 
 def register_health(
-    mcp: "FastMCP", get_repo, get_root, H, *, tools: dict[str, object],
+    mcp: "FastMCP",
+    get_repo,
+    get_root,
+    H,
+    *,
+    tools: dict[str, object],
 ) -> dict[str, object]:
     """Register health read tools and return their callables."""
     memory_review_unverified = tools["memory_review_unverified"]

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import yaml  # type: ignore[import-untyped]
 from dataclasses import dataclass, field
-from datetime import date as date_type, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+import yaml  # type: ignore[import-untyped]
 
 from .errors import ValidationError
 from .path_policy import validate_slug

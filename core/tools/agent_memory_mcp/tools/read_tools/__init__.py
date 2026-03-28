@@ -4,6 +4,7 @@ Tier 0 — Enhanced read tools.
 Split into submodules for maintainability; this package re-exports the
 same ``register()`` entry point consumed by the MCP server.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

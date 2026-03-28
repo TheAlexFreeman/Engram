@@ -18,39 +18,20 @@ from .plan_approvals import (
     APPROVAL_STATUSES,
     ApprovalDocument,
     _check_approval_expiry,
-    _coerce_approval,
-    _find_approvals_root,
+    _find_approvals_root,  # noqa: F401
     approval_filename,
     approvals_summary_path,
     load_approval,
     regenerate_approvals_summary,
     save_approval,
 )
-from .plan_run_state import (
-    RunState,
-    RunStateError,
-    RunStatePhase,
-    _coerce_run_state,
-    _coerce_run_state_error,
-    _coerce_run_state_phase,
-    check_run_state_staleness,
-    load_run_state,
-    prune_run_state,
-    run_state_path,
-    save_run_state,
-    update_run_state,
-    validate_run_state_against_plan,
-)
 from .plan_registry import (
     COST_TIERS,
     PolicyCheckResult,
     ToolDefinition,
     _all_registry_tools,
-    _coerce_tool,
     _command_matches_tool,
-    _count_recent_invocations,
-    _find_registry_root,
-    _parse_rate_limit,
+    _parse_rate_limit,  # noqa: F401
     _resolve_tool_policies,
     check_tool_policy,
     load_registry,
@@ -59,12 +40,23 @@ from .plan_registry import (
     registry_summary_path,
     save_registry,
 )
+from .plan_run_state import (
+    RunState,
+    RunStateError,
+    RunStatePhase,
+    check_run_state_staleness,
+    load_run_state,
+    prune_run_state,
+    run_state_path,
+    save_run_state,
+    update_run_state,
+    validate_run_state_against_plan,
+)
 from .plan_trace import (
     TRACE_SPAN_TYPES,
     TRACE_STATUSES,
     TraceSpan,
-    _make_span_id,
-    _sanitize_metadata,
+    _sanitize_metadata,  # noqa: F401
     estimate_cost,
     record_trace,
     trace_file_path,

@@ -121,25 +121,17 @@ def register(
         TrustBoundaryGuard,
     )
 
-    _guard_pipeline = GuardPipeline(
-        [ContentSizeGuard(), FrontmatterGuard(), TrustBoundaryGuard()]
-    )
+    _guard_pipeline = GuardPipeline([ContentSizeGuard(), FrontmatterGuard(), TrustBoundaryGuard()])
 
     def _run_guards(path: str, operation: str, content: str | None = None) -> None:
         """Run the guard pipeline; raise ValidationError on block."""
         from ..errors import ValidationError
 
-        ctx = GuardContext(
-            path=path, operation=operation, root=get_root(), content=content
-        )
+        ctx = GuardContext(path=path, operation=operation, root=get_root(), content=content)
         result = _guard_pipeline.run(ctx)
         if not result.allowed:
-            blocked = next(
-                r for r in result.results if r.status in ("block", "require_approval")
-            )
-            raise ValidationError(
-                f"Blocked by {blocked.guard_name}: {blocked.message}"
-            )
+            blocked = next(r for r in result.results if r.status in ("block", "require_approval"))
+            raise ValidationError(f"Blocked by {blocked.guard_name}: {blocked.message}")
 
     tracked_paths: list[str] = []
 

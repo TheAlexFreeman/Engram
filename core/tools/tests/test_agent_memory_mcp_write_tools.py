@@ -14,6 +14,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, ClassVar, Coroutine, cast
 
+import time_machine
 import yaml  # type: ignore[import-untyped]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -9095,19 +9096,20 @@ trust: high
         old_val = os.environ.get("ENGRAM_TIER2")
         os.environ["ENGRAM_TIER2"] = "1"
         try:
-            asyncio.run(
-                tools["memory_run_eval"](
-                    session_id="memory/activity/2026/03/27/chat-203",
-                    tag="lifecycle",
+            with time_machine.travel("2026-03-27T12:00:00Z", tick=False):
+                asyncio.run(
+                    tools["memory_run_eval"](
+                        session_id="memory/activity/2026/03/27/chat-203",
+                        tag="lifecycle",
+                    )
                 )
-            )
-            raw = asyncio.run(
-                tools["memory_eval_report"](
-                    scenario_id="basic-plan-lifecycle",
-                    date_from="2026-03-27",
-                    date_to="2026-03-27",
+                raw = asyncio.run(
+                    tools["memory_eval_report"](
+                        scenario_id="basic-plan-lifecycle",
+                        date_from="2026-03-27",
+                        date_to="2026-03-27",
+                    )
                 )
-            )
         finally:
             if old_val is None:
                 os.environ.pop("ENGRAM_TIER2", None)

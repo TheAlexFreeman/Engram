@@ -35,8 +35,6 @@ _WRITE_LOCK_POLL_INTERVAL_SECONDS = 0.05
 _HEAD_LOCK_NAME = "HEAD.lock"
 _INDEX_LOCK_NAME = "index.lock"
 _STALE_HEAD_LOCK_MAX_AGE_SECONDS = 30.0
-_RETRY_MAX_ATTEMPTS = 3
-_RETRY_BASE_DELAY_SECONDS = 0.5
 _TRANSIENT_MARKERS = (
     "index.lock",
     "head.lock",
@@ -416,7 +414,10 @@ class GitRepo:
             return False
 
         pid = self._extract_pid_from_lock(lock_path)
-        if pid is not None and self._is_pid_alive(pid):
+        if pid is None:
+            # Cannot identify owner — conservative, do not remove.
+            return False
+        if self._is_pid_alive(pid):
             return False
 
         try:
@@ -588,59 +589,44 @@ class GitRepo:
         paths: list[str] | None = None,
         allow_empty: bool = False,
     ) -> GitPublicationResult:
-        """Commit staged changes with retry resilience.
+        """Commit staged changes with lock-aware fallback.
 
-        Retries up to ``_RETRY_MAX_ATTEMPTS`` times with exponential backoff
-        on transient failures (lock contention, I/O errors).  Stale lock files
-        are cleaned between attempts.
+        Tries the porcelain path first.  On a transient lock error, cleans any
+        stale HEAD lock and falls back to the plumbing path.  If plumbing also
+        fails with a transient error, attempts one final HEAD lock cleanup and,
+        only if a stale lock was actually removed, retries plumbing once more.
 
         *paths* are content-relative; converted to git-relative internally.
         """
         self.ensure_author_identity()
         git_paths = [self._to_git_path(p) for p in paths] if paths else None
-        last_error: StagingError | None = None
 
         with self.write_lock("commit"):
-            for attempt in range(1, _RETRY_MAX_ATTEMPTS + 1):
-                try:
-                    return self._commit_porcelain(message, paths=git_paths, allow_empty=allow_empty)
-                except StagingError as error:
-                    if not _is_transient_failure(error):
-                        raise
-                    last_error = error
-                    _log.warning(
-                        "Porcelain commit attempt %d/%d failed: %s",
-                        attempt,
-                        _RETRY_MAX_ATTEMPTS,
-                        error,
-                    )
+            # 1. Try porcelain commit.
+            try:
+                return self._commit_porcelain(message, paths=git_paths, allow_empty=allow_empty)
+            except StagingError as error:
+                if not _is_transient_failure(error):
+                    raise
+                _log.warning("Porcelain commit failed, falling back to plumbing: %s", error)
 
-                self._try_cleanup_all_stale_locks()
+            # 2. Clean any stale HEAD lock, then try plumbing.
+            self._try_cleanup_stale_head_lock()
+            try:
+                return self._commit_with_plumbing(message, paths=git_paths, allow_empty=allow_empty)
+            except StagingError as plumbing_error:
+                if not _is_transient_failure(plumbing_error):
+                    raise
+                _log.warning("Plumbing commit attempt 1 failed: %s", plumbing_error)
+                last_plumbing_error = plumbing_error
 
-                try:
-                    return self._commit_with_plumbing(
-                        message, paths=git_paths, allow_empty=allow_empty
-                    )
-                except StagingError as plumbing_error:
-                    if not _is_transient_failure(plumbing_error):
-                        raise
-                    last_error = plumbing_error
-                    _log.warning(
-                        "Plumbing commit attempt %d/%d failed: %s",
-                        attempt,
-                        _RETRY_MAX_ATTEMPTS,
-                        plumbing_error,
-                    )
+            # 3. Try one more cleanup. If a stale lock was actually removed,
+            #    attempt plumbing one final time; otherwise give up immediately.
+            cleaned = self._try_cleanup_stale_head_lock()
+            if not cleaned:
+                raise last_plumbing_error
 
-                self._try_cleanup_all_stale_locks()
-
-                if attempt < _RETRY_MAX_ATTEMPTS:
-                    delay = _RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1))
-                    _log.info("Retrying in %.1fs (attempt %d)", delay, attempt + 1)
-                    time.sleep(delay)
-
-            assert last_error is not None
-            raise last_error
+            return self._commit_with_plumbing(message, paths=git_paths, allow_empty=allow_empty)
 
     # ------------------------------------------------------------------
     # Inspection

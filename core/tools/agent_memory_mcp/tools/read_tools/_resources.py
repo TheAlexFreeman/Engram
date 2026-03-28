@@ -1,4 +1,5 @@
 """Read tools — MCP resources and prompts submodule."""
+
 from __future__ import annotations
 
 import json
@@ -9,7 +10,12 @@ if TYPE_CHECKING:
 
 
 def register_resources(
-    mcp: "FastMCP", get_repo, get_root, H, *, tools: dict[str, object],
+    mcp: "FastMCP",
+    get_repo,
+    get_root,
+    H,
+    *,
+    tools: dict[str, object],
 ) -> None:
     """Register MCP-native resources and prompts."""
     memory_session_health_check = tools["memory_session_health_check"]

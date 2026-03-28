@@ -152,7 +152,7 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-__all__ = ["GIT_REPO", "REPO_ROOT", "TOOLS", "create_mcp", "mcp"]
+__all__ = ["GIT_REPO", "REPO_ROOT", "TOOLS", "create_mcp", "mcp"]  # noqa: F822
 
 
 if __name__ == "__main__":
