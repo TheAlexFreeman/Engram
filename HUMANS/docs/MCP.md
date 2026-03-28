@@ -122,7 +122,7 @@ For worktree deployments, set `MEMORY_REPO_ROOT` to the worktree path and `HOST_
 
 ## Tool surface
 
-The MCP server exposes **95+ tools** organized into three tiers. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
+The MCP server exposes **97 tools** organized into three tiers (43 Tier 0, 47 Tier 1, 7 Tier 2). The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
 
 ### Tier 0: Read-only tools
 
@@ -154,6 +154,14 @@ These tools inspect, analyze, and report on the repo without changing it. Always
 | `memory_diff` | Show the diff for a specific commit or range. |
 | `memory_diff_branch` | Compare the current branch against a base branch. |
 | `memory_git_log` | Return recent commit history. |
+| `memory_git_health` | Return structured git diagnostics (lock files, repo validity, HEAD state, filesystem writability). |
+| `memory_extract_file` | Extract and return the contents of a governed file with metadata. |
+| `memory_score_existing_links` | Score existing cross-references by structural and access-pattern signals. |
+| `memory_score_links_by_access` | Score links using ACCESS.jsonl co-retrieval patterns. |
+| `memory_session_bootstrap` | Return compact bootstrap context for session initialization. |
+| `memory_prepare_unverified_review` | Prepare a structured review packet for unverified knowledge files. |
+| `memory_prepare_promotion_batch` | Prepare a batch of knowledge files for promotion review. |
+| `memory_prepare_periodic_review` | Assemble the full periodic review analysis packet. |
 
 **Analysis and reporting**
 
@@ -168,7 +176,6 @@ These tools inspect, analyze, and report on the repo without changing it. Always
 | `memory_link_delta` | Diff the current link surface against a git base ref, with optional cross-domain and transition filters. |
 | `memory_reorganize_preview` | Preview the impact of moving a file or subtree. |
 | `memory_suggest_structure` | Suggest advisory structure improvements for the governed markdown tree. |
-| `memory_analyze_graph` | Compute structural metrics on the knowledge graph (degree, density, clusters, orphans). |
 
 ### Cross-reference ergonomics
 
@@ -239,9 +246,6 @@ Important output fields:
 | `memory_audit_trust` | Audit trust decay and anomaly signals across the repo. |
 | `memory_get_maturity_signals` | Return current maturity stage indicators. |
 | `memory_run_periodic_review` | Run a periodic review analysis (read-only reporting). |
-| `memory_list_plans` | List active plans and their next actions. |
-| `memory_list_pending_reviews` | List knowledge files pending review. |
-| `memory_reset_session_state` | Reset session state files (scratchpad, working state). |
 
 ### Tier 1: Semantic write tools
 
@@ -267,6 +271,7 @@ These are the normal write path. Each tool represents a bounded operation with b
 | `memory_get_tool_policy` | Query the tool registry by tool name, provider, tags, or cost tier. Returns matching definitions. |
 | `memory_request_approval` | Create a pending approval document for a plan phase and pause the plan. Returns approval_file, expires, and plan_status. |
 | `memory_resolve_approval` | Approve or reject a pending approval. Moves document to resolved/, updates plan status to active (approve) or blocked (reject). |
+| `memory_list_plans` | List active plans and their next actions. |
 
 **`memory_plan_create` key parameters**
 
@@ -477,7 +482,11 @@ Plan statuses now include `paused` (awaiting human approval), in addition to `dr
 | `memory_mark_reviewed` | Mark a knowledge file as reviewed. |
 | `memory_update_names_index` | Update the NAMES.md index for a knowledge folder. |
 | `memory_reorganize_path` | Move or reorganize knowledge within the tree. |
+| `memory_list_pending_reviews` | List knowledge files pending review. |
+| `memory_analyze_graph` | Compute structural metrics on the knowledge graph (degree, density, clusters, orphans). |
 | `memory_prune_redundant_links` | Remove redundant cross-references from knowledge files. |
+| `memory_audit_link_density` | Audit link density across the knowledge graph. |
+| `memory_prune_weak_links` | Remove weak cross-reference links below a score threshold. |
 
 **Session and activity**
 
@@ -489,6 +498,9 @@ Plan statuses now include `paused` (awaiting human approval), in addition to `dr
 | `memory_log_access` | Log a single memory file access event to ACCESS.jsonl. |
 | `memory_log_access_batch` | Log multiple access events in a batch. |
 | `memory_run_aggregation` | Aggregate hot ACCESS logs into summary updates. |
+| `memory_reset_session_state` | Reset in-process session counters (e.g. identity churn). |
+| `memory_semantic_search` | Hybrid vector + BM25 + freshness + helpfulness search (requires `[search]` extras). |
+| `memory_reindex` | Force rebuild of the semantic search embedding index. |
 
 **Scratchpad, skills, and identity**
 

@@ -89,9 +89,9 @@ def validate_raw_move_destination(
 ) -> tuple[str, Path]:
     """Normalize and validate move destinations against the protected-directory policy.
 
-    Tier 2 moves must not target protected directories (memory/users/,
-    governance/, memory/activity/, memory/skills/). Use Tier 1 semantic tools
-    for governed writes there.
+    Tier 2 moves must not target protected directories and must stay under
+    the raw mutation roots (memory/knowledge/, memory/working/), matching the
+    same restriction applied to writes and deletes.
     """
     rel_path, abs_path = resolve_repo_path(repo, raw_path, field_name=field_name)
 
@@ -101,6 +101,13 @@ def validate_raw_move_destination(
             f"Cannot move to '{rel_path}': '{matched_protected}/' is a protected directory. "
             f"Use the appropriate Tier 1 semantic tool instead. "
             f"Protected directories: {sorted(_PROTECTED_ROOTS)}",
+            path=rel_path,
+        )
+
+    if _matches_any_prefix(rel_path, _RAW_MUTATION_ROOTS) is None:
+        allowed = ", ".join(f"{root}/" for root in _RAW_MUTATION_ROOTS)
+        raise MemoryPermissionError(
+            f"Cannot move to '{rel_path}': destination must be under {allowed}.",
             path=rel_path,
         )
 

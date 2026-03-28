@@ -54,9 +54,4 @@ All skill files must include YAML frontmatter. See `core/governance/update-guide
 
 ## Usage patterns
 
-_Aggregation has not yet run._ Raw access data exists in `ACCESS.jsonl` (5 entries across 2 sessions as of 2026-03-17). Preliminary signals:
-
-- **Highest retrieval value:** `onboarding.md` — 2 retrievals, mean helpfulness 0.85. Retrieved for first-run bootstrap verification and onboarding flow audits.
-- **Session support skills:** `session-start.md` (0.7), `session-wrapup.md` (0.6), `session-sync.md` (0.5) — each retrieved once during a system review.
-
-This section will be replaced with full aggregation results when the ACCESS.jsonl entry count reaches the active trigger.
+_No access data currently in `ACCESS.jsonl`._ Earlier entries were cleared during maintenance. This section will be populated with aggregation results when the ACCESS.jsonl entry count reaches the active trigger (15 entries).

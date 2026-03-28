@@ -125,11 +125,36 @@ def create_mcp(
     return mcp, tools, root, repo
 
 
-mcp, TOOLS, REPO_ROOT, GIT_REPO = create_mcp()
-globals().update(TOOLS)
+_created: tuple | None = None
 
-__all__ = ["GIT_REPO", "REPO_ROOT", "TOOLS", "create_mcp", "mcp", *sorted(TOOLS)]
+
+def _ensure_created() -> tuple:
+    global _created
+    if _created is None:
+        _created = create_mcp()
+        globals().update(_created[1])
+    return _created
+
+
+def __getattr__(name: str):
+    """Defer create_mcp() until first attribute access."""
+    _mcp, _tools, _root, _repo = _ensure_created()
+    if name == "mcp":
+        return _mcp
+    if name == "TOOLS":
+        return _tools
+    if name == "REPO_ROOT":
+        return _root
+    if name == "GIT_REPO":
+        return _repo
+    if name in _tools:
+        return _tools[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+__all__ = ["GIT_REPO", "REPO_ROOT", "TOOLS", "create_mcp", "mcp"]
 
 
 if __name__ == "__main__":
-    mcp.run()
+    _ensure_created()
+    _created[0].run()  # type: ignore[index]

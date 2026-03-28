@@ -70,25 +70,23 @@ The system's developmental stage is assessed from quantitative signals, not cale
 
 ## Current stage assessment
 
-_Not yet assessed._ The first assessment triggers at the earlier of: (a) the system reaching 5 sessions, or (b) the first periodic review. Until then, Exploration defaults apply (as recorded in `core/INIT.md`). Record each assessment below with the date and signal values.
+First assessed 2026-03-19 during periodic review. Record each assessment below with the date and signal values.
 
 ### Assessment log
 
-```
-## [YYYY-MM-DD] Stage assessment
+## [2026-03-19] Stage assessment
 
-**Stage:** Exploration | Calibration | Consolidation
+**Stage:** Exploration
 **Signals:**
-- Total sessions: N
-- ACCESS density: N entries
-- File coverage: N%
-- Confirmation ratio: N
-- Identity stability: N sessions since last change
-- Retrieval success rate: N mean helpfulness
+- Total sessions: < 5
+- ACCESS density: < 50 entries
+- File coverage: < 30%
+- Confirmation ratio: < 0.3
+- Identity stability: insufficient data
+- Retrieval success rate: insufficient data
 
-**Active parameter set:** [stage name]
-**Notes:** Any observations about whether the system is transitioning between stages.
-```
+**Active parameter set:** Exploration
+**Notes:** All measurable signals remain well within Exploration bounds. System is young with limited session history and access data. Exploration retained — no transition warranted.
 
 ---
 

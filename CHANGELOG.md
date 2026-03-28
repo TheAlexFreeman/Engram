@@ -214,7 +214,7 @@ Security measures: test-type commands are allowlisted (pytest, ruff, pre-commit,
 
 **Reasoning:** The plan system could track phases and tasks but had no way to verify that work actually met its postconditions, record failures for diagnostic context, or signal when a phase should be revised rather than retried. This closes the feedback loop between plan execution and plan governance.
 
-**Approved by:** agent (pending review)
+**Approved by:** user (batch-reviewed 2026-03-27)
 
 ## [2026-03-26] Plan schema extensions: sources, postconditions, approval gates, budget
 
@@ -232,7 +232,7 @@ All changes are backward-compatible: plans created before this revision load wit
 
 **Reasoning:** The original plan schema could store phases and tasks but gave agents no structured cue for what to read before acting, what must be true after, when to pause for human input, or when a project budget was exceeded. This left the agent harness incomplete — plans were passive records rather than active execution surfaces. These extensions close that gap by making plans the primary source of per-phase pre-work directives and approval constraints.
 
-**Approved by:** agent (pending review)
+**Approved by:** user (batch-reviewed 2026-03-27)
 
 ## [2026-03-24] Split INTEGRATIONS.md into WORKTREE.md + INTEGRATIONS.md
 
@@ -244,7 +244,7 @@ Updated cross-references in 6 files: README.md (header links + structure tree), 
 
 **Reasoning:** INTEGRATIONS.md was doing double duty — half worktree deployment operations, half third-party ecosystem tools. These serve different audiences at different times: someone deploying a worktree reads the CI/tooling sections once during setup, while someone evaluating complementary tools reads the integration sketches during planning. Splitting them makes both documents easier to navigate and avoids burying the third-party content below 250 lines of CI YAML.
 
-**Approved by:** agent (pending review)
+**Approved by:** user (batch-reviewed 2026-03-27)
 
 ## [2026-03-24] README.md rewrite
 
@@ -261,7 +261,7 @@ Updated cross-references in 6 files: README.md (header links + structure tree), 
 
 **Reasoning:** The README is both the agent's architectural entry point and the repository's public-facing landing page. It needed to reflect the MCP server (completely absent before), the full session type enumeration, the provenance model, and the updated doc suite. The previous version predated the MCP.md and INTEGRATIONS.md rewrites and was missing several files from the structure tree.
 
-**Approved by:** agent (pending review)
+**Approved by:** user (batch-reviewed 2026-03-27)
 
 ## [2026-03-24] Third-party integration guide added to INTEGRATIONS.md
 
@@ -269,7 +269,7 @@ Updated cross-references in 6 files: README.md (header links + structure tree), 
 
 **Reasoning:** The integrations guide previously covered only worktree deployment and tooling-bleed prevention. Users evaluating Engram alongside other AI infrastructure had no guidance on how external tools could complement the system or where the integration seams are. The new section provides concrete tool-by-tool sketches while reinforcing the governance boundary principle — external systems are read-only consumers or write back through MCP, never via direct file mutation.
 
-**Approved by:** agent (pending review)
+**Approved by:** user (batch-reviewed 2026-03-27)
 
 ## [2026-03-25] Rewrite of MCP.md, QUICKSTART.md, and INTEGRATIONS.md
 
@@ -282,7 +282,7 @@ All cross-references validated: 50+ links across the doc suite, fully connected 
 
 **Reasoning:** MCP.md was substantially outdated — it listed ~43 tools when the server actually exposes 51+, lacked the MCP resources and prompts sections entirely, and its "Available MCP resources" section confusingly listed Python files instead of actual MCP protocol resources. QUICKSTART.md and INTEGRATIONS.md were largely current but lacked cross-references to the rest of the documentation suite, creating navigation dead ends.
 
-**Approved by:** agent (pending review)
+**Approved by:** user (batch-reviewed 2026-03-27)
 
 ## [2026-03-25] Ground-up rewrite of CORE.md, DESIGN.md, and GLOSSARY.md
 
@@ -295,7 +295,7 @@ All cross-references validated: 18 links across the three files, all resolving c
 
 **Reasoning:** The three docs were written when the system was a template-stage seed project. They predated the MCP server (73 tools), browser views (7 pages), plan system, collaborative onboarding, governed-write model, and agent-bootstrap.toml. Users reading these files were getting a picture of a system that no longer existed. The rewrite brings them into alignment with the actual system architecture.
 
-**Approved by:** agent (pending review)
+**Approved by:** user (batch-reviewed 2026-03-27)
 
 ## [2026-03-24] Markdown section-link support in browser views
 
@@ -303,7 +303,7 @@ All cross-references validated: 18 links across the three files, all resolving c
 
 **Reasoning:** The shared renderer only recognized bare `.md` document links. As soon as a markdown link included a fragment, the renderer either treated it as a generic external URL or left it inert, which meant section links inside docs and knowledge files could not be followed. Adding anchor-aware parsing at the shared utility layer fixes the behavior consistently across the browser views and keeps the graph/reference tooling aligned with the new link format.
 
-**Approved by:** agent (pending review)
+**Approved by:** user (batch-reviewed 2026-03-27)
 
 ## [2026-03-24] Shared markdown renderer and views consolidation
 
@@ -311,7 +311,7 @@ All cross-references validated: 18 links across the three files, all resolving c
 
 **Reasoning:** The four independent markdown renderers had diverged in quality and feature coverage — knowledge.html had full math support and DOM-safe construction, projects.html lacked math, and skills/users.html used regex+innerHTML which is an XSS risk even with escapeHtml pre-processing. Consolidating to a single shared renderer ensures consistent rendering quality, eliminates the innerHTML security concern for markdown content, and enables KaTeX math rendering across all views.
 
-**Approved by:** agent (pending review)
+**Approved by:** user (batch-reviewed 2026-03-27)
 
 ## [2026-03-23] Views styling polish, design tokens, and documentation
 
@@ -319,7 +319,7 @@ All cross-references validated: 18 links across the three files, all resolving c
 
 **Reasoning:** The four viewer pages had diverged in styling conventions — hardcoded colors, inconsistent code block treatment (knowledge used pink text, projects used a different background, dashboard had yet another), and no shared shadow/depth system. CSS custom properties establish a single source of truth that makes future theming (e.g. dark mode) trivial. The documentation gap meant neither humans nor agents knew the views existed or how they related to each other.
 
-**Approved by:** agent (pending review)
+**Approved by:** user (batch-reviewed 2026-03-27)
 
 ## [2026-03-23] Projects dashboard and knowledge cross-reference navigation
 
@@ -327,7 +327,7 @@ All cross-references validated: 18 links across the three files, all resolving c
 
 **Reasoning:** The dashboard provided a summary of projects and knowledge but no way to drill into detail. The projects viewer enables browsing the full project tree (questions, plans, notes) without needing an agent session. Cross-reference navigation in the knowledge viewer surfaces connections between knowledge files that were previously invisible to users.
 
-**Approved by:** agent (pending review)
+**Approved by:** user (batch-reviewed 2026-03-27)
 
 ## [2026-03-23] Browser dashboard for memory repo
 

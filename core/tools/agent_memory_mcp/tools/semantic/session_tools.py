@@ -621,7 +621,7 @@ def _render_usage_patterns_section(
     aggregation_date: str,
     legacy_fallback_entries: int,
 ) -> str:
-    from ..read_tools import _summarize_access_by_file
+    from ..read_tools._helpers import _summarize_access_by_file
 
     file_summaries = _summarize_access_by_file(entries)
     high_value_files = [

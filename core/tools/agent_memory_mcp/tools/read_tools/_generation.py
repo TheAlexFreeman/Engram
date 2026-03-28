@@ -1,0 +1,422 @@
+"""Read tools — generation submodule."""
+from __future__ import annotations
+
+import json
+import re
+from datetime import date, timedelta
+from typing import TYPE_CHECKING, Any
+
+from ..name_index import generate_names_index
+
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
+
+
+def register_generation(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
+    """Register generation read tools and return their callables."""
+    _CURATION_FALSE_POSITIVE_MAX = H._CURATION_FALSE_POSITIVE_MAX
+    _CURATION_HIGH_ACCESS_THRESHOLD = H._CURATION_HIGH_ACCESS_THRESHOLD
+    _CURATION_HIGH_HELPFULNESS_THRESHOLD = H._CURATION_HIGH_HELPFULNESS_THRESHOLD
+    _CURATION_NEAR_MISS_MAX = H._CURATION_NEAR_MISS_MAX
+    _CURATION_NEAR_MISS_MIN = H._CURATION_NEAR_MISS_MIN
+    _CURATION_RETIREMENT_MAX = H._CURATION_RETIREMENT_MAX
+    _CURATION_RETIREMENT_THRESHOLD = H._CURATION_RETIREMENT_THRESHOLD
+    _IGNORED_NAMES = H._IGNORED_NAMES
+    _build_summary_metadata = H._build_summary_metadata
+    _display_rel_path = H._display_rel_path
+    _extract_heading_and_paragraph = H._extract_heading_and_paragraph
+    _format_summary_folder_title = H._format_summary_folder_title
+    _load_access_history_entries = H._load_access_history_entries
+    _normalize_access_folder_prefixes = H._normalize_access_folder_prefixes
+    _parse_iso_date = H._parse_iso_date
+    _resolve_governance_path = H._resolve_governance_path
+    _resolve_visible_path = H._resolve_visible_path
+    _split_csv_or_lines = H._split_csv_or_lines
+    _summarize_access_by_file = H._summarize_access_by_file
+    _tool_annotations = H._tool_annotations
+    _word_count = H._word_count
+
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_generate_summary",
+        annotations=_tool_annotations(
+            title="Generate Summary Draft",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_generate_summary(path: str, style: str = "standard") -> str:
+        """Generate a paste-ready SUMMARY.md draft for a folder.
+
+        Reads Markdown files in a folder, extracts a title plus the first
+        descriptive paragraph from each, and returns a draft SUMMARY.md string.
+        The tool is read-only: it previews content but does not write it.
+        """
+        from ...errors import ValidationError
+        from ...frontmatter_utils import read_with_frontmatter
+
+        root = get_root()
+        requested_path = path.strip()
+        if not requested_path:
+            raise ValidationError("path is required")
+
+        folder_path = (root / requested_path).resolve()
+        try:
+            folder_path.relative_to(root)
+        except ValueError as exc:
+            raise ValidationError("path must stay within the repository root") from exc
+
+        if not folder_path.exists():
+            return f"Error: Path not found: {path}"
+        if not folder_path.is_dir():
+            return f"Error: Folder not found: {path}"
+        if style not in {"standard", "detailed"}:
+            raise ValidationError("style must be 'standard' or 'detailed'")
+
+        file_entries: list[str] = []
+        subfolder_entries: list[str] = []
+
+        for entry in sorted(
+            folder_path.iterdir(), key=lambda item: (item.is_file(), item.name.lower())
+        ):
+            if entry.name.startswith(".") or entry.name in _IGNORED_NAMES:
+                continue
+            if entry.is_dir():
+                summary_file = entry / "SUMMARY.md"
+                if summary_file.exists():
+                    subfolder_entries.append(
+                        f"- **{entry.name}/** -- See [{entry.name}/SUMMARY.md]({entry.name}/SUMMARY.md)"
+                    )
+                continue
+            if entry.suffix.lower() != ".md" or entry.name == "SUMMARY.md":
+                continue
+
+            fm_dict, body = read_with_frontmatter(entry)
+            heading, description = _extract_heading_and_paragraph(
+                body, entry.stem.replace("-", " ").title()
+            )
+            metadata = _build_summary_metadata(fm_dict)
+            link_target = entry.name
+            if style == "standard":
+                entry_line = f"- **[{entry.name}]({link_target})** -- {description}"
+                if metadata:
+                    entry_line += f" ({metadata})"
+            else:
+                detail_parts = [description]
+                if heading and heading != entry.name:
+                    detail_parts.append(f"Title: {heading}.")
+                if metadata:
+                    detail_parts.append(f"Metadata: {metadata}.")
+                entry_line = f"- **[{entry.name}]({link_target})** -- {' '.join(detail_parts)}"
+            file_entries.append(entry_line)
+
+        folder_title = _format_summary_folder_title(folder_path.name)
+        generated_on = str(date.today())
+        lines = [
+            f"<!-- Generated by memory_generate_summary on {generated_on}. Review before committing. -->",
+            f"# {folder_title} -- Summary",
+            "",
+            f"Source folder: `{requested_path}`. Style: `{style}`. Files: {len(file_entries)}. Subfolders: {len(subfolder_entries)}.",
+            "",
+        ]
+
+        if file_entries:
+            lines.append("## Files")
+            lines.append("")
+            lines.extend(file_entries)
+            lines.append("")
+
+        if subfolder_entries:
+            lines.append("## Subfolders")
+            lines.append("")
+            lines.extend(subfolder_entries)
+            lines.append("")
+
+        if not file_entries and not subfolder_entries:
+            lines.append("_No Markdown files or summarized subfolders found._")
+            lines.append("")
+
+        draft = "\n".join(lines).rstrip() + "\n"
+        word_count = _word_count(draft)
+        draft += f"\n<!-- Word count: {word_count} (target: 200-800 words) -->\n"
+        return draft
+
+    # ------------------------------------------------------------------
+    # memory_generate_names_index
+
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_generate_names_index",
+        annotations=_tool_annotations(
+            title="Generate Names Index Draft",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_generate_names_index(path: str = "memory/knowledge") -> str:
+        """Generate a structured draft NAMES.md payload for knowledge files.
+
+        The tool scans the requested knowledge subtree, extracts likely person
+        names from H1 headings and parenthesized H2/H3 attributions, and
+        returns extraction stats together with a paste-ready NAMES.md draft.
+        It previews content only and does not write the file.
+        """
+        from ...errors import ValidationError
+
+        requested_path = path.strip() or "memory/knowledge"
+        root = get_root()
+        resolved_path = _resolve_visible_path(root, requested_path)
+        try:
+            resolved_path.relative_to(root)
+        except ValueError as exc:
+            raise ValidationError("path must stay within the repository root") from exc
+        if not resolved_path.exists():
+            return f"Error: Path not found: {path}"
+        if not resolved_path.is_dir():
+            return f"Error: Folder not found: {path}"
+
+        display_path = _display_rel_path(resolved_path, root)
+        if display_path != "memory/knowledge" and not display_path.startswith("memory/knowledge/"):
+            raise ValidationError("path must point to memory/knowledge or one of its subfolders")
+
+        try:
+            payload = generate_names_index(
+                root,
+                knowledge_path=display_path,
+                output_path=f"{display_path.rstrip('/')}/NAMES.md",
+            )
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+
+        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
+    # memory_access_analytics
+
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_access_analytics",
+        annotations=_tool_annotations(
+            title="Access Analytics",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_access_analytics(
+        folders: str | None = None,
+        window_days: int = 90,
+        top_n: int = 10,
+    ) -> str:
+        """Classify files using curation-policy ACCESS patterns.
+
+        Reads hot ACCESS logs and archive segments, filters entries to the
+        requested window and folder prefixes, then returns policy-aligned
+        categories plus suggested follow-up actions.
+        """
+        from ...errors import ValidationError
+
+        if window_days <= 0:
+            raise ValidationError("window_days must be >= 1")
+        if top_n <= 0:
+            raise ValidationError("top_n must be >= 1")
+
+        root = get_root()
+        raw_folder_filters = _split_csv_or_lines(folders) if folders else []
+        folder_filters: list[str] = []
+        for folder in raw_folder_filters:
+            normalized = folder.replace("\\", "/").strip().rstrip("/")
+            if not normalized:
+                raise ValidationError("folders must contain non-empty repo-relative paths")
+            if normalized.startswith("/") or normalized.startswith("../") or "/../" in normalized:
+                raise ValidationError("folders must contain repo-relative paths")
+            if re.match(r"^[A-Za-z]:[/\\]", normalized):
+                raise ValidationError("folders must contain repo-relative paths")
+            folder_filters.extend(_normalize_access_folder_prefixes(normalized))
+
+        end_date = date.today()
+        start_date = end_date - timedelta(days=window_days - 1)
+        all_entries = _load_access_history_entries(root)
+        filtered_entries: list[dict[str, Any]] = []
+        for entry in all_entries:
+            entry_date = _parse_iso_date(entry.get("date"))
+            if entry_date is None or entry_date < start_date or entry_date > end_date:
+                continue
+            file_path = str(entry.get("file", ""))
+            if folder_filters and not any(
+                file_path == folder.rstrip("/") or file_path.startswith(f"{folder.rstrip('/')}/")
+                for folder in folder_filters
+            ):
+                continue
+            filtered_entries.append(entry)
+
+        file_summaries = _summarize_access_by_file(filtered_entries)
+
+        core_memory: list[dict[str, Any]] = []
+        near_miss: list[dict[str, Any]] = []
+        false_positive_attractor: list[dict[str, Any]] = []
+        retirement_candidate: list[dict[str, Any]] = []
+        hidden_gem: list[dict[str, Any]] = []
+        suggested_actions: list[dict[str, Any]] = []
+
+        for item in file_summaries:
+            access_count = int(item["entry_count"])
+            mean_helpfulness = item.get("mean_helpfulness")
+            if mean_helpfulness is None:
+                continue
+
+            helpfulness_value = float(mean_helpfulness)
+            category_payload = {
+                "file": item["file"],
+                "access_count": access_count,
+                "mean_helpfulness": helpfulness_value,
+            }
+
+            if (
+                access_count >= _CURATION_HIGH_ACCESS_THRESHOLD
+                and helpfulness_value >= _CURATION_HIGH_HELPFULNESS_THRESHOLD
+            ):
+                core_memory.append(category_payload)
+                suggested_actions.append(
+                    {
+                        "file": item["file"],
+                        "action": "enrich_cross_refs",
+                        "reason": (
+                            f"Core memory: {access_count} accesses, {helpfulness_value:.3f} mean helpfulness"
+                        ),
+                    }
+                )
+                continue
+
+            if (
+                access_count >= _CURATION_HIGH_ACCESS_THRESHOLD
+                and _CURATION_NEAR_MISS_MIN <= helpfulness_value <= _CURATION_NEAR_MISS_MAX
+            ):
+                near_miss.append(category_payload)
+                suggested_actions.append(
+                    {
+                        "file": item["file"],
+                        "action": "split_or_retitle",
+                        "reason": (
+                            f"Near miss: {access_count} accesses, {helpfulness_value:.3f} mean helpfulness"
+                        ),
+                    }
+                )
+                continue
+
+            if (
+                access_count >= _CURATION_HIGH_ACCESS_THRESHOLD
+                and helpfulness_value <= _CURATION_FALSE_POSITIVE_MAX
+            ):
+                false_positive_attractor.append(category_payload)
+                suggested_actions.append(
+                    {
+                        "file": item["file"],
+                        "action": "retitle_or_retag",
+                        "reason": (
+                            "False-positive attractor: "
+                            f"{access_count} accesses, {helpfulness_value:.3f} mean helpfulness"
+                        ),
+                    }
+                )
+                continue
+
+            if (
+                access_count < _CURATION_RETIREMENT_THRESHOLD
+                and helpfulness_value >= _CURATION_HIGH_HELPFULNESS_THRESHOLD
+            ):
+                hidden_gem.append(category_payload)
+                suggested_actions.append(
+                    {
+                        "file": item["file"],
+                        "action": "improve_summary_placement",
+                        "reason": (
+                            f"Hidden gem: {access_count} accesses, {helpfulness_value:.3f} mean helpfulness"
+                        ),
+                    }
+                )
+                continue
+
+            if (
+                access_count >= _CURATION_RETIREMENT_THRESHOLD
+                and helpfulness_value <= _CURATION_RETIREMENT_MAX
+            ):
+                retirement_candidate.append(category_payload)
+                suggested_actions.append(
+                    {
+                        "file": item["file"],
+                        "action": "flag_for_review",
+                        "reason": (
+                            "Retirement candidate: "
+                            f"{access_count} accesses, {helpfulness_value:.3f} mean helpfulness"
+                        ),
+                    }
+                )
+
+        top_accessed = [
+            {"file": item["file"], "count": int(item["entry_count"])}
+            for item in file_summaries[:top_n]
+        ]
+        least_accessed_source = sorted(
+            file_summaries,
+            key=lambda item: (
+                int(item["entry_count"]),
+                str(item.get("last_access_date") or ""),
+                str(item["file"]),
+            ),
+        )
+        least_accessed = [
+            {
+                "file": item["file"],
+                "count": int(item["entry_count"]),
+                "last_access": item.get("last_access_date"),
+            }
+            for item in least_accessed_source[:top_n]
+        ]
+
+        payload = {
+            "window": {
+                "start": str(start_date),
+                "end": str(end_date),
+                "days": window_days,
+            },
+            "thresholds": {
+                "high_access": _CURATION_HIGH_ACCESS_THRESHOLD,
+                "retirement_access": _CURATION_RETIREMENT_THRESHOLD,
+                "core_helpfulness_min": _CURATION_HIGH_HELPFULNESS_THRESHOLD,
+                "near_miss_range": [_CURATION_NEAR_MISS_MIN, _CURATION_NEAR_MISS_MAX],
+                "false_positive_max": _CURATION_FALSE_POSITIVE_MAX,
+                "retirement_max": _CURATION_RETIREMENT_MAX,
+                "policy_source": _resolve_governance_path(root, "curation-policy.md")
+                .relative_to(root)
+                .as_posix(),
+            },
+            "folders": folder_filters or None,
+            "total_entries": len(filtered_entries),
+            "unique_files": len(file_summaries),
+            "categories": {
+                "core_memory": core_memory,
+                "near_miss": near_miss,
+                "false_positive_attractor": false_positive_attractor,
+                "retirement_candidate": retirement_candidate,
+                "hidden_gem": hidden_gem,
+            },
+            "top_accessed": top_accessed,
+            "least_accessed": least_accessed,
+            "suggested_actions": suggested_actions,
+        }
+        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
+    # memory_diff_branch
+
+    return {
+        "memory_generate_summary": memory_generate_summary,
+        "memory_generate_names_index": memory_generate_names_index,
+        "memory_access_analytics": memory_access_analytics,
+    }

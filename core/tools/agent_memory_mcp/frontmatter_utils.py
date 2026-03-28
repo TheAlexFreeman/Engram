@@ -15,12 +15,15 @@ and return new content strings. Callers handle reading/writing and staging.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 import frontmatter as fm
+
+_log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Frontmatter read/write
@@ -122,6 +125,7 @@ def collect_project_entries(root: Path) -> list[dict[str, Any]]:
         try:
             fm_dict, _ = read_with_frontmatter(summary_path)
         except Exception:
+            _log.warning("Failed to parse frontmatter in %s", summary_path, exc_info=True)
             fm_dict = {}
 
         entries.append(
@@ -207,6 +211,7 @@ def count_active_project_plans(root: Path, project_id: str) -> int:
 
                 raw = yaml.safe_load(plan_file.read_text(encoding="utf-8"))
             except Exception:
+                _log.debug("Skipping unparseable plan YAML: %s", plan_file, exc_info=True)
                 continue
             if not isinstance(raw, dict):
                 continue
@@ -218,6 +223,7 @@ def count_active_project_plans(root: Path, project_id: str) -> int:
             fm_dict, _ = read_with_frontmatter(plan_file)
             status = str(fm_dict.get("status", "unknown"))
         except Exception:
+            _log.debug("Skipping unparseable plan MD: %s", plan_file, exc_info=True)
             continue
         if status == "active":
             active_count += 1

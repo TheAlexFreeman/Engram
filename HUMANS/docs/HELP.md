@@ -314,7 +314,7 @@ The MCP server needs to know where your Engram repo lives. This is set via the `
 | Claude Desktop (macOS) | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | Claude Desktop (Windows) | `%APPDATA%\Claude\claude_desktop_config.json` |
 | Codex | `.codex/config.toml` in the project root |
-| Cursor | `.cursor/config.json` in the project root |
+| Cursor | `.cursor/mcp.json` in the project root |
 
 See `HUMANS/tooling/mcp-config-example.json` for a working example.
 
@@ -367,7 +367,7 @@ If `setup.sh` doesn't behave as expected, check the flags you're passing:
 
 Available platforms: `codex`, `claude-code`, `cursor`, `chatgpt`, `generic`
 
-Available profiles: `software-developer`, `researcher`, `writer`, `generic` (check `HUMANS/setup/templates/profiles/` for the current list)
+Available profiles: `software-developer`, `researcher`, `project-manager`, `writer`, `student`, `educator`, `designer` (check `HUMANS/setup/templates/profiles/` for the current list)
 
 ### Worktree initialization
 

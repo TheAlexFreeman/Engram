@@ -38,8 +38,6 @@ In worktree mode, use `host_repo_root` from `agent-bootstrap.toml` for host-code
 
 ## Top of mind
 
-Protocol design (active):
-- Activity logging for automations and user interactions
-- User/automation tracking for per-session best-guess
-- Activity log consolidation/archival, eventual summarization into narrative
-- Which aspects of the system most engage the user, and why?
+- Codebase survey: promote IN/ files to `knowledge/codebase/` after user review
+- Harness expansion complete (15 phases); guard pipeline now wired into write paths
+- System review remediation in progress

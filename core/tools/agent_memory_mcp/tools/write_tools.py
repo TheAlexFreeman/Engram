@@ -113,6 +113,34 @@ def register(
 ) -> dict[str, object]:
     """Register all Tier 2 low-level write tools and return their callables."""
 
+    from ..guard_pipeline import (
+        ContentSizeGuard,
+        FrontmatterGuard,
+        GuardContext,
+        GuardPipeline,
+        TrustBoundaryGuard,
+    )
+
+    _guard_pipeline = GuardPipeline(
+        [ContentSizeGuard(), FrontmatterGuard(), TrustBoundaryGuard()]
+    )
+
+    def _run_guards(path: str, operation: str, content: str | None = None) -> None:
+        """Run the guard pipeline; raise ValidationError on block."""
+        from ..errors import ValidationError
+
+        ctx = GuardContext(
+            path=path, operation=operation, root=get_root(), content=content
+        )
+        result = _guard_pipeline.run(ctx)
+        if not result.allowed:
+            blocked = next(
+                r for r in result.results if r.status in ("block", "require_approval")
+            )
+            raise ValidationError(
+                f"Blocked by {blocked.guard_name}: {blocked.message}"
+            )
+
     tracked_paths: list[str] = []
 
     def track_paths(*paths: str) -> None:
@@ -165,6 +193,7 @@ def register(
 
         repo = get_repo()
         path, abs_path = validate_raw_write_target(repo, path)
+        _run_guards(path, "write", content=content)
 
         max_bytes = _max_file_bytes()
         content_bytes = len(content.encode("utf-8"))
@@ -266,6 +295,7 @@ def register(
         else:
             new_content = content.replace(old_string, new_string, 1)
 
+        _run_guards(path, "write", content=new_content)
         abs_path.write_text(new_content, encoding="utf-8")
         repo.add(path)
         track_paths(path)

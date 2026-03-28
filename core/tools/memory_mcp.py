@@ -35,9 +35,10 @@ except ImportError:
 
 _server = import_module("engram_mcp.agent_memory_mcp.server")
 
-__all__ = getattr(_server, "__all__", [])
-globals().update({name: getattr(_server, name) for name in __all__})
-mcp = _server.mcp
+mcp = _server.mcp  # triggers lazy initialization
+TOOLS = _server.TOOLS
+__all__ = ["mcp", "TOOLS", *sorted(TOOLS)]
+globals().update(TOOLS)
 
 
 if __name__ == "__main__":

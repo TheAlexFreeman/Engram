@@ -14,7 +14,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from .errors import MemoryPermissionError, ValidationError
 from .path_policy import (
@@ -48,11 +48,14 @@ class GuardContext:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+GuardStatus = Literal["pass", "block", "warn", "require_approval"]
+
+
 @dataclass(slots=True)
 class GuardResult:
     """Result of a single guard check."""
 
-    status: str
+    status: GuardStatus
     guard_name: str
     message: str
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -348,6 +351,7 @@ __all__ = [
     "GuardContext",
     "GuardPipeline",
     "GuardResult",
+    "GuardStatus",
     "PathGuard",
     "PipelineResult",
     "TrustBoundaryGuard",

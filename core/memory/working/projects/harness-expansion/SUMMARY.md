@@ -1,14 +1,14 @@
 ---
 active_plans: 6
-cognitive_mode: planning
+cognitive_mode: completed
 created: 2026-03-26
-current_focus: 'Phases 10-15 drafted to evolve Engram from memory layer to full agent harness.'
+current_focus: 'All 15 phases complete. Engram evolved from memory layer to full agent harness.'
 last_activity: '2026-03-27'
 open_questions: 6
 origin_session: memory/activity/2026/03/26/chat-001
 plans: 15
 source: agent-generated
-status: active
+status: completed
 trust: medium
 type: project
 ---
@@ -19,7 +19,7 @@ type: project
 Evolve Engram from a memory-and-governance layer into a full agent harness by incrementally extending the plan system with execution affordances. Grounded in the deep research analysis of LLM agent harness best practices (2026-03-26) and a comprehensive gap analysis (2026-03-27), the project has completed nine foundation phases and has six new phases drafted to close the remaining harness gaps.
 
 ## Cognitive mode
-Planning. Phases 1-9 are complete and serve as the foundation. Phases 10-15 are drafted, covering the execution layer gaps identified in the gap analysis: durable run state, tool policy enforcement, runtime guardrails, eval hardening, trace enrichment, and git reliability.
+Completed. All 15 phases implemented and verified. Phases 1-9 built the foundation (schema, verification, traces, registry, approvals, integration tests, evals, context assembly, external ingestion). Phases 10-15 closed the remaining harness gaps (run state, tool policy enforcement, runtime guardrails, eval hardening, trace enrichment, git reliability).
 
 ## Artifact flow
 - IN/: design documents for each phase
@@ -39,12 +39,12 @@ Planning. Phases 1-9 are complete and serve as the foundation. Phases 10-15 are 
 | eval-framework-phase-7 | 7: Eval Framework | completed | 7/7 | 3/8 sessions |
 | context-assembly-phase-8 | 8: Context Assembly | completed | 5/5 | 1/5 sessions |
 | external-ingestion-phase-9 | 9: External Ingestion | completed | 6/6 | 1/6 sessions |
-| run-state-phase-10 | 10: Durable Run State | draft | 0/7 | 0/10 sessions |
-| tool-policy-enforcement-phase-11 | 11: Tool Policy Enforcement | draft | 0/7 | 0/8 sessions |
-| runtime-guardrails-phase-12 | 12: Runtime Guardrails | draft | 0/9 | 0/8 sessions |
-| eval-hardening-phase-13 | 13: Eval Hardening | draft | 0/6 | 0/6 sessions |
-| trace-enrichment-phase-14 | 14: Trace Enrichment | draft | 0/5 | 0/5 sessions |
-| git-reliability-phase-15 | 15: Git Reliability | draft | 0/5 | 0/3 sessions |
+| run-state-phase-10 | 10: Durable Run State | completed | 7/7 | 1/10 sessions |
+| tool-policy-enforcement-phase-11 | 11: Tool Policy Enforcement | completed | 7/7 | 1/8 sessions |
+| runtime-guardrails-phase-12 | 12: Runtime Guardrails | completed | 9/9 | 1/8 sessions |
+| eval-hardening-phase-13 | 13: Eval Hardening | completed | 6/6 | 1/6 sessions |
+| trace-enrichment-phase-14 | 14: Trace Enrichment | completed | 5/5 | 1/5 sessions |
+| git-reliability-phase-15 | 15: Git Reliability | completed | 5/5 | 1/3 sessions |
 
 ## Inter-plan dependencies
 
@@ -109,6 +109,24 @@ Context assembly landed with `assemble_briefing()` and `memory_plan_briefing`, i
 
 ### Phase 9 outcome (completed 2026-03-27)
 External content ingestion landed with `stage_external_file()`, `scan_drop_zone()`, `memory_stage_external`, `memory_scan_drop_zone`, `SourceSpec` MCP metadata (`mcp_server`, `mcp_tool`, `mcp_arguments`), and `phase_payload()` intake hints (`fetch_directives`, `mcp_calls`). Staged content lands in `projects/{project}/IN/` with enforced `source: external-research`, `trust: low`, sanitized `origin_url`, per-project SHA-256 deduplication, and optional PDF extraction via `pypdf` or `pdfminer.six`.
+
+### Phase 10 outcome (completed 2026-03-27)
+Durable run state landed with `RunState` JSON schema, auto-save on plan execution steps, `memory_plan_resume` MCP tool, and `assemble_briefing()` integration.
+
+### Phase 11 outcome (completed 2026-03-27)
+Tool policy enforcement landed with `check_tool_policy()`, approval gating, rate limit enforcement, cost tier awareness, and `policy_violation` trace spans.
+
+### Phase 12 outcome (completed 2026-03-27)
+Runtime guardrails landed with `GuardPipeline`, four built-in guards (PathGuard, ContentSizeGuard, FrontmatterGuard, TrustBoundaryGuard), and `guardrail_check` trace spans.
+
+### Phase 13 outcome (completed 2026-03-27)
+Eval hardening landed with isolated execution, pytest CI runner, result history tracking, regression detection, and four new eval scenarios for phases 10-12.
+
+### Phase 14 outcome (completed 2026-03-27)
+Trace enrichment landed with cost estimation, parent-child span chaining, and aggregated cost reporting in `memory_query_traces`.
+
+### Phase 15 outcome (completed 2026-03-27)
+Git reliability landed with retry/backoff on transient failures, stale lock cleanup, `health_check()` diagnostics, and `memory_git_health` MCP tool.
 
 ## Key Project Documents
 - SUMMARY.md: project overview, plan status table, inter-plan dependencies, resolved questions

@@ -1,0 +1,221 @@
+"""Read tools — capability submodule."""
+from __future__ import annotations
+
+import json
+from typing import TYPE_CHECKING, Any, cast
+
+from ...errors import ValidationError
+
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
+
+
+def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
+    """Register capability read tools and return their callables."""
+    _build_capabilities_summary = H._build_capabilities_summary
+    _build_policy_state_payload = H._build_policy_state_payload
+    _build_tool_profile_payload = H._build_tool_profile_payload
+    _list_registered_tool_names = H._list_registered_tool_names
+    _load_capabilities_manifest = H._load_capabilities_manifest
+    _normalize_repo_relative_path = H._normalize_repo_relative_path
+    _route_intent_candidates = H._route_intent_candidates
+    _route_workflow_hint = H._route_workflow_hint
+    _tool_annotations = H._tool_annotations
+
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_get_capabilities",
+        annotations=_tool_annotations(
+            title="Get Capability Manifest",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_get_capabilities() -> str:
+        """Return the governed capability manifest as structured JSON.
+
+        This tool is intentionally self-referential: it is listed in the same
+        `read_support` manifest entry that it reads. When the manifest cannot
+        be read or parsed, it returns a structured error payload so callers can
+        fall back to manual inspection.
+        """
+        root = get_root()
+        manifest, error_payload = _load_capabilities_manifest(root)
+        if error_payload is not None:
+            return json.dumps(error_payload, indent=2)
+
+        payload = dict(cast(dict[str, Any], manifest))
+        runtime_tool_names = await _list_registered_tool_names(mcp)
+        payload["summary"] = _build_capabilities_summary(
+            payload,
+            runtime_tool_names=runtime_tool_names,
+        )
+        return json.dumps(payload, indent=2, default=str)
+
+    # ------------------------------------------------------------------
+    # memory_get_tool_profiles
+
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_get_tool_profiles",
+        annotations=_tool_annotations(
+            title="Get Tool Profiles",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_get_tool_profiles() -> str:
+        """Return advisory tool-profile metadata for host-side narrowing.
+
+        Profiles are declarative metadata only. The current runtime exports a
+        static tool surface, so hosts should treat these profiles as discovery
+        hints rather than dynamic switching commands.
+        """
+        root = get_root()
+        manifest, error_payload = _load_capabilities_manifest(root)
+        if error_payload is not None:
+            return json.dumps(error_payload, indent=2)
+
+        payload = _build_tool_profile_payload(cast(dict[str, Any], manifest))
+        return json.dumps(payload, indent=2, default=str)
+
+    # ------------------------------------------------------------------
+    # memory_get_policy_state
+
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_get_policy_state",
+        annotations=_tool_annotations(
+            title="Get Governed Policy State",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_get_policy_state(operation: str = "", path: str = "") -> str:
+        """Compile the current governed contract for an operation and optional path.
+
+        Use this when a caller needs the live change class, approval level,
+        preview expectation, fallback behavior, and path-level governance status
+        without reconstructing the rules from the capability manifest and
+        governance docs manually.
+
+        operation: Desktop operation key (for example `create_plan`) or tool
+                   name (for example `memory_plan_create`).
+        path:      Optional repo-relative target path whose governance surface
+                   should be evaluated alongside the operation.
+        """
+
+        root = get_root()
+        manifest, error_payload = _load_capabilities_manifest(root)
+        if error_payload is not None:
+            return json.dumps(error_payload, indent=2)
+
+        try:
+            normalized_path = _normalize_repo_relative_path(path) if path.strip() else None
+        except ValueError as exc:
+            raise ValidationError(str(exc))
+
+        payload = _build_policy_state_payload(
+            root,
+            cast(dict[str, Any], manifest),
+            operation.strip() or None,
+            normalized_path,
+        )
+        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
+    # memory_route_intent
+
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_route_intent",
+        annotations=_tool_annotations(
+            title="Route Governed Intent",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_route_intent(intent: str, path: str = "") -> str:
+        """Recommend the best governed operation for a natural-language intent.
+
+        Use this when a caller knows the task goal but does not know which
+        semantic tool or governed operation is the right fit. Returns the best
+        match, likely alternatives, and the compiled policy state for the
+        recommended path.
+        """
+
+        if not intent.strip():
+            raise ValidationError("intent must be a non-empty string")
+
+        root = get_root()
+        manifest, error_payload = _load_capabilities_manifest(root)
+        if error_payload is not None:
+            return json.dumps(error_payload, indent=2)
+
+        try:
+            normalized_path = _normalize_repo_relative_path(path) if path.strip() else None
+        except ValueError as exc:
+            raise ValidationError(str(exc))
+
+        manifest_dict = cast(dict[str, Any], manifest)
+        candidates = _route_intent_candidates(intent, normalized_path, root)
+        ambiguous = False
+        recommended: dict[str, Any] | None = None
+        alternatives: list[dict[str, Any]] = []
+        if candidates:
+            recommended = candidates[0]
+            alternatives = candidates[1:4]
+            ambiguous = bool(
+                alternatives
+                and abs(cast(float, recommended["score"]) - cast(float, alternatives[0]["score"]))
+                < 0.03
+            )
+        else:
+            ambiguous = True
+
+        policy_state = _build_policy_state_payload(
+            root,
+            manifest_dict,
+            cast(str | None, recommended["operation"]) if recommended is not None else None,
+            normalized_path,
+        )
+        workflow_hint = _route_workflow_hint(
+            cast(str | None, recommended["operation"]) if recommended is not None else None,
+            normalized_path,
+            root,
+        )
+        if recommended is None:
+            policy_state["warnings"] = list(policy_state.get("warnings", [])) + [
+                "No confident governed operation match was found for this intent."
+            ]
+
+        return json.dumps(
+            {
+                "intent": intent,
+                "path": normalized_path,
+                "recommended_operation": recommended,
+                "alternatives": alternatives,
+                "ambiguous": ambiguous,
+                "workflow_hint": workflow_hint,
+                "policy_state": policy_state,
+            },
+            indent=2,
+        )
+
+    # ------------------------------------------------------------------
+    # memory_read_file
+
+    return {
+        "memory_get_capabilities": memory_get_capabilities,
+        "memory_get_tool_profiles": memory_get_tool_profiles,
+        "memory_get_policy_state": memory_get_policy_state,
+        "memory_route_intent": memory_route_intent,
+    }

@@ -52,6 +52,8 @@ After setup, additional browser views are available in `HUMANS/views/` (Chrome, 
 - **`skills.html`** — browse the skill library (active and archived) with trust badges and metadata.
 - **`users.html`** — browse user profiles and per-user files with metadata display.
 - **`docs.html`** — browse all human-facing documentation with cross-reference navigation.
+- **`traces.html`** — session trace viewer with timeline, filter chips, and stats.
+- **`approvals.html`** — approval queue with pending/resolved views and inline resolution.
 
 ---
 

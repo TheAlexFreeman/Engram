@@ -50,6 +50,28 @@ jobs:
           sudo apt-get install -y shellcheck
           shellcheck setup.sh HUMANS/setup/setup.sh HUMANS/tooling/scripts/onboard-export.sh
 
+  search-extras:
+    name: Test with search extras
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package with search extras
+        run: python -m pip install -e ".[dev,search]"
+
+      - name: Run search tests
+        run: >-
+          python -m pytest
+          core/tools/tests/test_semantic_search.py
+          core/tools/tests/test_search_freshness.py
+          -v
+
   worktree-e2e:
     name: Worktree Init E2E
     runs-on: windows-latest
