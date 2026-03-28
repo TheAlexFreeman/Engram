@@ -30,6 +30,7 @@ search = ["sentence-transformers>=2.6", "numpy>=1.24"]
 dev = [
     "pre-commit>=3.7",
     "pytest>=8.0",
+    "pytest-asyncio>=0.23",
     "pytest-cov>=5.0",
     "ruff>=0.4",
     "time-machine>=2.0",
@@ -61,6 +62,7 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["HUMANS/tooling/tests", "core/tools/tests"]
+asyncio_mode = "auto"
 markers = [
     "eval: marks tests as eval scenario tests (deselect with '-m \"not eval\"')",
     "asyncio: marks tests as async (requires pytest-asyncio)",
