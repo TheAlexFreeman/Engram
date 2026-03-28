@@ -703,8 +703,11 @@ core/memory/working/USER.md
 core/memory/working/approvals/SUMMARY.md
 core/memory/working/approvals/pending/.gitkeep
 core/memory/working/approvals/resolved/.gitkeep
+core/memory/working/notes/context-injectors-roadmap.md
 core/memory/working/notes/engram-harness-gap-analysis.md
+core/memory/working/notes/form-content-graduation-design-notes.md
 core/memory/working/notes/harness-expansion-analysis.md
+core/memory/working/notes/strategic-analysis-agent-ecosystem.md
 core/memory/working/projects/ACCESS.jsonl
 core/memory/working/projects/OUT/SUMMARY.md
 core/memory/working/projects/SUMMARY.md
@@ -718,6 +721,8 @@ core/memory/working/projects/codebase-survey/OUT/.gitkeep
 core/memory/working/projects/codebase-survey/SUMMARY.md
 core/memory/working/projects/codebase-survey/plans/survey-plan.yaml
 core/memory/working/projects/codebase-survey/questions.md
+core/memory/working/projects/context-injectors/SUMMARY.md
+core/memory/working/projects/context-injectors/plans/context-injectors-plan.yaml
 core/memory/working/projects/general-knowledge-base/IN/databases-scope-note.md
 core/memory/working/projects/general-knowledge-base/IN/emotion-scope-note.md
 core/memory/working/projects/general-knowledge-base/IN/governance-scope-note.md
