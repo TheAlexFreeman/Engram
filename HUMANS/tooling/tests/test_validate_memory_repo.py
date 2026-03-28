@@ -58,6 +58,10 @@ VALID_TASK_READINESS_MANIFEST = (
 VALID_CAPABILITIES_MANIFEST = (
     REPO_ROOT / "HUMANS" / "tooling" / "agent-memory-capabilities.toml"
 ).read_text(encoding="utf-8")
+README_TEXT = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+PROVENANCE_GUIDANCE = (REPO_ROOT / "core" / "governance" / "update-guidelines.md").read_text(
+    encoding="utf-8"
+)
 
 
 def write(path: Path, content: str) -> None:
@@ -527,6 +531,21 @@ class ValidateMemoryRepoTests(unittest.TestCase):
 
             result = validator.validate_repo(root)
             self.assertEqual(result.errors, [], "\n".join(result.errors))
+
+    def test_runtime_validator_and_docs_share_provenance_vocabulary(self) -> None:
+        from core.tools.agent_memory_mcp.frontmatter_policy import (
+            ALLOWED_SOURCE_VALUES as runtime_sources,
+            ALLOWED_TRUST_VALUES as runtime_trust,
+        )
+
+        self.assertEqual(set(runtime_sources), set(validator.ALLOWED_SOURCE_VALUES))
+        self.assertEqual(set(runtime_trust), set(validator.ALLOWED_TRUST_VALUES))
+
+        docs_text = README_TEXT + "\n" + PROVENANCE_GUIDANCE
+        for source in runtime_sources:
+            self.assertIn(source, docs_text)
+        for trust in runtime_trust:
+            self.assertIn(trust, docs_text)
 
     def test_missing_bootstrap_manifest_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

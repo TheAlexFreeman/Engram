@@ -155,6 +155,7 @@ class TestFrontmatterGuard(unittest.TestCase):
             source="agent-generated",
             trust="medium",
             created="2026-03-27",
+            origin_session="memory/activity/2026/03/27/chat-001",
         )
         result = guard.check(_ctx(content=content))
         self.assertEqual(result.status, "pass")
@@ -171,7 +172,12 @@ class TestFrontmatterGuard(unittest.TestCase):
 
     def test_invalid_source_blocks(self):
         guard = FrontmatterGuard()
-        content = _md_with_frontmatter(source="invalid-source", created="2026-03-27")
+        content = _md_with_frontmatter(
+            source="invalid-source",
+            created="2026-03-27",
+            origin_session="memory/activity/2026/03/27/chat-001",
+            trust="medium",
+        )
         result = guard.check(_ctx(content=content))
         self.assertEqual(result.status, "block")
         self.assertIn("invalid-source", result.message.lower())
@@ -179,23 +185,37 @@ class TestFrontmatterGuard(unittest.TestCase):
     def test_invalid_trust_blocks(self):
         guard = FrontmatterGuard()
         content = _md_with_frontmatter(
-            source="agent-generated", trust="ultra", created="2026-03-27"
+            source="agent-generated",
+            trust="ultra",
+            created="2026-03-27",
+            origin_session="memory/activity/2026/03/27/chat-001",
         )
         result = guard.check(_ctx(content=content))
         self.assertEqual(result.status, "block")
 
-    def test_missing_recommended_warns(self):
+    def test_missing_required_provenance_blocks(self):
         guard = FrontmatterGuard()
         content = _md_with_frontmatter(trust="medium")
         result = guard.check(_ctx(content=content))
-        self.assertEqual(result.status, "warn")
+        self.assertEqual(result.status, "block")
         self.assertIn("source", result.message)
 
-    def test_malformed_yaml_warns(self):
+    def test_source_unknown_is_allowed(self):
+        guard = FrontmatterGuard()
+        content = _md_with_frontmatter(
+            source="unknown",
+            trust="medium",
+            created="2026-03-27",
+            origin_session="unknown",
+        )
+        result = guard.check(_ctx(content=content))
+        self.assertEqual(result.status, "pass")
+
+    def test_malformed_yaml_blocks(self):
         guard = FrontmatterGuard()
         content = "---\n{bad: [yaml:\n---\n\nBody.\n"
         result = guard.check(_ctx(content=content))
-        self.assertEqual(result.status, "warn")
+        self.assertEqual(result.status, "block")
 
 
 # ── TrustBoundaryGuard ───────────────────────────────────────────────────────
@@ -204,20 +224,33 @@ class TestFrontmatterGuard(unittest.TestCase):
 class TestTrustBoundaryGuard(unittest.TestCase):
     def test_trust_high_user_stated_passes(self):
         guard = TrustBoundaryGuard()
-        content = _md_with_frontmatter(source="user-stated", trust="high", created="2026-03-27")
+        content = _md_with_frontmatter(
+            source="user-stated",
+            trust="high",
+            created="2026-03-27",
+            origin_session="memory/activity/2026/03/27/chat-001",
+        )
         result = guard.check(_ctx(content=content))
         self.assertEqual(result.status, "pass")
 
     def test_trust_high_agent_requires_approval(self):
         guard = TrustBoundaryGuard()
-        content = _md_with_frontmatter(source="agent-inferred", trust="high", created="2026-03-27")
+        content = _md_with_frontmatter(
+            source="agent-inferred",
+            trust="high",
+            created="2026-03-27",
+            origin_session="memory/activity/2026/03/27/chat-001",
+        )
         result = guard.check(_ctx(content=content))
         self.assertEqual(result.status, "require_approval")
 
     def test_trust_medium_passes(self):
         guard = TrustBoundaryGuard()
         content = _md_with_frontmatter(
-            source="agent-generated", trust="medium", created="2026-03-27"
+            source="agent-generated",
+            trust="medium",
+            created="2026-03-27",
+            origin_session="memory/activity/2026/03/27/chat-001",
         )
         result = guard.check(_ctx(content=content))
         self.assertEqual(result.status, "pass")
@@ -244,7 +277,10 @@ class TestDefaultPipeline(unittest.TestCase):
     def test_valid_write_passes(self):
         pipeline = default_pipeline()
         content = _md_with_frontmatter(
-            source="agent-generated", trust="medium", created="2026-03-27"
+            source="agent-generated",
+            trust="medium",
+            created="2026-03-27",
+            origin_session="memory/activity/2026/03/27/chat-001",
         )
         result = pipeline.run(_ctx(content=content))
         self.assertTrue(result.allowed)
@@ -257,7 +293,12 @@ class TestDefaultPipeline(unittest.TestCase):
 
     def test_trust_high_agent_blocks(self):
         pipeline = default_pipeline()
-        content = _md_with_frontmatter(source="agent-generated", trust="high", created="2026-03-27")
+        content = _md_with_frontmatter(
+            source="agent-generated",
+            trust="high",
+            created="2026-03-27",
+            origin_session="memory/activity/2026/03/27/chat-001",
+        )
         result = pipeline.run(_ctx(content=content))
         self.assertFalse(result.allowed)
         self.assertEqual(result.blocked_by, "TrustBoundaryGuard")

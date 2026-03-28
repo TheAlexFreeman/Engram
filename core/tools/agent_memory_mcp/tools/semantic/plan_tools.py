@@ -46,6 +46,7 @@ from ...plan_utils import (
     regenerate_approvals_summary,
     regenerate_registry_summary,
     registry_file_path,
+    registry_summary_path,
     resolve_phase,
     run_state_path,
     save_approval,
@@ -60,7 +61,12 @@ from ...plan_utils import (
     validate_run_state_against_plan,
     verify_postconditions,
 )
-from ...preview_contract import build_governed_preview, preview_target
+from ...preview_contract import (
+    attach_approval_requirement,
+    build_governed_preview,
+    preview_target,
+    require_approval_token,
+)
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -2366,6 +2372,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         timeout_seconds: int = 30,
         tags: list[str] | None = None,
         notes: str | None = None,
+        preview: bool = False,
+        approval_token: str | None = None,
     ) -> str:
         """Register or update an external tool definition in the tool registry.
 
@@ -2376,8 +2384,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         Returns JSON with ``tool_name``, ``provider``, ``registry_file``,
         and ``action`` ("created" or "updated").
         """
-        import json as _json
+        from ...models import MemoryWriteResult
 
+        repo = get_repo()
         root = get_root()
         # MCP framework may pass booleans as strings
         if isinstance(approval_required, str):
@@ -2412,16 +2421,84 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         if action == "created":
             updated.append(tool)
 
-        save_registry(root, provider, updated)
-        regenerate_registry_summary(root)
+        registry_path = registry_file_path(provider)
+        summary_path = registry_summary_path()
+        abs_registry = root / registry_path
+        abs_summary = root / summary_path
+        commit_msg = (
+            f"[skill] {'Update' if action == 'updated' else 'Register'} tool {provider}:{tool.name}"
+        )
 
         result: dict[str, Any] = {
             "tool_name": tool.name,
             "provider": provider,
-            "registry_file": registry_file_path(provider),
+            "registry_file": registry_path,
             "action": action,
         }
-        return _json.dumps(result, indent=2)
+        operation_arguments = {
+            "name": name,
+            "description": description,
+            "provider": provider,
+            "approval_required": bool(approval_required),
+            "cost_tier": cost_tier,
+            "schema": schema if isinstance(schema, dict) else None,
+            "rate_limit": rate_limit,
+            "timeout_seconds": timeout_int,
+            "tags": list(tags or []),
+            "notes": notes,
+        }
+        preview_payload = build_governed_preview(
+            mode="preview" if preview else "apply",
+            change_class="protected",
+            summary=f"{action.title()} tool registry entry for {provider}:{tool.name}.",
+            reasoning="Tool registry updates are protected because they shape external-tool policy and live under the governed skills surface.",
+            target_files=[
+                preview_target(registry_path, "update" if abs_registry.exists() else "create"),
+                preview_target(summary_path, "update" if abs_summary.exists() else "create"),
+            ],
+            invariant_effects=[
+                "Writes the provider registry YAML and regenerates the registry summary in one governed change.",
+                "Protected apply mode requires the approval_token returned by preview mode.",
+            ],
+            commit_message=commit_msg,
+            resulting_state=result,
+        )
+        preview_payload, protected_token = attach_approval_requirement(
+            preview_payload,
+            repo,
+            tool_name="memory_register_tool",
+            operation_arguments=operation_arguments,
+        )
+
+        if preview:
+            return MemoryWriteResult(
+                files_changed=[registry_path, summary_path],
+                commit_sha=None,
+                commit_message=None,
+                new_state={**result, "approval_token": protected_token},
+                preview=preview_payload,
+            ).to_json()
+
+        require_approval_token(
+            repo,
+            tool_name="memory_register_tool",
+            operation_arguments=operation_arguments,
+            approval_token=approval_token,
+        )
+
+        save_registry(root, provider, updated)
+        regenerate_registry_summary(root)
+        repo.add(registry_path)
+        repo.add(summary_path)
+        commit_result = repo.commit(commit_msg, paths=[registry_path, summary_path])
+
+        return MemoryWriteResult.from_commit(
+            files_changed=[registry_path, summary_path],
+            commit_result=commit_result,
+            commit_message=commit_msg,
+            new_state=result,
+            preview=preview_payload,
+        ).to_json()
 
     @mcp.tool(
         name="memory_get_tool_policy",

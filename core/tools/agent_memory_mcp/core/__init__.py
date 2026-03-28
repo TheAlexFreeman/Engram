@@ -5,10 +5,11 @@ runtime so validators, setup tooling, and other non-server integrations can
 reuse the repository contract without importing `mcp`.
 """
 
-from .. import errors, frontmatter_utils, git_repo, models, path_policy
+from .. import errors, frontmatter_policy, frontmatter_utils, git_repo, models, path_policy
 
 __all__ = [
     "errors",
+    "frontmatter_policy",
     "frontmatter_utils",
     "git_repo",
     "models",

@@ -176,7 +176,7 @@ Platform adapter files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) all point to t
 
 ## MCP server
 
-The memory system exposes an MCP (Model Context Protocol) server that provides governed tool access to the memory store. The server is the preferred interface for agent interactions — it enforces path policies, preview/commit workflows, provenance metadata, and trust boundaries that direct file access would bypass.
+The memory system exposes an MCP (Model Context Protocol) server that provides governed tool access to the memory store. The server is the preferred interface for agent interactions — it enforces path policies, preview/commit workflows, approval tokens for protected writes, provenance metadata, and trust boundaries that direct file access would bypass.
 
 ### Installation
 
@@ -303,7 +303,9 @@ Trust levels assigned by source:
 | `agent-inferred` | medium | → high (user confirms) |
 | `agent-generated` | medium | → high (user endorses) |
 | `external-research` | low | → medium (user review) → high (confirms accuracy) |
+| `skill-discovery` | medium | → high (user confirms the discovered capability is durable) |
 | `template` | medium | → high (onboarding confirmation) |
+| `unknown` | medium | Backfill-only provenance; verify before raising trust |
 
 For the full change-control specification, see `core/governance/update-guidelines.md`.
 

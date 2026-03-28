@@ -117,7 +117,7 @@ core/memory/activity/SUMMARY.md
 core/memory/knowledge/ACCESS.jsonl
 core/memory/knowledge/NAMES.md
 core/memory/knowledge/SUMMARY.md
-core/memory/knowledge/_unverified/self/comprehensive-self-knowledge-summary.md
+core/memory/knowledge/self/comprehensive-self-knowledge-summary.md
 core/memory/knowledge/ai/ai-as-complementary-cognition.md
 core/memory/knowledge/ai/ai-as-creative-instrument.md
 core/memory/knowledge/ai/ai-in-education.md
@@ -780,6 +780,7 @@ core/tools/agent_memory_mcp/errors.py
 core/tools/agent_memory_mcp/eval_utils.py
 core/tools/agent_memory_mcp/freshness.py
 core/tools/agent_memory_mcp/frontmatter_utils.py
+core/tools/agent_memory_mcp/frontmatter_policy.py
 core/tools/agent_memory_mcp/git_repo.py
 core/tools/agent_memory_mcp/guard_pipeline.py
 core/tools/agent_memory_mcp/models.py

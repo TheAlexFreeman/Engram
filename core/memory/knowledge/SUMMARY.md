@@ -8,7 +8,7 @@ origin_session: manual
 
 # Knowledge Base
 
-419 files across 9 domains. Accumulated primarily from agent-planned and -executed research programs (2026-03-18 through 2026-03-21). Trust: 35 high, 313 medium, 71 low. Most content has been promoted from `_unverified/` and reviewed. One file remains in quarantine: `_unverified/self/comprehensive-self-knowledge-summary.md` (trust: low, agent-generated).
+419 files across 9 domains. Accumulated primarily from agent-planned and -executed research programs (2026-03-18 through 2026-03-21). Trust: 35 high, 314 medium, 70 low. Most content has been promoted from `_unverified/` and reviewed. Agent-generated self-knowledge syntheses now live in `self/` with medium trust instead of the external-research quarantine.
 
 ## Domains
 
@@ -22,7 +22,7 @@ origin_session: manual
 | [ai/](ai/)                                       | 49    | 48 med, 1 low   | [frontier-synthesis.md](ai/frontier-synthesis.md)                                                                                              | History of AI, frontier research, retrieval/memory, tools/MCP                                               |
 | [social-science/](social-science/)               | 42    | 12 med, 30 low  | by subfolder                                                                                                                                   | Cultural evolution, behavioral economics, social psychology, collective action, network diffusion           |
 | [rationalist-community/](rationalist-community/) | 28    | 28 med          | [synthesis/rationalist-community-story-aims-and-tensions.md](rationalist-community/synthesis/rationalist-community-story-aims-and-tensions.md) | Origins, AI discourse, key figures, institutions, community norms                                           |
-| [self/](self/)                                   | 13    | 4 med, 9 low    | [engram-system-overview.md](self/engram-system-overview.md)                                                                                    | System architecture, governance model, security analysis, operational resilience                            |
+| [self/](self/)                                   | 13    | 5 med, 8 low    | [engram-system-overview.md](self/engram-system-overview.md)                                                                                    | System architecture, governance model, security analysis, operational resilience                            |
 | [literature/](literature/)                       | 3     | 3 med           | —                                                                                                                                              | Literary analysis (Galatea 2.2, The Man Who Was Thursday, Tree of Smoke)                                    |
 
 
@@ -120,4 +120,3 @@ System's knowledge about itself. 6 root files + 7 security analysis files.
 - **environment-capability-asymmetry.md** — Multi-agent coordination and local-only git
 - **operational-resilience-and-memetic-security-synthesis.md** — Cross-cutting synthesis
 - **security/** (7 files) — Injection vectors, mitigation audit, comparative analysis, irreducible core, drift vs. attack, memory amplification, design implications
-

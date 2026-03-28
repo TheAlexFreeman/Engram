@@ -15,7 +15,12 @@ from ...path_policy import (
     validate_session_id,
     validate_slug,
 )
-from ...preview_contract import build_governed_preview, preview_target
+from ...preview_contract import (
+    attach_approval_requirement,
+    build_governed_preview,
+    preview_target,
+    require_approval_token,
+)
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -1683,6 +1688,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         review_queue_entries: str = "",
         active_stage: str = "",
         preview: bool = False,
+        approval_token: str | None = None,
     ) -> str:
         from ...errors import NotFoundError, ValidationError
         from ...models import MemoryWriteResult
@@ -1762,6 +1768,13 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             "belief_diff_written": True,
             "review_queue_written": review_queue_written,
         }
+        operation_arguments = {
+            "review_date": review_date,
+            "assessment_summary": assessment_summary,
+            "belief_diff_entry": belief_diff_entry,
+            "review_queue_entries": review_queue_entries,
+            "active_stage": active_stage,
+        }
         preview_payload = build_governed_preview(
             mode="preview" if preview else "apply",
             change_class="protected",
@@ -1771,20 +1784,33 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             invariant_effects=[
                 "Updates the last periodic review date and active-stage assessment in the live router (core/INIT.md or core/HOME.md).",
                 "Appends the belief-diff entry and any queued follow-up review items in one governed commit.",
+                "Protected apply mode requires the approval_token returned by preview mode.",
             ],
             commit_message=commit_msg,
             resulting_state=new_state,
+        )
+        preview_payload, protected_token = attach_approval_requirement(
+            preview_payload,
+            repo,
+            tool_name="memory_record_periodic_review",
+            operation_arguments=operation_arguments,
         )
         if preview:
             result = MemoryWriteResult(
                 files_changed=files_changed,
                 commit_sha=None,
                 commit_message=None,
-                new_state=new_state,
+                new_state={**new_state, "approval_token": protected_token},
                 preview=preview_payload,
             )
             return result.to_json()
 
+        require_approval_token(
+            repo,
+            tool_name="memory_record_periodic_review",
+            operation_arguments=operation_arguments,
+            approval_token=approval_token,
+        )
         abs_quick_reference.write_text(updated_quick_reference, encoding="utf-8")
         repo.add(quick_reference_rel)
         abs_belief_diff.write_text(updated_belief_diff, encoding="utf-8")

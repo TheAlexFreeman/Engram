@@ -13,8 +13,17 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 import frontmatter as fmlib  # type: ignore[import-untyped]
 import yaml  # type: ignore[import-untyped]
+from core.tools.agent_memory_mcp.frontmatter_policy import (
+    ALLOWED_SOURCE_VALUES,
+    ALLOWED_TRUST_VALUES,
+    REQUIRED_FRONTMATTER_KEYS,
+)
 
 try:
     import tomllib
@@ -49,22 +58,6 @@ PLACEHOLDER_SNIPPETS = (
 DEFAULT_ACCESS_COVERAGE_WINDOW_DAYS = 30
 ACCESS_COVERAGE_WINDOW_ENV_VAR = "MEMORY_VALIDATE_COVERAGE_WINDOW_DAYS"
 
-REQUIRED_FRONTMATTER_KEYS = (
-    "source",
-    "origin_session",
-    "created",
-    "trust",
-)
-ALLOWED_SOURCE_VALUES = {
-    "user-stated",
-    "agent-inferred",
-    "agent-generated",
-    "external-research",
-    "skill-discovery",
-    "template",
-    "unknown",
-}
-ALLOWED_TRUST_VALUES = {"high", "medium", "low"}
 ALLOWED_PLAN_STATUS_VALUES = {"active", "paused", "complete"}
 CANONICAL_ORIGIN_SESSION_RE = re.compile(
     r"^(?:core/)?memory/activity/\d{4}/\d{2}/\d{2}/chat-\d{3}$"

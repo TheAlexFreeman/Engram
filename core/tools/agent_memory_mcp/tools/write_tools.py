@@ -83,30 +83,14 @@ def _merge_frontmatter_fields(
     *,
     create_missing_keys: bool,
 ) -> tuple[dict[str, Any], bool]:
-    from ..frontmatter_utils import today_str
+    from ..frontmatter_utils import merge_frontmatter_fields
 
-    merged = dict(current_frontmatter)
-    changed = False
-
-    for key, value in updates.items():
-        if key not in merged and not create_missing_keys:
-            continue
-        if value is None:
-            if key in merged:
-                merged.pop(key, None)
-                changed = True
-            continue
-        if merged.get(key) != value:
-            merged[key] = value
-            changed = True
-
-    if changed and "last_verified" not in updates:
-        current_last_verified = merged.get("last_verified")
-        new_last_verified = today_str()
-        if current_last_verified != new_last_verified:
-            merged["last_verified"] = new_last_verified
-
-    return merged, changed
+    return merge_frontmatter_fields(
+        current_frontmatter,
+        updates,
+        create_missing_keys=create_missing_keys,
+        auto_last_verified=False,
+    )
 
 
 def register(
@@ -479,7 +463,7 @@ def register(
         governed modifications.
 
         Does not touch the file body. Always sets last_verified to today's date
-        unless 'last_verified' is explicitly included in updates.
+        only when 'last_verified' is explicitly included in updates.
 
         Pass null as a value to remove a frontmatter key.
 
@@ -494,7 +478,12 @@ def register(
             MemoryWriteResult JSON with new_state containing the full updated frontmatter.
         """
         from ..errors import NotFoundError, ValidationError
-        from ..frontmatter_utils import update_frontmatter_fields
+        from ..frontmatter_utils import (
+            merge_frontmatter_fields,
+            read_with_frontmatter,
+            render_with_frontmatter,
+            write_with_frontmatter,
+        )
         from ..models import MemoryWriteResult
 
         repo = get_repo()
@@ -513,7 +502,20 @@ def register(
 
         repo.check_version_token(path, version_token)
 
-        updated_fm = update_frontmatter_fields(abs_path, updates_dict)
+        try:
+            current_fm, body = read_with_frontmatter(abs_path)
+        except Exception as exc:
+            raise ValidationError(f"Could not parse frontmatter in {path}: {exc}") from exc
+
+        updated_fm, changed = merge_frontmatter_fields(
+            current_fm,
+            updates_dict,
+            auto_last_verified=False,
+        )
+        rendered = render_with_frontmatter(updated_fm, body)
+        _run_guards(path, "write", content=rendered)
+        if changed:
+            write_with_frontmatter(abs_path, updated_fm, body)
         repo.add(path)
         track_paths(path)
 
@@ -521,7 +523,7 @@ def register(
             files_changed=[path],
             commit_sha=None,
             commit_message=None,
-            new_state={"frontmatter": updated_fm},
+            new_state={"frontmatter": json.loads(json.dumps(updated_fm, default=str))},
         )
         return result.to_json()
 
@@ -570,7 +572,11 @@ def register(
             MemoryWriteResult JSON with per-batch counts and transaction state.
         """
         from ..errors import NotFoundError, ValidationError
-        from ..frontmatter_utils import read_with_frontmatter, write_with_frontmatter
+        from ..frontmatter_utils import (
+            read_with_frontmatter,
+            render_with_frontmatter,
+            write_with_frontmatter,
+        )
         from ..models import MemoryWriteResult
 
         repo = get_repo()
@@ -601,12 +607,18 @@ def register(
                     raise ValidationError(f"Path already has staged or unstaged changes: {path}")
 
                 repo.check_version_token(path, version_token)
-                current_frontmatter, body = read_with_frontmatter(abs_path)
+                try:
+                    current_frontmatter, body = read_with_frontmatter(abs_path)
+                except Exception as exc:
+                    raise ValidationError(f"Could not parse frontmatter in {path}: {exc}") from exc
                 merged_frontmatter, changed = _merge_frontmatter_fields(
                     current_frontmatter,
                     fields,
                     create_missing_keys=create_missing_keys,
                 )
+                if changed:
+                    rendered = render_with_frontmatter(merged_frontmatter, body)
+                    _run_guards(path, "write", content=rendered)
                 prepared_entries.append(
                     {
                         "path": path,

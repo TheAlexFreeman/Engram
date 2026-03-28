@@ -14,6 +14,7 @@ from ...path_policy import (
     forbid_prefix,
     require_under_prefix,
     resolve_repo_path,
+    validate_knowledge_path,
     validate_session_id,
     validate_top_level_root,
 )
@@ -384,17 +385,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         explicit_target_folder: str | None = None
         if target_folder is not None:
-            explicit_target_folder, _ = resolve_repo_path(
-                repo, target_folder, field_name="target_folder"
-            )
-            validate_top_level_root(
-                explicit_target_folder,
-                allowed_roots=("memory",),
-                field_name="target_folder",
-            )
-            forbid_prefix(
-                explicit_target_folder,
-                "memory/knowledge/_unverified",
+            explicit_target_folder, _ = validate_knowledge_path(
+                repo,
+                target_folder,
                 field_name="target_folder",
             )
 
@@ -427,15 +420,11 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 inferred_target_folders.add(inferred_folder)
                 resolved_target_folder = explicit_target_folder or inferred_folder
                 target_path = f"{resolved_target_folder.rstrip('/')}/{abs_source.name}"
-                target_path, abs_target = resolve_repo_path(
-                    repo, target_path, field_name="target_path"
-                )
-                validate_top_level_root(
+                target_path, abs_target = validate_knowledge_path(
+                    repo,
                     target_path,
-                    allowed_roots=("memory",),
                     field_name="target_path",
                 )
-                forbid_prefix(target_path, "memory/knowledge/_unverified", field_name="target_path")
                 if target_path in seen_targets:
                     raise ValidationError(f"target path collision in batch: {target_path}")
                 seen_targets.add(target_path)
@@ -607,9 +596,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         if not abs_source_folder.is_dir():
             raise ValidationError(f"source_folder must be a directory: {source_folder}")
 
-        dest_folder, _ = resolve_repo_path(repo, dest_folder, field_name="dest_folder")
-        validate_top_level_root(dest_folder, allowed_roots=("memory",), field_name="dest_folder")
-        forbid_prefix(dest_folder, "memory/knowledge/_unverified", field_name="dest_folder")
+        dest_folder, _ = validate_knowledge_path(repo, dest_folder, field_name="dest_folder")
 
         markdown_files = [
             child
@@ -632,15 +619,11 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             rel_subpath = abs_source.relative_to(abs_source_folder).as_posix()
             target_path = f"{dest_folder.rstrip('/')}/{rel_subpath}"
             try:
-                target_path, abs_target = resolve_repo_path(
-                    repo, target_path, field_name="target_path"
-                )
-                validate_top_level_root(
+                target_path, abs_target = validate_knowledge_path(
+                    repo,
                     target_path,
-                    allowed_roots=("memory",),
                     field_name="target_path",
                 )
-                forbid_prefix(target_path, "memory/knowledge/_unverified", field_name="target_path")
                 if target_path in seen_targets:
                     raise ValidationError(f"target path collision in subtree: {target_path}")
                 seen_targets.add(target_path)
@@ -805,12 +788,18 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         repo = get_repo()
         root = get_root()
 
-        source, abs_source = resolve_repo_path(repo, source, field_name="source")
-        dest, abs_dest = resolve_repo_path(repo, dest, field_name="dest")
-        validate_top_level_root(source, allowed_roots=("memory",), field_name="source")
-        validate_top_level_root(dest, allowed_roots=("memory",), field_name="dest")
-        forbid_prefix(source, "memory/knowledge/_unverified", field_name="source")
-        forbid_prefix(dest, "memory/knowledge/_unverified", field_name="dest")
+        source, abs_source = validate_knowledge_path(
+            repo,
+            source,
+            field_name="source",
+            allow_archive=True,
+        )
+        dest, abs_dest = validate_knowledge_path(
+            repo,
+            dest,
+            field_name="dest",
+            allow_archive=True,
+        )
 
         if not abs_source.exists():
             raise NotFoundError(f"Source path not found: {source}")
@@ -1013,13 +1002,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             target_path = source_path.replace(
                 "memory/knowledge/_unverified/", "memory/knowledge/", 1
             )
-        target_path, _ = resolve_repo_path(repo, target_path, field_name="target_path")
-        validate_top_level_root(
-            target_path,
-            allowed_roots=("memory",),
-            field_name="target_path",
-        )
-        forbid_prefix(target_path, "memory/knowledge/_unverified", field_name="target_path")
+        target_path, _ = validate_knowledge_path(repo, target_path, field_name="target_path")
 
         fm_dict, body = read_with_frontmatter(abs_source)
         fm_dict["trust"] = trust_level
@@ -1276,11 +1259,11 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         root = get_root()
         warnings: list[str] = []
 
-        source_path, abs_source = resolve_repo_path(repo, source_path, field_name="source_path")
-        validate_top_level_root(
+        source_path, abs_source = validate_knowledge_path(
+            repo,
             source_path,
-            allowed_roots=("memory",),
             field_name="source_path",
+            allow_unverified=True,
         )
         if source_path.startswith("memory/knowledge/_unverified/"):
             raise ValidationError(
@@ -1432,11 +1415,11 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         root = get_root()
         warnings: list[str] = []
 
-        source_path, abs_source = resolve_repo_path(repo, source_path, field_name="source_path")
-        validate_top_level_root(
+        source_path, abs_source = validate_knowledge_path(
+            repo,
             source_path,
-            allowed_roots=("memory",),
             field_name="source_path",
+            allow_unverified=True,
         )
         if not abs_source.exists():
             raise NotFoundError(f"File not found: {source_path}")
@@ -1448,6 +1431,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         if rel_to_knowledge.startswith("_unverified/"):
             rel_to_knowledge = rel_to_knowledge[len("_unverified/") :]
         archive_path = f"memory/knowledge/_archive/{rel_to_knowledge}"
+        archive_path, _ = validate_knowledge_path(
+            repo,
+            archive_path,
+            field_name="archive_path",
+            allow_archive=True,
+        )
 
         section_id = infer_section_id_from_path(source_path)
         if source_path.startswith("memory/knowledge/_unverified/"):

@@ -17,21 +17,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 from .errors import MemoryPermissionError, ValidationError
+from .frontmatter_policy import validate_frontmatter_metadata, validate_trust_boundary
 from .path_policy import (
     validate_raw_move_destination,
     validate_raw_mutation_source,
     validate_raw_write_target,
 )
 
-_TRUST_LEVELS = {"high", "medium", "low"}
-_SOURCE_TYPES = {
-    "user-stated",
-    "agent-inferred",
-    "agent-generated",
-    "external-research",
-    "template",
-    "skill-discovery",
-}
 _DEFAULT_MAX_FILE_BYTES = 512_000
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
@@ -173,42 +165,24 @@ class FrontmatterGuard(Guard):
             fm = yaml.safe_load(match.group(1))
         except yaml.YAMLError:
             return GuardResult(
-                status="warn",
+                status="block",
                 guard_name=self.name,
                 message="Frontmatter YAML is malformed",
             )
         if not isinstance(fm, dict):
-            return GuardResult(status="pass", guard_name=self.name, message="")
-
-        source = fm.get("source")
-        if source is not None and source not in _SOURCE_TYPES:
             return GuardResult(
                 status="block",
                 guard_name=self.name,
-                message=f"Invalid source type: {source!r}",
-                metadata={"field": "source", "value": source, "allowed": sorted(_SOURCE_TYPES)},
+                message="Frontmatter YAML must deserialize to a mapping",
             )
 
-        trust = fm.get("trust")
-        if trust is not None and trust not in _TRUST_LEVELS:
+        try:
+            validate_frontmatter_metadata(fm)
+        except ValidationError as exc:
             return GuardResult(
                 status="block",
                 guard_name=self.name,
-                message=f"Invalid trust level: {trust!r}",
-                metadata={"field": "trust", "value": trust, "allowed": sorted(_TRUST_LEVELS)},
-            )
-
-        warnings: list[str] = []
-        if "source" not in fm:
-            warnings.append("missing recommended field 'source'")
-        if "created" not in fm:
-            warnings.append("missing recommended field 'created'")
-
-        if warnings:
-            return GuardResult(
-                status="warn",
-                guard_name=self.name,
-                message="; ".join(warnings),
+                message=str(exc),
             )
 
         return GuardResult(status="pass", guard_name=self.name, message="")
@@ -238,18 +212,14 @@ class TrustBoundaryGuard(Guard):
         if not isinstance(fm, dict):
             return GuardResult(status="pass", guard_name=self.name, message="")
 
-        trust = fm.get("trust")
-        source = fm.get("source")
-
-        if trust == "high" and source != "user-stated":
+        try:
+            validate_trust_boundary(fm)
+        except ValidationError as exc:
             return GuardResult(
                 status="require_approval",
                 guard_name=self.name,
-                message=(
-                    "trust:high assignment requires user confirmation "
-                    f"(source is {source!r}, not 'user-stated')"
-                ),
-                metadata={"trust": trust, "source": source},
+                message=str(exc),
+                metadata={"trust": fm.get("trust"), "source": fm.get("source")},
             )
 
         return GuardResult(status="pass", guard_name=self.name, message="")

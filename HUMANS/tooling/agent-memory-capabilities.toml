@@ -1382,12 +1382,16 @@ error_kinds = [
   "ValidationError",
   "StagingError",
 ]
+notes = "Protected apply mode requires the approval_token returned by preview mode."
 
 [operations.memory_register_tool]
 group = "skill"
 tier = "semantic"
 change_class = "protected"
-commit_model = "auto_commit_exception_direct_write"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
 commit_category_hint = "skill"
 writes = [
   "memory/skills/tool-registry/{provider}.yaml",
@@ -1399,8 +1403,8 @@ owns_access_logs = []
 owns_review_queue = []
 result_fields = ["tool_name", "provider", "registry_file", "action"]
 fallback_tools = []
-error_kinds = []
-notes = "Registry mutations write provider YAML and the generated summary directly without creating a git commit."
+error_kinds = ["ValidationError", "StagingError"]
+notes = "Protected apply mode requires the approval_token returned by preview mode, then commits the provider YAML and generated summary together."
 
 [operations.memory_get_tool_policy]
 group = "skill"
@@ -1618,6 +1622,7 @@ result_fields = [
 ]
 fallback_tools = ["memory_edit", "memory_commit"]
 error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+notes = "Protected apply mode requires the approval_token returned by preview mode."
 
 [operations.memory_revert_commit]
 group = "governance"

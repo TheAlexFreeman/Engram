@@ -54,10 +54,48 @@ def write_with_frontmatter(
     abs_path.write_text(text, encoding="utf-8")
 
 
+def render_with_frontmatter(fm_dict: dict[str, Any], body: str) -> str:
+    """Return serialized frontmatter + body without writing it to disk."""
+    post = fm.Post(body, **fm_dict)
+    return fm.dumps(post)
+
+
+def merge_frontmatter_fields(
+    current_frontmatter: dict[str, Any],
+    updates: dict[str, Any],
+    *,
+    create_missing_keys: bool = True,
+    auto_last_verified: bool = False,
+) -> tuple[dict[str, Any], bool]:
+    """Merge updates into a frontmatter mapping and report whether anything changed."""
+    merged = dict(current_frontmatter)
+    changed = False
+
+    for key, value in updates.items():
+        if key not in merged and not create_missing_keys:
+            continue
+        if value is None:
+            if key in merged:
+                merged.pop(key, None)
+                changed = True
+            continue
+        if merged.get(key) != value:
+            merged[key] = value
+            changed = True
+
+    if changed and auto_last_verified and "last_verified" not in updates:
+        current_last_verified = merged.get("last_verified")
+        new_last_verified = str(date.today())
+        if current_last_verified != new_last_verified:
+            merged["last_verified"] = new_last_verified
+
+    return merged, changed
+
+
 def update_frontmatter_fields(
     abs_path: Path,
     updates: dict[str, Any],
-    auto_last_verified: bool = True,
+    auto_last_verified: bool = False,
 ) -> dict[str, Any]:
     """Merge *updates* into the file's frontmatter and rewrite the file.
 
@@ -67,16 +105,13 @@ def update_frontmatter_fields(
     Returns the full updated frontmatter dict.
     """
     current_fm, body = read_with_frontmatter(abs_path)
-    if auto_last_verified and "last_verified" not in updates:
-        updates = {**updates, "last_verified": str(date.today())}
-    # Remove keys where value is None
-    for key, val in updates.items():
-        if val is None:
-            current_fm.pop(key, None)
-        else:
-            current_fm[key] = val
-    write_with_frontmatter(abs_path, current_fm, body)
-    return current_fm
+    merged_fm, _ = merge_frontmatter_fields(
+        current_fm,
+        updates,
+        auto_last_verified=auto_last_verified,
+    )
+    write_with_frontmatter(abs_path, merged_fm, body)
+    return merged_fm
 
 
 def today_str() -> str:

@@ -29,6 +29,9 @@ KNOWN_COMMIT_PREFIXES: frozenset[str] = frozenset(
 
 _PROTECTED_ROOTS = ("memory/users", "governance", "memory/activity", "memory/skills")
 _RAW_MUTATION_ROOTS = ("memory/knowledge", "memory/working")
+_KNOWLEDGE_ROOT = "memory/knowledge"
+_UNVERIFIED_KNOWLEDGE_ROOT = "memory/knowledge/_unverified"
+_ARCHIVED_KNOWLEDGE_ROOT = "memory/knowledge/_archive"
 
 
 def _matches_any_prefix(rel_path: str, prefixes: tuple[str, ...]) -> str | None:
@@ -188,3 +191,34 @@ def validate_top_level_root(
         pretty = ", ".join(f"{root}/" for root in allowed)
         raise ValidationError(f"{field_name} must be under one of {pretty}: {rel_path}")
     return rel_path
+
+
+def validate_knowledge_path(
+    repo,
+    raw_path: str,
+    *,
+    field_name: str = "path",
+    allow_unverified: bool = False,
+    allow_archive: bool = False,
+) -> tuple[str, Path]:
+    """Normalize and validate repo paths within the governed knowledge surface."""
+    rel_path, abs_path = resolve_repo_path(repo, raw_path, field_name=field_name)
+
+    if _matches_any_prefix(rel_path, (_KNOWLEDGE_ROOT,)) is None:
+        allowed_roots = [_KNOWLEDGE_ROOT]
+        if allow_archive:
+            allowed_roots.append(_ARCHIVED_KNOWLEDGE_ROOT)
+        pretty = ", ".join(f"{root}/" for root in allowed_roots)
+        raise ValidationError(f"{field_name} must stay under {pretty}: {rel_path}")
+
+    if not allow_unverified and _matches_any_prefix(rel_path, (_UNVERIFIED_KNOWLEDGE_ROOT,)):
+        raise ValidationError(
+            f"{field_name} must not point into {_UNVERIFIED_KNOWLEDGE_ROOT}/: {rel_path}"
+        )
+
+    if not allow_archive and _matches_any_prefix(rel_path, (_ARCHIVED_KNOWLEDGE_ROOT,)):
+        raise ValidationError(
+            f"{field_name} must not point into {_ARCHIVED_KNOWLEDGE_ROOT}/: {rel_path}"
+        )
+
+    return rel_path, abs_path

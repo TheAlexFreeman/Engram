@@ -5,8 +5,14 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any, cast
 
+from ...frontmatter_policy import validate_frontmatter_metadata
 from ...path_policy import resolve_repo_path, validate_session_id, validate_slug
-from ...preview_contract import build_governed_preview, preview_target
+from ...preview_contract import (
+    attach_approval_requirement,
+    build_governed_preview,
+    preview_target,
+    require_approval_token,
+)
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -68,6 +74,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         trust: str | None = None,
         origin_session: str | None = None,
         preview: bool = False,
+        approval_token: str | None = None,
     ) -> str:
         """Update a named section in a skill file, optionally creating the file.
 
@@ -132,8 +139,20 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             body = body.rstrip() + f"\n\n{section_heading}\n\n{content.strip()}\n"
 
         fm_dict["last_verified"] = today
+        validate_frontmatter_metadata(fm_dict, context=f"skill frontmatter for {rel_path}")
         commit_msg = f"[skill] Update {section} in memory/skills/{file}.md"
         new_state = {"section": section, "mode": mode}
+        operation_arguments = {
+            "file": file,
+            "section": section,
+            "content": content,
+            "mode": mode,
+            "version_token": version_token,
+            "create_if_missing": create_if_missing,
+            "source": source,
+            "trust": trust,
+            "origin_session": origin_session,
+        }
         preview_payload = build_governed_preview(
             mode="preview" if preview else "apply",
             change_class="protected",
@@ -143,20 +162,33 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             invariant_effects=[
                 "Updates the requested skill section using upsert, append, or replace semantics.",
                 "Refreshes last_verified in the skill frontmatter.",
+                "Protected apply mode requires the approval_token returned by preview mode.",
             ],
             commit_message=commit_msg,
             resulting_state=new_state,
+        )
+        preview_payload, protected_token = attach_approval_requirement(
+            preview_payload,
+            repo,
+            tool_name="memory_update_skill",
+            operation_arguments=operation_arguments,
         )
         if preview:
             result = MemoryWriteResult(
                 files_changed=[rel_path],
                 commit_sha=None,
                 commit_message=None,
-                new_state=new_state,
+                new_state={**new_state, "approval_token": protected_token},
                 preview=preview_payload,
             )
             return result.to_json()
 
+        require_approval_token(
+            repo,
+            tool_name="memory_update_skill",
+            operation_arguments=operation_arguments,
+            approval_token=approval_token,
+        )
         write_with_frontmatter(abs_path, fm_dict, body)
         repo.add(rel_path)
         commit_result = repo.commit(commit_msg)

@@ -144,6 +144,18 @@ class AgentMemoryWriteToolTests(unittest.TestCase):
         )
         return cast(dict[str, ToolCallable], tools)
 
+    def _preview_tool(self, tools: dict[str, ToolCallable], tool_name: str, **kwargs: Any) -> dict[str, Any]:
+        return json.loads(asyncio.run(tools[tool_name](preview=True, **kwargs)))
+
+    def _approval_token_for(
+        self,
+        tools: dict[str, ToolCallable],
+        tool_name: str,
+        **kwargs: Any,
+    ) -> tuple[str, dict[str, Any]]:
+        preview = self._preview_tool(tools, tool_name, **kwargs)
+        return cast(str, preview["new_state"]["approval_token"]), preview
+
     def _policy_contract_seed_files(self) -> dict[str, str]:
         return {
             "HUMANS/tooling/agent-memory-capabilities.toml": """version = 1
@@ -701,6 +713,39 @@ origin_session: manual
             verified_summary,
         )
 
+    def test_promote_knowledge_rejects_target_path_outside_knowledge_surface(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/_unverified/literature/test-note.md": """---
+title: Test Note
+source: agent-generated
+created: 2026-03-17
+trust: low
+origin_session: manual
+---
+
+# Test Note
+""",
+                "memory/knowledge/_unverified/SUMMARY.md": "# Unverified Knowledge\n",
+                "memory/knowledge/SUMMARY.md": "# Knowledge\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_promote_knowledge"](
+                    source_path="memory/knowledge/_unverified/literature/test-note.md",
+                    trust_level="medium",
+                    target_path="memory/users/test-note.md",
+                )
+            )
+
+        self.assertTrue(
+            (repo_root / "memory/knowledge/_unverified/literature/test-note.md").exists()
+        )
+        self.assertFalse((repo_root / "memory/users/test-note.md").exists())
+
     def test_promote_knowledge_batch_single_file_matches_single_promotion_behavior(self) -> None:
         repo_root = self._init_repo(
             {
@@ -908,6 +953,39 @@ origin_session: manual
         self.assertFalse(
             (repo_root / "memory" / "knowledge" / "literature" / "test-note.md").exists()
         )
+
+    def test_promote_knowledge_batch_rejects_target_folder_outside_knowledge_surface(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/_unverified/literature/test-note.md": """---
+title: Test Note
+source: agent-generated
+created: 2026-03-17
+trust: low
+origin_session: manual
+---
+
+# Test Note
+""",
+                "memory/knowledge/_unverified/SUMMARY.md": "# Unverified Knowledge\n",
+                "memory/knowledge/SUMMARY.md": "# Knowledge\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_promote_knowledge_batch"](
+                    source_paths='["memory/knowledge/_unverified/literature/test-note.md"]',
+                    trust_level="medium",
+                    target_folder="memory/users",
+                )
+            )
+
+        self.assertTrue(
+            (repo_root / "memory/knowledge/_unverified/literature/test-note.md").exists()
+        )
+        self.assertFalse((repo_root / "memory/users/test-note.md").exists())
 
     def test_promote_knowledge_batch_rejects_oversized_batch(self) -> None:
         repo_root = self._init_repo(
@@ -1193,6 +1271,37 @@ origin_session: manual
         self.assertEqual(payload["new_state"]["promoted_count"], 1)
         self.assertIn("No action required", payload["warnings"][0])
 
+    def test_promote_knowledge_subtree_rejects_dest_folder_outside_knowledge_surface(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/_unverified/mcp/a-note.md": """---
+title: A Note
+source: agent-generated
+created: 2026-03-17
+trust: low
+origin_session: manual
+---
+
+# A Note
+""",
+                "memory/knowledge/_unverified/SUMMARY.md": "# Unverified Knowledge\n",
+                "memory/knowledge/SUMMARY.md": "# Knowledge\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_promote_knowledge_subtree"](
+                    source_folder="memory/knowledge/_unverified/mcp",
+                    dest_folder="memory/skills",
+                    trust_level="medium",
+                )
+            )
+
+        self.assertTrue((repo_root / "memory/knowledge/_unverified/mcp/a-note.md").exists())
+        self.assertFalse((repo_root / "memory/skills/a-note.md").exists())
+
     def test_memory_mark_reviewed_appends_jsonl_entry(self) -> None:
         repo_root = self._init_repo(
             {
@@ -1431,6 +1540,10 @@ current_focus: Example project.
         repo_root = self._init_repo(
             {
                 "memory/working/projects/test-plan.md": """---
+source: unknown
+origin_session: unknown
+created: 2026-03-17
+trust: medium
 status: active
 next_action: Ship it
 last_verified: 2026-03-17
@@ -1483,12 +1596,20 @@ last_verified: 2026-03-17
         repo_root = self._init_repo(
             {
                 "memory/working/projects/one.md": """---
+source: unknown
+origin_session: unknown
+created: 2026-03-17
+trust: medium
 status: active
 ---
 
 # One
 """,
                 "memory/working/projects/two.md": """---
+source: unknown
+origin_session: unknown
+created: 2026-03-17
+trust: medium
 status: active
 ---
 
@@ -1529,6 +1650,10 @@ status: active
         repo_root = self._init_repo(
             {
                 "memory/working/projects/test-plan.md": """---
+source: unknown
+origin_session: unknown
+created: 2026-03-17
+trust: medium
 status: active
 ---
 
@@ -1602,12 +1727,20 @@ status: active
         repo_root = self._init_repo(
             {
                 "memory/working/projects/one.md": """---
+source: unknown
+origin_session: unknown
+created: 2026-03-17
+trust: medium
 status: active
 ---
 
 # One
 """,
                 "memory/working/projects/two.md": """---
+source: unknown
+origin_session: unknown
+created: 2026-03-17
+trust: medium
 status: active
 ---
 
@@ -1677,6 +1810,199 @@ status: active
         ]
         with self.assertRaises(self.errors.ValidationError):
             asyncio.run(tools["memory_update_frontmatter_bulk"](updates=oversized))
+
+    def test_memory_update_frontmatter_rejects_invalid_source_without_mutation(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic.md": """---
+source: unknown
+origin_session: unknown
+created: 2026-03-17
+trust: medium
+---
+
+# Topic
+""",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_update_frontmatter"](
+                    path="memory/knowledge/topic.md",
+                    updates='{"source": "invalid-source"}',
+                )
+            )
+
+        frontmatter, _ = self.frontmatter_utils.read_with_frontmatter(
+            repo_root / "memory/knowledge/topic.md"
+        )
+        self.assertEqual(frontmatter["source"], "unknown")
+        self.assertEqual(
+            subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
+                cwd=self._git_root(repo_root),
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip(),
+            "",
+        )
+
+    def test_memory_update_frontmatter_rejects_malformed_existing_frontmatter(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic.md": "---\nsource: [broken\n---\n\n# Topic\n",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_update_frontmatter"](
+                    path="memory/knowledge/topic.md",
+                    updates='{"origin_session": "unknown"}',
+                )
+            )
+
+        self.assertEqual(
+            subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
+                cwd=self._git_root(repo_root),
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip(),
+            "",
+        )
+
+    def test_memory_update_frontmatter_backfill_does_not_set_last_verified(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic.md": """---
+source: unknown
+created: 2026-03-17
+trust: medium
+---
+
+# Topic
+""",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        asyncio.run(
+            tools["memory_update_frontmatter"](
+                path="memory/knowledge/topic.md",
+                updates='{"origin_session": "unknown"}',
+            )
+        )
+
+        frontmatter, _ = self.frontmatter_utils.read_with_frontmatter(
+            repo_root / "memory/knowledge/topic.md"
+        )
+        self.assertEqual(frontmatter["origin_session"], "unknown")
+        self.assertNotIn("last_verified", frontmatter)
+
+    def test_memory_update_frontmatter_bulk_rejects_invalid_trust_without_staging(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/test-plan.md": """---
+source: unknown
+origin_session: unknown
+created: 2026-03-17
+trust: medium
+---
+
+# Test Plan
+""",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_update_frontmatter_bulk"](
+                    updates=[
+                        {
+                            "path": "memory/working/projects/test-plan.md",
+                            "fields": {"trust": "ultra"},
+                        }
+                    ]
+                )
+            )
+
+        self.assertEqual(
+            subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
+                cwd=self._git_root(repo_root),
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip(),
+            "",
+        )
+
+    def test_memory_update_frontmatter_bulk_rejects_missing_required_provenance(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/test-plan.md": """---
+source: unknown
+origin_session: unknown
+created: 2026-03-17
+trust: medium
+---
+
+# Test Plan
+""",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_update_frontmatter_bulk"](
+                    updates=[
+                        {
+                            "path": "memory/working/projects/test-plan.md",
+                            "fields": {"origin_session": None},
+                        }
+                    ]
+                )
+            )
+
+    def test_memory_update_frontmatter_bulk_backfill_does_not_set_last_verified(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/test-plan.md": """---
+source: unknown
+created: 2026-03-17
+trust: medium
+---
+
+# Test Plan
+""",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        asyncio.run(
+            tools["memory_update_frontmatter_bulk"](
+                updates=[
+                    {
+                        "path": "memory/working/projects/test-plan.md",
+                        "fields": {"origin_session": "unknown"},
+                    }
+                ]
+            )
+        )
+
+        frontmatter, _ = self.frontmatter_utils.read_with_frontmatter(
+            repo_root / "memory/working/projects/test-plan.md"
+        )
+        self.assertEqual(frontmatter["origin_session"], "unknown")
+        self.assertNotIn("last_verified", frontmatter)
 
     def test_memory_get_capabilities_returns_parseable_json(self) -> None:
         repo_root = self._init_repo(
@@ -2455,6 +2781,27 @@ Primary body.
 
         self.assertTrue((repo_root / "memory/knowledge/ai-frontier/alpha.md").exists())
         self.assertTrue((repo_root / "memory/knowledge/ai/frontier/alpha.md").exists())
+
+    def test_memory_reorganize_path_rejects_destination_outside_knowledge_surface(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/ai-frontier/alpha.md": "# Alpha\n",
+                "memory/knowledge/ai/SUMMARY.md": "# AI\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_reorganize_path"](
+                    source="memory/knowledge/ai-frontier",
+                    dest="memory/users/ai-frontier",
+                    dry_run=False,
+                )
+            )
+
+        self.assertTrue((repo_root / "memory/knowledge/ai-frontier/alpha.md").exists())
+        self.assertFalse((repo_root / "memory/users/ai-frontier/alpha.md").exists())
 
     def test_memory_suggest_structure_detects_orphan_topics(self) -> None:
         repo_root = self._init_repo(
@@ -4107,12 +4454,20 @@ Load compact context.
             }
         )
         tools = self._create_tools(repo_root)
+        approval_token, _ = self._approval_token_for(
+            tools,
+            "memory_update_skill",
+            file="session-start",
+            section="Steps",
+            content="Load compact context and active plans.",
+        )
 
         raw = asyncio.run(
             tools["memory_update_skill"](
                 file="session-start",
                 section="Steps",
                 content="Load compact context and active plans.",
+                approval_token=approval_token,
             )
         )
         payload = json.loads(raw)
@@ -4142,6 +4497,14 @@ Capture a short checkpoint.
             }
         )
         tools = self._create_tools(repo_root)
+        approval_token, _ = self._approval_token_for(
+            tools,
+            "memory_update_skill",
+            file="session-sync",
+            section="Steps",
+            content="Record any open questions.",
+            mode="append",
+        )
 
         asyncio.run(
             tools["memory_update_skill"](
@@ -4149,6 +4512,7 @@ Capture a short checkpoint.
                 section="Steps",
                 content="Record any open questions.",
                 mode="append",
+                approval_token=approval_token,
             )
         )
         skill = (repo_root / "memory" / "skills" / "session-sync.md").read_text(encoding="utf-8")
@@ -4175,6 +4539,14 @@ Old guidance.
             }
         )
         tools = self._create_tools(repo_root)
+        approval_token, _ = self._approval_token_for(
+            tools,
+            "memory_update_skill",
+            file="session-wrapup",
+            section="Steps",
+            content="Use the governed session recorder when available.",
+            mode="replace",
+        )
 
         asyncio.run(
             tools["memory_update_skill"](
@@ -4182,6 +4554,7 @@ Old guidance.
                 section="Steps",
                 content="Use the governed session recorder when available.",
                 mode="replace",
+                approval_token=approval_token,
             )
         )
         skill = (repo_root / "memory" / "skills" / "session-wrapup.md").read_text(encoding="utf-8")
@@ -4205,6 +4578,17 @@ Old guidance.
     def test_memory_update_skill_can_create_missing_file(self) -> None:
         repo_root = self._init_repo({"memory/skills/SUMMARY.md": "# Skills\n"})
         tools = self._create_tools(repo_root)
+        approval_token, _ = self._approval_token_for(
+            tools,
+            "memory_update_skill",
+            file="new-skill",
+            section="Steps",
+            content="Create the first guidance block.",
+            create_if_missing=True,
+            source="agent-generated",
+            trust="medium",
+            origin_session="memory/activity/2026/03/20/chat-001",
+        )
 
         raw = asyncio.run(
             tools["memory_update_skill"](
@@ -4215,6 +4599,7 @@ Old guidance.
                 source="agent-generated",
                 trust="medium",
                 origin_session="memory/activity/2026/03/20/chat-001",
+                approval_token=approval_token,
             )
         )
         payload = json.loads(raw)
@@ -4265,6 +4650,7 @@ Load compact context.
         )
         self.assertIn("Load compact context.", original)
         self.assertEqual(preview["preview"]["mode"], "preview")
+        self.assertIn("approval_token", preview["new_state"])
 
         applied = json.loads(
             asyncio.run(
@@ -4272,6 +4658,7 @@ Load compact context.
                     file="session-start",
                     section="Steps",
                     content="Load compact context and active plans.",
+                    approval_token=preview["new_state"]["approval_token"],
                 )
             )
         )
@@ -4283,6 +4670,100 @@ Load compact context.
             preview["preview"]["commit_suggestion"]["message"],
             applied["commit_message"],
         )
+
+    def test_memory_update_skill_requires_approval_token_for_apply(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/skills/session-start.md": """---
+source: user-stated
+origin_session: manual
+created: 2026-03-16
+last_verified: 2026-03-16
+trust: high
+---
+
+# Session Start
+
+## Steps
+
+Load compact context.
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_update_skill"](
+                    file="session-start",
+                    section="Steps",
+                    content="Load compact context and active plans.",
+                )
+            )
+
+    def test_memory_register_tool_preview_requires_token_and_apply_commits(self) -> None:
+        repo_root = self._init_repo({"memory/skills/SUMMARY.md": "# Skills\n"})
+        tools = self._create_tools(repo_root)
+
+        preview = self._preview_tool(
+            tools,
+            "memory_register_tool",
+            name="browser-search",
+            description="Search the web through a governed connector.",
+            provider="test-provider",
+            tags=["search", "web"],
+        )
+
+        registry_path = repo_root / "memory" / "skills" / "tool-registry" / "test-provider.yaml"
+        summary_path = repo_root / "memory" / "skills" / "tool-registry" / "SUMMARY.md"
+
+        self.assertFalse(registry_path.exists())
+        self.assertFalse(summary_path.exists())
+        self.assertEqual(preview["preview"]["mode"], "preview")
+        self.assertIn("approval_token", preview["new_state"])
+
+        applied = json.loads(
+            asyncio.run(
+                tools["memory_register_tool"](
+                    name="browser-search",
+                    description="Search the web through a governed connector.",
+                    provider="test-provider",
+                    tags=["search", "web"],
+                    approval_token=preview["new_state"]["approval_token"],
+                )
+            )
+        )
+
+        commit_count = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        self.assertEqual(applied["new_state"]["action"], "created")
+        self.assertEqual(applied["new_state"]["registry_file"], "memory/skills/tool-registry/test-provider.yaml")
+        self.assertIsNotNone(applied["commit_sha"])
+        self.assertTrue(registry_path.exists())
+        self.assertTrue(summary_path.exists())
+        self.assertIn("browser-search", registry_path.read_text(encoding="utf-8"))
+        self.assertIn("browser-search", summary_path.read_text(encoding="utf-8"))
+        self.assertEqual(commit_count, "2")
+        self.assertEqual(preview["preview"]["target_files"], applied["preview"]["target_files"])
+
+    def test_memory_register_tool_requires_approval_token_for_apply(self) -> None:
+        repo_root = self._init_repo({"memory/skills/SUMMARY.md": "# Skills\n"})
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_register_tool"](
+                    name="browser-search",
+                    description="Search the web through a governed connector.",
+                    provider="test-provider",
+                )
+            )
 
     def test_memory_run_aggregation_dry_run_previews_without_writing_files(self) -> None:
         repo_root = self._init_repo(
@@ -7622,6 +8103,21 @@ _Last assessed: 2026-03-01 — Exploration retained_
             }
         )
         tools = self._create_tools(repo_root)
+        approval_token, _ = self._approval_token_for(
+            tools,
+            "memory_record_periodic_review",
+            review_date="2026-03-19",
+            assessment_summary="Exploration retained (signals still within bounds)",
+            belief_diff_entry=(
+                "## [2026-03-19] Periodic review\n\n### Assessment\nExploration retained.\n"
+            ),
+            review_queue_entries=(
+                "### [2026-03-19] Aggregate plans access log\n"
+                "**Type:** proposed\n"
+                "**Description:** Aggregate memory/working/projects/ACCESS.jsonl.\n"
+                "**Status:** pending\n"
+            ),
+        )
 
         raw = asyncio.run(
             tools["memory_record_periodic_review"](
@@ -7636,6 +8132,7 @@ _Last assessed: 2026-03-01 — Exploration retained_
                     "**Description:** Aggregate memory/working/projects/ACCESS.jsonl.\n"
                     "**Status:** pending\n"
                 ),
+                approval_token=approval_token,
             )
         )
         payload = json.loads(raw)
@@ -7689,6 +8186,16 @@ _Last assessed: 2026-03-01 — Exploration retained_
             }
         )
         tools = self._create_tools(repo_root)
+        approval_token, _ = self._approval_token_for(
+            tools,
+            "memory_record_periodic_review",
+            review_date="2026-03-19",
+            assessment_summary="Calibration selected after majority signal review",
+            belief_diff_entry=(
+                "## [2026-03-19] Periodic review\n\n### Assessment\nCalibration selected.\n"
+            ),
+            active_stage="Calibration",
+        )
 
         asyncio.run(
             tools["memory_record_periodic_review"](
@@ -7698,6 +8205,7 @@ _Last assessed: 2026-03-01 — Exploration retained_
                     "## [2026-03-19] Periodic review\n\n### Assessment\nCalibration selected.\n"
                 ),
                 active_stage="Calibration",
+                approval_token=approval_token,
             )
         )
 
@@ -7765,6 +8273,7 @@ _Last assessed: 2026-03-01 — Exploration retained_
             quick_reference_before,
         )
         self.assertEqual(preview["preview"]["mode"], "preview")
+        self.assertIn("approval_token", preview["new_state"])
 
         applied = json.loads(
             asyncio.run(
@@ -7773,6 +8282,7 @@ _Last assessed: 2026-03-01 — Exploration retained_
                     assessment_summary="Exploration retained after review.",
                     belief_diff_entry="## [2026-03-19] Periodic review\n",
                     review_queue_entries="### [2026-03-19] Follow-up\n**Status:** pending\n",
+                    approval_token=preview["new_state"]["approval_token"],
                 )
             )
         )
@@ -7786,6 +8296,49 @@ _Last assessed: 2026-03-01 — Exploration retained_
             preview["preview"]["commit_suggestion"]["message"],
             applied["commit_message"],
         )
+
+    def test_memory_record_periodic_review_requires_approval_token_for_apply(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "core/INIT.md": """# Home
+
+## Current active stage: Exploration
+
+_Last assessed: 2026-03-01 — Exploration retained_
+
+## Last periodic review
+
+**Date:** 2026-03-01
+
+| Parameter | Active value | Stage |
+|---|---|---|
+| Low-trust retirement threshold | 120 days | Exploration |
+| Medium-trust flagging threshold | 180 days | Exploration |
+| Staleness trigger (no access) | 120 days | Exploration |
+| Aggregation trigger | 15 entries | Exploration |
+| Identity churn alarm | 5 traits/session | Exploration |
+| Knowledge flooding alarm | 5 files/day | Exploration |
+| Task similarity method | Session co-occurrence | Exploration |
+| Cluster co-retrieval threshold | 3 sessions | Exploration |
+
+## Active task similarity method
+
+**Method:** Session co-occurrence
+""",
+                "core/governance/belief-diff-log.md": "# Belief Diff Log\n",
+                "core/governance/review-queue.md": "# Review Queue\n\n_No pending items._\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_record_periodic_review"](
+                    review_date="2026-03-19",
+                    assessment_summary="Exploration retained after review.",
+                    belief_diff_entry="## [2026-03-19] Periodic review\n",
+                )
+            )
 
     # ------------------------------------------------------------------
     # P1: Identity churn alarm + memory_reset_session_state

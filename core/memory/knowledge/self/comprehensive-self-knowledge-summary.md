@@ -3,7 +3,7 @@ title: "Engram: Comprehensive Self-Knowledge Summary"
 created: '2026-03-22'
 origin_session: memory/activity/2026/03/22/chat-001
 source: agent-generated
-trust: low
+trust: medium
 category: knowledge
 tags: [engram, self-knowledge, architecture, governance, identity, security, synthesis]
 related:

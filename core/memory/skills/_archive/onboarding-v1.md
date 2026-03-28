@@ -5,7 +5,7 @@ created: 2026-03-22
 trust: medium
 type: archived-skill
 status: archived
-superseded_by: core/memory/skills/onboarding.md
+superseded_by: memory/skills/onboarding.md
 ---
 
 # Onboarding Fallback: Interview-Style First-Session Discovery
