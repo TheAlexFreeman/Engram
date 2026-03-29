@@ -393,16 +393,16 @@ class SetupFlowTests(unittest.TestCase):
 
             codex_config = (host_root / ".codex" / "config.toml").read_text(encoding="utf-8")
             self.assertEqual(
-                normalize_test_path(extract_toml_string(codex_config, "cwd")),
-                normalize_test_path(worktree_root),
+                extract_toml_string(codex_config, "cwd"),
+                ".agent-memory",
             )
             self.assertEqual(
-                normalize_test_path(extract_toml_string(codex_config, "MEMORY_REPO_ROOT")),
-                normalize_test_path(worktree_root),
+                extract_toml_string(codex_config, "MEMORY_REPO_ROOT"),
+                ".agent-memory",
             )
             self.assertEqual(
-                normalize_test_path(extract_toml_string(codex_config, "HOST_REPO_ROOT")),
-                normalize_test_path(host_root),
+                extract_toml_string(codex_config, "HOST_REPO_ROOT"),
+                ".",
             )
 
             host_agents = (host_root / "AGENTS.md").read_text(encoding="utf-8")
@@ -501,8 +501,9 @@ class SetupFlowTests(unittest.TestCase):
             self.assertIn("mcp-config-example.json", result.stdout)
 
             config_text = (host_root / "mcp-config-example.json").read_text(encoding="utf-8")
-            self.assertIn(str(launcher).replace("\\", "\\\\"), config_text)
+            self.assertIn('"command": "engram-mcp"', config_text)
             self.assertIn('"args": []', config_text)
+            self.assertIn('"cwd": ".agent-memory"', config_text)
 
     def test_shell_and_browser_setup_sources_keep_profile_summary_copy_aligned(
         self,
