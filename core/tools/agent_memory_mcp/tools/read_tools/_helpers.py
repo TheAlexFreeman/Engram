@@ -509,6 +509,25 @@ def _build_active_plan_summary_payload(root: Path) -> dict[str, Any]:
     }
 
 
+def _compact_plan_next_action(next_action_info: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(next_action_info, dict):
+        return None
+
+    compact: dict[str, Any] = {}
+    for key in (
+        "id",
+        "title",
+        "requires_approval",
+        "attempt_number",
+        "has_prior_failures",
+        "suggest_revision",
+    ):
+        if key not in next_action_info or next_action_info[key] is None:
+            continue
+        compact[key] = next_action_info[key]
+    return compact or None
+
+
 def _prompt_json_section(title: str, payload: dict[str, Any]) -> str:
     return f"## {title}\n\n```json\n{json.dumps(payload, indent=2)}\n```"
 
@@ -2015,15 +2034,21 @@ def _collect_plan_entries(root: Path, status: str | None = None) -> list[dict[st
         if status is not None and plan_status != status:
             continue
         plan_done, plan_total = plan_progress(plan)
+        normalized_project_id = plan.project if project_id is None else project_id
+        next_action_info = _compact_plan_next_action(next_action(plan))
         entries.append(
             {
                 "plan_id": plan.id,
-                "project_id": plan.project if project_id is None else project_id,
+                "project_id": normalized_project_id,
                 "path": plan_file.relative_to(root).as_posix(),
                 "title": plan_title(plan),
                 "status": plan_status,
                 "trust": "medium",
-                "next_action": next_action(plan) or "",
+                "next_action": next_action_info,
+                "resume_context": {
+                    "tool": "memory_context_project",
+                    "arguments": {"project": normalized_project_id},
+                },
                 "progress": {
                     "done": plan_done,
                     "total": plan_total,

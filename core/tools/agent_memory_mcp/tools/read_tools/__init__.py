@@ -20,6 +20,7 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     """Register all Tier 0 read tools and return their callables."""
     from . import _helpers as H
     from ._capability import register_capability
+    from ._context import register_context
     from ._generation import register_generation
     from ._git import register_git
     from ._health import register_health
@@ -36,5 +37,6 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     result.update(register_generation(mcp, get_repo, get_root, H))
     result.update(register_git(mcp, get_repo, get_root, H))
     result.update(register_health(mcp, get_repo, get_root, H, tools=result))
+    result.update(register_context(mcp, get_repo, get_root, H))
     register_resources(mcp, get_repo, get_root, H, tools=result)
     return result

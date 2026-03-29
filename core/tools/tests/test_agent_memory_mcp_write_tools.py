@@ -2954,10 +2954,33 @@ Primary body.
         )
 
         self.assertEqual(len(payload["active_plans"]), 1)
+        self.assertEqual(
+            payload["active_plans"][0]["next_action"],
+            {
+                "id": "phase-a",
+                "title": "Do A",
+                "requires_approval": False,
+                "attempt_number": 1,
+                "has_prior_failures": False,
+            },
+        )
+        self.assertEqual(
+            payload["active_plans"][0]["resume_context"],
+            {
+                "tool": "memory_context_project",
+                "arguments": {"project": "a"},
+            },
+        )
         self.assertTrue(payload["response_budget"]["active_plans"]["truncated"])
         self.assertEqual(len(payload["pending_review_items"]), 1)
         self.assertTrue(payload["response_budget"]["review_items"]["truncated"])
         self.assertTrue(payload["recommended_checks"])
+        self.assertTrue(
+            any(
+                'memory_context_project(project="a")' in item
+                for item in payload["recommended_checks"]
+            )
+        )
 
     def test_memory_prepare_unverified_review_truncates_selected_files(self) -> None:
         seed = self._policy_contract_seed_files()

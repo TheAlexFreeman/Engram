@@ -18,6 +18,30 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-28] Bootstrap routing to project context injector
+
+**Changed:** Normalized `memory_session_bootstrap` active-plan entries to use the same compact `next_action` shape now exposed by `memory_context_project`, and added a structured `resume_context` hint that points hosts directly to `memory_context_project(project=...)` for each active plan. The session-bootstrap recommendations now name the concrete context-injector call for the leading active plan instead of a generic resume reminder. Expanded bootstrap test coverage to lock the new active-plan payload and recommendation text.
+
+**Reasoning:** The new project-context metadata was useful, but a host starting from the returning-agent bootstrap path still had to infer which tool to call next and reconcile a different `next_action` shape. Aligning the bootstrap bundle with the project-context contract removes that translation step and makes the resume path explicit.
+
+**Approved by:** user
+
+## [2026-03-28] Context injector payload tuning
+
+**Changed:** Refined `memory_context_project` so `include_user_profile` now defaults to an automatic mode: when a validated or raw-fallback plan is present, the injector omits the user profile unless the caller explicitly requests it; when no plan is present, the user profile is still included by default. Added a compact `next_action` object to project-context metadata so hosts can read the next step without parsing the rendered plan body. Expanded project-context integration coverage for auto profile omission, explicit overrides, compact next-action metadata, and the no-actionable-phase case.
+
+**Reasoning:** Live probing showed the default project payload was still heavier than necessary once a plan had already been selected, and hosts still had to parse the body to find the next task. This refinement makes the default payload leaner while exposing the highest-value action signal directly in metadata.
+
+**Approved by:** user
+
+## [2026-03-28] Context injectors for home and project startup
+
+**Changed:** Added `memory_context_home` and `memory_context_project` as Tier 0 read-only MCP tools, backed by a new `read_tools/_context.py` module with shared context-assembly helpers (`_read_file_content`, `_read_section_with_budget`, `_build_budget_report`, `_is_placeholder`, `_assemble_markdown_response`). The tools now return Markdown with a JSON metadata header that includes `format_version` and `body_sections`, and each body section carries an explicit provenance line plus section comment markers for easier host-side parsing. `memory_context_project` also falls back to a raw-YAML summary when a draft plan cannot pass the stricter plan-schema loader yet, so project context still includes purpose, current phase, and sources during active planning. Both tools apply soft character budgets without truncating mid-file and surface included/dropped sections via `budget_report`. Registered the tools in the read-tool package, added focused helper and integration tests, updated the capability manifest, documented the new context-injector family in `HUMANS/docs/MCP.md`, and added bootstrap guidance in `README.md`.
+
+**Reasoning:** Engram's existing bootstrap path required agents to understand the file-based routing protocol and manually budget several sequential reads. The new context injectors reduce that to a single read-only MCP call for the two most common session patterns while preserving provenance, graceful degradation, and token efficiency.
+
+**Approved by:** user
+
 ## [2026-03-27] Git reliability hardening (Phase 15)
 
 **Changed:** Enhanced `git_repo.py` with retry resilience and diagnostics. Added `_is_transient_failure()` for classifying lock contention and I/O errors. `commit()` now retries up to 3 times with exponential backoff (0.5s, 1s, 2s) on transient failures. Added `_try_cleanup_stale_index_lock()` and `_try_cleanup_all_stale_locks()` alongside existing HEAD.lock cleanup. All lock cleanups now log warnings. Added `health_check()` method returning structured diagnostics (lock files, repo validity, HEAD state, index state, filesystem writability). Added `memory_git_health` MCP tool (Tier 0, read-only). 14 new tests in `test_git_reliability.py`. Resolved review queue item 2026-03-26-review-core-tools-agent-memory-mcp-git-repo-py.

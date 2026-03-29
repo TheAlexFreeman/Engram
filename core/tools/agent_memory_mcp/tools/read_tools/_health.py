@@ -623,8 +623,11 @@ def register_health(
                 "Review pending queue items before any protected cleanup writes."
             )
         if active_plans:
+            lead_project = active_plans[0].get("project_id")
+            lead_plan = active_plans[0].get("plan_id")
             recommended_checks.append(
-                f"Resume the leading active plan: {active_plans[0]['plan_id']}"
+                "Load project resume context with "
+                f'memory_context_project(project="{lead_project}") for active plan {lead_plan}.'
             )
         if not recommended_checks:
             recommended_checks.append(

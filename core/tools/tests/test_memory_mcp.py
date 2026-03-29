@@ -260,6 +260,8 @@ class MemoryMCPTests(unittest.TestCase):
 
     def test_new_tools_are_exported(self) -> None:
         for name in (
+            "memory_context_home",
+            "memory_context_project",
             "memory_git_log",
             "memory_get_capabilities",
             "memory_get_tool_profiles",

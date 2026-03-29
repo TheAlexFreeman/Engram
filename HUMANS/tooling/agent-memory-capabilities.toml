@@ -52,6 +52,8 @@ read_support = [
   "memory_git_health",
   "memory_session_health_check",
   "memory_session_bootstrap",
+  "memory_context_home",
+  "memory_context_project",
   "memory_prepare_unverified_review",
   "memory_prepare_promotion_batch",
   "memory_prepare_periodic_review",
