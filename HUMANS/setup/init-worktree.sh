@@ -627,21 +627,21 @@ update_bootstrap_file() {
 
 write_host_codex_config() {
     local host_root="$1"
-    local launcher_cmd="$2"
-    local launcher_arg="$3"
-    local host_root_native="$4"
-    local worktree_native="$5"
+    local rel_command="$2"
+    local rel_arg="$3"
+    local worktree_rel="$4"
     local escaped_command
     local escaped_worktree
 
-    escaped_command="$(toml_escape "$launcher_cmd")"
-    escaped_worktree="$(toml_escape "$worktree_native")"
+    escaped_command="$(toml_escape "$rel_command")"
+    escaped_worktree="$(toml_escape "$worktree_rel")"
 
     mkdir -p "$host_root/.codex"
     cat > "$host_root/.codex/config.toml" <<EOF
+# Paths are relative to the host repository root.
 [mcp_servers.agent_memory]
 command = "$escaped_command"
-args = [$(if [[ -n "$launcher_arg" ]]; then printf '"%s"' "$(toml_escape "$launcher_arg")"; fi)]
+args = [$(if [[ -n "$rel_arg" ]]; then printf '"%s"' "$(toml_escape "$rel_arg")"; fi)]
 cwd = "$escaped_worktree"
 startup_timeout_sec = 20
 tool_timeout_sec = 120
@@ -649,27 +649,26 @@ required = false
 
 [mcp_servers.agent_memory.env]
 MEMORY_REPO_ROOT = "$escaped_worktree"
-HOST_REPO_ROOT = "$(toml_escape "$host_root_native")"
+HOST_REPO_ROOT = "."
 EOF
 }
 
 write_host_mcp_example() {
     local host_root="$1"
-        local launcher_cmd="$2"
-        local launcher_arg="$3"
-        local host_root_native="$4"
-        local worktree_native="$5"
+    local rel_command="$2"
+    local rel_arg="$3"
+    local worktree_rel="$4"
 
     cat > "$host_root/mcp-config-example.json" <<EOF
 {
-  "_comment": "Copy this MCP server entry into your client configuration and point it at the deployed memory worktree.",
+  "_comment": "Copy this MCP server entry into your client configuration. Paths are relative to the host repository root.",
   "agent_memory": {
-        "command": "$(json_escape "$launcher_cmd")",
-        "args": [$(if [[ -n "$launcher_arg" ]]; then printf '"%s"' "$(json_escape "$launcher_arg")"; fi)],
-    "cwd": "$(json_escape "$worktree_native")",
+    "command": "$(json_escape "$rel_command")",
+    "args": [$(if [[ -n "$rel_arg" ]]; then printf '"%s"' "$(json_escape "$rel_arg")"; fi)],
+    "cwd": "$(json_escape "$worktree_rel")",
     "env": {
-      "MEMORY_REPO_ROOT": "$(json_escape "$worktree_native")",
-      "HOST_REPO_ROOT": "$(json_escape "$host_root_native")"
+      "MEMORY_REPO_ROOT": "$(json_escape "$worktree_rel")",
+      "HOST_REPO_ROOT": "."
     }
   }
 }
@@ -768,6 +767,8 @@ detect_engram_mcp_for_worktree() {
 SERVER_COMMAND=""
 SERVER_ARG=""
 SERVER_MODE=""
+REL_SERVER_COMMAND=""
+REL_SERVER_ARG=""
 
 resolve_server_launcher() {
     local worktree_root="$1"
@@ -790,6 +791,45 @@ resolve_server_launcher() {
     SERVER_ARG="$(native_path "$worktree_root/core/tools/memory_mcp.py")"
     SERVER_MODE="fallback"
     return 1
+}
+
+resolve_relative_server_paths() {
+    local worktree_rel="$1"
+    local worktree_abs="$2"
+
+    case "$SERVER_MODE" in
+        cli)
+            # engram-mcp found in worktree venv
+            for suffix in ".venv/Scripts/engram-mcp.exe" ".venv/Scripts/engram-mcp.cmd" \
+                          ".venv/Scripts/engram-mcp.bat" ".venv/bin/engram-mcp"; do
+                if [[ -f "$worktree_abs/$suffix" ]]; then
+                    REL_SERVER_COMMAND="$worktree_rel/$suffix"
+                    REL_SERVER_ARG=""
+                    return 0
+                fi
+            done
+            # engram-mcp is a global command; keep bare name
+            REL_SERVER_COMMAND="engram-mcp"
+            REL_SERVER_ARG=""
+            ;;
+        python)
+            # Python from worktree venv
+            for suffix in ".venv/Scripts/python.exe" ".venv/bin/python"; do
+                if [[ -x "$worktree_abs/$suffix" ]]; then
+                    REL_SERVER_COMMAND="$worktree_rel/$suffix"
+                    REL_SERVER_ARG="$worktree_rel/core/tools/memory_mcp.py"
+                    return 0
+                fi
+            done
+            # System python; use bare command name
+            REL_SERVER_COMMAND="${SERVER_COMMAND##*/}"
+            REL_SERVER_ARG="$worktree_rel/core/tools/memory_mcp.py"
+            ;;
+        fallback)
+            REL_SERVER_COMMAND="python"
+            REL_SERVER_ARG="$worktree_rel/core/tools/memory_mcp.py"
+            ;;
+    esac
 }
 
 HOST_REPO_ROOT="$(pwd -P)"
@@ -902,11 +942,12 @@ run_cmd git worktree remove "$TEMP_WORKTREE"
 run_cmd git worktree add "$WORKTREE_ABS" "$BRANCH_NAME"
 
 resolve_server_launcher "$WORKTREE_ABS" || true
+resolve_relative_server_paths "$WORKTREE_DISPLAY" "$WORKTREE_ABS"
 
 case "${PLATFORM:-generic}" in
     codex)
         if [[ "$SERVER_MODE" != "fallback" ]]; then
-            write_host_codex_config "$HOST_REPO_ROOT" "$SERVER_COMMAND" "$SERVER_ARG" "$HOST_ROOT_NATIVE" "$WORKTREE_NATIVE"
+            write_host_codex_config "$HOST_REPO_ROOT" "$REL_SERVER_COMMAND" "$REL_SERVER_ARG" "$WORKTREE_DISPLAY"
             write_host_adapter_files "$HOST_REPO_ROOT" "$WORKTREE_DISPLAY" "$BRANCH_NAME" ".codex/config.toml"
             echo "[ok] Wrote host Codex MCP config to .codex/config.toml"
         else
@@ -914,7 +955,7 @@ case "${PLATFORM:-generic}" in
         fi
         ;;
     *)
-        write_host_mcp_example "$HOST_REPO_ROOT" "$SERVER_COMMAND" "$SERVER_ARG" "$HOST_ROOT_NATIVE" "$WORKTREE_NATIVE"
+        write_host_mcp_example "$HOST_REPO_ROOT" "$REL_SERVER_COMMAND" "$REL_SERVER_ARG" "$WORKTREE_DISPLAY"
         write_host_adapter_files "$HOST_REPO_ROOT" "$WORKTREE_DISPLAY" "$BRANCH_NAME" "mcp-config-example.json"
         echo "[ok] Wrote host MCP example config to mcp-config-example.json"
         ;;
