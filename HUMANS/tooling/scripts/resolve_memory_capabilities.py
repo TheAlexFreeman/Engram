@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import argparse
 import json
 import sys
@@ -201,11 +202,51 @@ def runtime_tools(repo_root: Path) -> set[str]:
     return set(tools)
 
 
+def runtime_tool_readonly_hints(
+    repo_root: Path, tool_names: set[str] | None = None
+) -> dict[str, bool | None]:
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    from engram_mcp.agent_memory_mcp.server import create_mcp
+
+    mcp, _, _, _ = create_mcp(repo_root=repo_root)
+
+    async def _collect() -> dict[str, bool | None]:
+        listed = await mcp.list_tools()
+        hints: dict[str, bool | None] = {}
+        for tool in listed:
+            name = str(tool.name)
+            if tool_names is not None and name not in tool_names:
+                continue
+            annotations = getattr(tool, "annotations", None)
+            hints[name] = cast(bool | None, getattr(annotations, "readOnlyHint", None))
+        return hints
+
+    return asyncio.run(_collect())
+
+
 def _ensure_string_list(errors: list[str], label: str, value: Any) -> list[str]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         errors.append(f"{label} must be an array of strings")
         return []
     return value
+
+
+def _expand_profile_tools(manifest: dict[str, Any], profile_name: str) -> list[str]:
+    raw_tool_sets = manifest.get("tool_sets")
+    tool_sets = raw_tool_sets if isinstance(raw_tool_sets, dict) else {}
+    raw_profiles = manifest.get("tool_profiles")
+    profiles = raw_profiles if isinstance(raw_profiles, dict) else {}
+    profile = profiles.get(profile_name)
+    if not isinstance(profile, dict):
+        return []
+
+    tools: list[str] = []
+    for tool_set_name in _ensure_string_list([], "tool_profile.tool_sets", profile.get("tool_sets")):
+        tools.extend(_ensure_string_list([], f"tool_sets.{tool_set_name}", tool_sets.get(tool_set_name)))
+    tools.extend(_ensure_string_list([], "tool_profile.tools", profile.get("tools")))
+    excluded_tools = set(_ensure_string_list([], "tool_profile.exclude_tools", profile.get("exclude_tools")))
+    return sorted({tool for tool in tools if tool not in excluded_tools})
 
 
 def _ensure_bool(errors: list[str], label: str, value: Any) -> bool:
@@ -786,6 +827,9 @@ def resolve_capabilities(repo_root: Path, *, include_runtime: bool = True) -> di
     unavailable_opt_in_raw_tools: list[str] = []
     missing_minimum_read_tools: list[str] = []
     missing_minimum_semantic_tools: list[str] = []
+    undeclared_runtime_tools: list[str] = []
+    public_mutating_tools_without_contract: list[str] = []
+    unsafe_read_only_profile_tools: list[str] = []
     contract_compatible = (
         manifest.get("kind") == requires_kind
         and manifest.get("version") in supported_versions
@@ -796,6 +840,7 @@ def resolve_capabilities(repo_root: Path, *, include_runtime: bool = True) -> di
     discovery_reason = "Runtime inspection was skipped."
     if include_runtime:
         runtime_tool_names = runtime_tools(repo_root)
+        runtime_readonly_hints = runtime_tool_readonly_hints(repo_root, runtime_tool_names)
         available_read_tools = sorted(read_support & runtime_tool_names)
         available_raw_tools = sorted(raw_fallback & runtime_tool_names)
         available_semantic_tools = sorted(semantic_extensions & runtime_tool_names)
@@ -816,11 +861,45 @@ def resolve_capabilities(repo_root: Path, *, include_runtime: bool = True) -> di
         read_only_runtime = (
             read_only_runtime_allowed and not write_tools_present and not missing_minimum_read_tools
         )
+        declared_runtime_tools = set(read_support) | set(semantic_extensions)
+        if available_raw_tools or not raw_fallback_is_opt_in:
+            declared_runtime_tools |= set(raw_fallback)
+        undeclared_runtime_tools = sorted(runtime_tool_names - declared_runtime_tools)
+        if undeclared_runtime_tools:
+            errors.append(
+                f"{MANIFEST_PATH}: MCP runtime exports undeclared tools {undeclared_runtime_tools!r}"
+            )
+
+        operation_tool_names = {
+            name
+            for name, value in operations.items()
+            if isinstance(name, str) and isinstance(value, dict)
+        }
+        public_mutating_tools_without_contract = sorted(
+            name
+            for name, read_only_hint in runtime_readonly_hints.items()
+            if read_only_hint is False
+            and name not in raw_fallback
+            and name not in operation_tool_names
+        )
+        if public_mutating_tools_without_contract:
+            errors.append(
+                f"{MANIFEST_PATH}: public non-read-only tools lack operations metadata {public_mutating_tools_without_contract!r}"
+            )
+
+        read_only_profile_tools = _expand_profile_tools(manifest, "read_only")
+        unsafe_read_only_profile_tools = sorted(
+            name
+            for name in read_only_profile_tools
+            if runtime_readonly_hints.get(name) is False
+        )
+        if unsafe_read_only_profile_tools:
+            errors.append(
+                f"{MANIFEST_PATH}: read_only profile contains non-read-only runtime tools {unsafe_read_only_profile_tools!r}"
+            )
 
         if write_tools_present:
-            expected_runtime_tools = set(read_support) | set(semantic_extensions)
-            if available_raw_tools or not raw_fallback_is_opt_in:
-                expected_runtime_tools |= set(raw_fallback)
+            expected_runtime_tools = set(declared_runtime_tools)
             for tool_name in sorted(expected_runtime_tools):
                 if tool_name not in runtime_tool_names:
                     errors.append(
@@ -1043,6 +1122,9 @@ def resolve_capabilities(repo_root: Path, *, include_runtime: bool = True) -> di
             "missing_declared_tools": missing_declared_tools,
             "missing_minimum_read_tools": missing_minimum_read_tools,
             "missing_minimum_semantic_tools": missing_minimum_semantic_tools,
+            "undeclared_runtime_tools": undeclared_runtime_tools,
+            "public_mutating_tools_without_contract": public_mutating_tools_without_contract,
+            "unsafe_read_only_profile_tools": unsafe_read_only_profile_tools,
             "mode": discovery_mode,
             "selected_strategy": selected_strategy,
             "reason": discovery_reason,

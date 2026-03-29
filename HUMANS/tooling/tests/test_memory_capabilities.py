@@ -40,6 +40,18 @@ class MemoryCapabilitiesTests(unittest.TestCase):
         resolution = resolver.resolve_capabilities(REPO_ROOT)
         self.assertEqual(resolution["errors"], [], "\n".join(resolution["errors"]))
 
+    def test_default_runtime_matches_declared_default_surface(self) -> None:
+        resolution = resolver.resolve_capabilities(REPO_ROOT)
+        declared_default_surface = set(resolution["tool_sets"]["read_support"]) | set(
+            resolution["tool_sets"]["semantic_extensions"]
+        )
+        discovery = resolution["capability_discovery"]
+
+        self.assertEqual(set(resolution["runtime_tools"]), declared_default_surface)
+        self.assertEqual(discovery["undeclared_runtime_tools"], [])
+        self.assertEqual(discovery["public_mutating_tools_without_contract"], [])
+        self.assertEqual(discovery["unsafe_read_only_profile_tools"], [])
+
     def test_manifest_declares_expected_desktop_gaps(self) -> None:
         manifest = tomllib.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         declared_gaps = manifest["tool_sets"]["declared_gaps"]
@@ -93,6 +105,23 @@ class MemoryCapabilitiesTests(unittest.TestCase):
                     pattern.search(text),
                     f"{path} should not hardcode MCP tool counts; defer live inventory details to MCP.md",
                 )
+
+    def test_mcp_docs_tool_counts_match_manifest(self) -> None:
+        manifest = tomllib.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        mcp_docs = (REPO_ROOT / "HUMANS" / "docs" / "MCP.md").read_text(encoding="utf-8")
+        read_count = len(manifest["tool_sets"]["read_support"])
+        semantic_count = len(manifest["tool_sets"]["semantic_extensions"])
+        raw_count = len(manifest["tool_sets"]["raw_fallback"])
+        default_total = read_count + semantic_count
+        full_total = default_total + raw_count
+        expected = (
+            f"The MCP server exposes **{default_total} tools by default**: "
+            f"{read_count} Tier 0 read-only tools plus {semantic_count} Tier 1 semantic tools. "
+            f"Enabling `MEMORY_ENABLE_RAW_WRITE_TOOLS=1` adds **{raw_count} Tier 2** raw fallback "
+            f"tools for a full surface of **{full_total}**."
+        )
+
+        self.assertIn(expected, mcp_docs)
 
     def test_manifest_declares_change_classes_and_raw_fallback_policy(self) -> None:
         manifest = tomllib.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
@@ -538,6 +567,32 @@ class MemoryCapabilitiesTests(unittest.TestCase):
         self.assertIn(
             "materialized summary views",
             manifest["operations"]["memory_run_aggregation"]["notes"],
+        )
+
+    def test_manifest_declares_session_flush_and_reset_as_semantic_operations(self) -> None:
+        manifest = tomllib.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+
+        self.assertNotIn("memory_reset_session_state", manifest["tool_sets"]["read_support"])
+        self.assertIn(
+            "memory_reset_session_state",
+            manifest["tool_sets"]["semantic_extensions"],
+        )
+        self.assertIn("memory_session_flush", manifest["tool_sets"]["semantic_extensions"])
+        self.assertEqual(
+            manifest["operations"]["memory_reset_session_state"]["result_fields"],
+            ["reset", "identity_updates_this_session"],
+        )
+        self.assertEqual(
+            manifest["operations"]["memory_session_flush"]["result_fields"],
+            ["session_id", "checkpoint_path", "entry_count", "trigger"],
+        )
+        self.assertEqual(
+            manifest["ui_feedback"]["result_field_labels"]["checkpoint_path"],
+            "Checkpoint Path",
+        )
+        self.assertEqual(
+            manifest["ui_feedback"]["result_field_labels"]["trigger"],
+            "Trigger",
         )
 
     def test_resolver_returns_structured_ui_feedback_for_semantic_mode(self) -> None:

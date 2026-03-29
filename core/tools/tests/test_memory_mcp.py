@@ -136,6 +136,8 @@ class MemoryMCPTests(unittest.TestCase):
         payload, registered_count = asyncio.run(run_call())
         self.assertEqual(payload["summary"]["total_tools"], registered_count)
         self.assertEqual(payload["summary"]["runtime_total_tools"], registered_count)
+        self.assertEqual(payload["summary"]["runtime_not_in_manifest_count"], 0)
+        self.assertEqual(payload["summary"]["runtime_not_in_manifest"], [])
 
     def test_get_tool_profiles_returns_expanded_advisory_profiles(self) -> None:
         raw = asyncio.run(self.module.memory_get_tool_profiles())
@@ -148,8 +150,62 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertIn("guided_write", payload["profiles"])
         self.assertIn("read_only", payload["profiles"])
         self.assertIn("memory_get_capabilities", payload["profiles"]["read_only"]["tools"])
+        self.assertNotIn("memory_reset_session_state", payload["profiles"]["read_only"]["tools"])
+        self.assertNotIn("memory_session_flush", payload["profiles"]["read_only"]["tools"])
+        self.assertIn("memory_reset_session_state", payload["profiles"]["guided_write"]["tools"])
+        self.assertIn("memory_session_flush", payload["profiles"]["guided_write"]["tools"])
         self.assertNotIn("memory_write", payload["profiles"]["guided_write"]["tools"])
         self.assertIn("memory_write", payload["profiles"]["full"]["tools"])
+        self.assertIn("memory_reset_session_state", payload["profiles"]["full"]["tools"])
+        self.assertIn("memory_session_flush", payload["profiles"]["full"]["tools"])
+
+    def test_read_only_profile_contains_only_runtime_read_only_tools(self) -> None:
+        async def run_call() -> tuple[dict[str, Any], dict[str, object | None]]:
+            raw = await self.module.memory_get_tool_profiles()
+            payload = cast(dict[str, Any], json.loads(raw))
+            listed = await self.module.mcp.list_tools()
+            hints = {
+                str(tool.name): getattr(getattr(tool, "annotations", None), "readOnlyHint", None)
+                for tool in listed
+            }
+            return payload, hints
+
+        payload, hints = asyncio.run(run_call())
+        unsafe = sorted(
+            name
+            for name in payload["profiles"]["read_only"]["tools"]
+            if hints.get(name) is False
+        )
+
+        self.assertEqual(unsafe, [])
+
+    def test_policy_state_covers_session_maintenance_tools(self) -> None:
+        async def run_call() -> tuple[dict[str, Any], dict[str, Any]]:
+            flush = cast(
+                dict[str, Any],
+                json.loads(await self.module.memory_get_policy_state(operation="memory_session_flush")),
+            )
+            reset = cast(
+                dict[str, Any],
+                json.loads(
+                    await self.module.memory_get_policy_state(
+                        operation="memory_reset_session_state"
+                    )
+                ),
+            )
+            return flush, reset
+
+        flush, reset = asyncio.run(run_call())
+
+        for payload, tool_name in (
+            (flush, "memory_session_flush"),
+            (reset, "memory_reset_session_state"),
+        ):
+            self.assertEqual(payload["operation"], tool_name)
+            self.assertEqual(payload["tool"], tool_name)
+            self.assertEqual(payload["tier"], "semantic")
+            self.assertEqual(payload["change_class"], "automatic")
+            self.assertEqual(payload["warnings"], [])
 
     def test_mcp_registration_includes_approval_and_registry_tools(self) -> None:
         async def run_call() -> set[str]:

@@ -697,7 +697,7 @@ def _build_policy_state_payload(
         )
         tool_name = (
             operation_entry.get("tool") if isinstance(operation_entry.get("tool"), str) else None
-        )
+        ) or operation_key
         operation_group = (
             operation_entry.get("operation_group")
             if isinstance(operation_entry.get("operation_group"), str)

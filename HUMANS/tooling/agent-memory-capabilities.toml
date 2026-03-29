@@ -71,7 +71,6 @@ read_support = [
   "memory_validate",
   "memory_get_maturity_signals",
   "memory_list_plans",
-  "memory_reset_session_state",
 ]
 raw_fallback = [
   "memory_write",
@@ -111,6 +110,8 @@ semantic_extensions = [
   "memory_demote_knowledge",
   "memory_archive_knowledge",
   "memory_checkpoint",
+  "memory_reset_session_state",
+  "memory_session_flush",
   "memory_append_scratchpad",
   "memory_update_skill",
   "memory_update_user_trait",
@@ -322,11 +323,14 @@ target_folder = "Target Folder"
 section = "Section"
 key = "Identity Key"
 mode = "Update Mode"
+reset = "Reset"
 promoted_count = "Promoted Count"
 promoted_files = "Promoted Files"
 summary_updates = "Summary Updates"
 identity_updates_this_session = "Identity Updates This Session"
 session_id = "Chat Session"
+checkpoint_path = "Checkpoint Path"
+trigger = "Trigger"
 flagged_path = "Flagged Path"
 priority = "Review Priority"
 item_id = "Review Item"
@@ -1367,6 +1371,38 @@ result_fields = ["target", "entry_count", "session_id"]
 fallback_tools = ["memory_edit", "memory_write"]
 error_kinds = ["ValidationError", "StagingError"]
 notes = "Appends a timestamped checkpoint block to CURRENT.md and stages it for a later batch commit; the tool does not create a commit on its own."
+
+[operations.memory_reset_session_state]
+group = "chat"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "chat"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["reset", "identity_updates_this_session"]
+fallback_tools = []
+error_kinds = []
+notes = "Resets in-process session counters for long-running MCP server processes; no repo files are modified."
+
+[operations.memory_session_flush]
+group = "chat"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "auto_commit"
+commit_category_hint = "chat"
+writes = ["memory/activity/YYYY/MM/DD/chat-NNN/checkpoint.md"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["session_id", "checkpoint_path", "entry_count", "trigger"]
+fallback_tools = ["memory_write", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
+notes = "Writes a mid-session checkpoint under the active chat folder and commits it immediately for context-pressure recovery."
 
 [operations.memory_append_scratchpad]
 group = "scratchpad"

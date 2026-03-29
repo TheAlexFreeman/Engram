@@ -122,7 +122,7 @@ For worktree deployments, set `MEMORY_REPO_ROOT` to the worktree path and `HOST_
 
 ## Tool surface
 
-The MCP server exposes **93 tools by default**: 47 Tier 0 read-only tools plus 46 Tier 1 semantic tools. Enabling `MEMORY_ENABLE_RAW_WRITE_TOOLS=1` adds **7 Tier 2** raw fallback tools for a full surface of **100**. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
+The MCP server exposes **94 tools by default**: 46 Tier 0 read-only tools plus 48 Tier 1 semantic tools. Enabling `MEMORY_ENABLE_RAW_WRITE_TOOLS=1` adds **7 Tier 2** raw fallback tools for a full surface of **101**. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
 
 ### Tier 0: Read-only tools
 
@@ -288,9 +288,9 @@ Important output fields:
 | `memory_get_maturity_signals` | Return current maturity stage indicators. |
 | `memory_run_periodic_review` | Run a periodic review analysis (read-only reporting). |
 
-### Tier 1: Semantic write tools
+### Tier 1: Semantic tools
 
-These are the normal write path. Each tool represents a bounded operation with built-in invariants and usually auto-commits on success. Exceptions such as `memory_checkpoint` deliberately stage state for a later batch commit. These tools are not generic file-edit tools — each one owns a narrow slice of the memory model and keeps related files in sync.
+These are the governed semantic operations. Most are the normal write path and usually auto-commit on success. A smaller subset stays read-only while sharing the same operation metadata and policy surface. Exceptions such as `memory_checkpoint` deliberately stage state for a later batch commit. These tools are not generic file-edit tools — each one owns a narrow slice of the memory model and keeps related files in sync.
 
 **Plans**
 
@@ -534,6 +534,7 @@ Plan statuses now include `paused` (awaiting human approval), in addition to `dr
 | Tool | Description |
 | --- | --- |
 | `memory_checkpoint` | Append a timestamped incremental checkpoint to `CURRENT.md`, optionally tagged with `session_id`. |
+| `memory_session_flush` | Record a committed mid-session recovery checkpoint under the active chat folder when context pressure is too high. |
 | `memory_record_session` | Record a full session: summary, reflection, and access entries. |
 | `memory_record_chat_summary` | Record a single chat session summary to the activity log. |
 | `memory_record_reflection` | Record a session reflection entry. |
