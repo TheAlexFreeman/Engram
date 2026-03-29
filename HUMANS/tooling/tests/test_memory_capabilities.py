@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 import unittest
 from importlib import import_module
@@ -16,6 +17,15 @@ except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MANIFEST_PATH = REPO_ROOT / "HUMANS" / "tooling" / "agent-memory-capabilities.toml"
 RESOLVER_PATH = REPO_ROOT / "HUMANS" / "tooling" / "scripts" / "resolve_memory_capabilities.py"
+HIGH_LEVEL_MCP_DOCS = (
+    REPO_ROOT / "README.md",
+    REPO_ROOT / "HUMANS" / "docs" / "CORE.md",
+    REPO_ROOT / "HUMANS" / "docs" / "DESIGN.md",
+)
+HIGH_LEVEL_MCP_COUNT_PATTERNS = (
+    re.compile(r"\b\d+\s+(?:governed\s+)?(?:MCP\s+)?tools\b", re.IGNORECASE),
+    re.compile(r"Tier\s+[012][^\n]*\(\d+\s+(?:read-only|semantic|write)", re.IGNORECASE),
+)
 
 SPEC = importlib.util.spec_from_file_location("resolve_memory_capabilities", RESOLVER_PATH)
 assert SPEC is not None
@@ -52,14 +62,19 @@ class MemoryCapabilitiesTests(unittest.TestCase):
         manifest = tomllib.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         raw_fallback = set(manifest["tool_sets"]["raw_fallback"])
         change_classes = set(manifest["change_classes"])
+        allowed_commit_models = {"auto_commit", "auto_commit_exception_direct_write", "none"}
+        staged_semantic_operations = {"memory_checkpoint"}
 
         for tool_name in manifest["tool_sets"]["semantic_extensions"]:
             operation = manifest["operations"][tool_name]
             self.assertEqual(operation["tier"], "semantic")
             self.assertIn(operation["change_class"], change_classes)
             self.assertIsInstance(operation["writes"], list)
+            self.assertIsInstance(operation["commit_model"], str)
             if operation["writes"]:
-                self.assertIn("auto_commit", operation["commit_model"])
+                self.assertIn(operation["commit_model"], allowed_commit_models)
+                if operation["commit_model"] == "none":
+                    self.assertIn(tool_name, staged_semantic_operations)
             else:
                 self.assertEqual(operation["commit_model"], "none")
             self.assertIsInstance(operation["owns_frontmatter"], list)
@@ -68,6 +83,16 @@ class MemoryCapabilitiesTests(unittest.TestCase):
             self.assertIsInstance(operation["owns_review_queue"], list)
             self.assertIsInstance(operation["result_fields"], list)
             self.assertTrue(set(operation["fallback_tools"]).issubset(raw_fallback))
+
+    def test_high_level_docs_defer_exact_tool_counts_to_mcp_reference(self) -> None:
+        for path in HIGH_LEVEL_MCP_DOCS:
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("MCP.md", text, f"{path} should point readers to MCP.md")
+            for pattern in HIGH_LEVEL_MCP_COUNT_PATTERNS:
+                self.assertIsNone(
+                    pattern.search(text),
+                    f"{path} should not hardcode MCP tool counts; defer live inventory details to MCP.md",
+                )
 
     def test_manifest_declares_change_classes_and_raw_fallback_policy(self) -> None:
         manifest = tomllib.loads(MANIFEST_PATH.read_text(encoding="utf-8"))

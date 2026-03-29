@@ -153,7 +153,7 @@ Platform adapter files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) all point to t
 │   │   ├── QUICKSTART.md    ← Getting started. Start here if you are a person.
 │   │   ├── CORE.md          ← Core design decisions (12 decisions, architectural rationale).
 │   │   ├── DESIGN.md        ← Design philosophy, use cases, and future directions.
-│   │   ├── MCP.md           ← MCP architecture guide (97 tools, 4 resources, 4 prompts).
+│   │   ├── MCP.md           ← MCP architecture guide (live tool inventory, resources, prompts).
 │   │   ├── SIDECAR.md       ← Optional transcript sidecar setup and troubleshooting.
 │   │   ├── WORKTREE.md      ← Worktree deployment, CI exemptions, MCP client wiring.
 │   │   ├── INTEGRATIONS.md  ← Third-party tool integrations.
@@ -212,7 +212,7 @@ For supported platforms, configuration, local state behavior, and troubleshootin
 
 ### Tool surface
 
-The MCP server registers 97 tools organized into three tiers:
+The MCP server registers a governed tool surface organized into three tiers. See [HUMANS/docs/MCP.md](HUMANS/docs/MCP.md) for the live inventory and current counts:
 
 | Tier | Access | Purpose |
 |---|---|---|

@@ -4488,6 +4488,13 @@ Direct and concise.
     def test_memory_checkpoint_writes_timestamped_entry_without_commit(self) -> None:
         repo_root = self._init_repo({"memory/working/CURRENT.md": "# Current\n"})
         tools = self._create_tools(repo_root)
+        head_before = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
 
         with time_machine.travel("2026-03-29T09:10:00Z", tick=False):
             raw = asyncio.run(
@@ -4499,15 +4506,15 @@ Direct and concise.
         payload = json.loads(raw)
 
         current = (repo_root / "memory" / "working" / "CURRENT.md").read_text(encoding="utf-8")
-        log_count = subprocess.run(
-            ["git", "rev-list", "--count", "HEAD"],
+        head_after = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
             cwd=self._git_root(repo_root),
             check=True,
             capture_output=True,
             text=True,
         ).stdout.strip()
-        status = subprocess.run(
-            ["git", "status", "--short"],
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
             cwd=self._git_root(repo_root),
             check=True,
             capture_output=True,
@@ -4520,8 +4527,8 @@ Direct and concise.
         self.assertEqual(payload["new_state"]["entry_count"], 1)
         self.assertTrue(payload["new_state"]["staged"])
         self.assertIn("### [2026-03-29T09:10] Decision\nDecision captured.\n", current)
-        self.assertEqual(log_count, "1")
-        self.assertIn("CURRENT.md", status)
+        self.assertEqual(head_after, head_before)
+        self.assertEqual(staged.strip(), "core/memory/working/CURRENT.md")
 
     def test_memory_checkpoint_treats_label_as_optional(self) -> None:
         repo_root = self._init_repo({"memory/working/CURRENT.md": "# Current\n"})

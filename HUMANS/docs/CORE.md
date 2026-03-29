@@ -157,11 +157,11 @@ This is why the repo uses plain files, platform adapters (thin pointer files lik
 
 ### 9. The MCP layer provides governed tool access
 
-Agents interact with Engram through a **Model Context Protocol (MCP)** server that exposes 97 tools organized into three tiers:
+Agents interact with Engram through a **Model Context Protocol (MCP)** server that exposes a governed tool surface organized into three tiers. See [MCP.md](MCP.md) for the live inventory and current counts:
 
-- **Tier 0 (read-only):** 43 tools for search, analytics, validation, session health, graph analysis, git diagnostics, and file reading. Always available.
-- **Tier 1 (semantic operations):** 47 tools for governed actions — plan management, knowledge lifecycle, session recording, access logging and aggregation, semantic search, graph analysis, periodic review, and skill/user/identity updates. Always available.
-- **Tier 2 (write primitives):** 7 tools for low-level staged file mutations (`memory_write`, `memory_edit`, `memory_delete`, `memory_move`, `memory_commit`, frontmatter updates). Gated behind the `MEMORY_ENABLE_RAW_WRITE_TOOLS` environment flag.
+- **Tier 0 (read-only):** Search, analytics, validation, session health, graph analysis, git diagnostics, and file reading. Always available.
+- **Tier 1 (semantic operations):** Governed actions for plan management, knowledge lifecycle, session recording, access logging and aggregation, semantic search, graph analysis, periodic review, and skill/user/identity updates. Always available.
+- **Tier 2 (write primitives):** Low-level staged file mutations such as `memory_write`, `memory_edit`, `memory_delete`, `memory_move`, `memory_commit`, and frontmatter updates. Gated behind the `MEMORY_ENABLE_RAW_WRITE_TOOLS` environment flag.
 
 Why a tool layer instead of direct file access:
 
