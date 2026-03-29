@@ -122,7 +122,7 @@ For worktree deployments, set `MEMORY_REPO_ROOT` to the worktree path and `HOST_
 
 ## Tool surface
 
-The MCP server exposes **97 tools** organized into three tiers (43 Tier 0, 47 Tier 1, 7 Tier 2). The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
+The MCP server exposes **93 tools by default**: 47 Tier 0 read-only tools plus 46 Tier 1 semantic tools. Enabling `MEMORY_ENABLE_RAW_WRITE_TOOLS=1` adds **7 Tier 2** raw fallback tools for a full surface of **100**. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
 
 ### Tier 0: Read-only tools
 
@@ -290,7 +290,7 @@ Important output fields:
 
 ### Tier 1: Semantic write tools
 
-These are the normal write path. Each tool represents a bounded operation with built-in invariants and an automatic commit on success. They are not generic file-edit tools — each one owns a narrow slice of the memory model and keeps related files in sync.
+These are the normal write path. Each tool represents a bounded operation with built-in invariants and usually auto-commits on success. Exceptions such as `memory_checkpoint` deliberately stage state for a later batch commit. These tools are not generic file-edit tools — each one owns a narrow slice of the memory model and keeps related files in sync.
 
 **Plans**
 
@@ -533,6 +533,7 @@ Plan statuses now include `paused` (awaiting human approval), in addition to `dr
 
 | Tool | Description |
 | --- | --- |
+| `memory_checkpoint` | Append a timestamped incremental checkpoint to `CURRENT.md`, optionally tagged with `session_id`. |
 | `memory_record_session` | Record a full session: summary, reflection, and access entries. |
 | `memory_record_chat_summary` | Record a single chat session summary to the activity log. |
 | `memory_record_reflection` | Record a session reflection entry. |
@@ -542,6 +543,16 @@ Plan statuses now include `paused` (awaiting human approval), in addition to `dr
 | `memory_reset_session_state` | Reset in-process session counters (e.g. identity churn). |
 | `memory_semantic_search` | Hybrid vector + BM25 + freshness + helpfulness search (requires `[search]` extras). |
 | `memory_reindex` | Force rebuild of the semantic search embedding index. |
+
+**`memory_checkpoint` parameters and role**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `content` | str | Required checkpoint body to persist. |
+| `label` | str | Optional heading suffix shown after the timestamp. |
+| `session_id` | str | Optional canonical chat path such as `memory/activity/2026/03/29/chat-001`. |
+
+`memory_checkpoint` is the low-ceremony compaction-defense tool for active work. It appends a timestamped block to `memory/working/CURRENT.md` and stages the file without creating a commit. Prefer it over `memory_append_scratchpad` when you want consistent checkpoint formatting, and prefer it over the heavier mid-session sync protocol when you do not need a chat-folder `checkpoint.md` or a commit yet.
 
 **Scratchpad, skills, and identity**
 

@@ -2,7 +2,7 @@ id: sidecar-observer
 project: session-management
 created: '2026-03-28'
 origin_session: memory/activity/2026/03/28/chat-001
-status: active
+status: complete
 sessions_used: 0
 budget:
   deadline: '2026-05-01'

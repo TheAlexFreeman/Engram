@@ -20,7 +20,7 @@ Detail: `core/memory/skills/session-start.md`
 
 ## Mid-session sync
 
-Checkpoint when the user requests it or when significant decisions have accumulated. Write `checkpoint.md` in the chat folder. Don't checkpoint trivially.
+Use `memory_checkpoint` for lightweight in-progress saves after decisions, discoveries, and major task completions. Reserve `checkpoint.md` in the chat folder for user-requested or heavier mid-session syncs. Don't checkpoint trivially.
 
 If context pressure is detected (>75% of effective context window consumed, or platform signals compaction), trigger an automatic checkpoint per the context-pressure flush protocol. See `core/memory/skills/session-sync.md` § "Context-pressure flush".
 

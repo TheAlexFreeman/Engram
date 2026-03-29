@@ -2,13 +2,13 @@
 type: project-summary
 created: 2026-03-28
 project_count: 1
-active_plans: 2
+active_plans: 0
 plans: 4
 ---
 
 # Session Management
 
-**Status:** Active (checkpoint-tool and sidecar-observer plans active; proxy and enriched-server in draft)
+**Status:** Phase 1 complete (checkpoint-tool and sidecar-observer complete; proxy and enriched-server in draft)
 
 ## Purpose
 
@@ -47,12 +47,12 @@ Each phase builds on the previous rather than replacing it. See [notes/integrate
 
 | Plan | Status | Phases | Focus |
 |---|---|---|---|
-| [checkpoint-tool](plans/checkpoint-tool.yaml) | active | 3 | `memory_checkpoint` tool, session skill updates, docs |
-| [sidecar-observer](plans/sidecar-observer.yaml) | active | 7 | Transcript parser framework, Claude Code parser, helpfulness estimator, ACCESS logger, session lifecycle, CLI, docs |
+| [checkpoint-tool](plans/checkpoint-tool.yaml) | complete | 3 | `memory_checkpoint` tool, session skill updates, docs |
+| [sidecar-observer](plans/sidecar-observer.yaml) | complete | 7 | Transcript parser framework, Claude Code parser, helpfulness estimator, ACCESS logger, session lifecycle, CLI, docs |
 | [optional-proxy](plans/optional-proxy.yaml) | draft | 6 | API proxy core, context injection, compaction flush, auto-checkpointing, CLI, docs |
 | [enriched-mcp-server](plans/enriched-mcp-server.yaml) | draft | 6 | Session state model, advisory responses, auto-ACCESS from reads, `memory_context_query`, health enrichment, docs |
 
-**Parallelism:** checkpoint-tool and sidecar-observer can proceed independently. optional-proxy depends on sidecar-observer and context-injectors project. enriched-mcp-server can start its session-state-model phase in parallel with everything else.
+**Parallelism:** Phase 1 is fully landed. optional-proxy has its sidecar prerequisite satisfied but still depends on the context-injectors project. enriched-mcp-server can start its session-state-model phase whenever it becomes the next priority.
 
 ## Deferred
 

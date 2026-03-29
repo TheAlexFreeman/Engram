@@ -38,7 +38,13 @@ Skip this skill on the very first session — use `core/governance/first-run.md`
 
 - If running on a read-only platform, note this and prepare to produce deferred actions at session end per `core/governance/update-guidelines.md` § "Read-only operation". If this is your first read-only session, also review the worked example in `core/governance/update-guidelines.md` § "Worked example" for the output format.
 
-### 4. Greet with continuity (interactive)
+### 4. Build checkpoint habit (silent)
+
+- Use `memory_checkpoint` as the default low-ceremony persistence tool during active work when write access is available.
+- Call it after completing a major task, learning something new about the user or repo that should survive compaction, making a non-obvious decision, or spotting a pattern worth preserving.
+- Treat checkpointing as a habit, not an emergency procedure. Save small but valuable state before context pressure forces a heavier sync.
+
+### 5. Greet with continuity (interactive)
 
 Greet the user in a way that reflects:
 - What they were working on last time (from the recent chat summary).

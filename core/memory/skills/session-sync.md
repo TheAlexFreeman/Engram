@@ -17,6 +17,8 @@ Activate when:
 - A long session has produced significant decisions or context that would be costly to lose.
 - The agent judges that enough has happened to warrant a checkpoint (use judgment — don't checkpoint after trivial exchanges).
 
+For lightweight in-progress saves, use `memory_checkpoint` instead. This skill is the heavier checkpoint path: it writes `checkpoint.md`, stages broader session state, and ends with a commit.
+
 ## Steps
 
 ### 1. Summarize progress so far

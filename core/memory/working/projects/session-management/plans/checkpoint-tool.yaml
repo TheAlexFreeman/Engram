@@ -2,7 +2,7 @@ id: checkpoint-tool
 project: session-management
 created: '2026-03-28'
 origin_session: memory/activity/2026/03/28/chat-001
-status: active
+status: complete
 sessions_used: 0
 budget:
   deadline: '2026-04-15'
@@ -41,7 +41,7 @@ work:
     # ── Phase 1: Implement the tool ─────────────────────────────────────
     - id: checkpoint-tool-impl
       title: Implement memory_checkpoint tool
-      status: pending
+      status: complete
       blockers: []
       requires_approval: false
       sources:
@@ -117,7 +117,7 @@ work:
     # ── Phase 2: Update session skills ──────────────────────────────────
     - id: checkpoint-skill-updates
       title: Update session skills with checkpoint habit instructions
-      status: pending
+      status: complete
       blockers:
         - checkpoint-tool-impl
       requires_approval: true
@@ -171,7 +171,7 @@ work:
     # ── Phase 3: Docs and registration ──────────────────────────────────
     - id: checkpoint-docs
       title: Update capabilities manifest and MCP docs
-      status: pending
+      status: complete
       blockers:
         - checkpoint-tool-impl
       requires_approval: true

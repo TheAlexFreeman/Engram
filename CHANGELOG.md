@@ -18,6 +18,12 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-29] memory_checkpoint registration and docs
+
+**Changed:** Registered `memory_checkpoint` in the capability manifest as an automatic-tier scratchpad operation, added host-facing manifest metadata for its staged-no-commit behavior, and documented the tool in `HUMANS/docs/MCP.md` with its parameters and intended relationship to scratchpad appends versus heavier mid-session syncs.
+**Reasoning:** The tool itself had landed in the runtime, but the declared capability surface and human-facing MCP guide still treated it as invisible. Registering it closes the discovery gap for MCP hosts and makes the lightweight compaction-defense workflow legible to future agents and operators.
+**Approved by:** user
+
 ## [2026-03-29] Claude Code sidecar observer
 
 **Changed:** Added the `engram-sidecar` CLI as a passive session-observer workflow for Engram, backed by Claude Code transcript parsing, governed ACCESS/session writes through stdio `engram-mcp`, and persistent local replay state for stable `chat-NNN` allocation across reruns. Added human-facing documentation for the sidecar in `HUMANS/docs/SIDECAR.md`, linked it from `HUMANS/docs/QUICKSTART.md`, and updated `README.md` to surface the new CLI and repository structure.

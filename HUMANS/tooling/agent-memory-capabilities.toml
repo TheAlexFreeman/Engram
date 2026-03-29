@@ -110,6 +110,7 @@ semantic_extensions = [
   "memory_update_names_index",
   "memory_demote_knowledge",
   "memory_archive_knowledge",
+  "memory_checkpoint",
   "memory_append_scratchpad",
   "memory_update_skill",
   "memory_update_user_trait",
@@ -663,6 +664,14 @@ change_class = "proposed"
 preview_support = true
 preview_mode = "preview"
 preview_argument = "preview"
+
+[desktop_operations.checkpoint]
+status = "implemented"
+tool = "memory_checkpoint"
+tier = "semantic"
+operation_group = "scratchpad"
+change_class = "automatic"
+notes = "Timestamped incremental checkpoint to CURRENT.md; stages state for a later batch commit."
 
 [desktop_operations.append_scratchpad]
 status = "implemented"
@@ -1342,6 +1351,22 @@ owns_review_queue = []
 result_fields = ["folder_path", "log_path", "counts"]
 fallback_tools = []
 error_kinds = ["ValidationError"]
+
+[operations.memory_checkpoint]
+group = "scratchpad"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "scratchpad"
+writes = ["memory/working/CURRENT.md"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["target", "entry_count", "session_id"]
+fallback_tools = ["memory_edit", "memory_write"]
+error_kinds = ["ValidationError", "StagingError"]
+notes = "Appends a timestamped checkpoint block to CURRENT.md and stages it for a later batch commit; the tool does not create a commit on its own."
 
 [operations.memory_append_scratchpad]
 group = "scratchpad"
