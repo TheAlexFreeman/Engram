@@ -18,6 +18,18 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-29] Proxy host-specific operator examples
+
+**Changed:** Refined `HUMANS/docs/PROXY.md` with operator-facing Claude Code and Cursor examples that show the verified `engram-proxy` launch commands, the host setting to change conceptually, smoke-test steps, and the default assumption that these hosts are home-context paths unless custom request headers are separately verified. Tightened `HUMANS/docs/QUICKSTART.md` so the lightweight setup flow points directly to those detailed examples.
+**Reasoning:** The original proxy guide explained the architecture and generic setup path, but it still left too much translation work to the operator. This refinement makes the host-specific path more actionable without pretending unverified host config-file formats or custom-header capabilities are stable facts.
+**Approved by:** user
+
+## [2026-03-29] Optional proxy documentation and setup path
+
+**Changed:** Added `HUMANS/docs/PROXY.md` as the human-facing guide for `engram-proxy`, covering per-platform setup for Claude Code and Cursor, CLI/config reference, latency expectations, troubleshooting, and the upgrade path from sidecar-only to proxy-plus-sidecar mode. Updated `HUMANS/docs/QUICKSTART.md`, `HUMANS/docs/SIDECAR.md`, and `README.md` so the proxy path is discoverable from the normal setup flow.
+**Reasoning:** The proxy runtime and CLI existed, but operators still lacked a coherent setup path for actually routing supported platforms through it. Documenting the proxy closes that adoption gap while keeping the deployment model honest about limitations and fallback paths.
+**Approved by:** user
+
 ## [2026-03-29] memory_checkpoint registration and docs
 
 **Changed:** Registered `memory_checkpoint` in the capability manifest as an automatic-tier scratchpad operation, added host-facing manifest metadata for its staged-no-commit behavior, and documented the tool in `HUMANS/docs/MCP.md` with its parameters and intended relationship to scratchpad appends versus heavier mid-session syncs.

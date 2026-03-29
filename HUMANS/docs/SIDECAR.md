@@ -3,6 +3,7 @@
 This document covers `engram-sidecar`, the optional observer process that watches supported local transcript stores and routes session-management writes back through `engram-mcp`.
 
 - If you want the fast setup path, read [QUICKSTART.md](QUICKSTART.md).
+- If you want the live proxy path, read [PROXY.md](PROXY.md).
 - If you want the MCP server contract, read [MCP.md](MCP.md).
 - If you want worktree deployment guidance, read [WORKTREE.md](WORKTREE.md).
 - If something breaks, read [HELP.md](HELP.md).
@@ -176,3 +177,5 @@ The sidecar is Phase 1 of the session-management roadmap. The planned proxy laye
 - The proxy will be active: it can mediate requests, inject context, and enforce compaction-flush behavior before or during a live interaction.
 
 That separation is intentional. You can adopt the sidecar today to bootstrap ACCESS and session data without committing to a proxy architecture.
+
+When you are ready for the active layer, use [PROXY.md](PROXY.md) for the sidecar-only to sidecar+proxy upgrade path.

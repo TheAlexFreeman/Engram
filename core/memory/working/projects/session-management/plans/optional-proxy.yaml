@@ -2,7 +2,7 @@ id: optional-proxy
 project: session-management
 created: '2026-03-28'
 origin_session: memory/activity/2026/03/28/chat-001
-status: draft
+status: complete
 sessions_used: 0
 budget:
   deadline: '2026-06-01'
@@ -53,7 +53,7 @@ work:
     # ── Phase 1: Proxy core with API pass-through ───────────────────────
     - id: proxy-core
       title: Build HTTP proxy with API format detection and pass-through
-      status: pending
+      status: complete
       blockers: []
       requires_approval: false
       sources:
@@ -97,7 +97,7 @@ work:
     # ── Phase 2: Context injection ──────────────────────────────────────
     - id: proxy-context-injection
       title: Add pre-query context injection via context injectors
-      status: pending
+      status: complete
       blockers:
         - proxy-core
       requires_approval: true
@@ -129,7 +129,7 @@ work:
     # ── Phase 3: Token-aware compaction flush ───────────────────────────
     - id: proxy-compaction-flush
       title: Add token counting and compaction flush triggering
-      status: pending
+      status: complete
       blockers:
         - proxy-core
       requires_approval: true
@@ -147,6 +147,11 @@ work:
             Flush calls memory_session_flush via MCP. One flush per
             compaction cycle.
       changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: modify
+          description: >
+            Add memory_session_flush so the proxy has a real mid-session
+            context-pressure checkpoint primitive to call.
         - path: core/tools/agent_memory_mcp/proxy/compaction.py
           action: create
           description: >
@@ -163,7 +168,7 @@ work:
     # ── Phase 4: Transparent checkpointing ──────────────────────────────
     - id: proxy-checkpointing
       title: Add automatic checkpoint extraction from responses
-      status: pending
+      status: complete
       blockers:
         - proxy-core
       requires_approval: true
@@ -185,19 +190,25 @@ work:
           description: >
             Auto-checkpoint module:
             1. Analyze each model response for checkpoint-worthy content:
-               decisions made, preferences stated, knowledge shared,
-               task completions, error resolutions
+              decisions made, preferences stated, knowledge shared,
+              task completions, error resolutions
             2. Heuristics: response length > N tokens AND contains
-               decision language ("I'll", "let's", "the approach is")
-               OR user correction ("actually", "no, I meant")
+              decision language ("I'll", "let's", "the approach is")
+              OR user correction ("actually", "no, I meant")
             3. Call memory_checkpoint with extracted content and label
             4. Rate-limit: max one checkpoint per 5 tool calls to avoid
-               noise. Err on the side of under-checkpointing.
+              noise. Err on the side of under-checkpointing.
+        - path: core/tools/agent_memory_mcp/proxy/server.py
+          action: modify
+          description: >
+            Relay non-streaming responses to the client, then run the
+            auto-checkpoint monitor and record checkpoint metadata in
+            the proxy request log.
 
     # ── Phase 5: CLI, config, and sidecar integration ───────────────────
     - id: proxy-cli
       title: Create engram-proxy CLI and integrate with sidecar
-      status: pending
+      status: complete
       blockers:
         - proxy-context-injection
         - proxy-compaction-flush
@@ -244,7 +255,7 @@ work:
     # ── Phase 6: Documentation ──────────────────────────────────────────
     - id: proxy-docs
       title: Document proxy setup per platform
-      status: pending
+      status: complete
       blockers:
         - proxy-cli
       requires_approval: true

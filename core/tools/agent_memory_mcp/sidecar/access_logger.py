@@ -202,22 +202,35 @@ def _extract_direct_read_observation(tool_call: ToolCall) -> tuple[str, str] | N
     if _normalize_tool_name(tool_call.name) != _DIRECT_READ_TOOL_NAME:
         return None
 
-    payload = _coerce_json_like(tool_call.result)
-    if not isinstance(payload, Mapping):
-        return None
+    args_payload = _coerce_json_like(tool_call.args)
+    result_payload = _coerce_json_like(tool_call.result)
 
-    raw_path = payload.get("path")
-    if not isinstance(raw_path, str):
+    raw_path: str | None = None
+    if isinstance(result_payload, Mapping):
+        candidate = result_payload.get("path")
+        if isinstance(candidate, str):
+            raw_path = candidate
+    if raw_path is None and isinstance(args_payload, Mapping):
+        candidate = args_payload.get("path")
+        if isinstance(candidate, str):
+            raw_path = candidate
+    if raw_path is None:
         return None
 
     normalized_path = _normalize_file_path(raw_path)
     if normalized_path is None:
         return None
 
-    return normalized_path, _extract_direct_read_text(payload)
+    return normalized_path, _extract_direct_read_text(result_payload)
 
 
-def _extract_direct_read_text(payload: Mapping[str, Any]) -> str:
+def _extract_direct_read_text(payload: Any) -> str:
+    if isinstance(payload, str) and payload.strip():
+        return payload.strip()
+
+    if not isinstance(payload, Mapping):
+        return ""
+
     inline = payload.get("inline")
     content = payload.get("content")
     if inline is True and isinstance(content, str) and content.strip():

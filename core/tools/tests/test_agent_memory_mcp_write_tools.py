@@ -13,6 +13,7 @@ from datetime import date
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, ClassVar, Coroutine, cast
+from unittest.mock import patch
 
 import time_machine
 import yaml  # type: ignore[import-untyped]
@@ -4617,6 +4618,103 @@ Direct and concise.
         self.assertIn(
             "Existing scratchpad note.\n\n---\n\n### [2026-03-29T09:10]\nAppended note.\n", appended
         )
+
+    def test_memory_session_flush_writes_checkpoint_and_commits(self) -> None:
+        repo_root = self._init_repo({"memory/working/USER.md": "# User\n"})
+        tools = self._create_tools(repo_root)
+        head_before = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        with time_machine.travel("2026-03-29T09:20:00Z", tick=False):
+            raw = asyncio.run(
+                tools["memory_session_flush"](
+                    summary="Decision: enable token-aware compaction monitoring.",
+                    session_id="memory/activity/2026/03/29/chat-002",
+                    label="Proxy compaction",
+                )
+            )
+        payload = json.loads(raw)
+
+        checkpoint = (
+            repo_root / "memory" / "activity" / "2026" / "03" / "29" / "chat-002" / "checkpoint.md"
+        ).read_text(encoding="utf-8")
+        head_after = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+        self.assertNotEqual(head_after, head_before)
+        self.assertEqual(payload["commit_sha"], head_after)
+        self.assertEqual(
+            payload["commit_message"], "[chat] Context-pressure flush - Proxy compaction"
+        )
+        self.assertEqual(
+            payload["new_state"]["checkpoint_path"],
+            "memory/activity/2026/03/29/chat-002/checkpoint.md",
+        )
+        self.assertEqual(payload["new_state"]["entry_count"], 1)
+        self.assertEqual(payload["new_state"]["trigger"], "context-pressure")
+        self.assertIn("### [2026-03-29T09:20] Proxy compaction\n", checkpoint)
+        self.assertIn(
+            "<!-- session_id: memory/activity/2026/03/29/chat-002 -->\n",
+            checkpoint,
+        )
+        self.assertIn("Decision: enable token-aware compaction monitoring.\n", checkpoint)
+        self.assertEqual(staged.strip(), "")
+
+    def test_memory_session_flush_uses_current_session_sentinel_when_missing_session_id(
+        self,
+    ) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/USER.md": "# User\n",
+                "memory/activity/CURRENT_SESSION": "memory/activity/2026/03/29/chat-003\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with patch.dict(os.environ, {"MEMORY_SESSION_ID": ""}):
+            with time_machine.travel("2026-03-29T09:25:00Z", tick=False):
+                raw = asyncio.run(
+                    tools["memory_session_flush"](
+                        summary="Recovered the current session via sentinel.",
+                    )
+                )
+        payload = json.loads(raw)
+
+        checkpoint = (
+            repo_root / "memory" / "activity" / "2026" / "03" / "29" / "chat-003" / "checkpoint.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertEqual(payload["new_state"]["session_id"], "memory/activity/2026/03/29/chat-003")
+        self.assertIn("Recovered the current session via sentinel.\n", checkpoint)
+
+    def test_memory_session_flush_requires_resolvable_session_id(self) -> None:
+        repo_root = self._init_repo({"memory/working/USER.md": "# User\n"})
+        tools = self._create_tools(repo_root)
+
+        with patch.dict(os.environ, {"MEMORY_SESSION_ID": ""}):
+            with self.assertRaises(self.errors.ValidationError):
+                asyncio.run(
+                    tools["memory_session_flush"](
+                        summary="No active session available.",
+                    )
+                )
 
     def test_memory_append_scratchpad_accepts_dated_slug_and_creates_file(self) -> None:
         repo_root = self._init_repo({"memory/working/CURRENT.md": "# Current\n"})

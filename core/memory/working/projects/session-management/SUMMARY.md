@@ -8,7 +8,7 @@ plans: 4
 
 # Session Management
 
-**Status:** Phase 1 complete (checkpoint-tool and sidecar-observer complete; proxy and enriched-server in draft)
+**Status:** Phase 2 complete (checkpoint-tool, sidecar-observer, and optional-proxy all complete; enriched-server remains in draft)
 
 ## Purpose
 
@@ -49,10 +49,10 @@ Each phase builds on the previous rather than replacing it. See [notes/integrate
 |---|---|---|---|
 | [checkpoint-tool](plans/checkpoint-tool.yaml) | complete | 3 | `memory_checkpoint` tool, session skill updates, docs |
 | [sidecar-observer](plans/sidecar-observer.yaml) | complete | 7 | Transcript parser framework, Claude Code parser, helpfulness estimator, ACCESS logger, session lifecycle, CLI, docs |
-| [optional-proxy](plans/optional-proxy.yaml) | draft | 6 | API proxy core, context injection, compaction flush, auto-checkpointing, CLI, docs |
+| [optional-proxy](plans/optional-proxy.yaml) | complete | 6 | API proxy core, context injection, compaction flush, auto-checkpointing, CLI, docs |
 | [enriched-mcp-server](plans/enriched-mcp-server.yaml) | draft | 6 | Session state model, advisory responses, auto-ACCESS from reads, `memory_context_query`, health enrichment, docs |
 
-**Parallelism:** Phase 1 is fully landed. optional-proxy has its sidecar prerequisite satisfied but still depends on the context-injectors project. enriched-mcp-server can start its session-state-model phase whenever it becomes the next priority.
+**Parallelism:** Phase 2 is now fully landed. The next roadmap slice is enriched-mcp-server whenever session-state-model work becomes the priority.
 
 ## Deferred
 

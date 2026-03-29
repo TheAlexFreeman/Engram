@@ -9,6 +9,7 @@ Engram is a model-portable, human-legible, version-controlled, adaptively self-o
 **Exploring the design deeply?** → [HUMANS/docs/DESIGN.md](HUMANS/docs/DESIGN.md)
 **MCP tool surface?** → [HUMANS/docs/MCP.md](HUMANS/docs/MCP.md)
 **Transcript sidecar setup?** → [HUMANS/docs/SIDECAR.md](HUMANS/docs/SIDECAR.md)
+**Live proxy setup?** → [HUMANS/docs/PROXY.md](HUMANS/docs/PROXY.md)
 **Worktree deployment?** → [HUMANS/docs/WORKTREE.md](HUMANS/docs/WORKTREE.md)
 **Third-party integrations?** → [HUMANS/docs/INTEGRATIONS.md](HUMANS/docs/INTEGRATIONS.md)
 **Troubleshooting?** → [HUMANS/docs/HELP.md](HUMANS/docs/HELP.md)

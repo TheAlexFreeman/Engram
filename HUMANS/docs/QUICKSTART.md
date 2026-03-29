@@ -5,6 +5,7 @@ A persistent, version-controlled memory system that gives any AI model a durable
 - If you want the architectural rationale, read [CORE.md](CORE.md).
 - If you want the MCP tool surface explained, read [MCP.md](MCP.md).
 - If you want transcript-sidecar setup, read [SIDECAR.md](SIDECAR.md).
+- If you want live proxy setup, read [PROXY.md](PROXY.md).
 - If you want to attach Engram to an existing codebase, read [WORKTREE.md](WORKTREE.md).
 - If you want third-party tool integrations, read [INTEGRATIONS.md](INTEGRATIONS.md).
 - If something breaks, read [HELP.md](HELP.md).
@@ -102,6 +103,18 @@ engram-sidecar --platform claude-code
 
 `engram-sidecar` launches the repo-local MCP server over stdio automatically, so you do not need a separate long-running `engram-mcp` process for this workflow. For configuration, local state behavior, and troubleshooting, read [SIDECAR.md](SIDECAR.md).
 
+### 4b. Optional: enable live proxy (Claude Code or Cursor)
+
+If your platform can point model traffic at a custom local base URL, you can add the optional proxy for live context injection, compaction-pressure flushes, and automatic checkpointing:
+
+```bash
+python -m pip install -e ".[server]"
+engram-proxy --upstream https://api.anthropic.com --model-context-window 200000 --with-sidecar
+```
+
+Point the platform's provider base URL at `http://127.0.0.1:8400` and keep your normal provider API key configured. For per-platform setup, advanced headers, latency expectations, and limitations, read [PROXY.md](PROXY.md).
+This quickstart keeps the proxy path generic on purpose; [PROXY.md](PROXY.md) contains the detailed Claude Code and Cursor operator examples plus the current limitations around custom request headers.
+
 ### 5. Start your first session
 
 Open a conversation with your AI in the repo directory. The agent will:
@@ -141,9 +154,13 @@ claude
 
 Claude Code will read `CLAUDE.md`, which directs it to the live routing in `core/INIT.md`.
 
+If you want live request mediation rather than sidecar-only observation, see [PROXY.md](PROXY.md) for the custom-base-URL proxy path.
+
 ### Cursor
 
 **Already configured.** The repo includes a `.cursorrules` file that Cursor reads automatically. Open the repo folder in Cursor and start a conversation — the agent will follow the live routing in `core/INIT.md`.
+
+If you want live context injection, compaction flushes, and automatic checkpointing, point Cursor's relevant provider base URL at the local proxy and follow [PROXY.md](PROXY.md).
 
 ### ChatGPT (Custom Instructions)
 

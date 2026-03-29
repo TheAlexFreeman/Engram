@@ -899,6 +899,17 @@ def _count_checkpoint_entries(content: str) -> int:
     return len(re.findall(r"(?m)^### \[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}\](?: .*)?$", content))
 
 
+def _build_compaction_flush_commit_message(summary: str, *, label: str, trigger: str) -> str:
+    descriptor = label.strip()
+    if not descriptor:
+        descriptor = next((line.strip() for line in summary.splitlines() if line.strip()), "")
+    if not descriptor:
+        descriptor = trigger.replace("_", " ")
+    if len(descriptor) > 72:
+        descriptor = descriptor[:69].rstrip() + "..."
+    return f"[chat] Context-pressure flush - {descriptor}"
+
+
 def _review_item_slug(value: str) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return normalized or "review-item"
@@ -1172,6 +1183,78 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 "entry_count": _count_checkpoint_entries(new_content),
                 "session_id": session_id or None,
                 "staged": True,
+            },
+        )
+        return result.to_json()
+
+    @mcp.tool(
+        name="memory_session_flush",
+        annotations=_tool_annotations(
+            title="Record Context-Pressure Flush",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_session_flush(
+        summary: str,
+        session_id: str = "",
+        label: str = "",
+        trigger: str = "context_pressure",
+    ) -> str:
+        """Persist a mid-session checkpoint for context-pressure recovery."""
+
+        from ...errors import ValidationError
+        from ...models import MemoryWriteResult
+
+        repo = get_repo()
+        root = get_root()
+
+        body = summary.strip()
+        if not body:
+            raise ValidationError("summary must be a non-empty string")
+
+        normalized_trigger = validate_slug(trigger.replace("_", "-"), field_name="trigger")
+        resolved_session_id = _resolve_access_session_id(root, session_id or None)
+        if resolved_session_id is None:
+            raise ValidationError(
+                "session_id is required when MEMORY_SESSION_ID and memory/activity/CURRENT_SESSION are unset"
+            )
+
+        checkpoint_rel, abs_checkpoint = resolve_repo_path(
+            repo,
+            f"{resolved_session_id}/checkpoint.md",
+            field_name="session_id",
+        )
+        abs_checkpoint.parent.mkdir(parents=True, exist_ok=True)
+
+        existing = abs_checkpoint.read_text(encoding="utf-8") if abs_checkpoint.exists() else ""
+        entry_label = label.strip() or "Context-pressure flush"
+        entry = _format_checkpoint_entry(body, label=entry_label, session_id=resolved_session_id)
+        if existing.strip():
+            new_content = existing.rstrip() + "\n\n---\n\n" + entry
+        else:
+            new_content = entry
+
+        abs_checkpoint.write_text(new_content, encoding="utf-8")
+        repo.add(checkpoint_rel)
+
+        commit_msg = _build_compaction_flush_commit_message(
+            body,
+            label=label,
+            trigger=normalized_trigger,
+        )
+        commit_result = repo.commit(commit_msg)
+        result = MemoryWriteResult.from_commit(
+            files_changed=[checkpoint_rel],
+            commit_result=commit_result,
+            commit_message=commit_msg,
+            new_state={
+                "session_id": resolved_session_id,
+                "checkpoint_path": checkpoint_rel,
+                "entry_count": _count_checkpoint_entries(new_content),
+                "trigger": normalized_trigger,
             },
         )
         return result.to_json()
@@ -2220,6 +2303,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
     return {
         "memory_checkpoint": memory_checkpoint,
+        "memory_session_flush": memory_session_flush,
         "memory_append_scratchpad": memory_append_scratchpad,
         "memory_record_chat_summary": memory_record_chat_summary,
         "memory_flag_for_review": memory_flag_for_review,
