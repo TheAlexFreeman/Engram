@@ -703,10 +703,12 @@ core/memory/working/USER.md
 core/memory/working/approvals/SUMMARY.md
 core/memory/working/approvals/pending/.gitkeep
 core/memory/working/approvals/resolved/.gitkeep
+core/memory/working/notes/compaction-flush-design.md
 core/memory/working/notes/context-injectors-roadmap.md
 core/memory/working/notes/engram-harness-gap-analysis.md
 core/memory/working/notes/form-content-graduation-design-notes.md
 core/memory/working/notes/harness-expansion-analysis.md
+core/memory/working/notes/integrated-roadmap.md
 core/memory/working/notes/strategic-analysis-agent-ecosystem.md
 core/memory/working/projects/ACCESS.jsonl
 core/memory/working/projects/OUT/SUMMARY.md
@@ -770,6 +772,13 @@ core/memory/working/projects/harness-expansion/plans/tool-policy-enforcement-pha
 core/memory/working/projects/harness-expansion/plans/tool-registry-phase-4.yaml
 core/memory/working/projects/harness-expansion/plans/trace-enrichment-phase-14.yaml
 core/memory/working/projects/harness-expansion/plans/verification-phase-2.yaml
+core/memory/working/projects/session-management/IN/claude-research--openclaw-memory.md
+core/memory/working/projects/session-management/IN/deep-research--openclaw-memory.md
+core/memory/working/projects/session-management/SUMMARY.md
+core/memory/working/projects/session-management/plans/checkpoint-tool.yaml
+core/memory/working/projects/session-management/plans/enriched-mcp-server.yaml
+core/memory/working/projects/session-management/plans/optional-proxy.yaml
+core/memory/working/projects/session-management/plans/sidecar-observer.yaml
 core/memory/working/projects/system-literacy/SUMMARY.md
 core/memory/working/projects/system-literacy/notes/project-plans-roadmap.md
 core/memory/working/projects/system-literacy/questions.md

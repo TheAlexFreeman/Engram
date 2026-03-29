@@ -4,6 +4,7 @@ A persistent, version-controlled memory system that gives any AI model a durable
 
 - If you want the architectural rationale, read [CORE.md](CORE.md).
 - If you want the MCP tool surface explained, read [MCP.md](MCP.md).
+- If you want transcript-sidecar setup, read [SIDECAR.md](SIDECAR.md).
 - If you want to attach Engram to an existing codebase, read [WORKTREE.md](WORKTREE.md).
 - If you want third-party tool integrations, read [INTEGRATIONS.md](INTEGRATIONS.md).
 - If something breaks, read [HELP.md](HELP.md).
@@ -84,7 +85,24 @@ See [Platform setup](#platform-setup) below for your specific tool.
 
 If you want a human-readable explanation of the repo-local MCP layer itself, read [MCP.md](MCP.md).
 
-### 4. Start your first session
+### 4. Optional: enable transcript sidecar (Claude Code)
+
+If you use Claude Code and want automatic ACCESS logging plus session recording from local transcripts, install the server runtime and start the optional sidecar:
+
+```bash
+python -m pip install -e ".[server]"
+engram-sidecar --once --platform claude-code
+```
+
+For continuous observation, run:
+
+```bash
+engram-sidecar --platform claude-code
+```
+
+`engram-sidecar` launches the repo-local MCP server over stdio automatically, so you do not need a separate long-running `engram-mcp` process for this workflow. For configuration, local state behavior, and troubleshooting, read [SIDECAR.md](SIDECAR.md).
+
+### 5. Start your first session
 
 Open a conversation with your AI in the repo directory. The agent will:
 

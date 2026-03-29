@@ -8,6 +8,7 @@ Engram is a model-portable, human-legible, version-controlled, adaptively self-o
 **Need the fundamentals first?** → [HUMANS/docs/CORE.md](HUMANS/docs/CORE.md)
 **Exploring the design deeply?** → [HUMANS/docs/DESIGN.md](HUMANS/docs/DESIGN.md)
 **MCP tool surface?** → [HUMANS/docs/MCP.md](HUMANS/docs/MCP.md)
+**Transcript sidecar setup?** → [HUMANS/docs/SIDECAR.md](HUMANS/docs/SIDECAR.md)
 **Worktree deployment?** → [HUMANS/docs/WORKTREE.md](HUMANS/docs/WORKTREE.md)
 **Third-party integrations?** → [HUMANS/docs/INTEGRATIONS.md](HUMANS/docs/INTEGRATIONS.md)
 **Troubleshooting?** → [HUMANS/docs/HELP.md](HUMANS/docs/HELP.md)
@@ -114,6 +115,7 @@ Platform adapter files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) all point to t
 │   │   └── agent_memory_mcp/
 │   │       ├── server.py            ← MCP server registration.
 │   │       ├── server_main.py       ← CLI entry point (engram-mcp).
+│   │       ├── sidecar/             ← Optional transcript observer and engram-sidecar CLI.
 │   │       ├── core/                ← Portable format layer (frontmatter, git, models, path policy).
 │   │       └── tools/               ← Tool registration (read, write, analysis, semantic).
 │   │
@@ -152,6 +154,7 @@ Platform adapter files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) all point to t
 │   │   ├── CORE.md          ← Core design decisions (12 decisions, architectural rationale).
 │   │   ├── DESIGN.md        ← Design philosophy, use cases, and future directions.
 │   │   ├── MCP.md           ← MCP architecture guide (97 tools, 4 resources, 4 prompts).
+│   │   ├── SIDECAR.md       ← Optional transcript sidecar setup and troubleshooting.
 │   │   ├── WORKTREE.md      ← Worktree deployment, CI exemptions, MCP client wiring.
 │   │   ├── INTEGRATIONS.md  ← Third-party tool integrations.
 │   │   ├── HELP.md          ← Troubleshooting and debugging guide.
@@ -193,6 +196,19 @@ engram-mcp                    # installed CLI entry point
 # or
 python -m engram_mcp.agent_memory_mcp.server_main
 ```
+
+### Optional transcript sidecar
+
+The repo also ships `engram-sidecar`, an optional observer that watches supported local transcript stores and feeds ACCESS logging plus session recording back through the governed MCP surface. The current implementation supports Claude Code transcripts and launches `engram-mcp` over stdio automatically, so you do not need to keep a separate MCP server process running.
+
+```bash
+python -m pip install -e ".[server]"
+engram-sidecar --once --platform claude-code
+# or continuous watch mode
+engram-sidecar --platform claude-code
+```
+
+For supported platforms, configuration, local state behavior, and troubleshooting, see [HUMANS/docs/SIDECAR.md](HUMANS/docs/SIDECAR.md).
 
 ### Tool surface
 

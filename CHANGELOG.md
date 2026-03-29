@@ -18,6 +18,12 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-03-29] Claude Code sidecar observer
+
+**Changed:** Added the `engram-sidecar` CLI as a passive session-observer workflow for Engram, backed by Claude Code transcript parsing, governed ACCESS/session writes through stdio `engram-mcp`, and persistent local replay state for stable `chat-NNN` allocation across reruns. Added human-facing documentation for the sidecar in `HUMANS/docs/SIDECAR.md`, linked it from `HUMANS/docs/QUICKSTART.md`, and updated `README.md` to surface the new CLI and repository structure.
+**Reasoning:** Engram needed a low-friction way to bootstrap ACCESS data and session records from real transcript evidence without changing the live runtime or relying on perfect agent self-report. Shipping the observer as an optional standalone CLI keeps the automation conservative, portable, and compatible with existing MCP-host workflows.
+**Approved by:** user
+
 ## [2026-03-28] Bootstrap routing to project context injector
 
 **Changed:** Normalized `memory_session_bootstrap` active-plan entries to use the same compact `next_action` shape now exposed by `memory_context_project`, and added a structured `resume_context` hint that points hosts directly to `memory_context_project(project=...)` for each active plan. The session-bootstrap recommendations now name the concrete context-injector call for the leading active plan instead of a generic resume reminder. Expanded bootstrap test coverage to lock the new active-plan payload and recommendation text.

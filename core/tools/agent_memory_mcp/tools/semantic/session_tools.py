@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import os
 import re
-from datetime import date
+from collections import Counter
+from datetime import date, datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, cast
 
@@ -260,11 +261,15 @@ def _compute_trace_metrics(root: "Path", session_id: str) -> dict[str, object] |
 
 
 def _build_chat_summary_content(
-    session_id: str, summary: str, key_topics: str = "", root: "Path | None" = None
+    session_id: str,
+    summary: str,
+    key_topics: str = "",
+    root: "Path | None" = None,
+    recorded_date: str | None = None,
 ) -> str:
     from ...frontmatter_utils import today_str
 
-    today = today_str()
+    today = recorded_date or today_str()
     fm_dict: dict[str, object] = {
         "session": session_id,
         "date": today,
@@ -284,6 +289,135 @@ def _build_chat_summary_content(
 
     post = fmlib.Post(summary, **fm_dict)
     return fmlib.dumps(post)
+
+
+def _build_session_recording_state(
+    session_id: str,
+    summary_path: str,
+    *,
+    recording_outcome: str,
+    reflection_path: str | None = None,
+    access_jsonls: list[str] | None = None,
+) -> dict[str, object]:
+    state: dict[str, object] = {
+        "session_id": session_id,
+        "summary_path": summary_path,
+        "recording_outcome": recording_outcome,
+    }
+    if reflection_path is not None:
+        state["reflection_path"] = reflection_path
+    if access_jsonls:
+        state["access_jsonls"] = access_jsonls
+    return state
+
+
+def _summary_recorded_date(abs_session_summary: Path) -> str | None:
+    from ...frontmatter_utils import read_with_frontmatter
+
+    if not abs_session_summary.exists():
+        return None
+    frontmatter, _ = read_with_frontmatter(abs_session_summary)
+    recorded_date = frontmatter.get("date")
+    if recorded_date is None:
+        return None
+    normalized = str(recorded_date).strip()
+    return normalized or None
+
+
+def _existing_chat_summary_matches(
+    root: Path,
+    abs_session_summary: Path,
+    *,
+    session_id: str,
+    summary: str,
+    key_topics: str,
+) -> bool:
+    expected_content = _build_chat_summary_content(
+        session_id,
+        summary,
+        key_topics,
+        root=root,
+        recorded_date=_summary_recorded_date(abs_session_summary),
+    )
+    return abs_session_summary.read_text(encoding="utf-8") == expected_content
+
+
+def _access_entry_signature(payload: dict[str, object]) -> str:
+    comparable = {key: value for key, value in payload.items() if key != "date"}
+    return json.dumps(comparable, sort_keys=True, ensure_ascii=False)
+
+
+def _expected_access_entry_signatures(
+    repo,
+    root: Path,
+    *,
+    session_id: str,
+    access_entries: list[dict[str, object]],
+) -> dict[str, Counter[str]]:
+    expected: dict[str, Counter[str]] = {}
+    for raw_entry in access_entries:
+        access_jsonl, line, _ = _normalize_access_entry(
+            repo,
+            root,
+            raw_entry,
+            resolved_session_id=session_id,
+        )
+        payload = json.loads(line)
+        expected.setdefault(access_jsonl, Counter())[_access_entry_signature(payload)] += 1
+    return expected
+
+
+def _recorded_access_entry_signatures(
+    abs_access: Path,
+    *,
+    session_id: str,
+) -> Counter[str]:
+    recorded: Counter[str] = Counter()
+    if not abs_access.exists():
+        return recorded
+    for raw_line in abs_access.read_text(encoding="utf-8").splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict) or payload.get("session_id") != session_id:
+            continue
+        recorded[_access_entry_signature(payload)] += 1
+    return recorded
+
+
+def _validate_replayed_access_entries(
+    repo,
+    root: Path,
+    *,
+    session_id: str,
+    access_entries: list[dict[str, object]] | None,
+) -> list[str]:
+    from ...errors import ValidationError
+
+    if not access_entries:
+        return []
+
+    expected_by_jsonl = _expected_access_entry_signatures(
+        repo,
+        root,
+        session_id=session_id,
+        access_entries=access_entries,
+    )
+    for access_jsonl, expected_signatures in expected_by_jsonl.items():
+        recorded_signatures = _recorded_access_entry_signatures(
+            root / access_jsonl,
+            session_id=session_id,
+        )
+        for signature, count in expected_signatures.items():
+            if recorded_signatures.get(signature, 0) < count:
+                raise ValidationError(
+                    f"Session {session_id} is already recorded but the provided ACCESS entries do not match the existing log state. Use memory_log_access or memory_log_access_batch for additional retrieval logging."
+                )
+    return sorted(expected_by_jsonl)
 
 
 def _update_chats_summary_index(content: str, session_id: str, recorded_date: str) -> str | None:
@@ -365,6 +499,7 @@ def _normalize_access_entry(
     category_value = raw_entry.get("category")
     mode_value = raw_entry.get("mode")
     task_id_value = raw_entry.get("task_id")
+    estimator_value = raw_entry.get("estimator")
     min_helpfulness_value = raw_entry.get("min_helpfulness")
 
     if not isinstance(task_value, str) or not task_value.strip():
@@ -423,6 +558,13 @@ def _normalize_access_entry(
     else:
         task_id = None
 
+    if estimator_value is not None:
+        if not isinstance(estimator_value, str) or not estimator_value.strip():
+            raise ValidationError("access entry estimator must be a non-empty string when provided")
+        estimator = validate_slug(estimator_value, field_name="estimator")
+    else:
+        estimator = None
+
     min_helpfulness = _normalize_min_helpfulness(min_helpfulness_value)
 
     entry: dict[str, object] = {
@@ -441,6 +583,8 @@ def _normalize_access_entry(
         entry["mode"] = mode
     if task_id is not None:
         entry["task_id"] = task_id
+    if estimator is not None:
+        entry["estimator"] = estimator
     routed_to_scans = min_helpfulness is not None and helpfulness < min_helpfulness
     target_jsonl = _access_scans_jsonl_for(access_jsonl) if routed_to_scans else access_jsonl
     return target_jsonl, _json.dumps(entry, ensure_ascii=False), routed_to_scans
@@ -738,6 +882,23 @@ def _resolve_scratchpad_target(target: str) -> str:
     )
 
 
+def _format_checkpoint_entry(content: str, *, label: str = "", session_id: str = "") -> str:
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M")
+    label_text = label.strip()
+    heading = f"### [{timestamp}] {label_text}".rstrip()
+    lines = [heading]
+    if session_id:
+        lines.append(f"<!-- session_id: {session_id} -->")
+    body = content.strip()
+    if body:
+        lines.append(body)
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _count_checkpoint_entries(content: str) -> int:
+    return len(re.findall(r"(?m)^### \[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}\](?: .*)?$", content))
+
+
 def _review_item_slug(value: str) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return normalized or "review-item"
@@ -970,6 +1131,52 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     """Register session and governance semantic tools."""
 
     @mcp.tool(
+        name="memory_checkpoint",
+        annotations=_tool_annotations(
+            title="Record Checkpoint",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_checkpoint(content: str, label: str = "", session_id: str = "") -> str:
+        from ...models import MemoryWriteResult
+
+        repo = get_repo()
+        root = get_root()
+
+        if session_id:
+            validate_session_id(session_id)
+
+        rel_path = "memory/working/CURRENT.md"
+        abs_path = root / rel_path
+        abs_path.parent.mkdir(parents=True, exist_ok=True)
+
+        existing = abs_path.read_text(encoding="utf-8") if abs_path.exists() else ""
+        entry = _format_checkpoint_entry(content, label=label, session_id=session_id)
+        if existing.strip():
+            new_content = existing.rstrip() + "\n\n---\n\n" + entry
+        else:
+            new_content = entry
+
+        abs_path.write_text(new_content, encoding="utf-8")
+        repo.add(rel_path)
+
+        result = MemoryWriteResult(
+            files_changed=[rel_path],
+            commit_sha=None,
+            commit_message=None,
+            new_state={
+                "target": rel_path,
+                "entry_count": _count_checkpoint_entries(new_content),
+                "session_id": session_id or None,
+                "staged": True,
+            },
+        )
+        return result.to_json()
+
+    @mcp.tool(
         name="memory_append_scratchpad",
         annotations=_tool_annotations(
             title="Append to Scratchpad",
@@ -1030,7 +1237,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             title="Record Chat Session Summary",
             readOnlyHint=False,
             destructiveHint=False,
-            idempotentHint=False,
+            idempotentHint=True,
             openWorldHint=False,
         ),
     )
@@ -1042,6 +1249,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         For full session wrap-up, prefer memory_record_session so summary,
         reflection, and ACCESS writes land in a single commit.
         """
+        from ...errors import ValidationError
         from ...frontmatter_utils import today_str
         from ...models import MemoryWriteResult
 
@@ -1054,6 +1262,30 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             repo, f"{session_id}/SUMMARY.md", field_name="session_id"
         )
         abs_session_summary.parent.mkdir(parents=True, exist_ok=True)
+
+        if abs_session_summary.exists():
+            if not _existing_chat_summary_matches(
+                root,
+                abs_session_summary,
+                session_id=session_id,
+                summary=summary,
+                key_topics=key_topics,
+            ):
+                raise ValidationError(
+                    f"Session summary already exists for {session_id} with different content. Edit the existing summary directly if an update is needed."
+                )
+            result = MemoryWriteResult(
+                files_changed=[],
+                commit_sha=None,
+                commit_message=None,
+                new_state=_build_session_recording_state(
+                    session_id,
+                    session_summary_rel,
+                    recording_outcome="already_recorded",
+                ),
+                warnings=warnings,
+            )
+            return result.to_json()
 
         today = today_str()
         abs_session_summary.write_text(
@@ -1079,7 +1311,11 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             files_changed=files_changed,
             commit_result=commit_result,
             commit_message=commit_msg,
-            new_state={"session_id": session_id},
+            new_state=_build_session_recording_state(
+                session_id,
+                session_summary_rel,
+                recording_outcome="recorded",
+            ),
             warnings=warnings,
         )
         return result.to_json()
@@ -1268,6 +1504,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         category: str | None = None,
         mode: str | None = None,
         task_id: str | None = None,
+        estimator: str | None = None,
         min_helpfulness: float | None = None,
     ) -> str:
         from ...models import MemoryWriteResult
@@ -1287,6 +1524,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                     "category": category,
                     "mode": mode,
                     "task_id": task_id,
+                    "estimator": estimator,
                     "min_helpfulness": min_helpfulness,
                 }
             ],
@@ -1364,7 +1602,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             title="Record Full Session",
             readOnlyHint=False,
             destructiveHint=False,
-            idempotentHint=False,
+            idempotentHint=True,
             openWorldHint=False,
         ),
     )
@@ -1380,6 +1618,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         Writes the session summary, optional reflection, chat index update,
         and optional ACCESS entries atomically under a single [chat] commit.
         """
+        from ...errors import ValidationError
         from ...frontmatter_utils import today_str
         from ...models import MemoryWriteResult
 
@@ -1392,6 +1631,55 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         )
         abs_session_summary.parent.mkdir(parents=True, exist_ok=True)
 
+        normalized_reflection = reflection.strip() if reflection is not None else ""
+        reflection_rel = f"{session_id}/reflection.md"
+        access_jsonls: list[str] = []
+
+        if abs_session_summary.exists():
+            if not _existing_chat_summary_matches(
+                root,
+                abs_session_summary,
+                session_id=session_id,
+                summary=summary,
+                key_topics=key_topics,
+            ):
+                raise ValidationError(
+                    f"Session summary already exists for {session_id} with different content. Edit the existing session files directly if an update is needed."
+                )
+
+            matching_reflection_path: str | None = None
+            if normalized_reflection:
+                reflection_abs = root / reflection_rel
+                expected_reflection = _build_reflection_content(normalized_reflection)
+                if (
+                    not reflection_abs.exists()
+                    or reflection_abs.read_text(encoding="utf-8") != expected_reflection
+                ):
+                    raise ValidationError(
+                        f"Session {session_id} is already recorded but the provided reflection does not match the existing reflection.md content. Use memory_record_reflection or edit the reflection directly if an update is needed."
+                    )
+                matching_reflection_path = reflection_rel
+
+            access_jsonls = _validate_replayed_access_entries(
+                repo,
+                root,
+                session_id=session_id,
+                access_entries=access_entries,
+            )
+            result = MemoryWriteResult(
+                files_changed=[],
+                commit_sha=None,
+                commit_message=None,
+                new_state=_build_session_recording_state(
+                    session_id,
+                    session_summary_rel,
+                    recording_outcome="already_recorded",
+                    reflection_path=matching_reflection_path,
+                    access_jsonls=access_jsonls,
+                ),
+            )
+            return result.to_json()
+
         files_changed = [session_summary_rel]
         abs_session_summary.write_text(
             _build_chat_summary_content(session_id, summary, key_topics, root=root),
@@ -1399,14 +1687,17 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         )
         repo.add(session_summary_rel)
 
-        reflection_rel: str | None = None
-        if reflection is not None and reflection.strip():
-            reflection_rel = f"{session_id}/reflection.md"
+        applied_reflection_path: str | None = None
+        if normalized_reflection:
             reflection_abs = root / reflection_rel
             reflection_abs.parent.mkdir(parents=True, exist_ok=True)
-            reflection_abs.write_text(_build_reflection_content(reflection), encoding="utf-8")
+            reflection_abs.write_text(
+                _build_reflection_content(normalized_reflection),
+                encoding="utf-8",
+            )
             repo.add(reflection_rel)
             files_changed.append(reflection_rel)
+            applied_reflection_path = reflection_rel
 
         chats_summary_rel = "memory/activity/SUMMARY.md"
         abs_chats_summary = root / chats_summary_rel
@@ -1436,7 +1727,13 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             files_changed=files_changed,
             commit_result=commit_result,
             commit_message=commit_msg,
-            new_state={"session_id": session_id},
+            new_state=_build_session_recording_state(
+                session_id,
+                session_summary_rel,
+                recording_outcome="recorded",
+                reflection_path=applied_reflection_path,
+                access_jsonls=access_files_changed,
+            ),
         )
         return result.to_json()
 
@@ -1922,6 +2219,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         return result.to_json()
 
     return {
+        "memory_checkpoint": memory_checkpoint,
         "memory_append_scratchpad": memory_append_scratchpad,
         "memory_record_chat_summary": memory_record_chat_summary,
         "memory_flag_for_review": memory_flag_for_review,

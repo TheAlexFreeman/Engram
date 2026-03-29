@@ -1682,6 +1682,34 @@ class ValidateMemoryRepoTests(unittest.TestCase):
                 )
             )
 
+    def test_access_entry_with_estimator_field_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            build_minimal_repo(root)
+            write(
+                root / "core" / "memory" / "skills" / "example.md",
+                textwrap.dedent(
+                    """\
+                    ---
+                    source: user-stated
+                    origin_session: core/memory/activity/2026/03/16/chat-001
+                    created: 2026-03-16
+                    trust: high
+                    ---
+
+                    # Example
+                    """
+                ),
+            )
+            write(
+                root / "core" / "memory" / "skills" / "ACCESS.jsonl",
+                '{"file":"core/memory/skills/example.md","date":"2026-03-16","task":"test","helpfulness":0.7,"note":"used","estimator":"sidecar"}',
+            )
+
+            result = validator.validate_repo(root)
+            self.assertEqual(result.errors, [], "\n".join(result.errors))
+            self.assert_no_non_coverage_warnings(result)
+
     def test_chat_leaf_missing_reflection_warns(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)

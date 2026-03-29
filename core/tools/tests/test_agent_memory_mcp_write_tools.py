@@ -4226,6 +4226,73 @@ Direct and concise.
                 )
             )
 
+    def test_memory_record_chat_summary_replay_is_noop_when_content_matches(self) -> None:
+        repo_root = self._init_repo({"memory/activity/SUMMARY.md": "# Chats\n## Structure\n"})
+        tools = self._create_tools(repo_root)
+
+        with time_machine.travel("2026-03-20T10:00:00Z", tick=False):
+            first = json.loads(
+                asyncio.run(
+                    tools["memory_record_chat_summary"](
+                        session_id="memory/activity/2026/03/20/chat-002",
+                        summary="# Session Summary\n\nDid the work.\n",
+                        key_topics="semantic-tools,wrapup",
+                    )
+                )
+            )
+        with time_machine.travel("2026-03-21T10:00:00Z", tick=False):
+            replay = json.loads(
+                asyncio.run(
+                    tools["memory_record_chat_summary"](
+                        session_id="memory/activity/2026/03/20/chat-002",
+                        summary="# Session Summary\n\nDid the work.\n",
+                        key_topics="semantic-tools,wrapup",
+                    )
+                )
+            )
+
+        session_summary = (
+            repo_root / "memory" / "activity" / "2026" / "03" / "20" / "chat-002" / "SUMMARY.md"
+        ).read_text(encoding="utf-8")
+        log_count = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        self.assertEqual(first["new_state"]["recording_outcome"], "recorded")
+        self.assertIsNone(replay["commit_sha"])
+        self.assertIsNone(replay["commit_message"])
+        self.assertEqual(replay["files_changed"], [])
+        self.assertEqual(replay["new_state"]["recording_outcome"], "already_recorded")
+        self.assertIn("2026-03-20", session_summary)
+        self.assertNotIn("2026-03-21", session_summary)
+        self.assertEqual(log_count, "2")
+
+    def test_memory_record_chat_summary_rejects_divergent_replay(self) -> None:
+        repo_root = self._init_repo({"memory/activity/SUMMARY.md": "# Chats\n## Structure\n"})
+        tools = self._create_tools(repo_root)
+
+        with time_machine.travel("2026-03-20T10:00:00Z", tick=False):
+            asyncio.run(
+                tools["memory_record_chat_summary"](
+                    session_id="memory/activity/2026/03/20/chat-002",
+                    summary="# Session Summary\n\nDid the work.\n",
+                    key_topics="semantic-tools,wrapup",
+                )
+            )
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_record_chat_summary"](
+                    session_id="memory/activity/2026/03/20/chat-002",
+                    summary="# Session Summary\n\nDid different work.\n",
+                    key_topics="semantic-tools,wrapup",
+                )
+            )
+
     def test_memory_record_session_writes_summary_reflection_and_access_in_one_commit(self) -> None:
         repo_root = self._init_repo(
             {
@@ -4302,6 +4369,247 @@ Direct and concise.
         self.assertEqual(knowledge_access[0]["session_id"], "memory/activity/2026/03/20/chat-002")
         self.assertEqual(plans_access[0]["session_id"], "memory/activity/2026/03/20/chat-002")
         self.assertEqual(log_count, "2")
+
+    def test_memory_record_session_replay_is_noop_when_content_matches(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/activity/SUMMARY.md": "# Chats\n## Structure\n",
+                "memory/knowledge/topic.md": "# Topic\n",
+                "memory/working/projects/demo.md": "# Demo\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        kwargs = {
+            "session_id": "memory/activity/2026/03/20/chat-002",
+            "summary": "# Session Summary\n\nDid the work.\n",
+            "reflection": "Observed a cleaner wrap-up path.",
+            "key_topics": "semantic-tools,wrapup",
+            "access_entries": [
+                {
+                    "file": "memory/knowledge/topic.md",
+                    "task": "session wrap-up",
+                    "helpfulness": 0.8,
+                    "note": "Relevant context for summary.",
+                },
+                {
+                    "file": "memory/working/projects/demo.md",
+                    "task": "session wrap-up",
+                    "helpfulness": 0.6,
+                    "note": "Referenced current work.",
+                },
+            ],
+        }
+
+        with time_machine.travel("2026-03-20T10:00:00Z", tick=False):
+            first = json.loads(asyncio.run(tools["memory_record_session"](**kwargs)))
+        with time_machine.travel("2026-03-21T10:00:00Z", tick=False):
+            replay = json.loads(asyncio.run(tools["memory_record_session"](**kwargs)))
+
+        session_summary = (
+            repo_root / "memory" / "activity" / "2026" / "03" / "20" / "chat-002" / "SUMMARY.md"
+        ).read_text(encoding="utf-8")
+        knowledge_access = [
+            json.loads(line)
+            for line in (repo_root / "memory" / "knowledge" / "ACCESS.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        plans_access = [
+            json.loads(line)
+            for line in (repo_root / "memory" / "working" / "projects" / "ACCESS.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        log_count = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        self.assertEqual(first["new_state"]["recording_outcome"], "recorded")
+        self.assertIsNone(replay["commit_sha"])
+        self.assertEqual(replay["files_changed"], [])
+        self.assertEqual(replay["new_state"]["recording_outcome"], "already_recorded")
+        self.assertEqual(len(knowledge_access), 1)
+        self.assertEqual(len(plans_access), 1)
+        self.assertIn("2026-03-20", session_summary)
+        self.assertEqual(log_count, "2")
+
+    def test_memory_record_session_rejects_divergent_replay(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/activity/SUMMARY.md": "# Chats\n## Structure\n",
+                "memory/knowledge/topic.md": "# Topic\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with time_machine.travel("2026-03-20T10:00:00Z", tick=False):
+            asyncio.run(
+                tools["memory_record_session"](
+                    session_id="memory/activity/2026/03/20/chat-002",
+                    summary="# Session Summary\n\nDid the work.\n",
+                    reflection="Observed a cleaner wrap-up path.",
+                    key_topics="semantic-tools,wrapup",
+                    access_entries=[
+                        {
+                            "file": "memory/knowledge/topic.md",
+                            "task": "session wrap-up",
+                            "helpfulness": 0.8,
+                            "note": "Relevant context for summary.",
+                        }
+                    ],
+                )
+            )
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_record_session"](
+                    session_id="memory/activity/2026/03/20/chat-002",
+                    summary="# Session Summary\n\nDid the work.\n",
+                    reflection="Observed a different wrap-up path.",
+                    key_topics="semantic-tools,wrapup",
+                    access_entries=[
+                        {
+                            "file": "memory/knowledge/topic.md",
+                            "task": "session wrap-up",
+                            "helpfulness": 0.8,
+                            "note": "Relevant context for summary.",
+                        }
+                    ],
+                )
+            )
+
+    def test_memory_checkpoint_writes_timestamped_entry_without_commit(self) -> None:
+        repo_root = self._init_repo({"memory/working/CURRENT.md": "# Current\n"})
+        tools = self._create_tools(repo_root)
+
+        with time_machine.travel("2026-03-29T09:10:00Z", tick=False):
+            raw = asyncio.run(
+                tools["memory_checkpoint"](
+                    content="Decision captured.",
+                    label="Decision",
+                )
+            )
+        payload = json.loads(raw)
+
+        current = (repo_root / "memory" / "working" / "CURRENT.md").read_text(encoding="utf-8")
+        log_count = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        status = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+        self.assertIsNone(payload["commit_sha"])
+        self.assertIsNone(payload["commit_message"])
+        self.assertEqual(payload["new_state"]["target"], "memory/working/CURRENT.md")
+        self.assertEqual(payload["new_state"]["entry_count"], 1)
+        self.assertTrue(payload["new_state"]["staged"])
+        self.assertIn("### [2026-03-29T09:10] Decision\nDecision captured.\n", current)
+        self.assertEqual(log_count, "1")
+        self.assertIn("CURRENT.md", status)
+
+    def test_memory_checkpoint_treats_label_as_optional(self) -> None:
+        repo_root = self._init_repo({"memory/working/CURRENT.md": "# Current\n"})
+        tools = self._create_tools(repo_root)
+
+        with time_machine.travel("2026-03-29T09:10:00Z", tick=False):
+            asyncio.run(tools["memory_checkpoint"](content="Plain note."))
+
+        current = (repo_root / "memory" / "working" / "CURRENT.md").read_text(encoding="utf-8")
+
+        self.assertIn("### [2026-03-29T09:10]\nPlain note.\n", current)
+
+    def test_memory_checkpoint_includes_session_comment_and_validates_session_id(self) -> None:
+        repo_root = self._init_repo({"memory/working/CURRENT.md": "# Current\n"})
+        tools = self._create_tools(repo_root)
+
+        with time_machine.travel("2026-03-29T09:10:00Z", tick=False):
+            raw = asyncio.run(
+                tools["memory_checkpoint"](
+                    content="Recovered parser design.",
+                    session_id="memory/activity/2026/03/29/chat-001",
+                )
+            )
+        payload = json.loads(raw)
+        current = (repo_root / "memory" / "working" / "CURRENT.md").read_text(encoding="utf-8")
+
+        self.assertEqual(
+            payload["new_state"]["session_id"],
+            "memory/activity/2026/03/29/chat-001",
+        )
+        self.assertIn(
+            "<!-- session_id: memory/activity/2026/03/29/chat-001 -->\nRecovered parser design.\n",
+            current,
+        )
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_checkpoint"](
+                    content="Bad session.",
+                    session_id="chat-001",
+                )
+            )
+
+    def test_memory_checkpoint_accumulates_entries_in_current(self) -> None:
+        repo_root = self._init_repo({"memory/working/CURRENT.md": "# Current\n"})
+        tools = self._create_tools(repo_root)
+
+        with time_machine.travel("2026-03-29T09:10:00Z", tick=False):
+            asyncio.run(tools["memory_checkpoint"](content="First note.", label="One"))
+        with time_machine.travel("2026-03-29T09:15:00Z", tick=False):
+            raw = asyncio.run(tools["memory_checkpoint"](content="Second note.", label="Two"))
+        payload = json.loads(raw)
+
+        current = (repo_root / "memory" / "working" / "CURRENT.md").read_text(encoding="utf-8")
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+        self.assertEqual(payload["new_state"]["entry_count"], 2)
+        self.assertEqual(current.count("### [2026-03-29T09:"), 2)
+        self.assertIn("---", current)
+        self.assertIn("core/memory/working/CURRENT.md", staged)
+
+    def test_memory_checkpoint_creates_current_and_appends_after_existing_content(self) -> None:
+        repo_root = self._init_repo({"memory/working/USER.md": "# User\n"})
+        tools = self._create_tools(repo_root)
+
+        with time_machine.travel("2026-03-29T09:10:00Z", tick=False):
+            asyncio.run(tools["memory_checkpoint"](content="Created current."))
+
+        created = (repo_root / "memory" / "working" / "CURRENT.md").read_text(encoding="utf-8")
+        self.assertIn("### [2026-03-29T09:10]\nCreated current.\n", created)
+
+        repo_root = self._init_repo(
+            {"memory/working/CURRENT.md": "# Current\n\nExisting scratchpad note.\n"}
+        )
+        tools = self._create_tools(repo_root)
+        with time_machine.travel("2026-03-29T09:10:00Z", tick=False):
+            asyncio.run(tools["memory_checkpoint"](content="Appended note."))
+
+        appended = (repo_root / "memory" / "working" / "CURRENT.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "Existing scratchpad note.\n\n---\n\n### [2026-03-29T09:10]\nAppended note.\n", appended
+        )
 
     def test_memory_append_scratchpad_accepts_dated_slug_and_creates_file(self) -> None:
         repo_root = self._init_repo({"memory/working/CURRENT.md": "# Current\n"})
@@ -5936,6 +6244,34 @@ current_focus: Example project.
         )
         self.assertEqual(payload["new_state"]["access_jsonl"], "memory/knowledge/ACCESS.jsonl")
         self.assertEqual(entry["task_id"], "plan-review")
+
+    def test_memory_log_access_persists_estimator_field(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/lit/foo.md": "# Foo\n",
+                "memory/knowledge/ACCESS.jsonl": "",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        raw = asyncio.run(
+            tools["memory_log_access"](
+                file="memory/knowledge/lit/foo.md",
+                task="test",
+                helpfulness=0.7,
+                note="estimator should be persisted",
+                estimator="sidecar",
+            )
+        )
+
+        payload = json.loads(raw)
+        entry = json.loads(
+            (repo_root / "memory" / "knowledge" / "ACCESS.jsonl")
+            .read_text(encoding="utf-8")
+            .strip()
+        )
+        self.assertEqual(payload["new_state"]["access_jsonl"], "memory/knowledge/ACCESS.jsonl")
+        self.assertEqual(entry["estimator"], "sidecar")
 
     def test_memory_log_access_routes_low_helpfulness_to_scans_sidecar(self) -> None:
         repo_root = self._init_repo(

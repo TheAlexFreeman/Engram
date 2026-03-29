@@ -237,6 +237,8 @@ At the end of any session where write actions were deferred, present a concise *
 [folder/ACCESS.jsonl]
 {"file": "...", "date": "...", "task": "...", "helpfulness": 0.7, "note": "...", "session_id": "memory/activity/YYYY/MM/DD/chat-NNN"}
 
+Optional ACCESS metadata may also include `category`, `mode`, `task_id`, and `estimator` provenance when available.
+
 ### Review-queue entries
 [core/governance/review-queue.md]
 - type: security, file: memory/knowledge/some-file.md, pattern: "always do X" detected

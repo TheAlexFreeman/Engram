@@ -1,3 +1,10 @@
+---
+source: external-research
+origin_session: manual
+created: 2026-03-29
+trust: low
+---
+
 # OpenClaw's Markdown memory system powers the most-starred AI project on GitHub
 
 OpenClaw is the fastest-growing open-source project in GitHub history — an autonomous AI agent created by Austrian developer Peter Steinberger that crossed **250,000+ GitHub stars** in under four months. Its memory system, which stores all agent knowledge as plain Markdown files on the local filesystem with hybrid vector-keyword search, has become one of the most discussed approaches to AI agent memory in early 2026. The architecture represents a deliberate philosophical choice: radical simplicity and human transparency over sophisticated but opaque memory infrastructure. Understanding OpenClaw's memory system matters because its explosive adoption has made it a de facto reference architecture, spawning standalone libraries (memsearch), third-party plugins (Cognee, Mem0, QMD), and extensive technical commentary on its strengths and limitations.

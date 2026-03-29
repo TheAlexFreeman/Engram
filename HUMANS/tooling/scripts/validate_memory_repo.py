@@ -67,7 +67,7 @@ LEGACY_ORIGIN_SESSION_RE = re.compile(r"^chat-\d{3}$")
 SPECIAL_ORIGIN_SESSION_VALUES = {"setup", "manual", "unknown"}
 
 REQUIRED_ACCESS_FIELDS = {"file", "date", "task", "helpfulness", "note"}
-OPTIONAL_ACCESS_FIELDS = {"session_id", "category", "mode", "task_id"}
+OPTIONAL_ACCESS_FIELDS = {"session_id", "category", "mode", "task_id", "estimator"}
 
 EXPECTED_QUICK_REFERENCE_PARAMETERS = (
     "Low-trust retirement threshold",
@@ -912,6 +912,8 @@ def validate_access_file(path: Path, root: Path, result: ValidationResult) -> No
                 )
         if "category" in payload and not isinstance(payload["category"], str):
             result.error(f"{path}:{line_number}: category must be a string when present")
+        if "estimator" in payload and not isinstance(payload["estimator"], str):
+            result.error(f"{path}:{line_number}: estimator must be a string when present")
 
         unknown_keys = set(payload) - REQUIRED_ACCESS_FIELDS - OPTIONAL_ACCESS_FIELDS
         if unknown_keys:
