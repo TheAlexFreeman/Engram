@@ -172,9 +172,7 @@ class MemoryMCPTests(unittest.TestCase):
 
         payload, hints = asyncio.run(run_call())
         unsafe = sorted(
-            name
-            for name in payload["profiles"]["read_only"]["tools"]
-            if hints.get(name) is False
+            name for name in payload["profiles"]["read_only"]["tools"] if hints.get(name) is False
         )
 
         self.assertEqual(unsafe, [])
@@ -183,7 +181,9 @@ class MemoryMCPTests(unittest.TestCase):
         async def run_call() -> tuple[dict[str, Any], dict[str, Any]]:
             flush = cast(
                 dict[str, Any],
-                json.loads(await self.module.memory_get_policy_state(operation="memory_session_flush")),
+                json.loads(
+                    await self.module.memory_get_policy_state(operation="memory_session_flush")
+                ),
             )
             reset = cast(
                 dict[str, Any],

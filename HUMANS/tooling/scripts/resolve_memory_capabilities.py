@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import argparse
+import asyncio
 import json
 import sys
 from importlib import import_module
@@ -242,10 +242,16 @@ def _expand_profile_tools(manifest: dict[str, Any], profile_name: str) -> list[s
         return []
 
     tools: list[str] = []
-    for tool_set_name in _ensure_string_list([], "tool_profile.tool_sets", profile.get("tool_sets")):
-        tools.extend(_ensure_string_list([], f"tool_sets.{tool_set_name}", tool_sets.get(tool_set_name)))
+    for tool_set_name in _ensure_string_list(
+        [], "tool_profile.tool_sets", profile.get("tool_sets")
+    ):
+        tools.extend(
+            _ensure_string_list([], f"tool_sets.{tool_set_name}", tool_sets.get(tool_set_name))
+        )
     tools.extend(_ensure_string_list([], "tool_profile.tools", profile.get("tools")))
-    excluded_tools = set(_ensure_string_list([], "tool_profile.exclude_tools", profile.get("exclude_tools")))
+    excluded_tools = set(
+        _ensure_string_list([], "tool_profile.exclude_tools", profile.get("exclude_tools"))
+    )
     return sorted({tool for tool in tools if tool not in excluded_tools})
 
 
@@ -889,9 +895,7 @@ def resolve_capabilities(repo_root: Path, *, include_runtime: bool = True) -> di
 
         read_only_profile_tools = _expand_profile_tools(manifest, "read_only")
         unsafe_read_only_profile_tools = sorted(
-            name
-            for name in read_only_profile_tools
-            if runtime_readonly_hints.get(name) is False
+            name for name in read_only_profile_tools if runtime_readonly_hints.get(name) is False
         )
         if unsafe_read_only_profile_tools:
             errors.append(
