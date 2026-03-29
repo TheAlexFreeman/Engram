@@ -6699,6 +6699,10 @@ current_focus: Example project.
         self.assertEqual(payload["overdue_low"][0]["path"], "memory/knowledge/low-trust.md")
 
     def test_memory_audit_trust_reports_approaching_bucket_before_upcoming_window(self) -> None:
+        # last_verified 2025-10-30 + 180-day medium threshold → overdue 2026-04-28
+        # medium_warn window starts at 150 days (2026-03-29 UTC).
+        # Freeze time to 2026-03-20 (141 days elapsed) so the file sits firmly
+        # in the approaching bucket regardless of when CI runs.
         repo_root = self._init_repo(
             {
                 "core/INIT.md": (
@@ -6713,9 +6717,10 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
-            asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
-        )
+        with time_machine.travel("2026-03-20T12:00:00Z", tick=False):
+            payload = json.loads(
+                asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
+            )
 
         self.assertEqual(payload["overdue_medium"], [])
         self.assertEqual(payload["upcoming_medium"], [])
