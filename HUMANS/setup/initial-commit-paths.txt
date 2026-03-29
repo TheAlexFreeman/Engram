@@ -803,6 +803,7 @@ core/tools/agent_memory_mcp/tools/graph_analysis.py
 core/tools/agent_memory_mcp/tools/name_index.py
 core/tools/agent_memory_mcp/tools/read_tools/__init__.py
 core/tools/agent_memory_mcp/tools/read_tools/_capability.py
+core/tools/agent_memory_mcp/tools/read_tools/_context.py
 core/tools/agent_memory_mcp/tools/read_tools/_generation.py
 core/tools/agent_memory_mcp/tools/read_tools/_git.py
 core/tools/agent_memory_mcp/tools/read_tools/_health.py
@@ -826,6 +827,9 @@ core/tools/memory_mcp.py
 core/tools/tests/__init__.py
 core/tools/tests/conftest.py
 core/tools/tests/test_agent_memory_mcp_write_tools.py
+core/tools/tests/test_context_helpers.py
+core/tools/tests/test_context_home.py
+core/tools/tests/test_context_project.py
 core/tools/tests/test_core_boundary.py
 core/tools/tests/test_eval_scenarios.py
 core/tools/tests/test_eval_utils.py
