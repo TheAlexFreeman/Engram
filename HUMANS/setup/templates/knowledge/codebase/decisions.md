@@ -3,6 +3,7 @@ source: template
 origin_session: setup
 created: {{TODAY}}
 trust: low
+related: []
 ---
 
 # Design Decisions - {{PROJECT_NAME}}

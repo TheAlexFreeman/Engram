@@ -1,7 +1,7 @@
 ---
 source: template
 origin_session: setup
-created: { { TODAY } }
+created: {{TODAY}}
 trust: low
 ---
 

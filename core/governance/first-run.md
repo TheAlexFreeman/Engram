@@ -42,3 +42,7 @@ At this point you have loaded: system architecture (README.md), evolution histor
 ## After first run
 
 From session two onward, return to `core/INIT.md` for live routing. Follow the Compact returning manifest in `core/INIT.md` → `core/memory/HOME.md` for the context loading order. Keep project plans task-driven, and load `core/governance/session-checklists.md` only when you want detailed runbooks.
+
+### Worktree mode: codebase survey
+
+In worktree mode, the init script seeds a codebase-survey project as the first active project. After onboarding completes, mention this project during the forward bridge (Phase D of the onboarding skill) so the user knows what session two will look like. Do not start the survey during the onboarding session — it is the natural second-session task.

@@ -84,7 +84,8 @@ End by making session two feel real:
 1. Briefly say what next time will feel like: you will greet them with what you learned and can pick up open threads.
 2. Offer `core/memory/working/USER.md` as a place for notes between sessions.
 3. If the seed task has follow-up work, suggest tracking it as a project or plan.
-4. Close as someone who now knows the user, not as a generic system.
+4. If `core/memory/working/projects/codebase-survey/SUMMARY.md` exists and its status is `active`, mention the codebase survey as the natural first project to pick up next session. Frame it concretely: "Next time I'll start mapping [project name]'s architecture so future sessions can orient quickly."
+5. Close as someone who now knows the user, not as a generic system.
 
 ## Discovery audit
 

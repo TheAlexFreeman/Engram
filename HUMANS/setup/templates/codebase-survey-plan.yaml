@@ -3,6 +3,9 @@ project: codebase-survey
 created: {{TODAY}}
 origin_session: setup
 status: active
+budget:
+  max_sessions: 6
+  deadline: null
 purpose:
   summary: {{PROJECT_NAME}} codebase survey and durable knowledge seeding.
   context: |
@@ -13,7 +16,11 @@ purpose:
     This plan seeds the initial codebase-survey project. Each phase should
     replace low-trust template material with verified notes grounded in the host
     repository at {{HOST_REPO_ROOT}}.
-  questions: []
+  questions:
+    - What are the main entry points for this application?
+    - What build, test, and run commands does this project use?
+    - What is the primary tech stack (language, framework, database)?
+    - Are there existing architecture docs, ADRs, or CONTRIBUTING guides?
 work:
   phases:
     - id: entry-point-mapping
@@ -21,6 +28,13 @@ work:
       status: pending
       commit: null
       blockers: []
+      sources:
+        - path: '{{HOST_REPO_ROOT}}'
+          type: internal
+          intent: Identify main executables, boot files, framework entry points, and top-level package boundaries.
+      postconditions:
+        - type: check
+          description: architecture.md contains at least one concrete entry-point path from the host repo.
       changes:
         - path: memory/knowledge/codebase/architecture.md
           action: update
@@ -29,7 +43,15 @@ work:
       title: Trace major modules, services, and feature areas.
       status: pending
       commit: null
-      blockers: []
+      blockers:
+        - entry-point-mapping
+      sources:
+        - path: memory/knowledge/codebase/architecture.md
+          type: internal
+          intent: Follow imports and registrations outward from the entry points identified in phase 1.
+      postconditions:
+        - type: check
+          description: architecture.md lists at least 3 distinct modules or feature areas with responsibilities.
       changes:
         - path: memory/knowledge/codebase/architecture.md
           action: update
@@ -38,7 +60,15 @@ work:
       title: Document core entities, persistence layers, and API boundaries.
       status: pending
       commit: null
-      blockers: []
+      blockers:
+        - entry-point-mapping
+      sources:
+        - path: '{{HOST_REPO_ROOT}}'
+          type: internal
+          intent: Trace core domain entities, persistence layers, and API contracts from the entry points.
+      postconditions:
+        - type: check
+          description: data-model.md contains at least one concrete entity definition grounded in the host repo.
       changes:
         - path: memory/knowledge/codebase/data-model.md
           action: update
@@ -47,7 +77,15 @@ work:
       title: Capture run, test, deploy, debug, and observability workflows.
       status: pending
       commit: null
-      blockers: []
+      blockers:
+        - entry-point-mapping
+      sources:
+        - path: '{{HOST_REPO_ROOT}}'
+          type: internal
+          intent: Locate CI configs, Dockerfiles, Makefiles, and script directories to capture build, test, and deploy commands.
+      postconditions:
+        - type: check
+          description: operations.md contains at least one verified runnable command (build, test, or run).
       changes:
         - path: memory/knowledge/codebase/operations.md
           action: update
@@ -56,7 +94,15 @@ work:
       title: Record ADRs, conventions, and historically relevant implementation decisions.
       status: pending
       commit: null
-      blockers: []
+      blockers:
+        - entry-point-mapping
+      sources:
+        - path: '{{HOST_REPO_ROOT}}'
+          type: internal
+          intent: Find ADR directories, CONTRIBUTING.md, README.md, and convention docs for design rationale.
+      postconditions:
+        - type: check
+          description: decisions.md cites at least one concrete source file, ADR, or documented convention.
       changes:
         - path: memory/knowledge/codebase/decisions.md
           action: update
@@ -65,7 +111,27 @@ work:
       title: Add source grounding and update summary maintenance guidance.
       status: pending
       commit: null
-      blockers: []
+      blockers:
+        - subsystem-survey
+        - data-model-and-apis
+        - operations-and-delivery
+        - decisions-and-history
+      sources:
+        - path: memory/knowledge/codebase/architecture.md
+          type: internal
+          intent: Cross-reference architecture notes with source files and add related frontmatter.
+        - path: memory/knowledge/codebase/data-model.md
+          type: internal
+          intent: Cross-reference data model notes with source files and add related frontmatter.
+        - path: memory/knowledge/codebase/operations.md
+          type: internal
+          intent: Cross-reference operations notes with source files and add related frontmatter.
+        - path: memory/knowledge/codebase/decisions.md
+          type: internal
+          intent: Cross-reference decisions notes with source files and add related frontmatter.
+      postconditions:
+        - type: check
+          description: SUMMARY.md lists related source paths and includes a re-verification cadence note.
       changes:
         - path: memory/knowledge/codebase/SUMMARY.md
           action: update

@@ -377,7 +377,28 @@ _No active or ongoing projects._"
 _No shipped artifacts yet._"
     write_text_file "$worktree_root/core/memory/working/CURRENT.md" "# Agent working notes
 
-_No current notes._"
+Provisional, agent-authored. Not formal memory.
+
+See \`core/governance/scratchpad-guidelines.md\` for the full write protocol.
+
+---
+
+## Active threads
+
+- **Codebase survey** — Active project. Begin with the entry-point-mapping phase after onboarding completes. See \`core/memory/working/projects/codebase-survey/plans/survey-plan.yaml\`.
+
+## Immediate next actions
+
+- Complete onboarding (first session), then begin entry-point-mapping phase of the codebase survey (second session).
+
+## Open questions
+
+_None_
+
+## Drill-down refs
+
+- \`core/memory/working/projects/SUMMARY.md\` for the project navigator.
+- \`core/memory/working/projects/codebase-survey/plans/survey-plan.yaml\` for the survey plan."
     write_text_file "$worktree_root/core/memory/working/USER.md" "# User Scratchpad
 
 User-authored constraints and reminders for this codebase belong here."
@@ -443,7 +464,7 @@ trust: medium
 type: project
 status: active
 cognitive_mode: exploration
-open_questions: 0
+open_questions: 5
 active_plans: 1
 last_activity: $TODAY
 current_focus: \"Capture the architecture, interfaces, operations, and design rationale for $project_name.\"
@@ -472,12 +493,16 @@ origin_session: setup
 created: $TODAY
 trust: medium
 type: questions
-next_question_id: 1
+next_question_id: 6
 ---
 
 # Open Questions
 
-_None yet._
+1. What are the main entry points for this application? \`[entry-point-mapping]\`
+2. What build, test, and run commands does this project use? \`[operations-and-delivery]\`
+3. What is the primary tech stack (language, framework, database)? \`[subsystem-survey]\`
+4. Are there existing architecture docs, ADRs, or CONTRIBUTING guides? \`[decisions-and-history]\`
+5. What are the main deployment targets and CI pipelines? \`[operations-and-delivery]\`
 
 ---
 
@@ -512,7 +537,7 @@ project_count: 1
 
 | Project | Status | Mode | Open Qs | Focus | Last activity |
 |---|---|---|---|---|---|
-| codebase-survey | active | exploration | 0 | Capture the architecture, interfaces, operations, and design rationale for $project_name. | $TODAY |"
+| codebase-survey | active | exploration | 5 | Capture the architecture, interfaces, operations, and design rationale for $project_name. | $TODAY |"
 }
 
 update_bootstrap_file() {

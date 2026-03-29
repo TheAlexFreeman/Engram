@@ -257,6 +257,7 @@ In worktree mode, the init script writes `mcp-config-example.json` in the host r
 2. Exempt the memory branch from CI and branch protection.
 3. Exclude the worktree path from host tooling.
 4. Trust the generated MCP config for your client.
-5. Start with `core/memory/working/projects/codebase-survey/plans/survey-plan.yaml` and fill `core/memory/knowledge/codebase/` as you learn the host repo.
+5. Run onboarding in the first session. The codebase survey project is seeded as the first active project and begins naturally from session two onward (see `core/memory/skills/codebase-survey.md`).
+6. Start with `core/memory/working/projects/codebase-survey/plans/survey-plan.yaml` and fill `core/memory/knowledge/codebase/` as you learn the host repo.
 
 For the full MCP tool surface available once the server is running, see [MCP.md](MCP.md).

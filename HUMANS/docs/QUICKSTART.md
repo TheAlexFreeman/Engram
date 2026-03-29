@@ -243,7 +243,7 @@ All accumulated knowledge, skills, and identity information transfers automatica
 
 ### Attaching to an existing codebase (worktree mode)
 
-If you want Engram to live inside an existing project repository rather than as a standalone repo, use worktree mode. This deploys the memory store as an orphan-branch worktree, keeping memory commits out of your product history.
+If you want Engram to live inside an existing project repository rather than as a standalone repo, use worktree mode. This deploys the memory store as an orphan-branch worktree, keeping memory commits out of your product history. The init script seeds a codebase-survey project as the first active task — after onboarding, the agent begins mapping the host repo's architecture, data model, operations, and design decisions.
 
 See [WORKTREE.md](WORKTREE.md) for the full guide, including CI exemptions, tooling-bleed prevention, and MCP client wiring.
 

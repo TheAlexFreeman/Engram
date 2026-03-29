@@ -3,6 +3,7 @@ source: template
 origin_session: setup
 created: {{TODAY}}
 trust: low
+related: []
 ---
 
 # Data Model - {{PROJECT_NAME}}
