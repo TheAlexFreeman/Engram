@@ -80,10 +80,10 @@ class SidecarCliTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmpdir.cleanup)
-        self.repo_root = Path(self._tmpdir.name) / "repo"
+        self.repo_root = Path(self._tmpdir.name).resolve() / "repo"
         (self.repo_root / "core" / "memory" / "activity").mkdir(parents=True, exist_ok=True)
         (self.repo_root / "core" / "memory" / "knowledge").mkdir(parents=True, exist_ok=True)
-        self.projects_root = Path(self._tmpdir.name) / ".claude" / "projects"
+        self.projects_root = Path(self._tmpdir.name).resolve() / ".claude" / "projects"
         self.projects_root.mkdir(parents=True, exist_ok=True)
 
     def test_load_config_uses_environment_defaults(self) -> None:
