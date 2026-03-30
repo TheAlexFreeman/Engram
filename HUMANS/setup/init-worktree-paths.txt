@@ -14,4 +14,5 @@ core/tools/memory_mcp.py
 core/governance
 core/INIT.md
 core/memory/HOME.md
+core/memory/knowledge/software-engineering
 core/memory/skills

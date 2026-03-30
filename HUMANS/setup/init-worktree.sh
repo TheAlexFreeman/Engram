@@ -525,7 +525,11 @@ _None yet._"
 Starter codebase notes for $project_name live under [codebase/SUMMARY.md](codebase/SUMMARY.md).
 
 Begin with [codebase/architecture.md](codebase/architecture.md), then fill the
-data model, operations, and design-rationale stubs as the survey plan advances."
+data model, operations, and design-rationale stubs as the survey plan advances.
+
+## Included knowledge bases
+
+- [software-engineering/SUMMARY.md](software-engineering/SUMMARY.md) — Django, React, DevOps, testing, AI engineering, web fundamentals"
 
     write_text_file "$worktree_root/core/memory/working/projects/SUMMARY.md" "---
 type: projects-navigator
