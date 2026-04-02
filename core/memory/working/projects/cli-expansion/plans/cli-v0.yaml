@@ -1,0 +1,180 @@
+id: cli-v0
+project: cli-expansion
+created: '2026-04-02'
+origin_session: memory/activity/2026/04/02/chat-001
+status: active
+budget:
+  deadline: '2026-05-01'
+  max_sessions: 8
+purpose:
+  summary: 'Implement the first three engram CLI commands: search, status, and validate.'
+  context: "Engram has no human/agent-facing CLI for interacting with memory outside of the\
+    \ MCP protocol. The three highest-leverage commands are: search (query memory from a terminal),\
+    \ status (memory health dashboard), and validate (repo integrity check). All three reuse\
+    \ existing business logic \u2014 the CLI is a thin presentation layer on top of functions\
+    \ already implemented in the MCP server and validator script. Design constraints: argparse\
+    \ (matches existing CLIs), --json on every command, graceful degradation when optional\
+    \ deps are missing, same repo-root resolution as the MCP server."
+  questions: []
+work:
+  phases:
+  - id: scaffold
+    title: CLI scaffold and repo root resolution
+    status: pending
+    commit: null
+    blockers: []
+    sources:
+    - path: core/tools/agent_memory_mcp/server.py
+      type: internal
+      intent: Repo root resolution logic to reuse
+    - path: core/tools/agent_memory_mcp/sidecar/cli.py
+      type: internal
+      intent: argparse patterns used by existing CLIs
+    - path: pyproject.toml
+      type: internal
+      intent: Entry point registration
+    postconditions:
+    - description: engram --help prints subcommand list
+    - description: engram --version prints package version
+    - description: pyproject.toml has engram entry point
+      type: grep
+      target: pyproject.toml
+    changes:
+    - path: core/tools/agent_memory_mcp/cli/__init__.py
+      action: create
+      description: CLI package init.
+    - path: core/tools/agent_memory_mcp/cli/main.py
+      action: create
+      description: 'Main entry point: build_parser() with subcommand registration, resolve_repo_root()
+        reusing MEMORY_REPO_ROOT / AGENT_MEMORY_ROOT / cwd-walk / file-relative chain, and
+        main() that parses args and dispatches to subcommand handlers. Global flags: --json,
+        --repo-root, --version.'
+    - path: pyproject.toml
+      action: update
+      description: Add engram = engram_mcp.agent_memory_mcp.cli.main:main to [project.scripts].
+        Add engram_mcp.agent_memory_mcp.cli to [tool.setuptools] packages list.
+  - id: validate-cmd
+    title: Implement engram validate
+    status: pending
+    commit: null
+    blockers: []
+    sources:
+    - path: HUMANS/tooling/scripts/validate_memory_repo.py
+      type: internal
+      intent: Existing validation logic to wrap or refactor
+    postconditions:
+    - description: engram validate runs all checks and prints results
+    - description: engram validate --json outputs structured JSON findings
+    - description: 'Exit codes: 0 clean, 1 warnings, 2 errors'
+    - description: Tests cover the validate subcommand
+      type: test
+      target: core/tools/tests/test_cli_validate.py
+    changes:
+    - path: core/tools/agent_memory_mcp/cli/cmd_validate.py
+      action: create
+      description: Validate subcommand. Imports checking functions from the refactored validator
+        core. register_validate(subparsers) adds the subcommand. run_validate(args, repo_root)
+        executes checks and formats output (human-readable table or JSON). Returns exit code.
+    - path: core/tools/agent_memory_mcp/cli/validators.py
+      action: create
+      description: 'Importable validation core extracted from validate_memory_repo.py. Functions:
+        check_frontmatter(), check_access_files(), check_summaries(), check_orphans(), check_links().
+        Each returns a list of Finding(severity, path, message) dataclasses.'
+    - path: core/tools/tests/test_cli_validate.py
+      action: create
+      description: 'Tests: clean repo produces exit 0, missing frontmatter produces warning,
+        broken link produces error, --json output parses as valid JSON array of findings.'
+  - id: status-cmd
+    title: Implement engram status
+    status: pending
+    commit: null
+    blockers: []
+    sources:
+    - path: core/INIT.md
+      type: internal
+      intent: Maturity stage, thresholds, last review date
+    - path: core/governance/review-queue.md
+      type: internal
+      intent: Pending review items
+    postconditions:
+    - description: engram status prints stage, review date, ACCESS counts, pending reviews,
+        active plans
+    - description: engram status --json outputs structured JSON
+    - description: Tests cover status output and edge cases
+      type: test
+      target: core/tools/tests/test_cli_status.py
+    changes:
+    - path: core/tools/agent_memory_mcp/cli/cmd_status.py
+      action: create
+      description: 'Status subcommand. register_status(subparsers) adds the subcommand. run_status(args,
+        repo_root) collects: maturity stage and last review from INIT.md (regex parse), ACCESS.jsonl
+        line counts per namespace, review-queue pending count, unverified content with expiry
+        dates, active plan count and names. Renders as formatted terminal output or JSON.'
+    - path: core/tools/tests/test_cli_status.py
+      action: create
+      description: 'Tests: status on a well-formed repo, status on empty repo (no ACCESS files),
+        JSON output structure, aggregation warning when count exceeds threshold.'
+  - id: search-cmd
+    title: Implement engram search
+    status: pending
+    commit: null
+    blockers: []
+    sources:
+    - path: core/tools/agent_memory_mcp/tools/read_tools/_search.py
+      type: internal
+      intent: Keyword search implementation
+    - path: core/tools/agent_memory_mcp/tools/semantic/search_tools.py
+      type: internal
+      intent: Semantic search and vector index
+    postconditions:
+    - description: engram search query returns matching files with snippets
+    - description: Falls back to keyword mode when sentence-transformers not installed
+    - description: engram search --json outputs structured JSON results
+    - description: Tests cover keyword mode, semantic mode, fallback, and --scope
+      type: test
+      target: core/tools/tests/test_cli_search.py
+    changes:
+    - path: core/tools/agent_memory_mcp/cli/cmd_search.py
+      action: create
+      description: 'Search subcommand. register_search(subparsers). run_search(args, repo_root)
+        tries to import sentence_transformers; if available and --keyword not forced, uses
+        semantic search; otherwise falls back to keyword grep. Prints mode banner. Each result:
+        relative path, trust level from frontmatter, matching snippet, similarity score (semantic
+        only). --json emits array of result objects.'
+    - path: core/tools/tests/test_cli_search.py
+      action: create
+      description: 'Tests: keyword search finds known content, --scope limits results, --json
+        output is valid, fallback prints mode banner, --limit caps results.'
+  - id: integration
+    title: Integration testing, docs, and package wiring
+    status: pending
+    commit: null
+    blockers: []
+    sources:
+    - path: HUMANS/docs/QUICKSTART.md
+      type: internal
+      intent: Documentation to update
+    postconditions:
+    - description: All existing and new CLI tests pass
+      type: test
+      target: core/tools/tests/
+    - description: pre-commit run --all-files passes
+      type: check
+      target: pre-commit run --all-files
+    - description: CLI usage is documented for humans
+    requires_approval: true
+    changes:
+    - path: core/tools/tests/test_cli_integration.py
+      action: create
+      description: End-to-end tests using subprocess.run to invoke engram validate, engram
+        status, and engram search against a fixture repo. Verify exit codes, output contains
+        expected strings, --json produces parseable JSON.
+    - path: HUMANS/docs/CLI.md
+      action: create
+      description: 'Human-facing CLI documentation: installation, repo root resolution, command
+        reference (validate, status, search), --json usage, examples for humans and scripts/agents.'
+    - path: HUMANS/docs/QUICKSTART.md
+      action: update
+      description: Add a CLI section pointing to CLI.md with a quick-start example of engram
+        status and engram search.
+review: null

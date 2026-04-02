@@ -46,18 +46,36 @@ If you already have an agent runtime, prefer MCP over direct file access wheneve
 
 ## Quick start
 
-Run the init script from the **host repository root**:
+**Option A — curl one-liner** (recommended, no manual clone needed):
+
+Run from the **host repository root**:
 
 ```bash
-bash HUMANS/setup/init-worktree.sh \
+curl -fsSL https://raw.githubusercontent.com/TheAlexFreeman/Engram/main/install-worktree.sh \
+    | bash -s -- \
+        --non-interactive \
+        --platform codex \
+        --profile software-developer \
+        --worktree-path .agent-memory \
+        --branch-name agent-memory
+```
+
+`install-worktree.sh` shallow-clones Engram into a temp directory, delegates to `HUMANS/setup/init-worktree.sh`, and removes the clone on exit. The `ENGRAM_REPO` and `ENGRAM_BRANCH` environment variables override the source if you maintain a fork.
+
+**Option B — manual clone** (if you prefer not to pipe to bash):
+
+```bash
+git clone --depth 1 https://github.com/TheAlexFreeman/Engram.git /tmp/engram-seed
+bash /tmp/engram-seed/HUMANS/setup/init-worktree.sh \
     --non-interactive \
     --platform codex \
     --profile software-developer \
     --worktree-path .agent-memory \
     --branch-name agent-memory
+rm -rf /tmp/engram-seed
 ```
 
-The script will:
+Both options produce identical results. The script will:
 
 1. create an orphan memory branch
 2. materialize the memory worktree at the configured path

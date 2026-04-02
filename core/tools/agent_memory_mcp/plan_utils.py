@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date as date_type
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import yaml  # type: ignore[import-untyped]
 
@@ -68,8 +68,340 @@ PLAN_OUTCOMES = {"completed", "partial", "abandoned"}
 CHANGE_ACTIONS = {"create", "rewrite", "update", "delete", "rename"}
 SOURCE_TYPES = {"internal", "external", "mcp"}
 POSTCONDITION_TYPES = {"check", "grep", "test", "manual"}
+CHANGE_ACTION_ALIASES = {"modify": "update"}
+SOURCE_TYPE_ALIASES = {"code": "internal"}
+POSTCONDITION_TYPE_ALIASES = {"file_check": "check"}
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_PLAN_SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+_SESSION_ID_PATTERN = r"^memory/activity/\d{4}/\d{2}/\d{2}/chat-\d{3}$"
+
+
+def _normalize_enum_alias(value: str, aliases: dict[str, str]) -> str:
+    if not isinstance(value, str):
+        return value
+    normalized = value.strip()
+    return aliases.get(normalized, normalized)
+
+
+def _build_validation_error(errors: list[str]) -> ValidationError:
+    normalized = [str(error).strip() for error in errors if str(error).strip()]
+    if not normalized:
+        error = ValidationError("invalid plan input")
+        setattr(error, "errors", ["invalid plan input"])
+        return error
+    if len(normalized) == 1:
+        message = normalized[0]
+    else:
+        message = f"{len(normalized)} validation errors:\n" + "\n".join(
+            f"- {item}" for item in normalized
+        )
+    error = ValidationError(message)
+    setattr(error, "errors", normalized)
+    return error
+
+
+def _raise_collected_validation_errors(errors: list[str]) -> None:
+    if errors:
+        raise _build_validation_error(errors)
+
+
+def validation_error_messages(error: ValidationError) -> list[str]:
+    details = getattr(error, "errors", None)
+    if isinstance(details, list) and details:
+        return [str(item).strip() for item in details if str(item).strip()]
+    message = str(error).strip()
+    return [message] if message else []
+
+
+def _prefix_validation_errors(path: str, error: ValidationError) -> list[str]:
+    return [f"{path}: {message}" for message in validation_error_messages(error)]
+
+
+def plan_create_input_schema() -> dict[str, Any]:
+    """Return the nested input schema for ``memory_plan_create`` as JSON-serializable data."""
+
+    source_item = {
+        "type": "object",
+        "description": "Source to consult before executing phase changes. Unknown keys are ignored.",
+        "required": ["path", "type", "intent"],
+        "additionalProperties": True,
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": (
+                    "Repo-relative path for internal sources; descriptive identifier for external or MCP sources."
+                ),
+            },
+            "type": {
+                "type": "string",
+                "enum": sorted(SOURCE_TYPES),
+                "description": "Canonical source type.",
+                "x-aliases": dict(sorted(SOURCE_TYPE_ALIASES.items())),
+            },
+            "intent": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Why the phase should consult this source.",
+            },
+            "uri": {
+                "type": "string",
+                "description": "Required when type='external'.",
+            },
+            "mcp_server": {
+                "type": "string",
+                "description": "Required with mcp_tool when type='mcp'.",
+            },
+            "mcp_tool": {
+                "type": "string",
+                "description": "Required with mcp_server when type='mcp'.",
+            },
+            "mcp_arguments": {
+                "type": "object",
+                "description": "Optional arguments passed to the MCP tool when type='mcp'.",
+            },
+        },
+        "allOf": [
+            {
+                "if": {"properties": {"type": {"const": "external"}}},
+                "then": {"required": ["uri"]},
+            },
+            {
+                "if": {"properties": {"type": {"const": "mcp"}}},
+                "then": {"required": ["mcp_server", "mcp_tool"]},
+            },
+        ],
+    }
+    postcondition_object = {
+        "type": "object",
+        "description": "Formal postcondition object. Unknown keys are ignored.",
+        "required": ["description"],
+        "additionalProperties": True,
+        "properties": {
+            "description": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Human-readable success criterion.",
+            },
+            "type": {
+                "type": "string",
+                "enum": sorted(POSTCONDITION_TYPES),
+                "default": "manual",
+                "description": (
+                    "Canonical validator type. check=file exists, grep=regex in file, test=allowlisted command, manual=human verification."
+                ),
+                "x-aliases": dict(sorted(POSTCONDITION_TYPE_ALIASES.items())),
+            },
+            "target": {
+                "type": "string",
+                "description": "Required when type is check, grep, or test.",
+            },
+        },
+        "allOf": [
+            {
+                "if": {"properties": {"type": {"enum": ["check", "grep", "test"]}}},
+                "then": {"required": ["target"]},
+            }
+        ],
+    }
+    change_item = {
+        "type": "object",
+        "description": "Planned file change. Unknown keys are ignored.",
+        "required": ["path", "action", "description"],
+        "additionalProperties": True,
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Repo-relative path affected by the phase.",
+            },
+            "action": {
+                "type": "string",
+                "enum": sorted(CHANGE_ACTIONS),
+                "description": "Canonical change action.",
+                "x-aliases": dict(sorted(CHANGE_ACTION_ALIASES.items())),
+            },
+            "description": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Short explanation of the intended change.",
+            },
+        },
+    }
+    failure_item = {
+        "type": "object",
+        "description": "Recorded phase failure. Usually tool-generated rather than authored manually.",
+        "required": ["timestamp", "reason"],
+        "additionalProperties": True,
+        "properties": {
+            "timestamp": {"type": "string", "minLength": 1},
+            "reason": {"type": "string", "minLength": 1},
+            "verification_results": {
+                "type": "array",
+                "items": {"type": "object"},
+            },
+            "attempt": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 1,
+            },
+        },
+    }
+    phase_item = {
+        "type": "object",
+        "description": "Single ordered phase in the plan. Unknown keys are ignored.",
+        "required": ["id", "title", "changes"],
+        "additionalProperties": True,
+        "properties": {
+            "id": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Kebab-case phase identifier.",
+            },
+            "title": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Human-readable phase title.",
+            },
+            "status": {
+                "type": "string",
+                "enum": sorted(PHASE_STATUSES),
+                "default": "pending",
+            },
+            "commit": {
+                "type": ["string", "null"],
+                "description": "Optional commit SHA recorded when the phase completes.",
+            },
+            "blockers": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1},
+                "description": "Phase ids or cross-plan references that must complete first.",
+            },
+            "sources": {
+                "type": "array",
+                "items": source_item,
+            },
+            "postconditions": {
+                "type": "array",
+                "description": "Success criteria. Strings are shorthand for manual postconditions.",
+                "items": {
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Shorthand manual postcondition.",
+                        },
+                        postcondition_object,
+                    ]
+                },
+            },
+            "requires_approval": {
+                "type": "boolean",
+                "default": False,
+                "description": "Extra HITL gate for the phase beyond change-class-based approvals.",
+            },
+            "changes": {
+                "type": "array",
+                "minItems": 1,
+                "items": change_item,
+            },
+            "failures": {
+                "type": "array",
+                "items": failure_item,
+            },
+        },
+    }
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "schema_version": 1,
+        "tool_name": "memory_plan_create",
+        "title": "memory_plan_create input schema",
+        "type": "object",
+        "required": [
+            "plan_id",
+            "project_id",
+            "purpose_summary",
+            "purpose_context",
+            "phases",
+            "session_id",
+        ],
+        "additionalProperties": False,
+        "properties": {
+            "plan_id": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Kebab-case plan identifier.",
+            },
+            "project_id": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Kebab-case project identifier.",
+            },
+            "purpose_summary": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Short purpose summary shown in project navigation.",
+            },
+            "purpose_context": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Longer context block stored in the plan document.",
+            },
+            "phases": {
+                "type": "array",
+                "minItems": 1,
+                "items": phase_item,
+                "description": "Ordered plan phases.",
+            },
+            "session_id": {
+                "type": "string",
+                "pattern": _SESSION_ID_PATTERN,
+                "description": "Canonical origin session id.",
+            },
+            "questions": {
+                "type": ["array", "null"],
+                "items": {"type": "string", "minLength": 1},
+                "description": "Optional open questions stored under purpose.questions.",
+            },
+            "budget": {
+                "type": ["object", "null"],
+                "description": "Optional execution budget.",
+                "additionalProperties": True,
+                "properties": {
+                    "deadline": {
+                        "type": "string",
+                        "pattern": _DATE_RE.pattern,
+                        "description": "YYYY-MM-DD deadline.",
+                    },
+                    "max_sessions": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Maximum session budget.",
+                    },
+                    "advisory": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Whether budget overruns are advisory or hard-gated downstream.",
+                    },
+                },
+            },
+            "status": {
+                "type": "string",
+                "enum": ["draft", "active"],
+                "default": "active",
+                "description": "Allowed initial plan status for creation.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, valid requests return the normal preview envelope and invalid requests return structured validation feedback without writing.",
+            },
+        },
+        "x-notes": [
+            "Nested phase mappings currently ignore unknown keys rather than rejecting them.",
+            "Canonical enum values are always serialized back to the stored plan document.",
+            "Use memory_plan_schema when callers need the nested contract without guessing from validation errors.",
+        ],
+    }
 
 
 def project_plan_path(project_id: str, plan_id: str) -> str:
@@ -172,6 +504,7 @@ class ChangeSpec:
 
     def __post_init__(self) -> None:
         self.path = _normalize_repo_relative_path(self.path)
+        self.action = _normalize_enum_alias(self.action, CHANGE_ACTION_ALIASES)
         if self.action not in CHANGE_ACTIONS:
             raise ValidationError(
                 f"change action must be one of {sorted(CHANGE_ACTIONS)}: {self.action!r}"
@@ -201,6 +534,7 @@ class SourceSpec:
     mcp_arguments: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
+        self.type = _normalize_enum_alias(self.type, SOURCE_TYPE_ALIASES)
         if self.type not in SOURCE_TYPES:
             raise ValidationError(
                 f"source type must be one of {sorted(SOURCE_TYPES)}: {self.type!r}"
@@ -297,6 +631,7 @@ class PostconditionSpec:
         if not isinstance(self.description, str) or not self.description.strip():
             raise ValidationError("postcondition description must be a non-empty string")
         self.description = self.description.strip()
+        self.type = _normalize_enum_alias(self.type, POSTCONDITION_TYPE_ALIASES)
         if self.type not in POSTCONDITION_TYPES:
             raise ValidationError(
                 f"postcondition type must be one of {sorted(POSTCONDITION_TYPES)}: {self.type!r}"
@@ -551,132 +886,444 @@ class PlanDocument:
         return payload
 
 
-def _coerce_change_specs(raw_changes: Any) -> list[ChangeSpec]:
+class ChangeSpecInput(TypedDict):
+    path: str
+    action: str
+    description: str
+
+
+class _RequiredSourceSpecInput(TypedDict):
+    path: str
+    type: str
+    intent: str
+
+
+class SourceSpecInput(_RequiredSourceSpecInput, total=False):
+    uri: Any
+    mcp_server: Any
+    mcp_tool: Any
+    mcp_arguments: Any
+
+
+class _RequiredPostconditionSpecInput(TypedDict):
+    description: str
+
+
+class PostconditionSpecInput(_RequiredPostconditionSpecInput, total=False):
+    type: str
+    target: Any
+
+
+class _RequiredPhaseFailureInput(TypedDict):
+    timestamp: str
+    reason: str
+
+
+class PhaseFailureInput(_RequiredPhaseFailureInput, total=False):
+    verification_results: Any
+    attempt: Any
+
+
+class _RequiredPhaseSpecInput(TypedDict):
+    id: str
+    title: str
+    changes: list[ChangeSpecInput]
+
+
+class PhaseSpecInput(_RequiredPhaseSpecInput, total=False):
+    status: str
+    commit: str | None
+    blockers: list[str]
+    sources: list[SourceSpecInput]
+    postconditions: list[PostconditionSpecInput]
+    failures: list[PhaseFailureInput]
+    requires_approval: bool
+
+
+def _coerce_change_spec_input(raw_change: dict[str, Any]) -> ChangeSpecInput:
+    return {
+        "path": str(raw_change.get("path", "")),
+        "action": _normalize_enum_alias(str(raw_change.get("action", "")), CHANGE_ACTION_ALIASES),
+        "description": str(raw_change.get("description", "")),
+    }
+
+
+def _coerce_source_spec_input(raw_source: dict[str, Any]) -> SourceSpecInput:
+    payload: SourceSpecInput = {
+        "path": str(raw_source.get("path", "")),
+        "type": _normalize_enum_alias(str(raw_source.get("type", "internal")), SOURCE_TYPE_ALIASES),
+        "intent": str(raw_source.get("intent", "")),
+    }
+    if "uri" in raw_source:
+        payload["uri"] = raw_source.get("uri")
+    if "mcp_server" in raw_source:
+        payload["mcp_server"] = raw_source.get("mcp_server")
+    if "mcp_tool" in raw_source:
+        payload["mcp_tool"] = raw_source.get("mcp_tool")
+    if "mcp_arguments" in raw_source:
+        payload["mcp_arguments"] = raw_source.get("mcp_arguments")
+    return payload
+
+
+def _coerce_postcondition_spec_input(
+    raw_postcondition: str | dict[str, Any],
+) -> PostconditionSpecInput:
+    if isinstance(raw_postcondition, str):
+        return {"description": raw_postcondition}
+    payload: PostconditionSpecInput = {
+        "description": str(raw_postcondition.get("description", "")),
+        "type": _normalize_enum_alias(
+            str(raw_postcondition.get("type", "manual")),
+            POSTCONDITION_TYPE_ALIASES,
+        ),
+    }
+    if "target" in raw_postcondition:
+        payload["target"] = raw_postcondition.get("target")
+    return payload
+
+
+def _coerce_failure_input(raw_failure: dict[str, Any]) -> PhaseFailureInput:
+    payload: PhaseFailureInput = {
+        "timestamp": str(raw_failure.get("timestamp", "")),
+        "reason": str(raw_failure.get("reason", "")),
+    }
+    if "verification_results" in raw_failure:
+        payload["verification_results"] = raw_failure.get("verification_results")
+    if "attempt" in raw_failure:
+        attempt: Any = raw_failure.get("attempt")
+        try:
+            payload["attempt"] = int(attempt)
+        except (TypeError, ValueError):
+            payload["attempt"] = attempt
+    return payload
+
+
+def _coerce_change_spec_inputs(
+    raw_changes: Any, *, field_path: str = "changes"
+) -> list[ChangeSpecInput]:
     if not isinstance(raw_changes, list) or not raw_changes:
-        raise ValidationError("phase changes must be a non-empty list")
-    changes: list[ChangeSpec] = []
-    for raw_change in raw_changes:
+        raise _build_validation_error([f"{field_path}: phase changes must be a non-empty list"])
+    items: list[ChangeSpecInput] = []
+    errors: list[str] = []
+    for index, raw_change in enumerate(raw_changes):
+        item_path = f"{field_path}[{index}]"
         if not isinstance(raw_change, dict):
-            raise ValidationError("phase changes must contain mapping items")
-        changes.append(
-            ChangeSpec(
-                path=str(raw_change.get("path", "")),
-                action=str(raw_change.get("action", "")),
-                description=str(raw_change.get("description", "")),
-            )
-        )
-    return changes
+            errors.append(f"{item_path}: phase changes must contain mapping items")
+            continue
+        items.append(_coerce_change_spec_input(raw_change))
+    _raise_collected_validation_errors(errors)
+    return items
 
 
-def _coerce_source_specs(raw_sources: Any) -> list[SourceSpec]:
+def _coerce_source_spec_inputs(
+    raw_sources: Any, *, field_path: str = "sources"
+) -> list[SourceSpecInput]:
     if raw_sources is None:
         return []
     if not isinstance(raw_sources, list):
-        raise ValidationError("phase sources must be a list when provided")
-    sources: list[SourceSpec] = []
-    for raw_source in raw_sources:
+        raise _build_validation_error([f"{field_path}: phase sources must be a list when provided"])
+    items: list[SourceSpecInput] = []
+    errors: list[str] = []
+    for index, raw_source in enumerate(raw_sources):
+        item_path = f"{field_path}[{index}]"
         if not isinstance(raw_source, dict):
-            raise ValidationError("phase sources must contain mapping items")
-        sources.append(
-            SourceSpec(
-                path=str(raw_source.get("path", "")),
-                type=str(raw_source.get("type", "internal")),
-                intent=str(raw_source.get("intent", "")),
-                uri=raw_source.get("uri"),
-                mcp_server=raw_source.get("mcp_server"),
-                mcp_tool=raw_source.get("mcp_tool"),
-                mcp_arguments=raw_source.get("mcp_arguments"),
-            )
-        )
-    return sources
+            errors.append(f"{item_path}: phase sources must contain mapping items")
+            continue
+        items.append(_coerce_source_spec_input(raw_source))
+    _raise_collected_validation_errors(errors)
+    return items
 
 
-def _coerce_postconditions(raw_postconditions: Any) -> list[PostconditionSpec]:
+def _coerce_postcondition_spec_inputs(
+    raw_postconditions: Any, *, field_path: str = "postconditions"
+) -> list[PostconditionSpecInput]:
     if raw_postconditions is None:
         return []
     if not isinstance(raw_postconditions, list):
-        raise ValidationError("phase postconditions must be a list when provided")
-    specs: list[PostconditionSpec] = []
-    for item in raw_postconditions:
-        if isinstance(item, str):
-            # Bare string shorthand → manual postcondition
-            specs.append(PostconditionSpec(description=item))
-        elif isinstance(item, dict):
-            specs.append(
-                PostconditionSpec(
-                    description=str(item.get("description", "")),
-                    type=str(item.get("type", "manual")),
-                    target=item.get("target"),
-                )
-            )
-        else:
-            raise ValidationError("postconditions must contain strings or mapping items")
-    return specs
+        raise _build_validation_error(
+            [f"{field_path}: phase postconditions must be a list when provided"]
+        )
+    items: list[PostconditionSpecInput] = []
+    errors: list[str] = []
+    for index, item in enumerate(raw_postconditions):
+        item_path = f"{field_path}[{index}]"
+        if isinstance(item, str) or isinstance(item, dict):
+            items.append(_coerce_postcondition_spec_input(item))
+            continue
+        errors.append(f"{item_path}: postconditions must contain strings or mapping items")
+    _raise_collected_validation_errors(errors)
+    return items
 
 
-def _coerce_failures(raw_failures: Any) -> list[PhaseFailure]:
+def _coerce_failure_inputs(
+    raw_failures: Any, *, field_path: str = "failures"
+) -> list[PhaseFailureInput]:
     if raw_failures is None:
         return []
     if not isinstance(raw_failures, list):
-        raise ValidationError("phase failures must be a list when provided")
-    failures: list[PhaseFailure] = []
-    for item in raw_failures:
-        if not isinstance(item, dict):
-            raise ValidationError("phase failures must contain mapping items")
-        failures.append(
-            PhaseFailure(
-                timestamp=str(item.get("timestamp", "")),
-                reason=str(item.get("reason", "")),
-                verification_results=item.get("verification_results"),
-                attempt=int(item.get("attempt", len(failures) + 1)),
-            )
+        raise _build_validation_error(
+            [f"{field_path}: phase failures must be a list when provided"]
         )
+    items: list[PhaseFailureInput] = []
+    errors: list[str] = []
+    for index, item in enumerate(raw_failures):
+        item_path = f"{field_path}[{index}]"
+        if not isinstance(item, dict):
+            errors.append(f"{item_path}: phase failures must contain mapping items")
+            continue
+        items.append(_coerce_failure_input(item))
+    _raise_collected_validation_errors(errors)
+    return items
+
+
+def _build_change_specs(
+    change_inputs: list[ChangeSpecInput], *, field_path: str = "changes"
+) -> list[ChangeSpec]:
+    changes: list[ChangeSpec] = []
+    errors: list[str] = []
+    for index, change_input in enumerate(change_inputs):
+        item_path = f"{field_path}[{index}]"
+        try:
+            changes.append(ChangeSpec(**change_input))
+        except ValidationError as exc:
+            errors.extend(_prefix_validation_errors(item_path, exc))
+    _raise_collected_validation_errors(errors)
+    return changes
+
+
+def _build_source_specs(
+    source_inputs: list[SourceSpecInput], *, field_path: str = "sources"
+) -> list[SourceSpec]:
+    sources: list[SourceSpec] = []
+    errors: list[str] = []
+    for index, source_input in enumerate(source_inputs):
+        item_path = f"{field_path}[{index}]"
+        try:
+            sources.append(SourceSpec(**source_input))
+        except ValidationError as exc:
+            errors.extend(_prefix_validation_errors(item_path, exc))
+    _raise_collected_validation_errors(errors)
+    return sources
+
+
+def _build_postconditions(
+    postcondition_inputs: list[PostconditionSpecInput], *, field_path: str = "postconditions"
+) -> list[PostconditionSpec]:
+    specs: list[PostconditionSpec] = []
+    errors: list[str] = []
+    for index, postcondition_input in enumerate(postcondition_inputs):
+        item_path = f"{field_path}[{index}]"
+        try:
+            specs.append(PostconditionSpec(**postcondition_input))
+        except ValidationError as exc:
+            errors.extend(_prefix_validation_errors(item_path, exc))
+    _raise_collected_validation_errors(errors)
+    return specs
+
+
+def _build_failures(
+    failure_inputs: list[PhaseFailureInput], *, field_path: str = "failures"
+) -> list[PhaseFailure]:
+    failures: list[PhaseFailure] = []
+    errors: list[str] = []
+    for index, failure_input in enumerate(failure_inputs):
+        item_path = f"{field_path}[{index}]"
+        try:
+            failures.append(
+                PhaseFailure(
+                    timestamp=failure_input["timestamp"],
+                    reason=failure_input["reason"],
+                    verification_results=failure_input.get("verification_results"),
+                    attempt=failure_input.get("attempt", len(failures) + 1),
+                )
+            )
+        except ValidationError as exc:
+            errors.extend(_prefix_validation_errors(item_path, exc))
+    _raise_collected_validation_errors(errors)
     return failures
+
+
+def _coerce_phase_input(raw_phase: dict[str, Any], *, field_path: str) -> PhaseSpecInput:
+    phase_errors: list[str] = []
+    blockers = raw_phase.get("blockers")
+    if blockers is None:
+        normalized_blockers: list[str] = []
+    elif not isinstance(blockers, list):
+        phase_errors.append(f"{field_path}.blockers: phase blockers must be a list when provided")
+        normalized_blockers = []
+    else:
+        normalized_blockers = [str(blocker) for blocker in blockers]
+
+    payload: PhaseSpecInput = {
+        "id": str(raw_phase.get("id", "")),
+        "title": str(raw_phase.get("title", "")),
+        "status": str(raw_phase.get("status", "pending")),
+        "commit": (
+            raw_phase.get("commit")
+            if raw_phase.get("commit") is None
+            else str(raw_phase.get("commit"))
+        ),
+        "blockers": normalized_blockers,
+        "requires_approval": bool(raw_phase.get("requires_approval", False)),
+        "changes": [],
+    }
+    try:
+        payload["sources"] = _coerce_source_spec_inputs(
+            raw_phase.get("sources"), field_path=f"{field_path}.sources"
+        )
+    except ValidationError as exc:
+        phase_errors.extend(validation_error_messages(exc))
+    try:
+        payload["postconditions"] = _coerce_postcondition_spec_inputs(
+            raw_phase.get("postconditions"),
+            field_path=f"{field_path}.postconditions",
+        )
+    except ValidationError as exc:
+        phase_errors.extend(validation_error_messages(exc))
+    try:
+        payload["changes"] = _coerce_change_spec_inputs(
+            raw_phase.get("changes"), field_path=f"{field_path}.changes"
+        )
+    except ValidationError as exc:
+        phase_errors.extend(validation_error_messages(exc))
+    try:
+        payload["failures"] = _coerce_failure_inputs(
+            raw_phase.get("failures"), field_path=f"{field_path}.failures"
+        )
+    except ValidationError as exc:
+        phase_errors.extend(validation_error_messages(exc))
+    _raise_collected_validation_errors(phase_errors)
+    return payload
+
+
+def _coerce_change_specs(raw_changes: Any, *, field_path: str = "changes") -> list[ChangeSpec]:
+    return _build_change_specs(
+        _coerce_change_spec_inputs(raw_changes, field_path=field_path),
+        field_path=field_path,
+    )
+
+
+def _coerce_source_specs(raw_sources: Any, *, field_path: str = "sources") -> list[SourceSpec]:
+    return _build_source_specs(
+        _coerce_source_spec_inputs(raw_sources, field_path=field_path),
+        field_path=field_path,
+    )
+
+
+def _coerce_postconditions(
+    raw_postconditions: Any, *, field_path: str = "postconditions"
+) -> list[PostconditionSpec]:
+    return _build_postconditions(
+        _coerce_postcondition_spec_inputs(raw_postconditions, field_path=field_path),
+        field_path=field_path,
+    )
+
+
+def _coerce_failures(raw_failures: Any, *, field_path: str = "failures") -> list[PhaseFailure]:
+    return _build_failures(
+        _coerce_failure_inputs(raw_failures, field_path=field_path),
+        field_path=field_path,
+    )
 
 
 def _coerce_budget(raw_budget: Any) -> PlanBudget | None:
     if raw_budget is None:
         return None
     if not isinstance(raw_budget, dict):
-        raise ValidationError("budget must be null or a mapping")
+        raise _build_validation_error(["budget: budget must be null or a mapping"])
     deadline = raw_budget.get("deadline")
     max_sessions = raw_budget.get("max_sessions")
     advisory = raw_budget.get("advisory", True)
-    return PlanBudget(
-        deadline=None if deadline is None else str(deadline),
-        max_sessions=int(max_sessions) if max_sessions is not None else None,
-        advisory=bool(advisory),
-    )
+    coerced_max_sessions: Any = None
+    if max_sessions is not None:
+        try:
+            coerced_max_sessions = int(max_sessions)
+        except (TypeError, ValueError):
+            coerced_max_sessions = max_sessions
+    try:
+        return PlanBudget(
+            deadline=None if deadline is None else str(deadline),
+            max_sessions=coerced_max_sessions,
+            advisory=bool(advisory),
+        )
+    except ValidationError as exc:
+        raise _build_validation_error(_prefix_validation_errors("budget", exc)) from exc
 
 
 def _coerce_phases(raw_phases: Any) -> list[PlanPhase]:
     if not isinstance(raw_phases, list) or not raw_phases:
-        raise ValidationError("work.phases must be a non-empty list")
+        raise _build_validation_error(["work.phases must be a non-empty list"])
     phases: list[PlanPhase] = []
-    for raw_phase in raw_phases:
+    errors: list[str] = []
+    for index, raw_phase in enumerate(raw_phases):
+        phase_path = f"work.phases[{index}]"
         if not isinstance(raw_phase, dict):
-            raise ValidationError("work.phases must contain mapping items")
-        blockers = raw_phase.get("blockers")
-        if blockers is None:
-            blockers = []
-        if not isinstance(blockers, list):
-            raise ValidationError("phase blockers must be a list when provided")
-        phases.append(
-            PlanPhase(
-                id=str(raw_phase.get("id", "")),
-                title=str(raw_phase.get("title", "")),
-                status=str(raw_phase.get("status", "pending")),
-                commit=raw_phase.get("commit")
-                if raw_phase.get("commit") is None
-                else str(raw_phase.get("commit")),
-                blockers=[str(blocker) for blocker in blockers],
-                sources=_coerce_source_specs(raw_phase.get("sources")),
-                postconditions=_coerce_postconditions(raw_phase.get("postconditions")),
-                requires_approval=bool(raw_phase.get("requires_approval", False)),
-                changes=_coerce_change_specs(raw_phase.get("changes")),
-                failures=_coerce_failures(raw_phase.get("failures")),
-            )
-        )
+            errors.append(f"{phase_path}: work.phases must contain mapping items")
+            continue
+        phase_errors: list[str] = []
+        phase_input: PhaseSpecInput | None = None
+        sources: list[SourceSpec] = []
+        postconditions: list[PostconditionSpec] = []
+        changes: list[ChangeSpec] = []
+        failures: list[PhaseFailure] = []
+        try:
+            phase_input = _coerce_phase_input(raw_phase, field_path=phase_path)
+        except ValidationError as exc:
+            phase_errors.extend(validation_error_messages(exc))
+        if phase_input is not None:
+            try:
+                sources = _build_source_specs(
+                    phase_input.get("sources", []),
+                    field_path=f"{phase_path}.sources",
+                )
+            except ValidationError as exc:
+                phase_errors.extend(validation_error_messages(exc))
+            try:
+                postconditions = _build_postconditions(
+                    phase_input.get("postconditions", []),
+                    field_path=f"{phase_path}.postconditions",
+                )
+            except ValidationError as exc:
+                phase_errors.extend(validation_error_messages(exc))
+            try:
+                changes = _build_change_specs(
+                    phase_input["changes"],
+                    field_path=f"{phase_path}.changes",
+                )
+            except ValidationError as exc:
+                phase_errors.extend(validation_error_messages(exc))
+            try:
+                failures = _build_failures(
+                    phase_input.get("failures", []),
+                    field_path=f"{phase_path}.failures",
+                )
+            except ValidationError as exc:
+                phase_errors.extend(validation_error_messages(exc))
+        if phase_input is not None:
+            try:
+                phase = PlanPhase(
+                    id=phase_input["id"],
+                    title=phase_input["title"],
+                    status=phase_input.get("status", "pending"),
+                    commit=phase_input.get("commit"),
+                    blockers=phase_input.get("blockers", []),
+                    sources=sources,
+                    postconditions=postconditions,
+                    requires_approval=phase_input.get("requires_approval", False),
+                    changes=changes,
+                    failures=failures,
+                )
+            except ValidationError as exc:
+                phase_errors.extend(_prefix_validation_errors(phase_path, exc))
+                phase = None
+        else:
+            phase = None
+        if phase_errors:
+            errors.extend(phase_errors)
+            continue
+        if phase is not None:
+            phases.append(phase)
+    _raise_collected_validation_errors(errors)
     return phases
 
 
@@ -2017,6 +2664,7 @@ __all__ = [
     "phase_blockers",
     "phase_change_class",
     "phase_payload",
+    "plan_create_input_schema",
     "plan_progress",
     "plan_title",
     "project_operations_log_path",
@@ -2039,6 +2687,7 @@ __all__ = [
     "update_run_state",
     "validate_plan_references",
     "validate_run_state_against_plan",
+    "validation_error_messages",
     "verify_postconditions",
     "VERIFY_TEST_ALLOWLIST",
 ]

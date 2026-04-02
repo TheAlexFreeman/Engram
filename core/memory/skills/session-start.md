@@ -20,8 +20,8 @@ Skip this skill on the very first session — use `core/governance/first-run.md`
 
 ### 1. Load recent context (silent)
 
-- When available, prefer local agent-memory MCP read/search tools for locating and opening the relevant summary files.
-- Read `core/memory/HOME.md` first if the compact manifest routed you there, then follow its ordered summary loads.
+- When available, call `memory_context_home` — it replaces the entire HOME.md load sequence in a single call and returns a budget report. Only fall back to the manual steps below if the MCP surface is unavailable.
+- Manual fallback: Read `core/memory/HOME.md` first if the compact manifest routed you there, then follow its ordered summary loads.
 - Use `core/memory/working/projects/SUMMARY.md` as task-driven drill-down context to identify the active project, current focus, and the most relevant next reads for this session.
 - Read the most recent chat summary (`core/memory/activity/SUMMARY.md` → latest date folder → latest chat `SUMMARY.md`).
 - Note what the user was working on, any open threads, and any action items from the previous session.
