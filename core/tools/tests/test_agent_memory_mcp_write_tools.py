@@ -2041,6 +2041,27 @@ declared_gaps = []
         self.assertEqual(payload["summary"]["read_tools"], 2)
         self.assertEqual(payload["summary"]["semantic_tools"], 1)
 
+    def test_memory_plan_schema_returns_parseable_json(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(asyncio.run(tools["memory_plan_schema"]()))
+
+        self.assertEqual(payload["tool_name"], "memory_plan_create")
+        self.assertIn("phases", payload["properties"])
+        self.assertEqual(
+            payload["properties"]["phases"]["items"]["properties"]["sources"]["items"][
+                "properties"
+            ]["type"]["x-aliases"]["code"],
+            "internal",
+        )
+        self.assertEqual(
+            payload["properties"]["phases"]["items"]["properties"]["changes"]["items"][
+                "properties"
+            ]["action"]["x-aliases"]["modify"],
+            "update",
+        )
+
     def test_memory_get_capabilities_returns_structured_error_for_malformed_toml(self) -> None:
         repo_root = self._init_repo(
             {
@@ -4035,6 +4056,117 @@ Secondary body.
         self.assertEqual(applied["commit_message"], "[plan] Create preview-plan")
         self.assertEqual(applied["preview"]["mode"], "apply")
         self.assertEqual(preview["preview"]["target_files"], applied["preview"]["target_files"])
+
+    def test_memory_plan_create_preview_returns_structured_validation_feedback(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-21\nproject_count: 1\n---\n\n# Projects\n\n_No active or ongoing projects._\n",
+                "memory/working/projects/example/SUMMARY.md": "---\nsource: agent-generated\norigin_session: manual\ncreated: 2026-03-21\ntrust: medium\ntype: project\nstatus: active\ncognitive_mode: exploration\nopen_questions: 0\nactive_plans: 0\nlast_activity: 2026-03-21\ncurrent_focus: Preview invalid plan input.\n---\n\n# Project: Example\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        preview = json.loads(
+            asyncio.run(
+                tools["memory_plan_create"](
+                    plan_id="invalid-preview-plan",
+                    project_id="example",
+                    purpose_summary="Invalid preview",
+                    purpose_context="Return structured validation feedback.",
+                    phases=[
+                        {
+                            "id": "phase-a",
+                            "title": "Do the thing",
+                            "sources": [
+                                {
+                                    "path": "memory/working/notes/reference.md",
+                                    "type": "bogus",
+                                    "intent": "Read the reference.",
+                                }
+                            ],
+                            "postconditions": [
+                                {"description": "Output exists", "type": "check"},
+                            ],
+                            "changes": [
+                                {
+                                    "path": "memory/working/projects/example/notes/output.md",
+                                    "action": "bogus",
+                                    "description": "Write output note.",
+                                }
+                            ],
+                        }
+                    ],
+                    session_id="memory/activity/2026/03/19/chat-001",
+                    preview=True,
+                )
+            )
+        )
+
+        self.assertEqual(preview["preview"]["mode"], "preview")
+        self.assertEqual(preview["files_changed"], [])
+        self.assertIsNone(preview["commit_message"])
+        self.assertFalse(preview["new_state"]["valid"])
+        self.assertEqual(preview["preview"]["resulting_state"]["schema_tool"], "memory_plan_schema")
+        self.assertEqual(len(preview["new_state"]["errors"]), 3)
+        self.assertTrue(
+            any("work.phases[0].sources[0]" in error for error in preview["new_state"]["errors"])
+        )
+        self.assertTrue(
+            any(
+                "work.phases[0].postconditions[0]" in error
+                for error in preview["new_state"]["errors"]
+            )
+        )
+        self.assertTrue(
+            any("work.phases[0].changes[0]" in error for error in preview["new_state"]["errors"])
+        )
+        self.assertFalse(
+            (
+                repo_root
+                / "memory"
+                / "working"
+                / "projects"
+                / "example"
+                / "plans"
+                / "invalid-preview-plan.yaml"
+            ).exists()
+        )
+
+    def test_memory_plan_create_invalid_input_still_raises_without_preview(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-21\nproject_count: 1\n---\n\n# Projects\n\n_No active or ongoing projects._\n",
+                "memory/working/projects/example/SUMMARY.md": "---\nsource: agent-generated\norigin_session: manual\ncreated: 2026-03-21\ntrust: medium\ntype: project\nstatus: active\ncognitive_mode: exploration\nopen_questions: 0\nactive_plans: 0\nlast_activity: 2026-03-21\ncurrent_focus: Reject invalid plan input outside preview.\n---\n\n# Project: Example\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_plan_create"](
+                    plan_id="invalid-apply-plan",
+                    project_id="example",
+                    purpose_summary="Invalid apply",
+                    purpose_context="Still strict outside preview.",
+                    phases=[
+                        {
+                            "id": "phase-a",
+                            "title": "Do the thing",
+                            "postconditions": [
+                                {"description": "Output exists", "type": "check"},
+                            ],
+                            "changes": [
+                                {
+                                    "path": "memory/working/projects/example/notes/output.md",
+                                    "action": "bogus",
+                                    "description": "Write output note.",
+                                }
+                            ],
+                        }
+                    ],
+                    session_id="memory/activity/2026/03/19/chat-001",
+                )
+            )
 
     def test_memory_promote_knowledge_preview_does_not_move_file_and_matches_apply(self) -> None:
         repo_root = self._init_repo(

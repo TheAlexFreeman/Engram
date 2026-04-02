@@ -18,6 +18,12 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-04-02] Plan tool caller UX hardening
+
+**Changed:** Added `memory_plan_schema` as a Tier 0 read-only introspection tool, enriched `memory_plan_create` with explicit nested-schema help text, normalized a narrow alias set for common caller guesses (`modify`, `code`, `file_check`), aggregated nested phase validation errors into one response, and made `preview=true` return structured validation feedback for invalid plan-create requests instead of raising immediately. Updated the capability manifest, MCP documentation, and focused tests to keep the declared surface aligned with runtime behavior.
+**Reasoning:** Plan creation had become a blind guess-and-retry loop for callers because the MCP-visible contract hid nested enums and conditional requirements while the coercion layer failed fast on the first error. This hardening makes the contract inspectable, surfaces multiple nested issues in one pass, and preserves the governed preview workflow even when the request is invalid.
+**Approved by:** user
+
 ## [2026-03-29] Proxy host-specific operator examples
 
 **Changed:** Refined `HUMANS/docs/PROXY.md` with operator-facing Claude Code and Cursor examples that show the verified `engram-proxy` launch commands, the host setting to change conceptually, smoke-test steps, and the default assumption that these hosts are home-context paths unless custom request headers are separately verified. Tightened `HUMANS/docs/QUICKSTART.md` so the lightweight setup flow points directly to those detailed examples.

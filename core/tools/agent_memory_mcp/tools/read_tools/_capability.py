@@ -6,6 +6,7 @@ import json
 from typing import TYPE_CHECKING, Any, cast
 
 from ...errors import ValidationError
+from ...plan_utils import plan_create_input_schema
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -83,6 +84,30 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
 
         payload = _build_tool_profile_payload(cast(dict[str, Any], manifest))
         return json.dumps(payload, indent=2, default=str)
+
+    # ------------------------------------------------------------------
+    # memory_plan_schema
+
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_plan_schema",
+        annotations=_tool_annotations(
+            title="Get Plan Create Schema",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_plan_schema() -> str:
+        """Return the nested input schema for memory_plan_create as structured JSON.
+
+        Use this when a caller needs the full phases/sources/postconditions/changes
+        contract, including canonical enum values, conditional requirements, and
+        the small alias set normalized by the plan coercion layer.
+        """
+
+        return json.dumps(plan_create_input_schema(), indent=2, default=str)
 
     # ------------------------------------------------------------------
     # memory_get_policy_state
@@ -172,12 +197,12 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         recommended: dict[str, Any] | None = None
         alternatives: list[dict[str, Any]] = []
         if candidates:
-            recommended = candidates[0]
+            recommended_item = candidates[0]
+            recommended = recommended_item
             alternatives = candidates[1:4]
+            primary_score = cast(float, recommended_item["score"])
             ambiguous = bool(
-                alternatives
-                and abs(cast(float, recommended["score"]) - cast(float, alternatives[0]["score"]))
-                < 0.03
+                alternatives and abs(primary_score - cast(float, alternatives[0]["score"])) < 0.03
             )
         else:
             ambiguous = True
@@ -217,6 +242,7 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
     return {
         "memory_get_capabilities": memory_get_capabilities,
         "memory_get_tool_profiles": memory_get_tool_profiles,
+        "memory_plan_schema": memory_plan_schema,
         "memory_get_policy_state": memory_get_policy_state,
         "memory_route_intent": memory_route_intent,
     }

@@ -44,6 +44,7 @@ from engram_mcp.agent_memory_mcp.plan_utils import (
     next_action,
     phase_blockers,
     phase_payload,
+    plan_create_input_schema,
     project_plan_path,
     record_trace,
     regenerate_approvals_summary,
@@ -56,6 +57,7 @@ from engram_mcp.agent_memory_mcp.plan_utils import (
     stage_external_file,
     trace_file_path,
     validate_plan_references,
+    validation_error_messages,
     verify_postconditions,
 )
 
@@ -277,6 +279,43 @@ def _setup_registry(root: Path, tools: list[ToolDefinition] | None = None) -> No
 
 
 # ===========================================================================
+# ChangeSpec and schema helper
+# ===========================================================================
+
+
+class TestChangeSpec(unittest.TestCase):
+    def test_action_alias_normalizes_modify(self) -> None:
+        change = ChangeSpec(
+            path="memory/working/notes/test.md",
+            action="modify",
+            description="Update the note",
+        )
+
+        self.assertEqual(change.action, "update")
+        self.assertEqual(change.to_dict()["action"], "update")
+
+
+class TestPlanCreateInputSchema(unittest.TestCase):
+    def test_exposes_nested_conditionals_and_aliases(self) -> None:
+        schema = plan_create_input_schema()
+        phase_item = schema["properties"]["phases"]["items"]
+        source_item = phase_item["properties"]["sources"]["items"]
+        postcondition_item = phase_item["properties"]["postconditions"]["items"]["oneOf"][1]
+        change_item = phase_item["properties"]["changes"]["items"]
+
+        self.assertEqual(schema["tool_name"], "memory_plan_create")
+        self.assertEqual(source_item["properties"]["type"]["x-aliases"]["code"], "internal")
+        self.assertEqual(
+            postcondition_item["properties"]["type"]["x-aliases"]["file_check"],
+            "check",
+        )
+        self.assertEqual(change_item["properties"]["action"]["x-aliases"]["modify"], "update")
+        self.assertIn("uri", source_item["allOf"][0]["then"]["required"])
+        self.assertIn("mcp_server", source_item["allOf"][1]["then"]["required"])
+        self.assertIn("target", postcondition_item["allOf"][0]["then"]["required"])
+
+
+# ===========================================================================
 # SourceSpec
 # ===========================================================================
 
@@ -299,6 +338,10 @@ class TestSourceSpec(unittest.TestCase):
     def test_valid_mcp_source(self) -> None:
         s = SourceSpec(path="memory_search", type="mcp", intent="Search for context")
         self.assertEqual(s.type, "mcp")
+
+    def test_source_type_alias_normalizes_code(self) -> None:
+        s = SourceSpec(path="core/tools/plan_utils.py", type="code", intent="Read it")
+        self.assertEqual(s.type, "internal")
 
     def test_invalid_type_raises(self) -> None:
         with self.assertRaises(ValidationError):
@@ -371,6 +414,10 @@ class TestPostconditionSpec(unittest.TestCase):
     def test_typed_test_with_target(self) -> None:
         pc = PostconditionSpec(description="Tests pass", type="test", target="test_plan_utils.py")
         self.assertEqual(pc.type, "test")
+
+    def test_type_alias_normalizes_file_check(self) -> None:
+        pc = PostconditionSpec(description="File exists", type="file_check", target="file.py")
+        self.assertEqual(pc.type, "check")
 
     def test_invalid_type_raises(self) -> None:
         with self.assertRaises(ValidationError):
@@ -530,6 +577,45 @@ class TestCoercePostconditions(unittest.TestCase):
         pc = phases[0].postconditions[0]
         self.assertEqual(pc.type, "test")
         self.assertEqual(pc.target, "tests/")
+
+
+class TestCoercePhaseValidationAggregation(unittest.TestCase):
+    def test_collects_nested_errors_with_structural_paths(self) -> None:
+        with self.assertRaises(ValidationError) as ctx:
+            coerce_phase_inputs(
+                [
+                    {
+                        "id": "phase-a",
+                        "title": "Broken phase",
+                        "sources": [
+                            {
+                                "path": "memory/working/notes/reference.md",
+                                "type": "bogus",
+                                "intent": "Read",
+                            },
+                        ],
+                        "postconditions": [
+                            {"description": "Need output", "type": "check"},
+                        ],
+                        "changes": [
+                            {
+                                "path": "memory/working/notes/output.md",
+                                "action": "bogus",
+                                "description": "Write output",
+                            }
+                        ],
+                    }
+                ]
+            )
+
+        errors = validation_error_messages(ctx.exception)
+
+        self.assertEqual(len(errors), 3)
+        self.assertTrue(any(error.startswith("work.phases[0].sources[0]:") for error in errors))
+        self.assertTrue(
+            any(error.startswith("work.phases[0].postconditions[0]:") for error in errors)
+        )
+        self.assertTrue(any(error.startswith("work.phases[0].changes[0]:") for error in errors))
 
 
 class TestCoerceBudget(unittest.TestCase):

@@ -103,6 +103,7 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertEqual(payload["contract_versions"]["provenance"], 1)
         self.assertEqual(payload["contract_versions"]["structured_read"], 1)
         self.assertIn("memory_get_capabilities", payload["tool_sets"]["read_support"])
+        self.assertIn("memory_plan_schema", payload["tool_sets"]["read_support"])
         self.assertIn("memory_resolve_link", payload["tool_sets"]["read_support"])
         self.assertIn("memory_find_references", payload["tool_sets"]["read_support"])
         self.assertIn("memory_scan_frontmatter_health", payload["tool_sets"]["read_support"])
@@ -158,6 +159,19 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertIn("memory_write", payload["profiles"]["full"]["tools"])
         self.assertIn("memory_reset_session_state", payload["profiles"]["full"]["tools"])
         self.assertIn("memory_session_flush", payload["profiles"]["full"]["tools"])
+
+    def test_plan_schema_returns_structured_payload(self) -> None:
+        raw = asyncio.run(self.module.memory_plan_schema())
+        payload = json.loads(raw)
+
+        self.assertEqual(payload["tool_name"], "memory_plan_create")
+        self.assertIn("phases", payload["properties"])
+        self.assertEqual(
+            payload["properties"]["phases"]["items"]["properties"]["postconditions"]["items"][
+                "oneOf"
+            ][1]["properties"]["type"]["x-aliases"]["file_check"],
+            "check",
+        )
 
     def test_read_only_profile_contains_only_runtime_read_only_tools(self) -> None:
         async def run_call() -> tuple[dict[str, Any], dict[str, object | None]]:

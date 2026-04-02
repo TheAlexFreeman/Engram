@@ -59,6 +59,7 @@ from ...plan_utils import (
     unresolved_blockers,
     update_run_state,
     validate_run_state_against_plan,
+    validation_error_messages,
     verify_postconditions,
 )
 from ...preview_contract import (
@@ -207,7 +208,7 @@ def _create_preview(
     reasoning: str,
     target_files: list[tuple[str, str]],
     invariant_effects: list[str],
-    commit_message: str,
+    commit_message: str | None,
     resulting_state: dict[str, Any],
     warnings: list[str],
 ) -> dict[str, Any]:
@@ -317,13 +318,38 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     ) -> str:
         """Create a structured YAML plan file inside a project.
 
-        Phases may include sources (list of {path, type, intent, uri?}),
-        postconditions (list of strings or {description, type?, target?}),
-        and requires_approval (bool). These flow through to the plan schema
-        and are surfaced in execution directives.
+        Required top-level fields:
+        - plan_id, project_id: kebab-case slugs
+        - purpose_summary, purpose_context: non-empty strings
+        - phases: non-empty list of phase mappings
+        - session_id: canonical memory/activity/YYYY/MM/DD/chat-NNN id
+
+        Each phase requires id, title, and changes. Optional phase fields:
+        - status: "pending" | "blocked" | "in-progress" | "completed" | "skipped"
+        - blockers: list[str]
+        - sources: list of {path, type, intent, uri?, mcp_server?, mcp_tool?, mcp_arguments?}
+          type: "internal" | "external" | "mcp"
+          uri: required when type="external"
+          mcp_server + mcp_tool: required when type="mcp"
+        - postconditions: list of strings (shorthand manual checks) or
+          {description, type?, target?}
+          type: "check" | "grep" | "test" | "manual" (default "manual")
+          check: file exists
+          grep: regex::path match
+          test: allowlisted command behind ENGRAM_TIER2=1
+          target: required when type != "manual"
+        - requires_approval: bool
+        - failures: list of {timestamp, reason, verification_results?, attempt?}
+
+        changes is a non-empty list of {path, action, description} where action is
+        "create" | "rewrite" | "update" | "delete" | "rename".
 
         budget is an optional dict with keys: deadline (YYYY-MM-DD),
         max_sessions (int >= 1), advisory (bool, default true).
+
+        preview=True returns the standard preview for valid input. Invalid preview
+        calls return structured validation feedback without writing; use
+        memory_plan_schema to inspect the nested contract programmatically.
         """
         from ...errors import ValidationError
         from ...frontmatter_utils import today_str
@@ -333,27 +359,64 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         root = get_root()
         warnings: list[str] = []
 
-        validate_session_id(session_id)
-        if status not in {"draft", "active"}:
-            raise ValidationError("memory_plan_create status must be 'draft' or 'active'")
+        try:
+            validate_session_id(session_id)
+            if status not in {"draft", "active"}:
+                raise ValidationError("memory_plan_create status must be 'draft' or 'active'")
 
-        plan_path, resolved_project_id = _resolve_new_plan_path(root, plan_id, project_id)
-        coerced_budget = coerce_budget_input(budget)
-        plan = PlanDocument(
-            id=plan_id,
-            project=resolved_project_id,
-            created=today_str(),
-            origin_session=session_id,
-            status=status,
-            purpose=PlanPurpose(
-                summary=purpose_summary,
-                context=purpose_context,
-                questions=list(questions or []),
-            ),
-            phases=coerce_phase_inputs(phases),
-            review=None,
-            budget=coerced_budget,
-        )
+            plan_path, resolved_project_id = _resolve_new_plan_path(root, plan_id, project_id)
+            coerced_budget = coerce_budget_input(budget)
+            plan = PlanDocument(
+                id=plan_id,
+                project=resolved_project_id,
+                created=today_str(),
+                origin_session=session_id,
+                status=status,
+                purpose=PlanPurpose(
+                    summary=purpose_summary,
+                    context=purpose_context,
+                    questions=list(questions or []),
+                ),
+                phases=coerce_phase_inputs(phases),
+                review=None,
+                budget=coerced_budget,
+            )
+        except ValidationError as exc:
+            if not preview:
+                raise
+            validation_errors = validation_error_messages(exc)
+            invalid_warnings = list(warnings) + [
+                "Plan input is invalid; call memory_plan_schema for the nested contract."
+            ]
+            invalid_state = {
+                "valid": False,
+                "errors": validation_errors,
+                "schema_tool": "memory_plan_schema",
+            }
+            preview_payload = _create_preview(
+                mode="preview",
+                change_class="proposed",
+                summary="Plan creation request is invalid; no files would be written.",
+                reasoning=(
+                    "preview=True downgrades plan-input validation failures into structured feedback "
+                    "so callers can fix all surfaced issues before retrying."
+                ),
+                target_files=[],
+                invariant_effects=[
+                    "No files would be created or updated until validation errors are fixed."
+                ],
+                commit_message=None,
+                resulting_state=invalid_state,
+                warnings=invalid_warnings,
+            )
+            return MemoryWriteResult(
+                files_changed=[],
+                commit_sha=None,
+                commit_message=None,
+                new_state=invalid_state,
+                warnings=invalid_warnings,
+                preview=preview_payload,
+            ).to_json()
 
         files_changed = [
             plan_path,

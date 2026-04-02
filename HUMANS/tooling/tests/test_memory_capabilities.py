@@ -264,6 +264,7 @@ class MemoryCapabilitiesTests(unittest.TestCase):
         manifest = tomllib.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
 
         self.assertIn("memory_get_capabilities", manifest["tool_sets"]["read_support"])
+        self.assertIn("memory_plan_schema", manifest["tool_sets"]["read_support"])
         self.assertIn("memory_check_cross_references", manifest["tool_sets"]["read_support"])
         self.assertIn("memory_generate_summary", manifest["tool_sets"]["read_support"])
         self.assertIn("memory_access_analytics", manifest["tool_sets"]["read_support"])
