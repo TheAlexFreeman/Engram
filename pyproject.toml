@@ -45,6 +45,7 @@ dev = [
 packages = [
     "engram_mcp",
     "engram_mcp.agent_memory_mcp",
+    "engram_mcp.agent_memory_mcp.cli",
     "engram_mcp.agent_memory_mcp.core",
     "engram_mcp.agent_memory_mcp.proxy",
     "engram_mcp.agent_memory_mcp.sidecar",

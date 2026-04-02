@@ -26,15 +26,15 @@ Use this file as the live operational router once you reach it:
 
 Load files in the listed order. Skip files marked _(skip if empty)_ when they contain only placeholder text. `agent-bootstrap.toml` expresses the same loading rules in machine-readable form for programmatic consumers — keep both in sync when the contract changes.
 
-| Session type | Files to load |
-|---|---|
-| **First run** | this file → `core/governance/first-run.md` (which directs: `CHANGELOG.md`, `core/governance/update-guidelines.md` §§ Change categories + Read-only operation, `core/memory/skills/SUMMARY.md`, `core/memory/skills/onboarding.md`) |
-| **Compact returning** | this file → `core/memory/HOME.md` _(skip if empty or still placeholder; then load `core/memory/users/SUMMARY.md`, `core/memory/activity/SUMMARY.md`, `core/memory/working/USER.md`, and `core/memory/working/CURRENT.md`; load task-relevant `core/memory/working/projects/SUMMARY.md` and/or `core/memory/knowledge/SUMMARY.md` and/or `core/memory/skills/SUMMARY.md` only as needed)_ |
-| **Full bootstrap** | this file → Compact returning files + `CHANGELOG.md`, `core/governance/curation-policy.md`, `core/governance/update-guidelines.md` |
-| **Periodic review** | Full bootstrap files + `core/governance/system-maturity.md`, `core/governance/belief-diff-log.md`, `core/governance/review-queue.md`, `core/governance/session-checklists.md` § "Periodic integrity audit", `core/governance/security-signals.md` |
-| **Automation** | this file → `core/memory/HOME.md` _(load only project and scratchpad sections)_ |
-| **ACCESS aggregation** | This file + `core/governance/curation-algorithms.md` (load only when aggregation threshold is reached) |
-| **Stage transition** | Periodic review files + `core/governance/curation-algorithms.md` |
+| Session type | Files to load | MCP shortcut |
+|---|---|---|
+| **First run** | this file → `core/governance/first-run.md` (which directs: `CHANGELOG.md`, `core/governance/update-guidelines.md` §§ Change categories + Read-only operation, `core/memory/skills/SUMMARY.md`, `core/memory/skills/onboarding.md`) | — |
+| **Compact returning** | this file → `core/memory/HOME.md` _(skip if empty or still placeholder; then load `core/memory/users/SUMMARY.md`, `core/memory/activity/SUMMARY.md`, `core/memory/working/USER.md`, and `core/memory/working/CURRENT.md`; load task-relevant `core/memory/working/projects/SUMMARY.md` and/or `core/memory/knowledge/SUMMARY.md` and/or `core/memory/skills/SUMMARY.md` only as needed)_ | `memory_context_home` |
+| **Full bootstrap** | this file → Compact returning files + `CHANGELOG.md`, `core/governance/curation-policy.md`, `core/governance/update-guidelines.md` | — |
+| **Periodic review** | Full bootstrap files + `core/governance/system-maturity.md`, `core/governance/belief-diff-log.md`, `core/governance/review-queue.md`, `core/governance/session-checklists.md` § "Periodic integrity audit", `core/governance/security-signals.md` | `memory_prepare_periodic_review` |
+| **Automation** | this file → `core/memory/HOME.md` _(load only project and scratchpad sections)_ | `memory_context_project` |
+| **ACCESS aggregation** | This file + `core/governance/curation-algorithms.md` (load only when aggregation threshold is reached) | `memory_run_aggregation` |
+| **Stage transition** | Periodic review files + `core/governance/curation-algorithms.md` | — |
 
 **Do not load** `HUMANS/docs/*` (human reference) or `core/governance/curation-algorithms.md` (on-demand). `core/governance/session-checklists.md`, `core/governance/scratchpad-guidelines.md`, and `core/governance/content-boundaries.md` are also on-demand.
 
@@ -74,9 +74,7 @@ These targets leave reserve headroom inside the 7k returning-session ceiling. If
 
 ## Compact file success criteria
 
-- `core/memory/working/projects/SUMMARY.md` remains the primary project navigator.
-- `core/memory/activity/SUMMARY.md` stays metadata-first and points to dated chat summaries.
-- `core/memory/working/CURRENT.md` keeps active threads and drill-down refs compact.
+See compact contract table above for per-file targets and what belongs in each file vs. drill-down reads.
 
 ## Current active stage: Exploration
 
