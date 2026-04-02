@@ -7,67 +7,9 @@ import json
 import sys
 from collections.abc import Sequence
 
+from .cli.plan_help import build_plan_create_help_text
 from .plan_utils import plan_create_input_schema
 from .server import mcp
-
-
-def _enum_list(values: list[str]) -> str:
-    return " | ".join(values)
-
-
-def _alias_list(aliases: dict[str, str]) -> str:
-    if not aliases:
-        return "none"
-    return ", ".join(f"{src} -> {dest}" for src, dest in aliases.items())
-
-
-def _plan_create_help_text() -> str:
-    schema = plan_create_input_schema()
-    phase_properties = schema["properties"]["phases"]["items"]["properties"]
-    source_item = phase_properties["sources"]["items"]
-    postcondition_item = phase_properties["postconditions"]["items"]["oneOf"][1]
-    change_item = phase_properties["changes"]["items"]
-    budget_properties = schema["properties"]["budget"]["properties"]
-
-    lines = [
-        "Schema-backed help for plan creation.",
-        "",
-        "This help is generated from the same nested contract used by memory_plan_schema.",
-        "",
-        "Top-level required fields:",
-        f"- {', '.join(schema['required'])}",
-        "",
-        "Phase required fields:",
-        f"- {', '.join(schema['properties']['phases']['items']['required'])}",
-        "",
-        "Phase optional fields:",
-        f"- {', '.join(sorted(set(phase_properties) - set(schema['properties']['phases']['items']['required'])))}",
-        "",
-        "Sources:",
-        f"- type: {_enum_list(source_item['properties']['type']['enum'])}",
-        f"- aliases: {_alias_list(source_item['properties']['type'].get('x-aliases', {}))}",
-        "- uri is required when type = external",
-        "- mcp_server and mcp_tool are required when type = mcp",
-        "",
-        "Postconditions:",
-        "- strings are shorthand for manual postconditions",
-        f"- type: {_enum_list(postcondition_item['properties']['type']['enum'])}",
-        f"- aliases: {_alias_list(postcondition_item['properties']['type'].get('x-aliases', {}))}",
-        "- check = file exists",
-        "- grep = regex::path match",
-        "- test = allowlisted command behind ENGRAM_TIER2=1",
-        "- target is required when type != manual",
-        "",
-        "Changes:",
-        f"- action: {_enum_list(change_item['properties']['action']['enum'])}",
-        f"- aliases: {_alias_list(change_item['properties']['action'].get('x-aliases', {}))}",
-        "",
-        "Budget:",
-        f"- fields: {', '.join(budget_properties)}",
-        "",
-        "Use --json-schema to print the raw JSON schema.",
-    ]
-    return "\n".join(lines)
 
 
 def _build_parser() -> tuple[
@@ -92,7 +34,7 @@ def _build_parser() -> tuple[
     plan_create_parser = plan_subparsers.add_parser(
         "create",
         help="Show schema-backed help for plan creation.",
-        description=_plan_create_help_text(),
+        description=build_plan_create_help_text(plan_create_input_schema()),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     plan_create_parser.add_argument(

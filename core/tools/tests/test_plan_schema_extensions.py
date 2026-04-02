@@ -20,6 +20,11 @@ from engram_mcp.agent_memory_mcp.plan_utils import (
     APPROVAL_RESOLUTIONS,
     APPROVAL_STATUSES,
     PLAN_STATUSES,
+    _coerce_change_spec_input,
+    _coerce_failure_input,
+    _coerce_phase_input,
+    _coerce_postcondition_spec_input,
+    _coerce_source_spec_input,
     ApprovalDocument,
     ChangeSpec,
     PhaseFailure,
@@ -492,6 +497,17 @@ class TestPlanBudget(unittest.TestCase):
 
 
 class TestCoerceSourceSpecs(unittest.TestCase):
+    def test_source_input_coercer_normalizes_alias_before_dataclass_validation(self) -> None:
+        payload = _coerce_source_spec_input(
+            {
+                "path": "core/file.py",
+                "type": "code",
+                "intent": "Read it",
+            }
+        )
+
+        self.assertEqual(payload["type"], "internal")
+
     def test_coerce_phases_with_sources(self) -> None:
         phases = coerce_phase_inputs(
             [
@@ -534,6 +550,15 @@ class TestCoerceSourceSpecs(unittest.TestCase):
 
 
 class TestCoercePostconditions(unittest.TestCase):
+    def test_postcondition_input_coercer_normalizes_alias_and_string_shorthand(self) -> None:
+        aliased = _coerce_postcondition_spec_input(
+            {"description": "Output exists", "type": "file_check", "target": "artifacts/out.txt"}
+        )
+        manual = _coerce_postcondition_spec_input("Verify output manually")
+
+        self.assertEqual(aliased["type"], "check")
+        self.assertEqual(manual, {"description": "Verify output manually"})
+
     def test_bare_string_becomes_manual_postcondition(self) -> None:
         phases = coerce_phase_inputs(
             [
@@ -577,6 +602,183 @@ class TestCoercePostconditions(unittest.TestCase):
         pc = phases[0].postconditions[0]
         self.assertEqual(pc.type, "test")
         self.assertEqual(pc.target, "tests/")
+
+
+class TestCoerceChangeSpecs(unittest.TestCase):
+    def test_change_input_coercer_normalizes_alias_before_dataclass_validation(self) -> None:
+        payload = _coerce_change_spec_input(
+            {
+                "path": "memory/working/notes/x.md",
+                "action": "modify",
+                "description": "Update file",
+            }
+        )
+
+        self.assertEqual(payload["action"], "update")
+
+    def test_coerce_phases_aliases_match_canonical_serialization(self) -> None:
+        aliased = coerce_phase_inputs(
+            [
+                {
+                    "id": "p1",
+                    "title": "Phase 1",
+                    "commit": "abc123",
+                    "blockers": ["upstream:phase-a", "phase-0"],
+                    "requires_approval": True,
+                    "sources": [
+                        {"path": "core/file.py", "type": "code", "intent": "Read it"},
+                    ],
+                    "postconditions": [
+                        {
+                            "description": "Output exists",
+                            "type": "file_check",
+                            "target": "artifacts/out.txt",
+                        }
+                    ],
+                    "changes": [
+                        {
+                            "path": "memory/working/notes/x.md",
+                            "action": "modify",
+                            "description": "Update file",
+                        },
+                    ],
+                    "failures": [
+                        {
+                            "timestamp": "2026-03-26T12:00:00Z",
+                            "reason": "Initial attempt failed",
+                            "verification_results": [{"status": "failed"}],
+                        }
+                    ],
+                }
+            ]
+        )[0].to_dict()
+        canonical = coerce_phase_inputs(
+            [
+                {
+                    "id": "p1",
+                    "title": "Phase 1",
+                    "commit": "abc123",
+                    "blockers": ["upstream:phase-a", "phase-0"],
+                    "requires_approval": True,
+                    "sources": [
+                        {"path": "core/file.py", "type": "internal", "intent": "Read it"},
+                    ],
+                    "postconditions": [
+                        {
+                            "description": "Output exists",
+                            "type": "check",
+                            "target": "artifacts/out.txt",
+                        }
+                    ],
+                    "changes": [
+                        {
+                            "path": "memory/working/notes/x.md",
+                            "action": "update",
+                            "description": "Update file",
+                        },
+                    ],
+                    "failures": [
+                        {
+                            "timestamp": "2026-03-26T12:00:00Z",
+                            "reason": "Initial attempt failed",
+                            "verification_results": [{"status": "failed"}],
+                            "attempt": 1,
+                        }
+                    ],
+                }
+            ]
+        )[0].to_dict()
+
+        self.assertEqual(aliased, canonical)
+
+
+class TestCoerceFailureSpecs(unittest.TestCase):
+    def test_failure_input_coercer_normalizes_attempt_when_present(self) -> None:
+        payload = _coerce_failure_input(
+            {
+                "timestamp": "2026-03-26T12:00:00Z",
+                "reason": "Attempt failed",
+                "attempt": "2",
+                "verification_results": [{"status": "failed"}],
+            }
+        )
+
+        self.assertEqual(payload["attempt"], 2)
+        self.assertEqual(payload["verification_results"], [{"status": "failed"}])
+
+
+class TestCoercePhaseInputs(unittest.TestCase):
+    def test_phase_input_coercer_nests_leaf_inputs_and_normalizes_aliases(self) -> None:
+        payload = _coerce_phase_input(
+            {
+                "id": "p1",
+                "title": "Phase 1",
+                "status": "pending",
+                "commit": 12345,
+                "blockers": ["upstream:phase-a", 7],
+                "requires_approval": True,
+                "sources": [
+                    {"path": "core/file.py", "type": "code", "intent": "Read it"},
+                ],
+                "postconditions": [
+                    {
+                        "description": "Output exists",
+                        "type": "file_check",
+                        "target": "artifacts/out.txt",
+                    }
+                ],
+                "changes": [
+                    {
+                        "path": "memory/working/notes/x.md",
+                        "action": "modify",
+                        "description": "Update file",
+                    }
+                ],
+                "failures": [
+                    {
+                        "timestamp": "2026-03-26T12:00:00Z",
+                        "reason": "Attempt failed",
+                        "attempt": "2",
+                        "verification_results": [{"status": "failed"}],
+                    }
+                ],
+            },
+            field_path="work.phases[0]",
+        )
+
+        self.assertEqual(payload["commit"], "12345")
+        self.assertEqual(payload["blockers"], ["upstream:phase-a", "7"])
+        self.assertTrue(payload["requires_approval"])
+        self.assertEqual(payload["sources"][0]["type"], "internal")
+        self.assertEqual(payload["postconditions"][0]["type"], "check")
+        self.assertEqual(payload["changes"][0]["action"], "update")
+        self.assertEqual(payload["failures"][0]["attempt"], 2)
+        self.assertEqual(payload["failures"][0]["verification_results"], [{"status": "failed"}])
+
+    def test_phase_input_coercer_aggregates_nested_input_errors(self) -> None:
+        with self.assertRaises(ValidationError) as ctx:
+            _coerce_phase_input(
+                {
+                    "id": "p1",
+                    "title": "Phase 1",
+                    "blockers": "not-a-list",
+                    "sources": ["bad-source"],
+                    "postconditions": [42],
+                    "changes": "bad-changes",
+                    "failures": ["bad-failure"],
+                },
+                field_path="work.phases[0]",
+            )
+
+        errors = validation_error_messages(ctx.exception)
+
+        self.assertTrue(any(error.startswith("work.phases[0].blockers:") for error in errors))
+        self.assertTrue(any(error.startswith("work.phases[0].sources[0]:") for error in errors))
+        self.assertTrue(
+            any(error.startswith("work.phases[0].postconditions[0]:") for error in errors)
+        )
+        self.assertTrue(any(error.startswith("work.phases[0].changes:") for error in errors))
+        self.assertTrue(any(error.startswith("work.phases[0].failures[0]:") for error in errors))
 
 
 class TestCoercePhaseValidationAggregation(unittest.TestCase):
