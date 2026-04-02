@@ -16,6 +16,8 @@ Generated 2026-03-20. Trust level: **medium**. Covers memory systems, attention,
 
 **For human–LLM complementarity and collaboration design:** [human-llm-cognitive-complementarity.md](human-llm-cognitive-complementarity.md) — functional overlaps, divergences, failure mode complementarity, and what the comparison implies for frameworks like this one.
 
+**For LLMs evaluated against relevance realization theory:** [llm-relevance-realization-deep-analysis.md](llm-relevance-realization-deep-analysis.md) — detailed mapping of transformer architecture onto RR constructs, functional analogs vs. structural impossibilities, and design implications for closing the gap.
+
 **For attention and executive function:** [attention/attention-synthesis-agent-implications.md](attention/attention-synthesis-agent-implications.md).
 
 **For metacognition and calibration:** [metacognition/metacognition-synthesis-agent-implications.md](metacognition/metacognition-synthesis-agent-implications.md).

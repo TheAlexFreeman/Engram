@@ -13,7 +13,7 @@ related:
 
 # Knowledge: Cognitive Science / Relevance Realization — Summary
 
-13 files covering the full arc of relevance realization theory: historical antecedents, Vervaeke's core theory, insight as the paradigm demonstration, and the extension to intelligence, rationality, wisdom, the meaning crisis, and AI implications.
+13 files covering the full arc of relevance realization theory: historical antecedents, Vervaeke's core theory, insight as the paradigm demonstration, and the extension to intelligence, rationality, wisdom, the meaning crisis, and AI implications. For an extended deep-dive on LLMs specifically, see `../llm-relevance-realization-deep-analysis.md`.
 
 ## Phase 1 — Historical Antecedents (3 files)
 
