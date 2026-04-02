@@ -198,6 +198,12 @@ engram-mcp                    # installed CLI entry point
 python -m engram_mcp.agent_memory_mcp.server_main
 ```
 
+`engram-mcp` also exposes a small schema-backed help surface without starting the
+server: run `engram-mcp plan create --help` for human-readable plan-authoring
+help or `engram-mcp plan create --json-schema` for the raw schema used by
+`memory_plan_schema`. `engram-mcp serve` starts the server explicitly; bare
+`engram-mcp` still starts the server for backward compatibility.
+
 ### Optional transcript sidecar
 
 The repo also ships `engram-sidecar`, an optional observer that watches supported local transcript stores and feeds ACCESS logging plus session recording back through the governed MCP surface. The current implementation supports Claude Code transcripts and launches `engram-mcp` over stdio automatically, so you do not need to keep a separate MCP server process running.

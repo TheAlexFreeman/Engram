@@ -57,6 +57,19 @@ That wrapper imports the repo-local server and runs it. When the package is inst
 engram-mcp
 ```
 
+The installed CLI also exposes a schema-backed plan help path without starting
+the server:
+
+```bash
+engram-mcp plan create --help
+engram-mcp plan create --json-schema
+```
+
+Those commands are backed by the same nested contract as `memory_plan_schema`.
+Use them when a human or shell-based agent needs plan-create guidance locally
+without connecting an MCP client first. `engram-mcp serve` starts the server
+explicitly; bare `engram-mcp` still starts the server for backward compatibility.
+
 ### How the repo root is resolved
 
 The runtime supports three ways to find the memory repository:
