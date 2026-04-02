@@ -103,6 +103,7 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertEqual(payload["contract_versions"]["provenance"], 1)
         self.assertEqual(payload["contract_versions"]["structured_read"], 1)
         self.assertIn("memory_get_capabilities", payload["tool_sets"]["read_support"])
+        self.assertIn("memory_tool_schema", payload["tool_sets"]["read_support"])
         self.assertIn("memory_plan_schema", payload["tool_sets"]["read_support"])
         self.assertIn("memory_resolve_link", payload["tool_sets"]["read_support"])
         self.assertIn("memory_find_references", payload["tool_sets"]["read_support"])
@@ -171,6 +172,17 @@ class MemoryMCPTests(unittest.TestCase):
                 "oneOf"
             ][1]["properties"]["type"]["x-aliases"]["file_check"],
             "check",
+        )
+
+    def test_tool_schema_returns_structured_payload(self) -> None:
+        raw = asyncio.run(self.module.memory_tool_schema(tool_name="memory_log_access_batch"))
+        payload = json.loads(raw)
+
+        self.assertEqual(payload["tool_name"], "memory_log_access_batch")
+        self.assertIn("access_entries", payload["properties"])
+        self.assertEqual(
+            payload["properties"]["access_entries"]["items"]["properties"]["mode"]["enum"],
+            ["create", "read", "update", "write"],
         )
 
     def test_read_only_profile_contains_only_runtime_read_only_tools(self) -> None:

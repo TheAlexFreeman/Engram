@@ -18,6 +18,12 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-04-02] Cross-tool schema discoverability hardening
+
+**Changed:** Added `memory_tool_schema` as a generic Tier 0 schema lookup surface backed by a shared schema registry for the audit-targeted MCP tools. Extended the registry beyond plan creation to cover `memory_plan_execute`, ACCESS-entry batch/session logging, review and approval verdict tools, and user/skill update inputs; updated the capability manifest and MCP docs to advertise the new read tool. Hardened the affected semantic-tool docstrings so they enumerate canonical enum values and conditional requirements, and changed batch ACCESS validation to aggregate multiple entry errors for `memory_log_access_batch` and the ACCESS-entry path inside `memory_record_session`.
+**Reasoning:** The earlier `memory_plan_schema` work solved discoverability for plan creation only. The broader audit showed the same caller-guessing problem across other semantic tools, especially where batch input or opaque nested dicts hid enum and conditional requirements. A shared registry plus additive generic lookup keeps the machine-readable contract in one place, while aggregated ACCESS validation removes the remaining blind retry loop from the session logging surface.
+**Approved by:** user
+
 ## [2026-04-02] Plan tool caller UX hardening
 
 **Changed:** Added `memory_plan_schema` as a Tier 0 read-only introspection tool, enriched `memory_plan_create` with explicit nested-schema help text, normalized a narrow alias set for common caller guesses (`modify`, `code`, `file_check`), aggregated nested phase validation errors into one response, and made `preview=true` return structured validation feedback for invalid plan-create requests instead of raising immediately. Extended the installed `engram-mcp` CLI with a schema-backed `plan create` help path so `engram-mcp plan create --help` and `--json-schema` reuse the same contract locally. Updated the capability manifest, MCP documentation, and focused tests to keep the declared surface aligned with runtime behavior.

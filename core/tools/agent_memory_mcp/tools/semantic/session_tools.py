@@ -22,6 +22,7 @@ from ...preview_contract import (
     preview_target,
     require_approval_token,
 )
+from ...tool_schemas import ACCESS_MODES, REVIEW_PRIORITIES
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -38,7 +39,6 @@ _ACCESS_ROOTS = (
     "memory/working/projects",
     "memory/activity",
 )
-_ACCESS_MODES = frozenset({"read", "write", "update", "create"})
 _ACCESS_TASK_ID_MANIFEST = PurePosixPath("HUMANS/tooling/agent-memory-capabilities.toml")
 _ACCESS_SCANS_FILENAME = "ACCESS_SCANS.jsonl"
 _CATEGORY_CODE_RE = re.compile(r"`([a-z0-9]+(?:-[a-z0-9]+)*)`")
@@ -353,15 +353,17 @@ def _expected_access_entry_signatures(
     *,
     session_id: str,
     access_entries: list[dict[str, object]],
+    aggregate_validation_errors: bool = False,
 ) -> dict[str, Counter[str]]:
     expected: dict[str, Counter[str]] = {}
-    for raw_entry in access_entries:
-        access_jsonl, line, _ = _normalize_access_entry(
-            repo,
-            root,
-            raw_entry,
-            resolved_session_id=session_id,
-        )
+    normalized_entries = _normalize_access_entries(
+        repo,
+        root,
+        access_entries,
+        session_id=session_id,
+        aggregate_validation_errors=aggregate_validation_errors,
+    )
+    for access_jsonl, line, _ in normalized_entries:
         payload = json.loads(line)
         expected.setdefault(access_jsonl, Counter())[_access_entry_signature(payload)] += 1
     return expected
@@ -406,6 +408,7 @@ def _validate_replayed_access_entries(
         root,
         session_id=session_id,
         access_entries=access_entries,
+        aggregate_validation_errors=True,
     )
     for access_jsonl, expected_signatures in expected_by_jsonl.items():
         recorded_signatures = _recorded_access_entry_signatures(
@@ -539,9 +542,9 @@ def _normalize_access_entry(
         if not isinstance(mode_value, str) or not mode_value.strip():
             raise ValidationError("access entry mode must be a non-empty string when provided")
         mode = mode_value.strip()
-        if mode not in _ACCESS_MODES:
+        if mode not in ACCESS_MODES:
             raise ValidationError(
-                f"access entry mode must be one of {sorted(_ACCESS_MODES)}, got: {mode}"
+                f"access entry mode must be one of {sorted(ACCESS_MODES)}, got: {mode}"
             )
     else:
         mode = None
@@ -590,25 +593,69 @@ def _normalize_access_entry(
     return target_jsonl, _json.dumps(entry, ensure_ascii=False), routed_to_scans
 
 
+def _access_entry_label(raw_entry: object, index: int) -> str:
+    if isinstance(raw_entry, dict):
+        file_value = raw_entry.get("file")
+        if isinstance(file_value, str) and file_value.strip():
+            return file_value.strip()
+    return f"access_entries[{index}]"
+
+
+def _normalize_access_entries(
+    repo,
+    root: Path,
+    access_entries: list[dict[str, object]],
+    *,
+    session_id: str | None,
+    aggregate_validation_errors: bool = False,
+) -> list[tuple[str, str, bool]]:
+    from ...errors import ValidationError
+
+    normalized_entries: list[tuple[str, str, bool]] = []
+    validation_errors: list[str] = []
+    for index, raw_entry in enumerate(access_entries):
+        try:
+            normalized_entries.append(
+                _normalize_access_entry(
+                    repo,
+                    root,
+                    raw_entry,
+                    resolved_session_id=session_id,
+                )
+            )
+        except ValidationError as exc:
+            if not aggregate_validation_errors:
+                raise
+            validation_errors.append(f"{_access_entry_label(raw_entry, index)}: {exc}")
+
+    if validation_errors:
+        joined = "\n".join(f"- {message}" for message in validation_errors)
+        raise ValidationError(f"ACCESS entry validation failed:\n{joined}")
+
+    return normalized_entries
+
+
 def _append_access_entries(
     repo,
     root: Path,
     access_entries: list[dict[str, object]] | None,
     *,
     session_id: str | None,
+    aggregate_validation_errors: bool = False,
 ) -> tuple[list[str], int]:
     if not access_entries:
         return [], 0
 
     grouped: dict[str, list[str]] = {}
     scan_entry_count = 0
-    for raw_entry in access_entries:
-        access_jsonl, line, routed_to_scans = _normalize_access_entry(
-            repo,
-            root,
-            raw_entry,
-            resolved_session_id=session_id,
-        )
+    normalized_entries = _normalize_access_entries(
+        repo,
+        root,
+        access_entries,
+        session_id=session_id,
+        aggregate_validation_errors=aggregate_validation_errors,
+    )
+    for access_jsonl, line, routed_to_scans in normalized_entries:
         grouped.setdefault(access_jsonl, []).append(line)
         if routed_to_scans:
             scan_entry_count += 1
@@ -1414,14 +1461,20 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         ),
     )
     async def memory_flag_for_review(path: str, reason: str, priority: str = "normal") -> str:
+        """Add a file to the governance review queue.
+
+        priority must be "normal" or "urgent".
+        """
         from ...errors import ValidationError
         from ...frontmatter_utils import today_str
         from ...models import MemoryWriteResult
 
         repo = get_repo()
         root = get_root()
-        if priority not in ("normal", "urgent"):
-            raise ValidationError(f"priority must be 'normal' or 'urgent': {priority}")
+        if priority not in REVIEW_PRIORITIES:
+            raise ValidationError(
+                f"priority must be one of {sorted(REVIEW_PRIORITIES)}: {priority}"
+            )
 
         review_queue_rel = _resolve_governance_rel(root, "review-queue.md")
         abs_queue = root / review_queue_rel
@@ -1643,6 +1696,20 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         session_id: str | None = None,
         min_helpfulness: float | None = None,
     ) -> str:
+        """Log multiple ACCESS entries in one commit.
+
+        access_entries must be a non-empty list of objects with file, task,
+        helpfulness, and note.
+
+        Optional per-entry fields: category, mode, task_id, estimator,
+        min_helpfulness.
+
+        Batch-level fields:
+        - session_id: optional canonical session id applied to every entry
+        - min_helpfulness: optional routing threshold for ACCESS_SCANS.jsonl
+
+        Use memory_tool_schema for the full machine-readable entry contract.
+        """
         from ...errors import ValidationError
         from ...models import MemoryWriteResult
 
@@ -1661,6 +1728,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             root,
             normalized_entries,
             session_id=resolved_session_id,
+            aggregate_validation_errors=True,
         )
 
         entry_count = len(access_entries)
@@ -1700,6 +1768,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         Writes the session summary, optional reflection, chat index update,
         and optional ACCESS entries atomically under a single [chat] commit.
+
+        access_entries uses the same payload shape as memory_log_access_batch:
+        every entry requires file, task, helpfulness, and note, with optional
+        category, mode, task_id, estimator, and min_helpfulness fields.
         """
         from ...errors import ValidationError
         from ...frontmatter_utils import today_str
@@ -1763,6 +1835,15 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             )
             return result.to_json()
 
+        if access_entries:
+            _normalize_access_entries(
+                repo,
+                root,
+                access_entries,
+                session_id=session_id,
+                aggregate_validation_errors=True,
+            )
+
         files_changed = [session_summary_rel]
         abs_session_summary.write_text(
             _build_chat_summary_content(session_id, summary, key_topics, root=root),
@@ -1800,6 +1881,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             root,
             access_entries,
             session_id=session_id,
+            aggregate_validation_errors=True,
         )
 
         files_changed.extend(path for path in access_files_changed if path not in files_changed)

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from ...path_policy import resolve_repo_path, validate_slug
 from ...preview_contract import build_governed_preview, preview_target
+from ...tool_schemas import UPDATE_MODES
 from ._session import (
     SessionState,
     get_identity_churn_limit,
@@ -75,15 +76,19 @@ def register_tools(
         version_token: str | None = None,
         preview: bool = False,
     ) -> str:
-        """Update a named field in a user file."""
+        """Update a named field in a user file.
+
+        mode must be one of "upsert", "append", or "replace".
+        preview=True returns the governed preview envelope without writing.
+        """
         from ...errors import ValidationError
         from ...frontmatter_utils import read_with_frontmatter, today_str, write_with_frontmatter
         from ...models import MemoryWriteResult
 
         repo = get_repo()
 
-        if mode not in ("upsert", "append", "replace"):
-            raise ValidationError(f"mode must be 'upsert', 'append', or 'replace': {mode}")
+        if mode not in UPDATE_MODES:
+            raise ValidationError(f"mode must be one of {sorted(UPDATE_MODES)}: {mode}")
 
         if get_identity_updates(session_state) >= get_identity_churn_limit():
             raise ValidationError(

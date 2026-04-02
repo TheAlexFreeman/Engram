@@ -201,7 +201,8 @@ python -m engram_mcp.agent_memory_mcp.server_main
 `engram-mcp` also exposes a small schema-backed help surface without starting the
 server: run `engram-mcp plan create --help` for human-readable plan-authoring
 help or `engram-mcp plan create --json-schema` for the raw schema used by
-`memory_plan_schema`. `engram-mcp serve` starts the server explicitly; bare
+`memory_plan_schema` and mirrored by `memory_tool_schema("memory_plan_create")`.
+`engram-mcp serve` starts the server explicitly; bare
 `engram-mcp` still starts the server for backward compatibility.
 
 ### Optional transcript sidecar

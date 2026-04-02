@@ -65,7 +65,7 @@ engram-mcp plan create --help
 engram-mcp plan create --json-schema
 ```
 
-Those commands are backed by the same nested contract as `memory_plan_schema`.
+Those commands are backed by the same nested contract as `memory_plan_schema` and `memory_tool_schema("memory_plan_create")`.
 Use them when a human or shell-based agent needs plan-create guidance locally
 without connecting an MCP client first. `engram-mcp serve` starts the server
 explicitly; bare `engram-mcp` still starts the server for backward compatibility.
@@ -135,7 +135,7 @@ For worktree deployments, set `MEMORY_REPO_ROOT` to the worktree path and `HOST_
 
 ## Tool surface
 
-The MCP server exposes **95 tools by default**: 47 Tier 0 read-only tools plus 48 Tier 1 semantic tools. Enabling `MEMORY_ENABLE_RAW_WRITE_TOOLS=1` adds **7 Tier 2** raw fallback tools for a full surface of **102**. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
+The MCP server exposes **96 tools by default**: 48 Tier 0 read-only tools plus 48 Tier 1 semantic tools. Enabling `MEMORY_ENABLE_RAW_WRITE_TOOLS=1` adds **7 Tier 2** raw fallback tools for a full surface of **103**. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
 
 ### Tier 0: Read-only tools
 
@@ -147,6 +147,7 @@ These tools inspect, analyze, and report on the repo without changing it. Always
 | --- | --- |
 | `memory_get_capabilities` | Return the governed capability manifest as structured JSON. |
 | `memory_get_tool_profiles` | Return advisory tool-profile metadata for host-side narrowing. |
+| `memory_tool_schema` | Return the structured input contract for a supported MCP tool whose nested schema is not obvious from FastMCP type hints alone. |
 | `memory_plan_schema` | Return the nested input contract for `memory_plan_create`, including canonical enums, aliases, and conditional requirements. |
 | `memory_get_policy_state` | Compile the current governed contract for an operation and optional path. |
 | `memory_route_intent` | Recommend the best governed operation for a natural-language intent. |
@@ -343,7 +344,7 @@ Canonical nested shapes:
 - `postconditions`: list of strings (shorthand for manual checks) or `{description, type?, target?}` where `type` is `check | grep | test | manual`; `check` validates file existence, `grep` validates `regex::path`, `test` runs an allowlisted command behind `ENGRAM_TIER2=1`, and `target` is required when `type != manual`.
 - `changes`: non-empty list of `{path, action, description}` where `action` is `create | rewrite | update | delete | rename`.
 
-Use `memory_plan_schema` when callers need the machine-readable nested contract. `preview=true` still returns the normal governed preview for valid requests, but invalid preview requests now return structured validation feedback instead of forcing guess-and-retry loops.
+Use `memory_plan_schema` for the plan-create compatibility path or `memory_tool_schema` for the broader schema lookup surface. `preview=true` still returns the normal governed preview for valid requests, but invalid preview requests now return structured validation feedback instead of forcing guess-and-retry loops.
 
 The `resulting_state` includes a `budget_status` block when a budget is set.
 

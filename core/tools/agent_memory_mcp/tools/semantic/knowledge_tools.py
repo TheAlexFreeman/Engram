@@ -17,6 +17,7 @@ from ...path_policy import (
     validate_session_id,
 )
 from ...preview_contract import build_governed_preview, preview_target
+from ...tool_schemas import KNOWLEDGE_BATCH_TRUST_LEVELS, REVIEW_VERDICTS
 from ..name_index import generate_names_index, write_names_index
 from ..reference_extractor import plan_reorganization
 
@@ -29,7 +30,6 @@ def _tool_annotations(**kwargs: object) -> Any:
 
 
 _MAX_BATCH_PROMOTIONS = 50
-_REVIEW_VERDICTS = frozenset({"approve", "reject", "defer"})
 
 
 @dataclass(frozen=True)
@@ -357,6 +357,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         auto-created with default entries so routine promotion work stays
         atomic.
 
+        trust_level must be "medium" or "high".
+
         Prefer memory_promote_knowledge_subtree when the source is a nested topic
         tree whose internal subfolders should be preserved.
         """
@@ -372,8 +374,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         root = get_root()
         warnings: list[str] = []
 
-        if trust_level not in ("medium", "high"):
-            raise ValidationError(f"trust_level must be 'medium' or 'high', got: {trust_level}")
+        if trust_level not in KNOWLEDGE_BATCH_TRUST_LEVELS:
+            raise ValidationError(
+                f"trust_level must be one of {sorted(KNOWLEDGE_BATCH_TRUST_LEVELS)}, got: {trust_level}"
+            )
 
         normalized_source_paths = _normalize_batch_source_paths(source_paths, repo, root)
         if len(normalized_source_paths) > _MAX_BATCH_PROMOTIONS:
@@ -580,8 +584,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         root = get_root()
         warnings: list[str] = []
 
-        if trust_level not in ("medium", "high"):
-            raise ValidationError(f"trust_level must be 'medium' or 'high', got: {trust_level}")
+        if trust_level not in KNOWLEDGE_BATCH_TRUST_LEVELS:
+            raise ValidationError(
+                f"trust_level must be one of {sorted(KNOWLEDGE_BATCH_TRUST_LEVELS)}, got: {trust_level}"
+            )
 
         source_folder, abs_source_folder = resolve_repo_path(
             repo, source_folder, field_name="source_folder"
@@ -988,8 +994,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         source_path, abs_source = resolve_repo_path(repo, source_path, field_name="source_path")
         require_under_prefix(source_path, "memory/knowledge/_unverified", field_name="source_path")
-        if trust_level not in ("medium", "high"):
-            raise ValidationError(f"trust_level must be 'medium' or 'high', got: {trust_level}")
+        if trust_level not in KNOWLEDGE_BATCH_TRUST_LEVELS:
+            raise ValidationError(
+                f"trust_level must be one of {sorted(KNOWLEDGE_BATCH_TRUST_LEVELS)}, got: {trust_level}"
+            )
 
         if not abs_source.exists():
             raise NotFoundError(f"Source file not found: {source_path}")
@@ -1646,7 +1654,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         reviewer_notes: str = "",
         session_id: str = "",
     ) -> str:
-        """Record a review verdict for an unverified knowledge file."""
+        """Record a review verdict for an unverified knowledge file.
+
+        verdict must be "approve", "reject", or "defer".
+        session_id is optional, but when supplied it must be a canonical
+        memory/activity/YYYY/MM/DD/chat-NNN id.
+        """
         from ...errors import NotFoundError, ValidationError
         from ...models import MemoryWriteResult
 
@@ -1657,9 +1670,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         require_under_prefix(path, "memory/knowledge/_unverified", field_name="path")
         if not abs_path.exists():
             raise NotFoundError(f"File not found: {path}")
-        if verdict not in _REVIEW_VERDICTS:
+        if verdict not in REVIEW_VERDICTS:
             raise ValidationError(
-                f"verdict must be one of {sorted(_REVIEW_VERDICTS)}, got: {verdict}"
+                f"verdict must be one of {sorted(REVIEW_VERDICTS)}, got: {verdict}"
             )
         if session_id:
             validate_session_id(session_id)

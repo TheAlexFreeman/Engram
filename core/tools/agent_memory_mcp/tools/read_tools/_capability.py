@@ -6,7 +6,7 @@ import json
 from typing import TYPE_CHECKING, Any, cast
 
 from ...errors import ValidationError
-from ...plan_utils import plan_create_input_schema
+from ...tool_schemas import get_tool_input_schema
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -86,6 +86,31 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         return json.dumps(payload, indent=2, default=str)
 
     # ------------------------------------------------------------------
+    # memory_tool_schema
+
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_tool_schema",
+        annotations=_tool_annotations(
+            title="Get Tool Input Schema",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_tool_schema(tool_name: str) -> str:
+        """Return the structured input schema for a supported MCP tool.
+
+        Use this when a caller needs the nested input contract for a semantic
+        tool whose FastMCP type hints erase inner structure. Unsupported tool
+        names return a validation error listing the currently registered schema
+        surfaces.
+        """
+
+        return json.dumps(get_tool_input_schema(tool_name), indent=2, default=str)
+
+    # ------------------------------------------------------------------
     # memory_plan_schema
 
     # ------------------------------------------------------------------
@@ -107,7 +132,7 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         the small alias set normalized by the plan coercion layer.
         """
 
-        return json.dumps(plan_create_input_schema(), indent=2, default=str)
+        return json.dumps(get_tool_input_schema("memory_plan_create"), indent=2, default=str)
 
     # ------------------------------------------------------------------
     # memory_get_policy_state
@@ -242,6 +267,7 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
     return {
         "memory_get_capabilities": memory_get_capabilities,
         "memory_get_tool_profiles": memory_get_tool_profiles,
+        "memory_tool_schema": memory_tool_schema,
         "memory_plan_schema": memory_plan_schema,
         "memory_get_policy_state": memory_get_policy_state,
         "memory_route_intent": memory_route_intent,

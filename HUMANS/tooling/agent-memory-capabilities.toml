@@ -20,6 +20,7 @@ read_support = [
   # Self-referential by design: this tool reads the manifest that declares it.
   "memory_get_capabilities",
   "memory_get_tool_profiles",
+  "memory_tool_schema",
   "memory_plan_schema",
   "memory_get_policy_state",
   "memory_route_intent",

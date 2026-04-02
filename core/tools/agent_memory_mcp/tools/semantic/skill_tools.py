@@ -13,6 +13,7 @@ from ...preview_contract import (
     preview_target,
     require_approval_token,
 )
+from ...tool_schemas import SKILL_CREATE_TRUST_LEVELS, UPDATE_MODES
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -80,6 +81,9 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         Unlike identity updates, skill updates do not enforce a per-session churn alarm.
         The protected change class and explicit-review flow are the primary safeguards here.
+
+        mode must be one of "upsert", "append", or "replace".
+        When create_if_missing=True, source, trust, and origin_session are required.
         """
         from ...errors import NotFoundError, ValidationError
         from ...frontmatter_utils import read_with_frontmatter, today_str, write_with_frontmatter
@@ -87,8 +91,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         repo = get_repo()
 
-        if mode not in ("upsert", "append", "replace"):
-            raise ValidationError(f"mode must be 'upsert', 'append', or 'replace': {mode}")
+        if mode not in UPDATE_MODES:
+            raise ValidationError(f"mode must be one of {sorted(UPDATE_MODES)}: {mode}")
 
         file = validate_slug(file, field_name="file")
         rel_path, abs_path = resolve_repo_path(repo, f"memory/skills/{file}.md")
@@ -103,9 +107,10 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 raise NotFoundError(f"Skill file not found: {rel_path}")
             if not source or not source.strip():
                 raise ValidationError("source is required when create_if_missing=True")
-            if trust not in ("high", "medium", "low"):
+            if trust not in SKILL_CREATE_TRUST_LEVELS:
                 raise ValidationError(
-                    "trust must be 'high', 'medium', or 'low' when create_if_missing=True"
+                    "trust must be one of "
+                    f"{sorted(SKILL_CREATE_TRUST_LEVELS)} when create_if_missing=True"
                 )
             if origin_session is None:
                 raise ValidationError("origin_session is required when create_if_missing=True")

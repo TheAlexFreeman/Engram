@@ -523,14 +523,31 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         verification_results: list[dict[str, Any]] | None = None,
         preview: bool = False,
     ) -> str:
-        """Inspect, start, block, complete, or record failure on a plan phase.
+        """Inspect, start, complete, or record failure on a plan phase.
+
+        action must be one of "inspect", "start", "complete", or
+        "record_failure".
+
+        session_id is required for start, complete, and record_failure.
+        commit_sha is required when action="complete".
+        reason is required when action="record_failure".
+
+        review is only consumed when the final phase completes. The caller-facing
+        review object supports:
+        - outcome: "completed" | "partial" | "abandoned" (default "completed")
+        - purpose_assessment: non-empty string
+        - unresolved: optional list of {question, note}
+        - follow_up: optional kebab-case follow-up plan id
+
+        verification_results is an optional list of verification result objects
+        attached to failure records or returned by verify flows.
 
         When action="complete" and verify=True, postconditions are evaluated
-        before completion. If any fail or error, the phase stays in-progress
-        and verification_results are returned instead.
+        before completion. If any fail or error, the phase stays in-progress and
+        the verification payload is returned instead.
 
-        When action="record_failure", appends a PhaseFailure to the phase.
-        Requires reason (free text). Optional verification_results to attach.
+        Use memory_tool_schema or memory_plan_schema for the machine-readable
+        contract.
         """
         from ...errors import AlreadyDoneError, ValidationError
         from ...frontmatter_utils import today_str

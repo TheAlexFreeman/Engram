@@ -2062,6 +2062,35 @@ declared_gaps = []
             "update",
         )
 
+    def test_memory_tool_schema_returns_parseable_json(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        plan_payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_plan_create"))
+        )
+        access_payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_log_access_batch"))
+        )
+        legacy_payload = json.loads(asyncio.run(tools["memory_plan_schema"]()))
+
+        self.assertEqual(plan_payload, legacy_payload)
+        self.assertEqual(access_payload["tool_name"], "memory_log_access_batch")
+        self.assertIn("access_entries", access_payload["properties"])
+        self.assertEqual(
+            access_payload["properties"]["access_entries"]["items"]["properties"]["mode"]["enum"],
+            ["create", "read", "update", "write"],
+        )
+
+    def test_memory_tool_schema_rejects_unknown_tool(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError) as ctx:
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_not_real"))
+
+        self.assertIn("Unsupported tool schema", str(ctx.exception))
+
     def test_memory_get_capabilities_returns_structured_error_for_malformed_toml(self) -> None:
         repo_root = self._init_repo(
             {
@@ -4618,6 +4647,50 @@ Direct and concise.
                 )
             )
 
+    def test_memory_record_session_reports_multiple_access_entry_validation_errors(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/activity/SUMMARY.md": "# Chats\n## Structure\n",
+                "memory/knowledge/topic.md": "# Topic\n",
+                "memory/working/projects/demo.md": "# Demo\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError) as ctx:
+            asyncio.run(
+                tools["memory_record_session"](
+                    session_id="memory/activity/2026/03/20/chat-003",
+                    summary="# Session Summary\n\nDid the work.\n",
+                    access_entries=[
+                        {
+                            "file": "memory/knowledge/topic.md",
+                            "task": "",
+                            "helpfulness": 0.8,
+                            "note": "missing task",
+                        },
+                        {
+                            "file": "memory/working/projects/demo.md",
+                            "task": "session wrap-up",
+                            "helpfulness": 1.5,
+                            "note": "bad helpfulness",
+                        },
+                    ],
+                )
+            )
+
+        message = str(ctx.exception)
+        self.assertIn("ACCESS entry validation failed", message)
+        self.assertIn("memory/knowledge/topic.md", message)
+        self.assertIn("memory/working/projects/demo.md", message)
+        self.assertFalse(
+            (
+                repo_root / "memory" / "activity" / "2026" / "03" / "20" / "chat-003" / "SUMMARY.md"
+            ).exists()
+        )
+        self.assertFalse((repo_root / "memory" / "knowledge" / "ACCESS.jsonl").exists())
+        self.assertFalse((repo_root / "memory" / "working" / "projects" / "ACCESS.jsonl").exists())
+
     def test_memory_checkpoint_writes_timestamped_entry_without_commit(self) -> None:
         repo_root = self._init_repo({"memory/working/CURRENT.md": "# Current\n"})
         tools = self._create_tools(repo_root)
@@ -6773,6 +6846,43 @@ current_focus: Example project.
         self.assertEqual(knowledge_entry["session_id"], "memory/activity/2026/03/20/chat-016")
         self.assertEqual(plan_scan_entry["session_id"], "memory/activity/2026/03/20/chat-016")
         self.assertEqual(plan_scan_entry["helpfulness"], 0.2)
+
+    def test_memory_log_access_batch_reports_multiple_validation_errors(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/lit/foo.md": "# Foo\n",
+                "memory/working/projects/demo.md": "# Demo\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError) as ctx:
+            asyncio.run(
+                tools["memory_log_access_batch"](
+                    access_entries=[
+                        {
+                            "file": "memory/knowledge/lit/foo.md",
+                            "task": "",
+                            "helpfulness": 0.8,
+                            "note": "missing task",
+                        },
+                        {
+                            "file": "memory/working/projects/demo.md",
+                            "task": "batch test",
+                            "helpfulness": 1.4,
+                            "note": "bad helpfulness",
+                        },
+                    ],
+                    session_id="memory/activity/2026/03/20/chat-017",
+                )
+            )
+
+        message = str(ctx.exception)
+        self.assertIn("ACCESS entry validation failed", message)
+        self.assertIn("memory/knowledge/lit/foo.md", message)
+        self.assertIn("memory/working/projects/demo.md", message)
+        self.assertFalse((repo_root / "memory" / "knowledge" / "ACCESS.jsonl").exists())
+        self.assertFalse((repo_root / "memory" / "working" / "projects" / "ACCESS.jsonl").exists())
 
     def test_memory_get_maturity_signals_reports_write_sessions(self) -> None:
         repo_root = self._init_repo(
