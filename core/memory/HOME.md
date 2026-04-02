@@ -6,7 +6,7 @@ This is the Home file for the memory store. After `core/INIT.md` routes you here
 
 ## Context loading order
 
-**MCP shortcut:** When `memory_context_home` is available, call it instead of this manual load sequence — it covers steps 1–4 below in a single call and returns a budget report. Only fall back to the manual order if the MCP surface is unavailable.
+**MCP shortcut:** When `memory_context_home` is available, call it instead of this manual load sequence — it covers steps 1–4 below in a single call and returns a budget report.
 
 Load in this order. Skip files marked _(skip if placeholder)_ when they contain only default text.
 
@@ -30,7 +30,7 @@ Then load task-driven drill-downs only when the current task makes them relevant
 
 `core/memory/users/`, `core/memory/knowledge/`, `core/memory/skills/`, `core/memory/activity/`, `core/memory/working/projects/`.
 
-Log retrievals from these folders to their `ACCESS.jsonl`. See `README.md` § "Memory curation" for the format. `core/governance/` is not access-tracked.
+Log retrievals from these folders to their `ACCESS.jsonl`. `core/governance/` is not access-tracked.
 
 ### Worktree mode
 

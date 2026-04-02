@@ -74,9 +74,7 @@ These targets leave reserve headroom inside the 7k returning-session ceiling. If
 
 ## Compact file success criteria
 
-- `core/memory/working/projects/SUMMARY.md` remains the primary project navigator.
-- `core/memory/activity/SUMMARY.md` stays metadata-first and points to dated chat summaries.
-- `core/memory/working/CURRENT.md` keeps active threads and drill-down refs compact.
+See compact contract table above for per-file targets and what belongs in each file vs. drill-down reads.
 
 ## Current active stage: Exploration
 
