@@ -49,7 +49,7 @@ Use `core/INIT.md` as the operational router after this architectural entry pass
 3. If it routes you to **Full bootstrap** or **Periodic review**, keep this `README.md` in scope as the architectural reference and continue with the relevant manifest.
 4. Otherwise, follow the **Compact returning** manifest → `core/memory/HOME.md`.
 
-When the MCP surface is available, prefer `memory_context_home` for general session startup or `memory_context_project` for project-focused automation as single-call alternatives to the file-based routing manifests.
+> **MCP shortcut — use this when available:** `memory_context_home` replaces the entire Compact returning file sequence in a single call. `memory_context_project` replaces the Automation sequence for a named project. Prefer these over the file-based manifests whenever the MCP surface is live; fall back to files only when it is not.
 
 For the complete mapping of which files to load per session type, see `core/INIT.md` § "Context loading manifest". For detailed runbooks, see `core/governance/session-checklists.md`.
 

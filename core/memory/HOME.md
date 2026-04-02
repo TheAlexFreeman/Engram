@@ -6,6 +6,8 @@ This is the Home file for the memory store. After `core/INIT.md` routes you here
 
 ## Context loading order
 
+**MCP shortcut:** When `memory_context_home` is available, call it instead of this manual load sequence — it covers steps 1–4 below in a single call and returns a budget report. Only fall back to the manual order if the MCP surface is unavailable.
+
 Load in this order. Skip files marked _(skip if placeholder)_ when they contain only default text.
 
 1. `core/memory/users/SUMMARY.md` — user portrait and working style

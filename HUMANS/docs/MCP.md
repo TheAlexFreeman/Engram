@@ -167,6 +167,8 @@ These tools inspect, analyze, and report on the repo without changing it. Always
 
 ### Context injectors
 
+**These are the primary session entrypoints when the MCP surface is available.** Prefer them over the equivalent file-based sequences; fall back to files only when the MCP surface is unavailable or lacks the needed operation.
+
 `memory_context_home` and `memory_context_project` are Tier 0 read-only context injectors. They are designed to replace the most common file-based bootstrap patterns with a single MCP call that returns native Markdown plus a JSON metadata header.
 
 Return format:
