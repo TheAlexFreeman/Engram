@@ -114,6 +114,7 @@ core/governance/update-guidelines.md
 core/memory/HOME.md
 core/memory/activity/2026/03/18/chat-001/SUMMARY.md
 core/memory/activity/2026/03/18/chat-001/reflection.md
+core/memory/activity/2026/04/02/chat-001.traces.jsonl
 core/memory/activity/ACCESS.jsonl
 core/memory/activity/SUMMARY.md
 core/memory/knowledge/ACCESS.jsonl
@@ -715,6 +716,14 @@ core/memory/working/notes/strategic-analysis-agent-ecosystem.md
 core/memory/working/projects/ACCESS.jsonl
 core/memory/working/projects/OUT/SUMMARY.md
 core/memory/working/projects/SUMMARY.md
+core/memory/working/projects/cli-expansion/SUMMARY.md
+core/memory/working/projects/cli-expansion/notes/cli-roadmap.md
+core/memory/working/projects/cli-expansion/notes/mcp-schema-discoverability-audit.md
+core/memory/working/projects/cli-expansion/notes/plan-tool-ux-improvements.md
+core/memory/working/projects/cli-expansion/notes/r5-typed-parameter-investigation.md
+core/memory/working/projects/cli-expansion/operations.jsonl
+core/memory/working/projects/cli-expansion/plans/cli-v0.yaml
+core/memory/working/projects/cli-expansion/questions.md
 core/memory/working/projects/general-knowledge-base/IN/databases-scope-note.md
 core/memory/working/projects/general-knowledge-base/IN/emotion-scope-note.md
 core/memory/working/projects/general-knowledge-base/IN/governance-scope-note.md
@@ -743,6 +752,8 @@ core/memory/working/projects/system-literacy/notes/project-plans-roadmap.md
 core/memory/working/projects/system-literacy/questions.md
 core/tools/__init__.py
 core/tools/agent_memory_mcp/__init__.py
+core/tools/agent_memory_mcp/cli/__init__.py
+core/tools/agent_memory_mcp/cli/plan_help.py
 core/tools/agent_memory_mcp/core/__init__.py
 core/tools/agent_memory_mcp/core/errors.py
 core/tools/agent_memory_mcp/core/frontmatter_utils.py
@@ -812,6 +823,7 @@ core/tools/tests/conftest.py
 core/tools/tests/test_access_logger.py
 core/tools/tests/test_agent_memory_mcp_write_tools.py
 core/tools/tests/test_claude_code_parser.py
+core/tools/tests/test_cli_plan_help.py
 core/tools/tests/test_context_helpers.py
 core/tools/tests/test_context_home.py
 core/tools/tests/test_context_project.py
@@ -833,11 +845,13 @@ core/tools/tests/test_proxy_flush.py
 core/tools/tests/test_proxy_injection.py
 core/tools/tests/test_search_freshness.py
 core/tools/tests/test_semantic_search.py
+core/tools/tests/test_server_main.py
 core/tools/tests/test_session_lifecycle.py
 core/tools/tests/test_sidecar_cli.py
 core/tools/tests/test_surface_unlinked.py
 core/tools/tests/test_transcript_parser.py
 index.html
+install-worktree.sh
 pyproject.toml
 setup.html
 setup.sh
