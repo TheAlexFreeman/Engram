@@ -73,7 +73,7 @@ SOURCE_TYPE_ALIASES = {"code": "internal"}
 POSTCONDITION_TYPE_ALIASES = {"file_check": "check"}
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_PLAN_SLUG_PATTERN = r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+_PLAN_SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 _SESSION_ID_PATTERN = r"^memory/activity/\d{4}/\d{2}/\d{2}/chat-\d{3}$"
 
 
@@ -1299,23 +1299,24 @@ def _coerce_phases(raw_phases: Any) -> list[PlanPhase]:
                 )
             except ValidationError as exc:
                 phase_errors.extend(validation_error_messages(exc))
-        try:
-            phase = PlanPhase(
-                id="" if phase_input is None else phase_input["id"],
-                title="" if phase_input is None else phase_input["title"],
-                status="pending" if phase_input is None else phase_input.get("status", "pending"),
-                commit=None if phase_input is None else phase_input.get("commit"),
-                blockers=[] if phase_input is None else phase_input.get("blockers", []),
-                sources=sources,
-                postconditions=postconditions,
-                requires_approval=(
-                    False if phase_input is None else phase_input.get("requires_approval", False)
-                ),
-                changes=changes,
-                failures=failures,
-            )
-        except ValidationError as exc:
-            phase_errors.extend(_prefix_validation_errors(phase_path, exc))
+        if phase_input is not None:
+            try:
+                phase = PlanPhase(
+                    id=phase_input["id"],
+                    title=phase_input["title"],
+                    status=phase_input.get("status", "pending"),
+                    commit=phase_input.get("commit"),
+                    blockers=phase_input.get("blockers", []),
+                    sources=sources,
+                    postconditions=postconditions,
+                    requires_approval=phase_input.get("requires_approval", False),
+                    changes=changes,
+                    failures=failures,
+                )
+            except ValidationError as exc:
+                phase_errors.extend(_prefix_validation_errors(phase_path, exc))
+                phase = None
+        else:
             phase = None
         if phase_errors:
             errors.extend(phase_errors)
