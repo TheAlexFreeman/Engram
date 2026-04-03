@@ -67,7 +67,11 @@ def resolve_repo_root(
         walked = _walk_for_repo_root(resolved)
         if walked is not None:
             return walked
-        return resolved
+        raise ValueError(
+            f"'{candidate}' does not appear to be an Engram repository root. "
+            "Ensure the path contains agent-bootstrap.toml or "
+            "core/INIT.md alongside pyproject.toml."
+        )
 
     walked = _walk_for_repo_root(cwd or Path.cwd())
     if walked is not None:

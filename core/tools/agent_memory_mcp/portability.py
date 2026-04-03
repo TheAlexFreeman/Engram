@@ -791,6 +791,10 @@ def _classify_bundle_files(
             created.add(file.path)
             continue
 
+        if not abs_path.is_file():
+            conflicting.add(file.path)
+            continue
+
         current = _read_export_bytes(abs_path)
         if current == file.raw_bytes:
             unchanged.add(file.path)

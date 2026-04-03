@@ -250,3 +250,35 @@ def test_import_command_is_registered_in_main_parser() -> None:
     assert args.overwrite is True
     assert args.json is True
     assert args.handler is cmd_import.run_import
+
+
+def test_import_preview_treats_directory_path_collision_as_conflict(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source_repo, source_root = _seed_source_repo(tmp_path)
+    target_repo, target_root = _seed_target_repo(tmp_path, conflict=False)
+    bundle_path = tmp_path / "bundle.json"
+
+    cmd_export.run_export(
+        _export_args(bundle_format="json", output=str(bundle_path)),
+        repo_root=source_repo,
+        content_root=source_root,
+    )
+    capsys.readouterr()
+
+    # Place a directory at the path where a bundle file would be written.
+    collision_dir = target_root / "memory" / "knowledge" / "topic.md"
+    collision_dir.mkdir(parents=True, exist_ok=True)
+
+    exit_code = cmd_import.run_import(
+        _import_args(str(bundle_path), json_output=True),
+        repo_root=target_repo,
+        content_root=target_root,
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["preview"]["mode"] == "preview"
+    assert payload["new_state"]["can_apply"] is False
+    assert "core/memory/knowledge/topic.md" in payload["new_state"]["existing_conflicts"]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import json
 import sys
+import tempfile
 from pathlib import Path
 from types import ModuleType
 
@@ -19,6 +20,7 @@ def _load_cmd_validate() -> ModuleType:
 
 cmd_validate = _load_cmd_validate()
 Finding = importlib.import_module("engram_mcp.agent_memory_mcp.cli.validators").Finding
+cli_main = importlib.import_module("engram_mcp.agent_memory_mcp.cli.main")
 
 
 def _args(*, json_output: bool = False):
@@ -116,3 +118,26 @@ def test_validate_json_output_is_array(
 
     assert exit_code == 1
     assert isinstance(payload, list)
+
+
+def test_resolve_repo_root_raises_for_non_engram_explicit_path() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        non_engram = Path(tmp) / "not-an-engram-repo"
+        non_engram.mkdir()
+
+        with pytest.raises(ValueError, match="does not appear to be an Engram repository root"):
+            cli_main.resolve_repo_root(explicit_root=str(non_engram))
+
+
+def test_resolve_repo_root_raises_for_non_engram_env_root() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        non_engram = Path(tmp) / "not-an-engram-repo"
+        non_engram.mkdir()
+
+        with pytest.raises(ValueError, match="does not appear to be an Engram repository root"):
+            cli_main.resolve_repo_root(env={"MEMORY_REPO_ROOT": str(non_engram)})
+
+
+def test_resolve_repo_root_accepts_valid_engram_root() -> None:
+    result = cli_main.resolve_repo_root(explicit_root=str(REPO_ROOT))
+    assert result == REPO_ROOT
