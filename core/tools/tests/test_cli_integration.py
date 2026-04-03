@@ -74,6 +74,11 @@ def _run_cli(
     )
 
 
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
 def _commit_with_date(repo_root: Path, message: str, when: str) -> None:
     environment = dict(os.environ)
     environment["GIT_AUTHOR_DATE"] = when
@@ -491,6 +496,183 @@ def _seed_diff_fixture(repo_root: Path) -> None:
     _commit_with_date(repo_root, "update diff fixture trust", "2099-01-02T11:30:00Z")
 
 
+def _seed_maintenance_fixture(repo_root: Path) -> None:
+    _write(
+        repo_root / "core" / "INIT.md",
+        "# Session Init\n\n"
+        "## Current active stage: Exploration\n\n"
+        "## Last periodic review\n\n"
+        "**Date:** 2026-03-19\n\n"
+        "| Parameter | Active value | Stage |\n"
+        "|---|---|---|\n"
+        "| Aggregation trigger | 3 entries | Exploration |\n"
+        "| Low-trust retirement threshold | 120 days | Exploration |\n",
+    )
+    _write(
+        repo_root / "core" / "governance" / "review-queue.md",
+        "### [2026-04-03] Review maintenance preview workflow\n"
+        "**Type:** proposed\n"
+        "**Description:** Confirm the terminal maintenance preview commands.\n"
+        "**Status:** pending\n",
+    )
+    _write(
+        repo_root / "core" / "memory" / "knowledge" / "_unverified" / "draft.md",
+        "---\n"
+        "source: external-research\n"
+        "trust: low\n"
+        "created: 2025-01-01\n"
+        "origin_session: manual\n"
+        "---\n\n"
+        "Draft note for review preview coverage.\n",
+    )
+    _write(repo_root / "core" / "memory" / "knowledge" / "topic.md", "# Topic\n")
+    _write(repo_root / "core" / "memory" / "working" / "projects" / "demo.md", "# Demo\n")
+    _write(repo_root / "core" / "memory" / "skills" / "session-start.md", "# Session Start\n")
+    _write(
+        repo_root / "core" / "memory" / "knowledge" / "SUMMARY.md",
+        "# Knowledge\n\n## Usage patterns\n\n_No access data yet._\n",
+    )
+    _write(
+        repo_root / "core" / "memory" / "working" / "projects" / "SUMMARY.md",
+        "# Plans\n\n## Usage patterns\n\n_No access data yet._\n",
+    )
+    _write(
+        repo_root / "core" / "memory" / "skills" / "SUMMARY.md",
+        "# Skills\n\n## Usage patterns\n\n_No access data yet._\n",
+    )
+    _write(
+        repo_root / "core" / "memory" / "knowledge" / "ACCESS.jsonl",
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "date": "2099-01-03",
+                        "session_id": "memory/activity/2099/01/03/chat-001",
+                        "file": "memory/knowledge/topic.md",
+                        "helpfulness": 0.8,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "date": "2099-01-04",
+                        "session_id": "memory/activity/2099/01/04/chat-001",
+                        "file": "memory/knowledge/topic.md",
+                        "helpfulness": 0.8,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "date": "2099-01-05",
+                        "session_id": "memory/activity/2099/01/05/chat-001",
+                        "file": "memory/knowledge/topic.md",
+                        "helpfulness": 0.8,
+                    }
+                ),
+            ]
+        )
+        + "\n",
+    )
+    _write(
+        repo_root / "core" / "memory" / "working" / "projects" / "ACCESS.jsonl",
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "date": "2099-01-03",
+                        "session_id": "memory/activity/2099/01/03/chat-001",
+                        "file": "memory/working/projects/demo.md",
+                        "helpfulness": 0.7,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "date": "2099-01-04",
+                        "session_id": "memory/activity/2099/01/04/chat-001",
+                        "file": "memory/working/projects/demo.md",
+                        "helpfulness": 0.7,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "date": "2099-01-05",
+                        "session_id": "memory/activity/2099/01/05/chat-001",
+                        "file": "memory/working/projects/demo.md",
+                        "helpfulness": 0.7,
+                    }
+                ),
+            ]
+        )
+        + "\n",
+    )
+    _write(
+        repo_root / "core" / "memory" / "skills" / "ACCESS.jsonl",
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "date": "2099-01-03",
+                        "session_id": "memory/activity/2099/01/03/chat-001",
+                        "file": "memory/skills/session-start.md",
+                        "helpfulness": 0.9,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "date": "2099-01-04",
+                        "session_id": "memory/activity/2099/01/04/chat-001",
+                        "file": "memory/skills/session-start.md",
+                        "helpfulness": 0.9,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "date": "2099-01-05",
+                        "session_id": "memory/activity/2099/01/05/chat-001",
+                        "file": "memory/skills/session-start.md",
+                        "helpfulness": 0.9,
+                    }
+                ),
+            ]
+        )
+        + "\n",
+    )
+    _commit_with_date(repo_root, "seed maintenance fixture", "2099-01-05T12:00:00Z")
+
+
+def _seed_lifecycle_fixture(repo_root: Path) -> None:
+    _write(
+        repo_root / "core" / "memory" / "knowledge" / "_unverified" / "lifecycle" / "promote-me.md",
+        "---\ncreated: 2099-01-06\nsource: test\ntrust: low\n---\n\n# Promote Me\n",
+    )
+    _write(
+        repo_root / "core" / "memory" / "knowledge" / "lifecycle" / "archive-me.md",
+        "---\n"
+        "created: 2099-01-06\n"
+        "source: test\n"
+        "trust: high\n"
+        "last_verified: 2099-01-06\n"
+        "---\n\n"
+        "# Archive Me\n",
+    )
+    _write(
+        repo_root / "core" / "memory" / "knowledge" / "_unverified" / "SUMMARY.md",
+        "# Unverified Knowledge\n\n"
+        "<!-- section: lifecycle -->\n"
+        "### Lifecycle\n"
+        "- **[promote-me.md](memory/knowledge/_unverified/lifecycle/promote-me.md)** — Promote Me\n\n"
+        "---\n",
+    )
+    _write(
+        repo_root / "core" / "memory" / "knowledge" / "SUMMARY.md",
+        "# Knowledge\n\n"
+        "<!-- section: lifecycle -->\n"
+        "### Lifecycle\n"
+        "- **[archive-me.md](memory/knowledge/lifecycle/archive-me.md)** — Archive Me\n\n"
+        "---\n",
+    )
+    _commit_with_date(repo_root, "seed lifecycle fixture", "2099-01-06T15:00:00Z")
+
+
 def test_validate_status_and_search_integration(tmp_path: Path) -> None:
     repo_copy = _copy_repo_tree(tmp_path)
     _seed_warning_fixture(repo_copy)
@@ -521,6 +703,7 @@ def test_json_subcommands_emit_parseable_output(tmp_path: Path) -> None:
     _seed_read_surface_fixture(repo_copy)
     _seed_add_fixture(repo_copy)
     _seed_diff_fixture(repo_copy)
+    _seed_maintenance_fixture(repo_copy)
     add_source = repo_copy / "cli-add-source.md"
     add_source.write_text("# CLI Add\n\nBody\n", encoding="utf-8")
 
@@ -559,6 +742,8 @@ def test_json_subcommands_emit_parseable_output(tmp_path: Path) -> None:
         "knowledge",
         "--json",
     )
+    review_run = _run_cli(repo_copy, "review", "--json")
+    aggregate_run = _run_cli(repo_copy, "aggregate", "--namespace", "knowledge", "--json")
     add_run = _run_cli(
         repo_copy,
         "add",
@@ -574,14 +759,21 @@ def test_json_subcommands_emit_parseable_output(tmp_path: Path) -> None:
     assert "stage" in json.loads(status_run.stdout)
     assert "results" in json.loads(search_run.stdout)
     assert json.loads(recall_run.stdout)["kind"] == "file"
-    assert (
-        json.loads(log_run.stdout)["results"][0]["file"]
-        == "memory/knowledge/cli-integration/sentinel.md"
+    log_payload = json.loads(log_run.stdout)
+    assert log_payload["results"]
+    assert all(entry["file"].startswith("memory/knowledge/") for entry in log_payload["results"])
+    diff_payload = json.loads(diff_run.stdout)
+    assert diff_payload["commits"]
+    assert all(
+        file_entry["path"].startswith("memory/knowledge/")
+        for commit in diff_payload["commits"]
+        for file_entry in commit["files"]
     )
-    assert (
-        json.loads(diff_run.stdout)["commits"][0]["files"][0]["path"]
-        == "memory/knowledge/cli-diff.md"
-    )
+    review_payload = json.loads(review_run.stdout)
+    assert review_payload["counts"]["review_queue"] == 1
+    assert review_payload["counts"]["stale_unverified"] == 1
+    assert review_payload["counts"]["aggregation"] >= 3
+    assert json.loads(aggregate_run.stdout)["entries_processed"] == 3
     assert (
         json.loads(add_run.stdout)["new_state"]["path"]
         == "memory/knowledge/_unverified/cli-integration/cli-add-source.md"
@@ -957,6 +1149,136 @@ def test_diff_human_output_integration(tmp_path: Path) -> None:
     assert "Diff query (namespace=knowledge, since=2099-01-01)" in diff_run.stdout
     assert "memory/knowledge/cli-diff.md [modified/knowledge]" in diff_run.stdout
     assert "frontmatter changed; trust: low -> medium" in diff_run.stdout
+
+    status_run = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=repo_copy,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status_run.stdout.strip() == ""
+
+
+def test_review_and_aggregate_human_output_integration(tmp_path: Path) -> None:
+    repo_copy = _copy_repo_tree(tmp_path)
+    _seed_maintenance_fixture(repo_copy)
+
+    review_run = _run_cli(repo_copy, "review", "--decision", "1=approve")
+    aggregate_run = _run_cli(repo_copy, "aggregate", "--namespace", "knowledge")
+
+    assert review_run.returncode == 0
+    assert "Maintenance review" in review_run.stdout
+    assert "Decision preview:" in review_run.stdout
+    assert (
+        "1 (review-queue:2026-04-03:review-maintenance-preview-workflow): approve"
+        in review_run.stdout
+    )
+
+    assert aggregate_run.returncode == 0
+    assert "Aggregation preview (namespace=knowledge)" in aggregate_run.stdout
+    assert "Entries processed: 3" in aggregate_run.stdout
+    assert (
+        "Preview only: apply mode is not yet exposed in engram aggregate." in aggregate_run.stdout
+    )
+
+    status_run = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=repo_copy,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status_run.stdout.strip() == ""
+
+
+def test_promote_and_archive_json_preview_integration(tmp_path: Path) -> None:
+    repo_copy = _copy_repo_tree(tmp_path)
+    _seed_lifecycle_fixture(repo_copy)
+
+    promote_run = _run_cli(
+        repo_copy,
+        "promote",
+        "memory/knowledge/_unverified/lifecycle/promote-me.md",
+        "--trust",
+        "medium",
+        "--preview",
+        "--json",
+    )
+    archive_run = _run_cli(
+        repo_copy,
+        "archive",
+        "memory/knowledge/lifecycle/archive-me.md",
+        "--reason",
+        "stale",
+        "--preview",
+        "--json",
+    )
+
+    promote_payload = json.loads(promote_run.stdout)
+    archive_payload = json.loads(archive_run.stdout)
+
+    assert promote_run.returncode == 0
+    assert promote_payload["preview"]["mode"] == "preview"
+    assert promote_payload["new_state"]["new_path"] == "memory/knowledge/lifecycle/promote-me.md"
+
+    assert archive_run.returncode == 0
+    assert archive_payload["preview"]["mode"] == "preview"
+    assert (
+        archive_payload["new_state"]["archive_path"]
+        == "memory/knowledge/_archive/lifecycle/archive-me.md"
+    )
+
+    status_run = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=repo_copy,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status_run.stdout.strip() == ""
+
+
+def test_promote_and_archive_human_output_integration(tmp_path: Path) -> None:
+    repo_copy = _copy_repo_tree(tmp_path)
+    _seed_lifecycle_fixture(repo_copy)
+
+    promote_run = _run_cli(
+        repo_copy,
+        "promote",
+        "memory/knowledge/_unverified/lifecycle/promote-me.md",
+        "--trust",
+        "medium",
+    )
+    archive_run = _run_cli(
+        repo_copy,
+        "archive",
+        "memory/knowledge/lifecycle/archive-me.md",
+        "--reason",
+        "stale",
+    )
+
+    promoted_path = repo_copy / "core" / "memory" / "knowledge" / "lifecycle" / "promote-me.md"
+    archived_path = (
+        repo_copy / "core" / "memory" / "knowledge" / "_archive" / "lifecycle" / "archive-me.md"
+    )
+
+    assert promote_run.returncode == 0
+    assert (
+        "Promoted: memory/knowledge/_unverified/lifecycle/promote-me.md -> memory/knowledge/lifecycle/promote-me.md"
+        in promote_run.stdout
+    )
+    assert "Trust: medium" in promote_run.stdout
+    assert promoted_path.exists()
+    assert "trust: medium" in promoted_path.read_text(encoding="utf-8")
+
+    assert archive_run.returncode == 0
+    assert (
+        "Archived: memory/knowledge/lifecycle/archive-me.md -> memory/knowledge/_archive/lifecycle/archive-me.md"
+        in archive_run.stdout
+    )
+    assert archived_path.exists()
+    assert "status: archived" in archived_path.read_text(encoding="utf-8")
 
     status_run = subprocess.run(
         ["git", "status", "--short"],

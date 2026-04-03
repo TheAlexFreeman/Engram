@@ -127,10 +127,14 @@ engram search "periodic review" --keyword
 engram add knowledge/react ./notes/hooks.md --session-id memory/activity/2026/04/03/chat-001 --preview
 engram recall knowledge
 engram log --namespace knowledge --since 2026-04-01
+engram review --json
+engram aggregate --namespace knowledge
+engram promote memory/knowledge/_unverified/react/hooks.md --preview
+engram archive memory/knowledge/react/legacy-hooks.md --reason stale
 engram validate
 ```
 
-Add `.[search]` if you want semantic search instead of automatic keyword fallback. The preview-first `engram add` flow writes only into `memory/knowledge/_unverified/` and expects a canonical session id either from `--session-id`, `MEMORY_SESSION_ID`, or `memory/activity/CURRENT_SESSION`. For the full command reference and JSON examples, read [CLI.md](CLI.md).
+Add `.[search]` if you want semantic search instead of automatic keyword fallback. The preview-first `engram add` flow writes only into `memory/knowledge/_unverified/` and expects a canonical session id either from `--session-id`, `MEMORY_SESSION_ID`, or `memory/activity/CURRENT_SESSION`. After review, `engram promote` and `engram archive` expose the governed lifecycle writes for moving notes into verified knowledge or `_archive/`. For the full command reference and JSON examples, read [CLI.md](CLI.md).
 
 ### 5. Start your first session
 

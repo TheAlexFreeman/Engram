@@ -2,8 +2,8 @@ id: cli-v2-knowledge-lifecycle
 project: cli-expansion
 created: '2026-04-03'
 origin_session: memory/activity/2026/04/02/chat-001
-status: draft
-sessions_used: 0
+status: completed
+sessions_used: 1
 budget:
   deadline: '2026-08-15'
   max_sessions: 7
@@ -19,7 +19,7 @@ work:
   phases:
     - id: lifecycle-contracts
       title: Define lifecycle mutation contracts and metadata updates
-      status: pending
+      status: completed
       commit: null
       blockers:
         - cli-v1-write-ingestion:write-surface-verification
@@ -49,7 +49,7 @@ work:
           description: Document the lifecycle command intent and safety expectations.
     - id: promote-command
       title: Implement promotion flow from _unverified to governed target namespaces
-      status: pending
+      status: completed
       commit: null
       blockers:
         - lifecycle-contracts
@@ -79,7 +79,7 @@ work:
           description: Document promotion usage and expectations.
     - id: archive-command
       title: Implement archive flow with metadata preservation and ACCESS logging
-      status: pending
+      status: completed
       commit: null
       blockers:
         - lifecycle-contracts
@@ -109,7 +109,7 @@ work:
           description: Document archive usage and expectations.
     - id: lifecycle-verification
       title: Wire review and aggregate decisions into lifecycle commands and verify end-to-end behavior
-      status: pending
+      status: completed
       commit: null
       blockers:
         - promote-command

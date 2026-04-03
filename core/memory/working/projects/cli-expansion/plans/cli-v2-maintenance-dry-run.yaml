@@ -2,8 +2,8 @@ id: cli-v2-maintenance-dry-run
 project: cli-expansion
 created: '2026-04-03'
 origin_session: memory/activity/2026/04/02/chat-001
-status: draft
-sessions_used: 0
+status: completed
+sessions_used: 1
 budget:
   deadline: '2026-08-01'
   max_sessions: 7
@@ -24,7 +24,7 @@ work:
   phases:
     - id: candidate-enumeration
       title: Enumerate review, stale-content, and aggregation candidates
-      status: pending
+      status: completed
       commit: null
       blockers:
         - cli-v1-read-surfaces:log-command
@@ -51,7 +51,7 @@ work:
           description: Shared preview contracts and argument parsing for aggregate dry-run behavior.
     - id: review-shell-flow
       title: Implement shell-first review walkthrough with defer and decision capture
-      status: pending
+      status: completed
       commit: null
       blockers:
         - candidate-enumeration
@@ -80,7 +80,7 @@ work:
           description: Document no-TUI review usage and examples.
     - id: aggregate-dry-run
       title: Implement aggregate preview and dry-run reporting
-      status: pending
+      status: completed
       commit: null
       blockers:
         - candidate-enumeration
@@ -109,7 +109,7 @@ work:
           description: Document aggregate dry-run usage and limitations.
     - id: maintenance-verification
       title: Verify maintenance previews, docs, and subprocess behavior
-      status: pending
+      status: completed
       commit: null
       blockers:
         - review-shell-flow

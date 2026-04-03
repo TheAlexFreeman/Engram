@@ -3,7 +3,7 @@ active_plans: 0
 cognitive_mode: execution
 created: 2026-04-02
 current_focus: The v4 diff inspection slice is complete; the remaining CLI
-  roadmap is the v2 maintenance and lifecycle work plus v4 portability.
+  roadmap is v4 portability.
 last_activity: '2026-04-03'
 open_questions: 0
 origin_session: memory/activity/2026/04/02/chat-001
@@ -23,10 +23,10 @@ v0 foundation is now implemented; the remaining roadmap is split into focused
 follow-on plans instead of one monolithic backlog item.
 
 ## Cognitive mode
-Execution mode: `cli-v0`, the v1 read/write surfaces, the v3 schema
-foundations, the v3 plan-command roadmap, the v3 approval/trace roadmap, and
-the v4 diff roadmap are complete as shipped slices. The remaining CLI work is
-the v2 maintenance/lifecycle set plus v4 portability.
+Execution mode: `cli-v0`, the v1 read/write surfaces, the v2 maintenance and
+lifecycle roadmaps, the v3 schema foundations, the v3 plan-command roadmap,
+the v3 approval/trace roadmap, and the v4 diff roadmap are complete as shipped
+slices. The remaining CLI work is v4 portability.
 
 ## Plan inventory (2026-04-03)
 
@@ -35,8 +35,8 @@ the v2 maintenance/lifecycle set plus v4 portability.
 | v0 | `cli-v0.yaml` | completed | 8 sessions / 2026-05-01 | Shipped foundation |
 | v1 | `cli-v1-read-surfaces.yaml` | completed | 6 sessions / 2026-06-15 | Accurate v0 baseline |
 | v1 | `cli-v1-write-ingestion.yaml` | completed | 6 sessions / 2026-06-30 | Accurate v0 baseline |
-| v2 | `cli-v2-maintenance-dry-run.yaml` | draft | 7 sessions / 2026-08-01 | v1 read/write helpers |
-| v2 | `cli-v2-knowledge-lifecycle.yaml` | draft | 7 sessions / 2026-08-15 | v1 ingestion + v2 dry-run previews |
+| v2 | `cli-v2-maintenance-dry-run.yaml` | completed | 7 sessions / 2026-08-01 | v1 read/write helpers |
+| v2 | `cli-v2-knowledge-lifecycle.yaml` | completed | 7 sessions / 2026-08-15 | v1 ingestion + v2 dry-run previews |
 | v3 | `cli-v3-schema-foundations.yaml` | completed | 5 sessions / 2026-07-15 | Accurate v0 baseline |
 | v3 | `cli-v3-plan-commands.yaml` | completed | 8 sessions / 2026-10-01 | v3 schema foundations |
 | v3 | `cli-v3-approval-trace.yaml` | completed | 6 sessions / 2026-09-15 | v3 schema foundations |

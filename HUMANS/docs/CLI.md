@@ -5,6 +5,10 @@ The `engram` CLI provides a terminal-oriented interface for searching, inspectin
 - `engram search` for querying memory content from a shell or script.
 - `engram status` for a compact health dashboard.
 - `engram add` for governed ingestion into `memory/knowledge/_unverified/`.
+- `engram review` for shell-first maintenance candidate walkthroughs.
+- `engram aggregate` for dry-run ACCESS aggregation previews.
+- `engram promote` for moving reviewed `_unverified` notes into verified knowledge.
+- `engram archive` for routing stale knowledge into `memory/knowledge/_archive/`.
 - `engram approval` for listing and resolving pending plan approval requests from a shell or script.
 - `engram plan` for plan list/show/create/advance workflows from a shell or script.
 - `engram trace` for querying session traces from a shell or script.
@@ -129,6 +133,65 @@ engram diff --namespace plans --until 2026-04-03 --json
 
 JSON output includes the matched commits, changed files, namespace-level change counts, and annotations for frontmatter and trust changes.
 
+### `engram review`
+
+Enumerates maintenance candidates from the terminal without mutating the repository. The command groups pending review-queue items, overdue low-trust `_unverified` files, and ACCESS logs that are above or near the aggregation trigger. Use `--decision` to capture non-mutating approve, reject, or defer choices in a shell-friendly way.
+
+The review surface is still preview-only: it helps you identify what should happen next, then hand off the actual file mutation to `engram promote` or `engram archive`.
+
+Examples:
+
+```bash
+engram review
+engram review --decision 1=approve --decision 2=defer
+engram review --json
+```
+
+JSON output includes a stable candidate list with ids, candidate types, priorities, summaries, and any scripted decision previews.
+
+### `engram aggregate`
+
+Previews ACCESS aggregation without mutating the repository. The current CLI slice is preview-only: it reports trigger status, matching access logs, expected summary targets, archive targets, and co-retrieval clusters, but it does not yet apply the archive/reset write path.
+
+Examples:
+
+```bash
+engram aggregate
+engram aggregate --namespace knowledge
+engram aggregate --namespace plans --json
+```
+
+JSON output mirrors the dry-run aggregation state: threshold reports, entries processed, summary targets, archive targets, and detected clusters.
+
+### `engram promote`
+
+Promotes a reviewed file from `memory/knowledge/_unverified/` into verified `memory/knowledge/`. The command reuses the governed `memory_promote_knowledge` semantics: it updates trust and `last_verified`, moves the file into the verified namespace, and updates the unverified and verified summaries when those sections exist.
+
+Examples:
+
+```bash
+engram promote memory/knowledge/_unverified/react/hooks.md --preview
+engram promote memory/knowledge/_unverified/react/hooks.md --trust medium
+engram promote memory/knowledge/_unverified/react/hooks.md --target-path memory/knowledge/frontend/hooks.md --summary-entry "- **[hooks.md](memory/knowledge/frontend/hooks.md)** — Hooks"
+engram promote memory/knowledge/_unverified/react/hooks.md --json
+```
+
+JSON output mirrors the governed write result: `new_state` includes the verified destination path and trust level, while `preview` exposes the dry-run envelope when `--preview` is used.
+
+### `engram archive`
+
+Archives a knowledge file into `memory/knowledge/_archive/`. The command reuses the governed `memory_archive_knowledge` contract: it marks the file as archived, refreshes `last_verified`, moves it out of the active retrieval tree, and removes the source summary entry when present.
+
+Examples:
+
+```bash
+engram archive memory/knowledge/react/legacy-hooks.md --preview
+engram archive memory/knowledge/react/legacy-hooks.md --reason stale
+engram archive memory/knowledge/_unverified/react/superseded-note.md --reason duplicate --json
+```
+
+JSON output mirrors the governed write result: `new_state.archive_path` reports the archived destination and `preview` carries the dry-run envelope when requested.
+
 ### `engram plan`
 
 Inspects and authors structured plans from the Active Plans system without requiring an MCP host.
@@ -241,5 +304,9 @@ If the validator's core dependencies are missing, the command prints a friendly 
 - `engram recall --json` emits a structured file or namespace inspection payload.
 - `engram log --json` emits a filtered ACCESS timeline payload.
 - `engram diff --json` emits recent memory-history commits, changed files, namespace summaries, and memory-aware annotations.
+- `engram review --json` emits maintenance candidates and scripted decision previews.
+- `engram aggregate --json` emits the dry-run aggregation preview contract, including threshold reports and target files.
+- `engram promote --json` emits the governed promotion result or preview envelope.
+- `engram archive --json` emits the governed archive result or preview envelope.
 
 For onboarding and broader setup instructions, see [QUICKSTART.md](QUICKSTART.md).
