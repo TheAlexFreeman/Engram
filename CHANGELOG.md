@@ -18,6 +18,12 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-04-02] Plan-schema parity for failure payloads and single-file frontmatter updates
+
+**Changed:** Moved the verification-result item schema into the shared plan-schema source so `memory_plan_schema`, `memory_tool_schema("memory_plan_create")`, and `engram-mcp plan create --json-schema` all expose the same typed failure payload shape. Extended the generic schema registry to cover `memory_update_frontmatter` in addition to the existing bulk frontmatter path, and updated the raw frontmatter tool docstring to point callers at `memory_tool_schema`.
+**Reasoning:** The previous schema pass still left one stale generic object branch inside plan-create failure records and kept the single-file raw frontmatter tool off the shared introspection path. Aligning those remaining surfaces removes another source of caller guesswork without changing tool behavior.
+**Approved by:** user
+
 ## [2026-04-02] Schema coverage expansion for approvals and raw batch writes
 
 **Changed:** Extended the shared `memory_tool_schema` registry to cover `memory_request_approval` and `memory_update_frontmatter_bulk`, and replaced the opaque `memory_plan_execute.verification_results` item schema with a compatibility-preserving typed shape that documents the tool-generated result fields while still allowing legacy custom failure payloads.

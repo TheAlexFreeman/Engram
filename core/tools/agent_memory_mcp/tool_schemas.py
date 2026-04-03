@@ -15,9 +15,11 @@ from .plan_utils import (
     POSTCONDITION_TYPES,
     SOURCE_TYPE_ALIASES,
     SOURCE_TYPES,
+    VERIFICATION_RESULT_STATUSES,
     _PLAN_SLUG_PATTERN,
     _SESSION_ID_PATTERN,
     plan_create_input_schema,
+    verification_results_item_schema,
 )
 
 ACCESS_MODES = frozenset({"read", "write", "update", "create"})
@@ -27,7 +29,6 @@ REVIEW_PRIORITIES = frozenset({"normal", "urgent"})
 REVIEW_VERDICTS = frozenset({"approve", "reject", "defer"})
 SKILL_CREATE_TRUST_LEVELS = frozenset({"high", "medium", "low"})
 UPDATE_MODES = frozenset({"upsert", "append", "replace"})
-VERIFICATION_RESULT_STATUSES = frozenset({"pass", "fail", "error", "skip"})
 
 ToolSchemaBuilder = Callable[[], dict[str, Any]]
 
@@ -96,56 +97,7 @@ def _session_id_string_schema(
 
 
 def _verification_results_item_schema() -> dict[str, Any]:
-    return {
-        "anyOf": [
-            {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["postcondition", "type", "status"],
-                "description": "Structured verification result returned by verify=true plan execution flows.",
-                "properties": {
-                    "postcondition": {
-                        "type": "string",
-                        "minLength": 1,
-                        "description": "Original postcondition description from the plan phase.",
-                    },
-                    "type": {
-                        "type": "string",
-                        "enum": sorted(POSTCONDITION_TYPES),
-                        "x-aliases": dict(POSTCONDITION_TYPE_ALIASES),
-                        "description": "Canonical postcondition type.",
-                    },
-                    "status": {
-                        "type": "string",
-                        "enum": sorted(VERIFICATION_RESULT_STATUSES),
-                        "description": "Verification outcome.",
-                    },
-                    "detail": {
-                        "oneOf": [
-                            {"type": "string"},
-                            {"type": "null"},
-                        ],
-                        "description": "Optional diagnostic detail; null on successful or manual-skip outcomes.",
-                    },
-                    "policy_result": {
-                        "type": "object",
-                        "additionalProperties": True,
-                        "description": "Optional tool-policy payload when a test postcondition is denied by policy.",
-                    },
-                },
-            },
-            {
-                "type": "object",
-                "additionalProperties": True,
-                "description": "Legacy or caller-supplied verification context item stored verbatim on failure records.",
-            },
-        ],
-        "description": (
-            "Verification context item accepted by memory_plan_execute. Tool-generated "
-            "verify flows return the structured branch; record_failure also accepts "
-            "legacy caller-supplied objects."
-        ),
-    }
+    return verification_results_item_schema()
 
 
 def _plan_review_input_schema() -> dict[str, Any]:
@@ -772,6 +724,42 @@ def update_frontmatter_bulk_input_schema() -> dict[str, Any]:
     )
 
 
+def update_frontmatter_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_update_frontmatter",
+        title="memory_update_frontmatter input schema",
+        required=["path", "updates"],
+        notes=[
+            "updates is a JSON object encoded as a string for CLI/MCP compatibility.",
+            "Use null values inside the JSON object to remove frontmatter keys.",
+            "Protected directories remain blocked; use Tier 1 semantic tools for governed writes.",
+        ],
+        properties={
+            "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Repo-relative path to the markdown file whose frontmatter should be updated.",
+            },
+            "updates": {
+                "type": "string",
+                "minLength": 2,
+                "contentMediaType": "application/json",
+                "description": (
+                    "JSON object string of frontmatter key/value pairs to set. "
+                    'Example: {"status": "complete", "next_action": null}'
+                ),
+            },
+            "version_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional optimistic-lock token returned by memory_read_file.",
+            },
+        },
+    )
+
+
 TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_flag_for_review": flag_for_review_input_schema,
     "memory_log_access_batch": log_access_batch_input_schema,
@@ -782,6 +770,7 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_record_session": record_session_input_schema,
     "memory_request_approval": request_approval_input_schema,
     "memory_resolve_approval": resolve_approval_input_schema,
+    "memory_update_frontmatter": update_frontmatter_input_schema,
     "memory_update_frontmatter_bulk": update_frontmatter_bulk_input_schema,
     "memory_update_skill": update_skill_input_schema,
     "memory_update_user_trait": update_user_trait_input_schema,
@@ -825,6 +814,7 @@ __all__ = [
     "request_approval_input_schema",
     "record_session_input_schema",
     "resolve_approval_input_schema",
+    "update_frontmatter_input_schema",
     "update_frontmatter_bulk_input_schema",
     "update_skill_input_schema",
     "update_user_trait_input_schema",

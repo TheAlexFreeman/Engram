@@ -474,6 +474,8 @@ def register(
                            Example: '{"status": "complete", "next_action": null}'
             version_token: Optional — checked before writing.
 
+        Use memory_tool_schema for the machine-readable contract.
+
         Returns:
             MemoryWriteResult JSON with new_state containing the full updated frontmatter.
         """

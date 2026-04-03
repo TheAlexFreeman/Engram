@@ -307,6 +307,9 @@ class TestPlanCreateInputSchema(unittest.TestCase):
         source_item = phase_item["properties"]["sources"]["items"]
         postcondition_item = phase_item["properties"]["postconditions"]["items"]["oneOf"][1]
         change_item = phase_item["properties"]["changes"]["items"]
+        failure_result_item = phase_item["properties"]["failures"]["items"]["properties"][
+            "verification_results"
+        ]["items"]["anyOf"][0]
 
         self.assertEqual(schema["tool_name"], "memory_plan_create")
         self.assertEqual(source_item["properties"]["type"]["x-aliases"]["code"], "internal")
@@ -318,6 +321,10 @@ class TestPlanCreateInputSchema(unittest.TestCase):
         self.assertIn("uri", source_item["allOf"][0]["then"]["required"])
         self.assertIn("mcp_server", source_item["allOf"][1]["then"]["required"])
         self.assertIn("target", postcondition_item["allOf"][0]["then"]["required"])
+        self.assertEqual(
+            failure_result_item["properties"]["status"]["enum"],
+            ["error", "fail", "pass", "skip"],
+        )
 
 
 # ===========================================================================

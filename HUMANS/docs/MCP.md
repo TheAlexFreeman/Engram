@@ -344,7 +344,7 @@ Canonical nested shapes:
 - `postconditions`: list of strings (shorthand for manual checks) or `{description, type?, target?}` where `type` is `check | grep | test | manual`; `check` validates file existence, `grep` validates `regex::path`, `test` runs an allowlisted command behind `ENGRAM_TIER2=1`, and `target` is required when `type != manual`.
 - `changes`: non-empty list of `{path, action, description}` where `action` is `create | rewrite | update | delete | rename`.
 
-Use `memory_plan_schema` for the plan-create compatibility path or `memory_tool_schema` for the broader schema lookup surface. The shared registry currently covers plan create/execute, approval request/resolve, ACCESS batch/session payloads, review verdict tools, user and skill updates, and `memory_update_frontmatter_bulk`. `preview=true` still returns the normal governed preview for valid requests, but invalid preview requests now return structured validation feedback instead of forcing guess-and-retry loops.
+Use `memory_plan_schema` for the plan-create compatibility path or `memory_tool_schema` for the broader schema lookup surface. The shared registry currently covers plan create/execute, approval request/resolve, ACCESS batch/session payloads, review verdict tools, user and skill updates, plus raw frontmatter update surfaces including `memory_update_frontmatter` and `memory_update_frontmatter_bulk`. `preview=true` still returns the normal governed preview for valid requests, but invalid preview requests now return structured validation feedback instead of forcing guess-and-retry loops.
 
 The `resulting_state` includes a `budget_status` block when a budget is set.
 

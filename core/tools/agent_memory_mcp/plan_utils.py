@@ -68,6 +68,7 @@ PLAN_OUTCOMES = {"completed", "partial", "abandoned"}
 CHANGE_ACTIONS = {"create", "rewrite", "update", "delete", "rename"}
 SOURCE_TYPES = {"internal", "external", "mcp"}
 POSTCONDITION_TYPES = {"check", "grep", "test", "manual"}
+VERIFICATION_RESULT_STATUSES = {"pass", "fail", "error", "skip"}
 CHANGE_ACTION_ALIASES = {"modify": "update"}
 SOURCE_TYPE_ALIASES = {"code": "internal"}
 POSTCONDITION_TYPE_ALIASES = {"file_check": "check"}
@@ -116,6 +117,61 @@ def validation_error_messages(error: ValidationError) -> list[str]:
 
 def _prefix_validation_errors(path: str, error: ValidationError) -> list[str]:
     return [f"{path}: {message}" for message in validation_error_messages(error)]
+
+
+def verification_results_item_schema() -> dict[str, Any]:
+    """Return the shared schema for stored plan verification-result items."""
+
+    return {
+        "anyOf": [
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["postcondition", "type", "status"],
+                "description": "Structured verification result returned by verify=true plan execution flows.",
+                "properties": {
+                    "postcondition": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Original postcondition description from the plan phase.",
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": sorted(POSTCONDITION_TYPES),
+                        "x-aliases": dict(sorted(POSTCONDITION_TYPE_ALIASES.items())),
+                        "description": "Canonical postcondition type.",
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": sorted(VERIFICATION_RESULT_STATUSES),
+                        "description": "Verification outcome.",
+                    },
+                    "detail": {
+                        "oneOf": [
+                            {"type": "string"},
+                            {"type": "null"},
+                        ],
+                        "description": "Optional diagnostic detail; null on successful or manual-skip outcomes.",
+                    },
+                    "policy_result": {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "description": "Optional tool-policy payload when a test postcondition is denied by policy.",
+                    },
+                },
+            },
+            {
+                "type": "object",
+                "additionalProperties": True,
+                "description": "Legacy or caller-supplied verification context item stored verbatim on failure records.",
+            },
+        ],
+        "description": (
+            "Verification context item accepted by plan failure records. Tool-generated "
+            "verify flows return the structured branch; legacy authored failure payloads "
+            "may still include custom objects."
+        ),
+    }
 
 
 def plan_create_input_schema() -> dict[str, Any]:
@@ -237,7 +293,7 @@ def plan_create_input_schema() -> dict[str, Any]:
             "reason": {"type": "string", "minLength": 1},
             "verification_results": {
                 "type": "array",
-                "items": {"type": "object"},
+                "items": verification_results_item_schema(),
             },
             "attempt": {
                 "type": "integer",
@@ -2625,6 +2681,7 @@ __all__ = [
     "SOURCE_TYPES",
     "TRACE_SPAN_TYPES",
     "TRACE_STATUSES",
+    "VERIFICATION_RESULT_STATUSES",
     "ApprovalDocument",
     "ChangeSpec",
     "PhaseFailure",
@@ -2688,6 +2745,7 @@ __all__ = [
     "validate_plan_references",
     "validate_run_state_against_plan",
     "validation_error_messages",
+    "verification_results_item_schema",
     "verify_postconditions",
     "VERIFY_TEST_ALLOWLIST",
 ]

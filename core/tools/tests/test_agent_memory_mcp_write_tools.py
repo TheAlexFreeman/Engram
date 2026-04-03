@@ -2046,6 +2046,9 @@ declared_gaps = []
         tools = self._create_tools(repo_root)
 
         payload = json.loads(asyncio.run(tools["memory_plan_schema"]()))
+        failure_result_item = payload["properties"]["phases"]["items"]["properties"]["failures"][
+            "items"
+        ]["properties"]["verification_results"]["items"]["anyOf"][0]
 
         self.assertEqual(payload["tool_name"], "memory_plan_create")
         self.assertIn("phases", payload["properties"])
@@ -2060,6 +2063,10 @@ declared_gaps = []
                 "properties"
             ]["action"]["x-aliases"]["modify"],
             "update",
+        )
+        self.assertEqual(
+            failure_result_item["properties"]["status"]["enum"],
+            ["error", "fail", "pass", "skip"],
         )
 
     def test_memory_tool_schema_returns_parseable_json(self) -> None:
@@ -2094,6 +2101,18 @@ declared_gaps = []
         self.assertEqual(payload["properties"]["updates"]["maxItems"], 100)
         self.assertEqual(payload["properties"]["updates"]["items"]["required"], ["path", "fields"])
         self.assertTrue(payload["properties"]["create_missing_keys"]["default"])
+
+    def test_memory_tool_schema_returns_raw_frontmatter_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_update_frontmatter"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_update_frontmatter")
+        self.assertEqual(payload["required"], ["path", "updates"])
+        self.assertEqual(payload["properties"]["updates"]["contentMediaType"], "application/json")
 
     def test_memory_tool_schema_rejects_unknown_tool(self) -> None:
         repo_root = self._init_repo({"README.md": "# Test\n"})
