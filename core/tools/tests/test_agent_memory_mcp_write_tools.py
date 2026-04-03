@@ -8520,6 +8520,35 @@ current_focus: Example project.
         with self.assertRaises(self.errors.ValidationError):
             asyncio.run(tools["memory_git_log"](use_host_repo=True))
 
+    def test_memory_git_health_reports_empty_repo_with_invalid_index(self) -> None:
+        git_root = Path(self._tmpdir.name) / "empty_health_repo"
+        git_root.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init"], cwd=git_root, check=True, capture_output=True, text=True)
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        repo_root = git_root / "core"
+        repo_root.mkdir(parents=True, exist_ok=True)
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(asyncio.run(tools["memory_git_health"]()))
+
+        self.assertTrue(payload["repo_valid"])
+        self.assertFalse(payload["head_valid"])
+        self.assertFalse(payload["index_valid"])
+        self.assertTrue(any("HEAD is not valid" in warning for warning in payload["warnings"]))
+
     def test_memory_check_knowledge_freshness_reports_stale_host_backed_note(self) -> None:
         host_root = self._init_host_repo(
             {"src/app.py": "print('host')\n"},
@@ -11073,7 +11102,50 @@ trust: high
         self.assertEqual(payload["progress"]["total"], 1)
         self.assertIn("no actionable phase", payload["message"].lower())
 
-    def test_memory_plan_briefing_records_trace_from_memory_session_env(self) -> None:
+    def test_memory_plan_verify_does_not_write_trace_from_memory_session_env(self) -> None:
+        repo_root = self._init_repo(
+            {
+                **self._plan_repo_files(
+                    self._plan_yaml_with_check_postcondition(requires_approval=False)
+                ),
+                "memory/working/projects/example/notes/out.md": "done\n",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        old_session = os.environ.get("MEMORY_SESSION_ID")
+        os.environ["MEMORY_SESSION_ID"] = "memory/activity/2026/03/27/chat-203"
+        try:
+            raw = asyncio.run(
+                tools["memory_plan_verify"](
+                    plan_id="tracked-plan",
+                    project_id="example",
+                    phase_id="phase-a",
+                )
+            )
+        finally:
+            if old_session is None:
+                os.environ.pop("MEMORY_SESSION_ID", None)
+            else:
+                os.environ["MEMORY_SESSION_ID"] = old_session
+
+        payload = json.loads(raw)
+        trace_path = (
+            repo_root / "memory" / "activity" / "2026" / "03" / "27" / "chat-203.traces.jsonl"
+        )
+        git_status = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        self.assertTrue(payload["all_passed"])
+        self.assertFalse(trace_path.exists())
+        self.assertEqual(git_status, "")
+
+    def test_memory_plan_briefing_does_not_write_trace_from_memory_session_env(self) -> None:
         repo_root = self._init_repo(
             {
                 **self._plan_repo_files(self._phase8_plan_yaml()),
@@ -11100,16 +11172,18 @@ trust: high
         trace_path = (
             repo_root / "memory" / "activity" / "2026" / "03" / "27" / "chat-204.traces.jsonl"
         )
-        trace_spans = [
-            json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()
-        ]
-        briefing_spans = [span for span in trace_spans if span["name"] == "memory_plan_briefing"]
+        git_status = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
 
-        self.assertEqual(len(briefing_spans), 1)
-        self.assertEqual(briefing_spans[0]["metadata"]["plan_id"], "tracked-plan")
-        self.assertEqual(briefing_spans[0]["metadata"]["phase_id"], "phase-a")
+        self.assertFalse(trace_path.exists())
+        self.assertEqual(git_status, "")
 
-    def test_memory_plan_resume_returns_briefing_and_trace(self) -> None:
+    def test_memory_plan_resume_returns_briefing_without_side_effects(self) -> None:
         repo_root = self._init_repo(
             {
                 **self._plan_repo_files(self._phase8_plan_yaml()),
@@ -11131,19 +11205,94 @@ trust: high
         trace_path = (
             repo_root / "memory" / "activity" / "2026" / "03" / "27" / "chat-205.traces.jsonl"
         )
-        trace_spans = [
-            json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()
-        ]
-        resume_spans = [span for span in trace_spans if span["name"] == "memory_plan_resume"]
+        git_status = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
 
         self.assertEqual(payload["plan_id"], "tracked-plan")
         self.assertFalse(payload["has_run_state"])
         self.assertEqual(payload["resumption"]["current_phase_id"], "phase-a")
         self.assertEqual(payload["phase_briefing"]["phase_id"], "phase-a")
         self.assertEqual(payload["phase_briefing"]["phase"]["phase"]["id"], "phase-a")
-        self.assertEqual(len(resume_spans), 1)
-        self.assertEqual(resume_spans[0]["metadata"]["plan_id"], "tracked-plan")
-        self.assertEqual(resume_spans[0]["metadata"]["phase_id"], "phase-a")
+        self.assertFalse(trace_path.exists())
+        self.assertEqual(git_status, "")
+
+    def test_memory_plan_resume_does_not_rewrite_run_state_session(self) -> None:
+        repo_root = self._init_repo(
+            {
+                **self._plan_repo_files(self._phase8_plan_yaml()),
+                "core/context.md": "Briefing source body\n" * 2,
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+        plan_utils = importlib.import_module("engram_mcp.agent_memory_mcp.plan_utils")
+
+        run_state = plan_utils.RunState(
+            plan_id="tracked-plan",
+            project_id="example",
+            current_phase_id="phase-a",
+            current_task="Resume drafting",
+            next_action_hint="Continue phase A",
+            last_checkpoint="checkpoint-1",
+            session_id="memory/activity/2026/03/27/chat-111",
+            sessions_consumed=2,
+            phase_states={
+                "phase-a": plan_utils.RunStatePhase(
+                    intermediate_outputs=[
+                        {
+                            "key": "notes",
+                            "value": "carry forward",
+                            "timestamp": "2026-03-27T09:15:00Z",
+                        }
+                    ]
+                )
+            },
+        )
+        run_state_path = repo_root / plan_utils.run_state_path("example", "tracked-plan")
+        plan_utils.save_run_state(repo_root, run_state)
+        subprocess.run(
+            ["git", "add", "."],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "add run state"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        before = run_state_path.read_text(encoding="utf-8")
+
+        raw = asyncio.run(
+            tools["memory_plan_resume"](
+                plan_id="tracked-plan",
+                project_id="example",
+                session_id="memory/activity/2026/03/27/chat-206",
+                max_context_chars=700,
+            )
+        )
+        payload = json.loads(raw)
+        after = run_state_path.read_text(encoding="utf-8")
+        git_status = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        self.assertTrue(payload["has_run_state"])
+        self.assertEqual(payload["resumption"]["previous_session"], "memory/activity/2026/03/27/chat-111")
+        self.assertEqual(payload["intermediate_outputs"][0]["key"], "notes")
+        self.assertEqual(before, after)
+        self.assertEqual(git_status, "")
 
     def test_memory_stage_external_writes_project_inbox_file(self) -> None:
         repo_root = self._init_repo(self._phase9_project_files())

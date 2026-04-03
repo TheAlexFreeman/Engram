@@ -117,13 +117,13 @@ def _coerce_approval(raw: dict[str, Any]) -> ApprovalDocument:
     )
 
 
-def _check_approval_expiry(approval: ApprovalDocument, root: Path) -> bool:
-    """Check if a pending approval has passed its expiry; if so, transition it in-place.
+def _check_approval_expiry(approval: ApprovalDocument, root: Path | None = None) -> bool:
+    """Check whether a pending approval has passed its expiry deadline.
 
-    Mutates *approval* status to ``"expired"`` and moves its file from
-    ``pending/`` to ``resolved/``.  Returns ``True`` if the approval was expired
-    (and the caller should set the plan status to ``"blocked"``), ``False``
-    otherwise.
+    Mutates *approval* in memory by updating its status to ``"expired"`` when
+    the deadline has passed. This helper is intentionally side-effect free with
+    respect to repository state so read paths can safely inspect approvals
+    without dirtying the worktree.
     """
     if approval.status != "pending":
         return False
@@ -135,23 +135,27 @@ def _check_approval_expiry(approval: ApprovalDocument, root: Path) -> bool:
     except (ValueError, AttributeError):
         return False
 
-    from .plan_utils import _PlanDumper
-
     approval.status = "expired"
+    return True
+
+
+def materialize_expired_approval(root: Path, approval: ApprovalDocument) -> bool:
+    """Persist an expired approval into the resolved queue.
+
+    Returns ``True`` when the approval is expired and the resolved/pending queue
+    transition was materialized (or refreshed) on disk, ``False`` otherwise.
+    Callers are responsible for staging and committing the resulting file
+    changes alongside any related plan updates.
+    """
+    if approval.status == "pending" and not _check_approval_expiry(approval):
+        return False
+    if approval.status != "expired":
+        return False
+
     approvals_root = _find_approvals_root(root)
     filename = approval_filename(approval.plan_id, approval.phase_id)
     pending_path = approvals_root / "pending" / filename
-    resolved_dir = approvals_root / "resolved"
-    resolved_dir.mkdir(parents=True, exist_ok=True)
-    resolved_path = resolved_dir / filename
-    text = yaml.dump(
-        approval.to_dict(),
-        Dumper=_PlanDumper,
-        sort_keys=False,
-        allow_unicode=False,
-        width=88,
-    )
-    resolved_path.write_text(text, encoding="utf-8")
+    save_approval(root, approval)
     if pending_path.exists():
         pending_path.unlink()
     return True
@@ -161,8 +165,9 @@ def load_approval(root: Path, plan_id: str, phase_id: str) -> ApprovalDocument |
     """Load an approval document for a plan/phase pair.
 
     Checks ``pending/`` first, then ``resolved/``.  If the document is pending
-    and past its expiry deadline, lazily transitions it to ``expired`` (file
-    moved to ``resolved/``).  Returns ``None`` if no approval document exists.
+    and past its expiry deadline, returns the document with an in-memory
+    ``"expired"`` status while leaving the on-disk queue untouched. Returns
+    ``None`` if no approval document exists.
     """
     approvals_root = _find_approvals_root(root)
     filename = approval_filename(plan_id, phase_id)

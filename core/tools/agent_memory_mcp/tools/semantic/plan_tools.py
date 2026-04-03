@@ -34,6 +34,7 @@ from ...plan_utils import (
     load_plan,
     load_registry,
     load_run_state,
+    materialize_expired_approval,
     next_action,
     outbox_summary_path,
     phase_change_class,
@@ -708,6 +709,22 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 }:
                     # Rejected or expired → block the plan
                     plan.status = "blocked"
+                    approval_transition_files = list(files_changed)
+                    approval_filename_rel = approval_filename(plan.id, phase.id)
+                    approval_pending_file = (
+                        f"memory/working/approvals/pending/{approval_filename_rel}"
+                    )
+                    approval_resolved_file = (
+                        f"memory/working/approvals/resolved/{approval_filename_rel}"
+                    )
+                    if existing_approval.status == "expired":
+                        approval_transition_files.extend(
+                            [
+                                approval_pending_file,
+                                approval_resolved_file,
+                                approvals_summary_path(),
+                            ]
+                        )
                     commit_msg_rej = (
                         f"[plan] Block {plan.id}:{phase.id} (approval {existing_approval.status})"
                     )
@@ -722,23 +739,32 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                         "approval": existing_approval.to_dict(),
                     }
                     if not preview:
+                        if existing_approval.status == "expired":
+                            materialize_expired_approval(root, existing_approval)
+                            regenerate_approvals_summary(root)
+                            if repo.is_tracked(approval_pending_file):
+                                repo.add(approval_pending_file)
+                            repo.add(approval_resolved_file)
+                            repo.add(approvals_summary_path())
                         save_plan(abs_plan, plan, root)
                         repo.add(plan_path)
                         _append_plan_log(
                             root,
                             repo,
                             resolved_project_id,
-                            files_changed,
+                            approval_transition_files,
                             session_id=session_id,
                             action="phase-blocked",
                             plan_id=plan.id,
                             phase_id=phase.id,
                             detail=f"Approval {existing_approval.status}",
                         )
-                        _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+                        _sync_project_navigation(
+                            root, repo, resolved_project_id, approval_transition_files
+                        )
                         commit_result_rej = repo.commit(commit_msg_rej)
                         return MemoryWriteResult.from_commit(
-                            files_changed=files_changed,
+                            files_changed=approval_transition_files,
                             commit_result=commit_result_rej,
                             commit_message=commit_msg_rej,
                             new_state=rej_state,
@@ -1506,28 +1532,6 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         verification["project_id"] = resolved_project_id
         verification["phase_id"] = phase.id
 
-        # Emit a verification span when a session_id is available via env.
-        import os as _os
-
-        _env_sid = _os.environ.get("MEMORY_SESSION_ID", "").strip()
-        if _env_sid:
-            summary = verification.get("summary", {})
-            record_trace(
-                root,
-                _env_sid,
-                span_type="verification",
-                name=f"verify:{phase.id}",
-                status="ok" if verification.get("all_passed") else "error",
-                metadata={
-                    "plan_id": plan.id,
-                    "phase_id": phase.id,
-                    "passed": summary.get("passed", 0),
-                    "failed": summary.get("failed", 0),
-                    "skipped": summary.get("skipped", 0),
-                    "errors": summary.get("errors", 0),
-                },
-            )
-
         return _json.dumps(verification, indent=2)
 
     @mcp.tool(
@@ -1804,20 +1808,6 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 plan_budget = budget_status(plan)
                 if plan_budget is not None:
                     result["budget_status"] = plan_budget
-                if env_session_id is not None:
-                    record_trace(
-                        root,
-                        env_session_id,
-                        span_type="tool_call",
-                        name="memory_plan_briefing",
-                        status="ok",
-                        metadata={
-                            "plan_id": plan.id,
-                            "phase_id": None,
-                            "context_chars": len(_json.dumps(result, ensure_ascii=False)),
-                            "truncated": False,
-                        },
-                    )
                 return _json.dumps(result, indent=2)
             phase = resolve_phase(plan, str(directive["id"]))
         else:
@@ -1833,22 +1823,6 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             include_approval=bool(include_approval),
             session_id=env_session_id,
         )
-
-        if env_session_id is not None:
-            context_budget = result.get("context_budget", {})
-            record_trace(
-                root,
-                env_session_id,
-                span_type="tool_call",
-                name="memory_plan_briefing",
-                status="ok",
-                metadata={
-                    "plan_id": plan.id,
-                    "phase_id": phase.id,
-                    "context_chars": context_budget.get("total_chars"),
-                    "truncated": context_budget.get("truncated", False),
-                },
-            )
 
         return _json.dumps(result, indent=2)
 
@@ -1869,10 +1843,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         """Load run state and assemble minimal restart context for resuming a plan.
 
         Returns the current resumption point (phase, task, outputs, errors) plus
-        a phase briefing. Degrades gracefully when no run state exists. When a
-        run state is present, the stored session_id is refreshed before the
-        briefing is returned. Call memory_tool_schema with
-        tool_name="memory_plan_resume" for the machine-readable contract.
+        a phase briefing. Degrades gracefully when no run state exists. Call
+        memory_tool_schema with tool_name="memory_plan_resume" for the
+        machine-readable contract.
         """
         import json as _json
 
@@ -1904,7 +1877,6 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             staleness_warning = check_run_state_staleness(rs, session_id)
             if staleness_warning:
                 resume_warnings.append(staleness_warning)
-            rs.session_id = session_id
 
             resumption = {
                 "current_phase_id": rs.current_phase_id,
@@ -1919,8 +1891,6 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             target_phase_id = rs.current_phase_id
             if target_phase_id and target_phase_id in rs.phase_states:
                 intermediate_outputs = rs.phase_states[target_phase_id].intermediate_outputs
-
-            save_run_state(root, rs)
         else:
             nxt = next_action(plan)
             resumption = {
@@ -1958,19 +1928,6 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         bs = budget_status(plan)
         if bs is not None:
             result["budget_status"] = bs
-
-        record_trace(
-            root,
-            session_id,
-            span_type="tool_call",
-            name="memory_plan_resume",
-            status="ok",
-            metadata={
-                "plan_id": plan.id,
-                "has_run_state": has_run_state,
-                "phase_id": target_phase_id,
-            },
-        )
 
         return _json.dumps(result, indent=2)
 
@@ -2263,6 +2220,18 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 },
                 indent=2,
             )
+        approval_filename_rel = approval_filename(plan.id, phase.id)
+        approval_file_req = f"memory/working/approvals/pending/{approval_filename_rel}"
+        files_req = [
+            plan_path_r,
+            approval_file_req,
+            _project_summary_path(resolved_project_id),
+            "memory/working/projects/SUMMARY.md",
+            f"memory/working/projects/{resolved_project_id}/operations.jsonl",
+            approvals_summary_path(),
+        ]
+        if existing is not None and existing.status == "expired":
+            files_req.append(f"memory/working/approvals/resolved/{approval_filename_rel}")
 
         now_dt = datetime.now(timezone.utc)
         now_str = now_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -2299,24 +2268,16 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             context=approval_context,
         )
         plan.status = "paused"
+        if existing is not None and existing.status == "expired":
+            materialize_expired_approval(root, existing)
         save_approval(root, new_approval)
-        approval_file_req = (
-            f"memory/working/approvals/pending/{approval_filename(plan.id, phase.id)}"
-        )
         regenerate_approvals_summary(root)
         save_plan(abs_plan, plan, root)
         repo.add(plan_path_r)
         repo.add(approval_file_req)
+        if existing is not None and existing.status == "expired":
+            repo.add(f"memory/working/approvals/resolved/{approval_filename_rel}")
         repo.add(approvals_summary_path())
-
-        files_req = [
-            plan_path_r,
-            approval_file_req,
-            _project_summary_path(resolved_project_id),
-            "memory/working/projects/SUMMARY.md",
-            f"memory/working/projects/{resolved_project_id}/operations.jsonl",
-            approvals_summary_path(),
-        ]
         _append_plan_log(
             root,
             repo,
@@ -2436,7 +2397,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         regenerate_approvals_summary(root)
         save_plan(abs_plan, plan, root)
         repo.add(plan_path_r)
-        repo.add(approval_pending_file)
+        if repo.is_tracked(approval_pending_file):
+            repo.add(approval_pending_file)
         repo.add(approval_resolved_file)
         repo.add(approvals_summary_path())
 

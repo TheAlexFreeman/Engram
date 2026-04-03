@@ -22,6 +22,7 @@ from .plan_approvals import (
     approval_filename,
     approvals_summary_path,
     load_approval,
+    materialize_expired_approval,
     regenerate_approvals_summary,
     save_approval,
 )
@@ -2712,6 +2713,7 @@ __all__ = [
     "estimate_cost",
     "exportable_artifacts",
     "load_approval",
+    "materialize_expired_approval",
     "load_plan",
     "load_registry",
     "load_run_state",

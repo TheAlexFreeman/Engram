@@ -872,9 +872,9 @@ error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
 group = "plan"
 tier = "semantic"
 change_class = "automatic"
-commit_model = "auto_commit_exception_direct_write"
+commit_model = "none"
 commit_category_hint = "plan"
-writes = ["memory/activity/YYYY/MM/DD/chat-NNN.traces.jsonl"]
+writes = []
 owns_frontmatter = []
 owns_summaries = []
 owns_access_logs = []
@@ -882,15 +882,15 @@ owns_review_queue = []
 result_fields = ["plan_id", "project_id", "phase_id", "all_passed", "summary"]
 fallback_tools = []
 error_kinds = ["NotFoundError", "ValidationError"]
-notes = "Verification reads plan state, but may append a compact verification trace span when MEMORY_SESSION_ID is available."
+notes = "Verification reads plan state and returns structured postcondition results without writing traces or plan files."
 
 [operations.memory_plan_briefing]
 group = "plan"
 tier = "semantic"
 change_class = "automatic"
-commit_model = "auto_commit_exception_direct_write"
+commit_model = "none"
 commit_category_hint = "plan"
-writes = ["memory/activity/YYYY/MM/DD/chat-NNN.traces.jsonl"]
+writes = []
 owns_frontmatter = []
 owns_summaries = []
 owns_access_logs = []
@@ -904,15 +904,15 @@ result_fields = [
 ]
 fallback_tools = []
 error_kinds = ["NotFoundError", "ValidationError"]
-notes = "Briefing assembly is read-mostly, but it may append a tool-call trace span when MEMORY_SESSION_ID is available."
+notes = "Briefing assembly is read-only and does not persist traces or other derived state."
 
 [operations.memory_plan_resume]
 group = "plan"
 tier = "semantic"
 change_class = "automatic"
-commit_model = "auto_commit_exception_direct_write"
+commit_model = "none"
 commit_category_hint = "plan"
-writes = ["memory/activity/YYYY/MM/DD/chat-NNN.traces.jsonl"]
+writes = []
 owns_frontmatter = []
 owns_summaries = []
 owns_access_logs = []
@@ -928,7 +928,7 @@ result_fields = [
 ]
 fallback_tools = []
 error_kinds = ["NotFoundError", "ValidationError"]
-notes = "Load run state and assemble minimal restart context for resuming a plan. Emits a tool_call trace span."
+notes = "Load run state and assemble restart context without rewriting run-state session metadata or emitting traces."
 
 [operations.memory_record_trace]
 group = "plan"

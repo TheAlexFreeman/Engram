@@ -7,6 +7,7 @@ backward compatibility with plans that lack the new fields.
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from datetime import date, timedelta
@@ -46,6 +47,7 @@ from engram_mcp.agent_memory_mcp.plan_utils import (
     load_approval,
     load_plan,
     load_registry,
+    materialize_expired_approval,
     next_action,
     phase_blockers,
     phase_payload,
@@ -2950,7 +2952,7 @@ class TestApprovalStorage(unittest.TestCase):
 
 
 class TestApprovalExpiry(unittest.TestCase):
-    """Lazy expiry evaluation in _check_approval_expiry and load_approval."""
+    """Expiry evaluation stays read-only until a write flow materializes it."""
 
     def _past_ts(self) -> str:
         return "2020-01-01T00:00:00Z"  # definitely in the past
@@ -2975,12 +2977,13 @@ class TestApprovalExpiry(unittest.TestCase):
             self.assertTrue(result)
             self.assertEqual(ap.status, "expired")
 
-    def test_expired_file_moves_to_resolved(self) -> None:
+    def test_expired_materialization_moves_file_to_resolved(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             ap = _make_approval(expires=self._past_ts())
             save_approval(root, ap)
-            _check_approval_expiry(ap, root)
+            self.assertTrue(_check_approval_expiry(ap, root))
+            self.assertTrue(materialize_expired_approval(root, ap))
             from engram_mcp.agent_memory_mcp.plan_utils import _find_approvals_root
 
             approvals_root = _find_approvals_root(root)
@@ -2988,7 +2991,7 @@ class TestApprovalExpiry(unittest.TestCase):
             self.assertFalse((approvals_root / "pending" / filename).exists())
             self.assertTrue((approvals_root / "resolved" / filename).exists())
 
-    def test_load_approval_returns_expired_status(self) -> None:
+    def test_load_approval_returns_expired_status_without_moving_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             ap = _make_approval(expires=self._past_ts())
@@ -2996,6 +2999,53 @@ class TestApprovalExpiry(unittest.TestCase):
             loaded = load_approval(root, "plan-a", "phase-b")
             assert loaded is not None
             self.assertEqual(loaded.status, "expired")
+            filename = approval_filename("plan-a", "phase-b")
+            approvals_root = root / "memory" / "working" / "approvals"
+            self.assertTrue((approvals_root / "pending" / filename).exists())
+            self.assertFalse((approvals_root / "resolved" / filename).exists())
+
+    def test_load_approval_on_expired_pending_keeps_git_status_clean(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
+            subprocess.run(
+                ["git", "config", "user.name", "Test User"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            ap = _make_approval(expires=self._past_ts())
+            save_approval(root, ap)
+            subprocess.run(["git", "add", "."], cwd=root, check=True, capture_output=True, text=True)
+            subprocess.run(
+                ["git", "commit", "-m", "seed approvals"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            loaded = load_approval(root, "plan-a", "phase-b")
+            assert loaded is not None
+            self.assertEqual(loaded.status, "expired")
+
+            status = subprocess.run(
+                ["git", "status", "--short"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            self.assertEqual(status, "")
 
     def test_already_resolved_skips_expiry_check(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -4695,6 +4745,8 @@ class TestCrossCuttingRegression(unittest.TestCase):
 
             assert loaded is not None
             self.assertEqual(loaded.status, "expired")
+            self.assertTrue(pending_path.exists())
+            self.assertTrue(materialize_expired_approval(root, loaded))
             self.assertFalse(pending_path.exists())
             self.assertTrue(resolved_path.exists())
 
@@ -4720,6 +4772,7 @@ class TestCrossCuttingRegression(unittest.TestCase):
             expired = load_approval(root, plan.id, phase.id)
             assert expired is not None
             self.assertEqual(expired.status, "expired")
+            self.assertTrue(materialize_expired_approval(root, expired))
 
             regenerate_approvals_summary(root)
             summary = (root / approvals_summary_path()).read_text(encoding="utf-8")

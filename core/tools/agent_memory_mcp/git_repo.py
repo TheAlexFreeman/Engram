@@ -238,7 +238,13 @@ class GitRepo:
         if not rel_paths:
             return
         git_paths = [self._to_git_path(p) for p in rel_paths]
-        self._run(["git", "add", "--"] + git_paths)
+        self._run(["git", "add", "-A", "--"] + git_paths)
+
+    def is_tracked(self, rel_path: str) -> bool:
+        """Return whether a content-relative path is tracked by git."""
+        git_path = self._to_git_path(rel_path)
+        result = self._run(["git", "ls-files", "--error-unmatch", "--", git_path], check=False)
+        return result.returncode == 0
 
     def add_all(self) -> None:
         """Stage all changes (git add -A)."""
@@ -955,8 +961,11 @@ class GitRepo:
             report["warnings"].append("HEAD is not valid (empty repo?)")
 
         try:
-            self._run(["git", "diff-index", "--quiet", "--cached", "HEAD"], check=False)
-            report["index_valid"] = True
+            index_result = self._run(["git", "diff-index", "--quiet", "--cached", "HEAD"], check=False)
+            if index_result.returncode in (0, 1):
+                report["index_valid"] = True
+            else:
+                report["warnings"].append("Index check failed")
         except StagingError:
             report["warnings"].append("Index check failed")
 

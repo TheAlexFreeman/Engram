@@ -58,7 +58,7 @@ engram-mcp
 ```
 
 The installed CLI also exposes a schema-backed plan help path without starting
-the server:
+the server or importing the FastMCP runtime:
 
 ```bash
 engram-mcp plan create --help
@@ -67,8 +67,9 @@ engram-mcp plan create --json-schema
 
 Those commands are backed by the same nested contract as `memory_plan_schema` and `memory_tool_schema("memory_plan_create")`.
 Use them when a human or shell-based agent needs plan-create guidance locally
-without connecting an MCP client first. `engram-mcp serve` starts the server
-explicitly; bare `engram-mcp` still starts the server for backward compatibility.
+without connecting an MCP client first; they also work outside a configured
+Engram repo checkout. `engram-mcp serve` starts the server explicitly; bare
+`engram-mcp` still starts the server for backward compatibility.
 
 ### How the repo root is resolved
 
@@ -382,7 +383,7 @@ Returns `verification_results` (per-postcondition status/detail), `summary` (tot
 | `cost` | dict \| null | Token counts: `{tokens_in, tokens_out}`. |
 | `parent_span_id` | str \| null | Parent span ID for nested operations. |
 
-Returns `{span_id, trace_file, status}`. `trace_file` is the TRACES.jsonl path for the session. Plan tools (create, start, complete, record_failure, verify) emit `plan_action` and `verification` spans automatically when a `session_id` is available.
+Returns `{span_id, trace_file, status}`. `trace_file` is the TRACES.jsonl path for the session. Plan tools that mutate state may emit `plan_action` spans automatically when a `session_id` is available; read-only inspection tools do not append traces implicitly.
 
 **`memory_query_traces` parameters and response**
 
@@ -410,7 +411,7 @@ Returns `{spans, total_matched, aggregates: {total_duration_ms, by_type, by_stat
 | `include_traces` | bool | Include recent trace spans for the plan. |
 | `include_approval` | bool | Include approval document state when applicable. |
 
-Returns a single packet with `{plan_id, project_id, phase_id, phase, source_contents, failure_summary, recent_traces, approval_status, run_state, context_budget}`. The `run_state` field includes `current_task`, `next_action_hint`, `last_checkpoint`, `error_context`, and phase-level `intermediate_outputs` when a run-state file exists; `null` otherwise. When no actionable phase exists and `phase_id` is omitted, the tool returns a read-only plan summary with progress instead. If `MEMORY_SESSION_ID` is present, the tool records a `tool_call` trace span named `memory_plan_briefing`.
+Returns a single packet with `{plan_id, project_id, phase_id, phase, source_contents, failure_summary, recent_traces, approval_status, run_state, context_budget}`. The `run_state` field includes `current_task`, `next_action_hint`, `last_checkpoint`, `error_context`, and phase-level `intermediate_outputs` when a run-state file exists; `null` otherwise. When no actionable phase exists and `phase_id` is omitted, the tool returns a read-only plan summary with progress instead. The tool remains read-only even when `MEMORY_SESSION_ID` is present.
 
 **`memory_plan_resume` parameters and response**
 
@@ -421,7 +422,7 @@ Returns a single packet with `{plan_id, project_id, phase_id, phase, source_cont
 | `project_id` | str \| null | Optional project scope. Auto-detected when omitted. |
 | `max_context_chars` | int | Character budget for phase briefing context (default 8000, 0 = unlimited). |
 
-Returns `{plan_id, project_id, plan_status, resumption, phase_briefing, intermediate_outputs, warnings, has_run_state, budget_status?}`. The `resumption` block includes `current_phase_id`, `current_task`, `next_action_hint`, `error_context`, `sessions_consumed`, `last_checkpoint`, and `previous_session`. When `has_run_state` is `false`, the tool falls back to plan-only context (equivalent to `memory_plan_briefing`). Emits a `tool_call` trace span named `memory_plan_resume`.
+Returns `{plan_id, project_id, plan_status, resumption, phase_briefing, intermediate_outputs, warnings, has_run_state, budget_status?}`. The `resumption` block includes `current_phase_id`, `current_task`, `next_action_hint`, `error_context`, `sessions_consumed`, `last_checkpoint`, and `previous_session`. When `has_run_state` is `false`, the tool falls back to plan-only context (equivalent to `memory_plan_briefing`). The tool does not rewrite the stored run-state session id or emit traces.
 
 **`memory_stage_external` parameters and response**
 

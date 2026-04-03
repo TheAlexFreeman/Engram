@@ -3,7 +3,9 @@ from __future__ import annotations
 import importlib
 import io
 import json
+import os
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -27,18 +29,20 @@ class ServerMainCliTests(unittest.TestCase):
         cls.module = load_server_main_module()
 
     def test_main_without_args_runs_server(self) -> None:
-        with mock.patch.object(self.module.mcp, "run") as run_mock:
+        fake_mcp = mock.Mock()
+        with mock.patch.object(self.module, "_load_mcp", return_value=fake_mcp):
             result = self.module.main([])
 
         self.assertEqual(result, 0)
-        run_mock.assert_called_once_with()
+        fake_mcp.run.assert_called_once_with()
 
     def test_serve_subcommand_runs_server(self) -> None:
-        with mock.patch.object(self.module.mcp, "run") as run_mock:
+        fake_mcp = mock.Mock()
+        with mock.patch.object(self.module, "_load_mcp", return_value=fake_mcp):
             result = self.module.main(["serve"])
 
         self.assertEqual(result, 0)
-        run_mock.assert_called_once_with()
+        fake_mcp.run.assert_called_once_with()
 
     def test_plan_create_help_mentions_schema_backing(self) -> None:
         stdout = io.StringIO()
@@ -67,6 +71,45 @@ class ServerMainCliTests(unittest.TestCase):
             ]["action"]["x-aliases"]["modify"],
             "update",
         )
+
+    def test_plan_create_help_skips_server_bootstrap_outside_repo(self) -> None:
+        stdout = io.StringIO()
+        original_cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with mock.patch.object(
+                self.module,
+                "_load_mcp",
+                side_effect=ModuleNotFoundError("mcp"),
+            ):
+                os.chdir(tmpdir)
+                try:
+                    with redirect_stdout(stdout), self.assertRaises(SystemExit) as ctx:
+                        self.module.main(["plan", "create", "--help"])
+                finally:
+                    os.chdir(original_cwd)
+
+        self.assertEqual(ctx.exception.code, 0)
+        self.assertIn("Schema-backed help for plan creation.", stdout.getvalue())
+
+    def test_plan_create_json_schema_skips_server_bootstrap_outside_repo(self) -> None:
+        stdout = io.StringIO()
+        original_cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with mock.patch.object(
+                self.module,
+                "_load_mcp",
+                side_effect=ModuleNotFoundError("mcp"),
+            ):
+                os.chdir(tmpdir)
+                try:
+                    with redirect_stdout(stdout):
+                        result = self.module.main(["plan", "create", "--json-schema"])
+                finally:
+                    os.chdir(original_cwd)
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(result, 0)
+        self.assertEqual(payload["tool_name"], "memory_plan_create")
 
 
 if __name__ == "__main__":

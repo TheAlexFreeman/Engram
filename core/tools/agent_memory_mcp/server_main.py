@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import sys
 from collections.abc import Sequence
 
 from .cli.plan_help import build_plan_create_help_text
 from .plan_utils import plan_create_input_schema
-from .server import mcp
 
 
 def _build_parser() -> tuple[
@@ -45,17 +45,22 @@ def _build_parser() -> tuple[
     return parser, plan_parser, plan_create_parser
 
 
+def _load_mcp() -> object:
+    server_module = importlib.import_module(".server", __package__)
+    return server_module.mcp
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args_list = list(argv) if argv is not None else sys.argv[1:]
     if not args_list:
-        mcp.run()
+        _load_mcp().run()
         return 0
 
     parser, plan_parser, plan_create_parser = _build_parser()
     args = parser.parse_args(args_list)
 
     if args.command == "serve":
-        mcp.run()
+        _load_mcp().run()
         return 0
     if args.command == "plan":
         if args.plan_command == "create":

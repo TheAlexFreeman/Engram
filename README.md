@@ -199,9 +199,11 @@ python -m engram_mcp.agent_memory_mcp.server_main
 ```
 
 `engram-mcp` also exposes a small schema-backed help surface without starting the
-server: run `engram-mcp plan create --help` for human-readable plan-authoring
-help or `engram-mcp plan create --json-schema` for the raw schema used by
-`memory_plan_schema` and mirrored by `memory_tool_schema("memory_plan_create")`.
+server or importing the FastMCP runtime: run `engram-mcp plan create --help`
+for human-readable plan-authoring help or `engram-mcp plan create --json-schema`
+for the raw schema used by `memory_plan_schema` and mirrored by
+`memory_tool_schema("memory_plan_create")`. Those commands are dependency-light
+and work even outside a configured Engram repo checkout.
 The broader `memory_tool_schema` lookup also covers plan execution, approval
 workflow inputs, ACCESS batch/session payloads, trace-span logging, tool-registry
 registration, protected periodic-review/revert workflows, the full Tier 1 semantic tool surface, and raw frontmatter update tools such as

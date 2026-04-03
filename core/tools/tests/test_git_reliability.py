@@ -131,6 +131,22 @@ class TestHealthCheck(unittest.TestCase):
         )
         return GitRepo(tmpdir)
 
+    def _make_empty_repo(self, tmpdir: Path) -> GitRepo:
+        import subprocess
+
+        subprocess.run(["git", "init", str(tmpdir)], capture_output=True, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@test"],
+            cwd=str(tmpdir),
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=str(tmpdir),
+            capture_output=True,
+        )
+        return GitRepo(tmpdir)
+
     def test_healthy_repo(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             repo = self._make_repo(Path(tmpdir))
@@ -169,6 +185,16 @@ class TestHealthCheck(unittest.TestCase):
             self.assertIn("head_valid", report)
             self.assertIn("fs_writable", report)
             self.assertIn("warnings", report)
+
+    def test_empty_repo_marks_index_invalid(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = self._make_empty_repo(Path(tmpdir))
+            report = repo.health_check()
+
+            self.assertTrue(report["repo_valid"])
+            self.assertFalse(report["head_valid"])
+            self.assertFalse(report["index_valid"])
+            self.assertTrue(any("HEAD is not valid" in warning for warning in report["warnings"]))
 
 
 if __name__ == "__main__":
