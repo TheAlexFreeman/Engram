@@ -1,9 +1,10 @@
 ---
-active_plans: 2
+active_plans: 0
 cognitive_mode: execution
 created: 2026-04-02
-current_focus: Consolidate shipped v1 CLI surfaces while the remaining v3-v4
-  governance, plan, and portability work stays behind explicit blockers.
+current_focus: Schema foundations are complete; the next queued slice is
+  activating the v3 plan and approval command roadmap now that schema-backed
+  help and aggregated validation are in place.
 last_activity: '2026-04-03'
 open_questions: 0
 origin_session: memory/activity/2026/04/02/chat-001
@@ -23,21 +24,21 @@ v0 foundation is now implemented; the remaining roadmap is split into focused
 follow-on plans instead of one monolithic backlog item.
 
 ## Cognitive mode
-Execution mode: `cli-v0` is complete as a shipped foundation release, and the
-rest of the roadmap is decomposed into nine follow-on plans. The active queue
-now centers on syncing the remaining v1 tracking state and the v3 schema
-groundwork that unblocks plan-oriented terminal workflows.
+Execution mode: `cli-v0`, the v1 read/write surfaces, and the v3 schema
+foundations are complete as shipped releases. The roadmap remains decomposed
+into nine follow-on plans, but no new slice is active until the v3 command
+plans are promoted from draft.
 
 ## Plan inventory (2026-04-03)
 
 | Version | Plan file | Status | Budget | Primary dependency |
 |---|---|---|---|---|
 | v0 | `cli-v0.yaml` | completed | 8 sessions / 2026-05-01 | Shipped foundation |
-| v1 | `cli-v1-read-surfaces.yaml` | active | 6 sessions / 2026-06-15 | Accurate v0 baseline |
+| v1 | `cli-v1-read-surfaces.yaml` | completed | 6 sessions / 2026-06-15 | Accurate v0 baseline |
 | v1 | `cli-v1-write-ingestion.yaml` | completed | 6 sessions / 2026-06-30 | Accurate v0 baseline |
 | v2 | `cli-v2-maintenance-dry-run.yaml` | draft | 7 sessions / 2026-08-01 | v1 read/write helpers |
 | v2 | `cli-v2-knowledge-lifecycle.yaml` | draft | 7 sessions / 2026-08-15 | v1 ingestion + v2 dry-run previews |
-| v3 | `cli-v3-schema-foundations.yaml` | active | 5 sessions / 2026-07-15 | Accurate v0 baseline |
+| v3 | `cli-v3-schema-foundations.yaml` | completed | 5 sessions / 2026-07-15 | Accurate v0 baseline |
 | v3 | `cli-v3-plan-commands.yaml` | draft | 8 sessions / 2026-10-01 | v3 schema foundations |
 | v3 | `cli-v3-approval-trace.yaml` | draft | 6 sessions / 2026-09-15 | v3 schema foundations |
 | v4 | `cli-v4-portability.yaml` | draft | 7 sessions / 2026-11-15 | Stable v3 command contracts |

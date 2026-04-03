@@ -1485,7 +1485,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     async def memory_flag_for_review(path: str, reason: str, priority: str = "normal") -> str:
         """Add a file to the governance review queue.
 
-        priority must be "normal" or "urgent".
+        priority must be "normal" or "urgent". The tool accepts any
+        repo-relative path, generates a stable queue item id, appends a pending
+        entry to the governance review queue, and commits the update
+        immediately.
         """
         from ...errors import ValidationError
         from ...frontmatter_utils import today_str
@@ -1735,15 +1738,22 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     ) -> str:
         """Log multiple ACCESS entries in one commit.
 
-        access_entries must be a non-empty list of objects with file, task,
-        helpfulness, and note.
+                access_entries must be a non-empty list of objects with file, task,
+                helpfulness, and note.
 
-        Optional per-entry fields: category, mode, task_id, estimator,
-        min_helpfulness.
+                Optional per-entry fields:
+                - category: freeform access category string
+                - mode: "read" | "write" | "update" | "create"
+                - task_id: optional value from the configured access_logging.task_ids set
+                - estimator: optional provenance string for the helpfulness score
 
         Batch-level fields:
-        - session_id: optional canonical session id applied to every entry
-        - min_helpfulness: optional routing threshold for ACCESS_SCANS.jsonl
+                - session_id: optional canonical session id resolved from the explicit
+                    argument first, then MEMORY_SESSION_ID, then
+                    memory/activity/CURRENT_SESSION; the resolved value is applied to
+                    every entry
+                - min_helpfulness: optional routing threshold applied to the whole
+                    batch; below-threshold entries are routed to ACCESS_SCANS.jsonl
 
         Use memory_tool_schema for the full machine-readable entry contract.
         """
@@ -1803,12 +1813,26 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     ) -> str:
         """Record a full session in one commit.
 
-        Writes the session summary, optional reflection, chat index update,
-        and optional ACCESS entries atomically under a single [chat] commit.
+        Required top-level fields:
+        - session_id: canonical memory/activity/YYYY/MM/DD/chat-NNN id
+        - summary: non-empty session summary body
+
+        Optional top-level fields:
+        - reflection: markdown text written to reflection.md
+        - key_topics: summary index topics string
+        - access_entries: ACCESS entries to append under the same session id
+
+        The tool writes the session summary, optional reflection, chat index
+        update, and optional ACCESS entries atomically under a single [chat]
+        commit. Replaying the exact same payload for an already-recorded
+        session is idempotent and returns an already_recorded state instead of
+        mutating files.
 
         access_entries uses the same payload shape as memory_log_access_batch:
         every entry requires file, task, helpfulness, and note, with optional
-        category, mode, task_id, estimator, and min_helpfulness fields.
+        category, mode ("read" | "write" | "update" | "create"), task_id,
+        and estimator fields. The outer session_id is applied to all supplied
+        access entries.
         """
         from ...errors import ValidationError
         from ...frontmatter_utils import today_str

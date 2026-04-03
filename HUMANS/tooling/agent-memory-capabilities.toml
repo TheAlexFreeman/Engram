@@ -1,7 +1,7 @@
 version = 1
 kind = "agent-memory-capabilities"
 mcp_entrypoint = "core/tools/memory_mcp.py"
-manifest_role = "Repo-side prototype for governed memory writes and capability discovery."
+manifest_role = "Repo-side prototype for governed memory writes, schema-backed authoring help, and capability discovery."
 shared_result_type = "MemoryWriteResult"
 
 [contract_versions]
@@ -211,7 +211,7 @@ tool_sets = ["read_support", "semantic_extensions", "raw_fallback"]
 
 [tool_profiles.guided_write]
 label = "Guided Writes"
-description = "Prefer governed read and semantic tools while excluding raw fallback writes from host discovery."
+description = "Prefer governed read and semantic tools, including schema-backed authoring help, while excluding raw fallback writes from host discovery."
 default = true
 tool_sets = ["read_support", "semantic_extensions"]
 

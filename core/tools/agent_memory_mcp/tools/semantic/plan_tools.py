@@ -15,7 +15,6 @@ from ...plan_utils import (
     TRACE_STATUSES,
     ApprovalDocument,
     PlanDocument,
-    PlanPurpose,
     RunState,
     ToolDefinition,
     _all_registry_tools,
@@ -23,11 +22,10 @@ from ...plan_utils import (
     approval_filename,
     approvals_summary_path,
     assemble_briefing,
+    build_plan_document_from_create_input,
     budget_status,
     build_review_from_input,
     check_run_state_staleness,
-    coerce_budget_input,
-    coerce_phase_inputs,
     estimate_cost,
     exportable_artifacts,
     load_approval,
@@ -60,6 +58,7 @@ from ...plan_utils import (
     unresolved_blockers,
     update_run_state,
     validate_run_state_against_plan,
+    raise_collected_validation_errors,
     validation_error_messages,
     verify_postconditions,
 )
@@ -352,7 +351,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         calls return structured validation feedback without writing; use
         memory_plan_schema to inspect the nested contract programmatically.
         """
-        from ...errors import ValidationError
+        from ...errors import NotFoundError, ValidationError
         from ...frontmatter_utils import today_str
         from ...models import MemoryWriteResult
 
@@ -361,27 +360,45 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         warnings: list[str] = []
 
         try:
-            validate_session_id(session_id)
-            if status not in {"draft", "active"}:
-                raise ValidationError("memory_plan_create status must be 'draft' or 'active'")
+            validation_errors: list[str] = []
+            path_resolution_error: NotFoundError | None = None
 
-            plan_path, resolved_project_id = _resolve_new_plan_path(root, plan_id, project_id)
-            coerced_budget = coerce_budget_input(budget)
-            plan = PlanDocument(
-                id=plan_id,
-                project=resolved_project_id,
-                created=today_str(),
-                origin_session=session_id,
-                status=status,
-                purpose=PlanPurpose(
-                    summary=purpose_summary,
-                    context=purpose_context,
-                    questions=list(questions or []),
-                ),
-                phases=coerce_phase_inputs(phases),
-                review=None,
-                budget=coerced_budget,
-            )
+            resolved_project_id = project_id
+            plan_path = ""
+            try:
+                plan_path, resolved_project_id = _resolve_new_plan_path(root, plan_id, project_id)
+            except ValidationError as exc:
+                validation_errors.extend(validation_error_messages(exc))
+            except NotFoundError as exc:
+                path_resolution_error = exc
+
+            plan = None
+            try:
+                plan = build_plan_document_from_create_input(
+                    plan_id=plan_id,
+                    project_id=resolved_project_id,
+                    created=today_str(),
+                    session_id=session_id,
+                    status=status,
+                    purpose_summary=purpose_summary,
+                    purpose_context=purpose_context,
+                    questions=questions,
+                    phases=phases,
+                    budget=budget,
+                )
+            except ValidationError as exc:
+                validation_errors.extend(validation_error_messages(exc))
+
+            if path_resolution_error is not None and validation_errors:
+                validation_errors.append(str(path_resolution_error))
+                path_resolution_error = None
+
+            raise_collected_validation_errors(validation_errors)
+            if path_resolution_error is not None:
+                raise path_resolution_error
+
+            assert plan is not None
+            assert plan_path
         except ValidationError as exc:
             if not preview:
                 raise
@@ -526,35 +543,41 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     ) -> str:
         """Inspect, start, complete, or record failure on a plan phase.
 
-        action must be one of "inspect", "start", "complete", or
-        "record_failure".
+            action must be one of "inspect", "start", "complete", or
+                    "record_failure". "blocked" is a plan state set automatically when
+                    unresolved blockers or rejected approvals prevent progress; it is not a
+                    caller-selectable action.
 
-        session_id is required for start, complete, and record_failure.
-        commit_sha is required when action="complete".
-        reason is required when action="record_failure".
+                    Conditional requirements:
+                    - session_id is required for start, complete, and record_failure, but
+                        not inspect
+                    - commit_sha is required when action="complete"
+                    - reason is required when action="record_failure"
+                    - review is only consumed when the final phase completes
 
-        review is only consumed when the final phase completes. The caller-facing
-        review object supports:
-        - outcome: "completed" | "partial" | "abandoned" (default "completed")
-        - purpose_assessment: non-empty string
-        - unresolved: optional list of {question, note}
-        - follow_up: optional kebab-case follow-up plan id
+                    The caller-facing review object supports:
+            - outcome: "completed" | "partial" | "abandoned" (default "completed")
+            - purpose_assessment: non-empty string
+            - unresolved: optional list of {question, note}
+            - follow_up: optional kebab-case follow-up plan id
 
-        verification_results is an optional list of verification result objects
-        attached to failure records or returned by verify flows. Tool-generated
-        items carry:
-        - postcondition: original postcondition description
-        - type: "check" | "grep" | "test" | "manual"
-        - status: "pass" | "fail" | "error" | "skip"
-        - detail: optional diagnostic string or null
-        - policy_result: optional policy block details for denied test commands
+            verification_results is an optional list of verification result objects
+            attached to failure records or returned by verify flows. Tool-generated
+            items carry:
+            - postcondition: original postcondition description
+            - type: "check" | "grep" | "test" | "manual"
+            - status: "pass" | "fail" | "error" | "skip"
+            - detail: optional diagnostic string or null
+            - policy_result: optional policy block details for denied test commands
 
-        When action="complete" and verify=True, postconditions are evaluated
-        before completion. If any fail or error, the phase stays in-progress and
-        the verification payload is returned instead.
+            When action="complete" and verify=True, postconditions are evaluated
+            before completion. If any fail or error, the phase stays in-progress and
+        the verification payload is returned instead. preview=True returns the
+        governed preview envelope for the requested state transition without
+        mutating the plan or approval state.
 
-        Use memory_tool_schema or memory_plan_schema for the machine-readable
-        contract.
+            Use memory_tool_schema or memory_plan_schema for the machine-readable
+            contract.
         """
         from ...errors import AlreadyDoneError, ValidationError
         from ...frontmatter_utils import today_str
@@ -2338,8 +2361,11 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         the plan status: ``active`` on approval, ``blocked`` on rejection.
 
         ``resolution`` must be ``"approve"`` or ``"reject"``.
+        ``comment`` is an optional reviewer note stored on the resolved
+        approval document.
 
-        Returns JSON with ``approval_file``, ``status``, and ``plan_status``.
+        Returns JSON with ``approval_file``, ``status``, ``plan_status``, and
+        the resolved ``phase_id``.
         """
         from datetime import datetime, timezone
 

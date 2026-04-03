@@ -2,8 +2,8 @@ id: cli-v1-read-surfaces
 project: cli-expansion
 created: '2026-04-03'
 origin_session: memory/activity/2026/04/02/chat-001
-status: active
-sessions_used: 0
+status: completed
+sessions_used: 1
 budget:
   deadline: '2026-06-15'
   max_sessions: 6
@@ -25,7 +25,7 @@ work:
   phases:
     - id: formatting-core
       title: Extract shared formatting and lookup helpers for read commands
-      status: pending
+      status: completed
       commit: null
       blockers: []
       sources:
@@ -53,7 +53,7 @@ work:
           description: Move common read-side rendering into shared helpers without regressing search behavior.
     - id: recall-command
       title: Implement engram recall for contextual memory inspection
-      status: pending
+      status: completed
       commit: null
       blockers:
         - formatting-core
@@ -85,7 +85,7 @@ work:
           description: Document recall usage for humans and shell-based agents.
     - id: log-command
       title: Implement engram log for ACCESS timeline inspection
-      status: pending
+      status: completed
       commit: null
       blockers:
         - formatting-core
@@ -117,7 +117,7 @@ work:
           description: Document log usage and examples.
     - id: read-surface-verification
       title: Verify recall and log docs, tests, and integration behavior
-      status: pending
+      status: completed
       commit: null
       blockers:
         - recall-command

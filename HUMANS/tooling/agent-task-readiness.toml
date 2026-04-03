@@ -1,7 +1,7 @@
 version = 1
 kind = "agent-task-readiness"
 resolver_entrypoint = "HUMANS/tooling/scripts/resolve_task_readiness.py"
-manifest_role = "Repo-side prototype for task-aware GitHub, network, and local tooling preflight."
+manifest_role = "Repo-side prototype for task-aware GitHub, network, and local tooling preflight, including zero-check local schema/help flows."
 
 [task_detection]
 default_profile = "workspace_general"
@@ -45,13 +45,13 @@ manifest_only = "Manifest loaded"
 
 [profiles.workspace_general]
 title = "Workspace General"
-description = "Generic local editing or investigation with no publish, install, or validation requirement."
+description = "Generic local editing, schema-backed CLI help, or investigation with no publish, install, or validation requirement."
 keywords = []
 checks = []
 final_gate_checks = []
-fallback_message = "Local work can continue."
+fallback_message = "Local work can continue, including schema-backed help and guided authoring."
 blocked_reason = "No task-specific preflight gates were requested."
-success_message = "No preflight checks are required for this task."
+success_message = "No preflight checks are required for local edits, schema-backed help, or inspection tasks."
 
 [profiles.pull_request]
 title = "Pull Request"
@@ -66,8 +66,19 @@ keywords = [
   "github pr",
   "publish pr",
 ]
-checks = ["git_cli", "git_remote", "git_push_dry_run", "gh_auth", "remote_network"]
-final_gate_checks = ["git_remote", "git_push_dry_run", "gh_auth", "remote_network"]
+checks = [
+  "git_cli",
+  "git_remote",
+  "git_push_dry_run",
+  "gh_auth",
+  "remote_network",
+]
+final_gate_checks = [
+  "git_remote",
+  "git_push_dry_run",
+  "gh_auth",
+  "remote_network",
+]
 fallback_message = "Local work complete, publish blocked."
 blocked_reason = "Retry after GitHub auth, remote auth, or network access is restored."
 success_message = "GitHub publish prerequisites are available."
@@ -75,7 +86,13 @@ success_message = "GitHub publish prerequisites are available."
 [profiles.publish_branch]
 title = "Publish Branch"
 description = "Branch publish work that expects git push reachability but not necessarily gh-based PR creation."
-keywords = ["git push", "push branch", "publish branch", "publish changes", "push commit"]
+keywords = [
+  "git push",
+  "push branch",
+  "publish branch",
+  "publish changes",
+  "push commit",
+]
 checks = ["git_cli", "git_remote", "git_push_dry_run", "remote_network"]
 final_gate_checks = ["git_remote", "git_push_dry_run", "remote_network"]
 fallback_message = "Local work complete, push blocked."
@@ -85,7 +102,14 @@ success_message = "Branch publish prerequisites are available."
 [profiles.python_validation]
 title = "Python Validation"
 description = "Tasks that expect the repo Python runtime plus validation tooling."
-keywords = ["pytest", "ruff", "run tests", "run validation", "lint python", "validate repo"]
+keywords = [
+  "pytest",
+  "ruff",
+  "run tests",
+  "run validation",
+  "lint python",
+  "validate repo",
+]
 checks = ["python_runtime", "python_validation_stack"]
 final_gate_checks = ["python_runtime", "python_validation_stack"]
 fallback_message = "Validation skipped because the Python runtime or validation tools are missing."
@@ -95,7 +119,13 @@ success_message = "Python validation tooling is available."
 [profiles.python_dependency_install]
 title = "Python Dependency Install"
 description = "Tasks that need Python package installation and outbound package-network access."
-keywords = ["pip install", "uv sync", "install dependency", "install package", "python dependency"]
+keywords = [
+  "pip install",
+  "uv sync",
+  "install dependency",
+  "install package",
+  "python dependency",
+]
 checks = ["python_runtime", "python_package_manager", "python_package_network"]
 final_gate_checks = ["python_package_manager", "python_package_network"]
 fallback_message = "Dependency install blocked; edit dependency files locally and install later."
@@ -105,7 +135,14 @@ success_message = "Python package installation prerequisites are available."
 [profiles.node_validation]
 title = "Node Validation"
 description = "Tasks that expect a Node runtime plus basic package-manager tooling."
-keywords = ["npm test", "pnpm test", "yarn test", "eslint", "vite", "node validation"]
+keywords = [
+  "npm test",
+  "pnpm test",
+  "yarn test",
+  "eslint",
+  "vite",
+  "node validation",
+]
 checks = ["node_runtime", "node_validation_stack"]
 final_gate_checks = ["node_runtime", "node_validation_stack"]
 fallback_message = "Validation skipped because the Node runtime or package-manager tooling is missing."
@@ -115,7 +152,13 @@ success_message = "Node validation tooling is available."
 [profiles.node_dependency_install]
 title = "Node Dependency Install"
 description = "Tasks that need Node package installation and outbound registry access."
-keywords = ["npm install", "pnpm install", "yarn install", "node dependency", "frontend dependency"]
+keywords = [
+  "npm install",
+  "pnpm install",
+  "yarn install",
+  "node dependency",
+  "frontend dependency",
+]
 checks = ["node_runtime", "node_package_manager", "node_package_network"]
 final_gate_checks = ["node_package_manager", "node_package_network"]
 fallback_message = "Dependency install blocked; edit package manifests locally and install later."

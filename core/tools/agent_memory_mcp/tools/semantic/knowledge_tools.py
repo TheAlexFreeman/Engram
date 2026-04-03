@@ -357,13 +357,18 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     ) -> str:
         """Promote multiple unverified knowledge files in one governed commit.
 
-        Use this when several reviewed files should move together. Accepts either
-        a JSON array of repo-relative paths or a folder path to expand into a
-        flat batch. Missing target sections in memory/knowledge/SUMMARY.md are
-        auto-created with default entries so routine promotion work stays
-        atomic.
+        Use this when several reviewed files should move together. source_paths
+        accepts either a JSON array of repo-relative unverified file paths or a
+        folder path to expand into a flat batch. SUMMARY.md files are rejected.
+        Missing target sections in memory/knowledge/SUMMARY.md are auto-created
+        with default entries so routine promotion work stays atomic.
 
         trust_level must be "medium" or "high".
+
+        target_folder is optional when every source path implies the same
+        verified destination folder. If the batch spans multiple inferred
+        destinations, target_folder becomes required and must resolve under
+        memory/knowledge/.
 
         Prefer memory_promote_knowledge_subtree when the source is a nested topic
         tree whose internal subfolders should be preserved.
@@ -1635,9 +1640,14 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     ) -> str:
         """Record a review verdict for an unverified knowledge file.
 
-        verdict must be "approve", "reject", or "defer".
+        verdict must be "approve", "reject", or "defer":
+        - approve: the file passed review and is eligible for later promotion
+        - reject: the file should not be promoted in its current form
+        - defer: review happened, but promotion or rejection is postponed
+
         session_id is optional, but when supplied it must be a canonical
-        memory/activity/YYYY/MM/DD/chat-NNN id.
+        memory/activity/YYYY/MM/DD/chat-NNN id. This tool appends REVIEW_LOG
+        metadata only; it does not move, promote, or delete the source file.
         """
         from ...errors import NotFoundError, ValidationError
         from ...models import MemoryWriteResult

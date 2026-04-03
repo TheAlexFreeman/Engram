@@ -4852,6 +4852,63 @@ Secondary body.
             ).exists()
         )
 
+    def test_memory_plan_create_preview_aggregates_top_level_and_nested_validation_feedback(
+        self,
+    ) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-21\nproject_count: 1\n---\n\n# Projects\n\n_No active or ongoing projects._\n",
+                "memory/working/projects/example/SUMMARY.md": "---\nsource: agent-generated\norigin_session: manual\ncreated: 2026-03-21\ntrust: medium\ntype: project\nstatus: active\ncognitive_mode: exploration\nopen_questions: 0\nactive_plans: 0\nlast_activity: 2026-03-21\ncurrent_focus: Preview aggregated validation feedback.\n---\n\n# Project: Example\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        preview = json.loads(
+            asyncio.run(
+                tools["memory_plan_create"](
+                    plan_id="invalid-preview-plan",
+                    project_id="example",
+                    purpose_summary="   ",
+                    purpose_context="",
+                    phases=[
+                        {
+                            "id": "phase-a",
+                            "title": "Do the thing",
+                            "postconditions": [
+                                {"description": "Output exists", "type": "check"},
+                            ],
+                            "changes": [
+                                {
+                                    "path": "memory/working/projects/example/notes/output.md",
+                                    "action": "bogus",
+                                    "description": "Write output note.",
+                                }
+                            ],
+                        }
+                    ],
+                    session_id="chat-001",
+                    questions=cast(Any, "not-a-list"),
+                    budget={"deadline": "April 3, 2026", "max_sessions": "zero"},
+                    status="paused",
+                    preview=True,
+                )
+            )
+        )
+
+        errors = preview["new_state"]["errors"]
+
+        self.assertFalse(preview["new_state"]["valid"])
+        self.assertGreaterEqual(len(errors), 8)
+        self.assertTrue(any("session_id" in error for error in errors))
+        self.assertTrue(any("memory_plan_create status" in error for error in errors))
+        self.assertTrue(any("purpose.summary" in error for error in errors))
+        self.assertTrue(any("purpose.context" in error for error in errors))
+        self.assertTrue(any("purpose.questions must be a list" in error for error in errors))
+        self.assertTrue(any("budget.deadline" in error for error in errors))
+        self.assertTrue(any("budget.max_sessions" in error for error in errors))
+        self.assertTrue(any("work.phases[0].postconditions[0]" in error for error in errors))
+        self.assertTrue(any("work.phases[0].changes[0]" in error for error in errors))
+
     def test_memory_plan_create_invalid_input_still_raises_without_preview(self) -> None:
         repo_root = self._init_repo(
             {
