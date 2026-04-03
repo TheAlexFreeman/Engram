@@ -225,6 +225,193 @@ def _create_preview(
     )
 
 
+def create_plan_write_result(
+    *,
+    repo: Any,
+    root: Path,
+    plan_id: str,
+    project_id: str,
+    purpose_summary: str,
+    purpose_context: str,
+    phases: list[dict[str, Any]],
+    session_id: str,
+    questions: list[str] | None = None,
+    budget: dict[str, Any] | None = None,
+    status: str = "active",
+    preview: bool = False,
+):
+    """Create a plan using the shared governed write path used by MCP and CLI flows."""
+    from ...errors import NotFoundError, ValidationError
+    from ...frontmatter_utils import today_str
+    from ...models import MemoryWriteResult
+
+    warnings: list[str] = []
+
+    try:
+        validation_errors: list[str] = []
+        path_resolution_error: NotFoundError | None = None
+
+        resolved_project_id = project_id
+        plan_path = ""
+        try:
+            plan_path, resolved_project_id = _resolve_new_plan_path(root, plan_id, project_id)
+        except ValidationError as exc:
+            validation_errors.extend(validation_error_messages(exc))
+        except NotFoundError as exc:
+            path_resolution_error = exc
+
+        plan = None
+        try:
+            plan = build_plan_document_from_create_input(
+                plan_id=plan_id,
+                project_id=resolved_project_id,
+                created=today_str(),
+                session_id=session_id,
+                status=status,
+                purpose_summary=purpose_summary,
+                purpose_context=purpose_context,
+                questions=questions,
+                phases=phases,
+                budget=budget,
+            )
+        except ValidationError as exc:
+            validation_errors.extend(validation_error_messages(exc))
+
+        if path_resolution_error is not None and validation_errors:
+            validation_errors.append(str(path_resolution_error))
+            path_resolution_error = None
+
+        raise_collected_validation_errors(validation_errors)
+        if path_resolution_error is not None:
+            raise path_resolution_error
+
+        assert plan is not None
+        assert plan_path
+    except ValidationError as exc:
+        if not preview:
+            raise
+        validation_errors = validation_error_messages(exc)
+        invalid_warnings = list(warnings) + [
+            "Plan input is invalid; call memory_plan_schema for the nested contract."
+        ]
+        invalid_state = {
+            "valid": False,
+            "errors": validation_errors,
+            "schema_tool": "memory_plan_schema",
+        }
+        preview_payload = _create_preview(
+            mode="preview",
+            change_class="proposed",
+            summary="Plan creation request is invalid; no files would be written.",
+            reasoning=(
+                "preview=True downgrades plan-input validation failures into structured feedback "
+                "so callers can fix all surfaced issues before retrying."
+            ),
+            target_files=[],
+            invariant_effects=[
+                "No files would be created or updated until validation errors are fixed."
+            ],
+            commit_message=None,
+            resulting_state=invalid_state,
+            warnings=invalid_warnings,
+        )
+        return MemoryWriteResult(
+            files_changed=[],
+            commit_sha=None,
+            commit_message=None,
+            new_state=invalid_state,
+            warnings=invalid_warnings,
+            preview=preview_payload,
+        )
+
+    files_changed = [
+        plan_path,
+        _project_summary_path(resolved_project_id),
+        "memory/working/projects/SUMMARY.md",
+        f"memory/working/projects/{resolved_project_id}/operations.jsonl",
+    ]
+    new_state: dict[str, Any] = {
+        "plan_path": plan_path,
+        "project_id": resolved_project_id,
+        "status": plan.status,
+        "phase_count": len(plan.phases),
+        "next_action": next_action(plan),
+    }
+    bs = budget_status(plan)
+    if bs is not None:
+        new_state["budget_status"] = bs
+    commit_msg = f"[plan] Create {plan_id}"
+    preview_payload = _create_preview(
+        mode="preview" if preview else "apply",
+        change_class="proposed",
+        summary=f"Create YAML plan {plan_id} in project {resolved_project_id}.",
+        reasoning=(
+            "Structured YAML plans are the governed execution surface for multi-phase work, "
+            "so creation also refreshes project routing metadata and initializes operations logging."
+        ),
+        target_files=[
+            (plan_path, "create"),
+            (_project_summary_path(resolved_project_id), "update"),
+            ("memory/working/projects/SUMMARY.md", "update"),
+            (f"memory/working/projects/{resolved_project_id}/operations.jsonl", "append"),
+        ],
+        invariant_effects=[
+            "Creates a machine-validated YAML plan with structured purpose, phases, and change specs.",
+            "Refreshes project routing counters so active plan navigation stays accurate.",
+            "Initializes a project-scoped operations log entry for plan creation.",
+        ],
+        commit_message=commit_msg,
+        resulting_state=new_state,
+        warnings=warnings,
+    )
+    if preview:
+        return MemoryWriteResult(
+            files_changed=files_changed,
+            commit_sha=None,
+            commit_message=None,
+            new_state=new_state,
+            warnings=warnings,
+            preview=preview_payload,
+        )
+
+    abs_plan = repo.abs_path(plan_path)
+    save_plan(abs_plan, plan, root)
+    repo.add(plan_path)
+    _append_plan_log(
+        root,
+        repo,
+        resolved_project_id,
+        files_changed,
+        session_id=session_id,
+        action="plan-created",
+        plan_id=plan.id,
+        detail=plan_title(plan),
+    )
+    _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+    record_trace(
+        root,
+        session_id,
+        span_type="plan_action",
+        name="create",
+        status="ok",
+        metadata={"plan_id": plan.id, "project_id": resolved_project_id, "action": "create"},
+    )
+    trace_path = trace_file_path(session_id)
+    if (root / trace_path).exists():
+        repo.add(trace_path)
+        if trace_path not in files_changed:
+            files_changed.append(trace_path)
+    commit_result = repo.commit(commit_msg)
+    return MemoryWriteResult.from_commit(
+        files_changed=files_changed,
+        commit_result=commit_result,
+        commit_message=commit_msg,
+        new_state=new_state,
+        warnings=warnings,
+        preview=preview_payload,
+    )
+
+
 def _append_plan_log(
     root: Path,
     repo,
@@ -351,172 +538,23 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         calls return structured validation feedback without writing; use
         memory_plan_schema to inspect the nested contract programmatically.
         """
-        from ...errors import NotFoundError, ValidationError
-        from ...frontmatter_utils import today_str
-        from ...models import MemoryWriteResult
-
         repo = get_repo()
         root = get_root()
-        warnings: list[str] = []
-
-        try:
-            validation_errors: list[str] = []
-            path_resolution_error: NotFoundError | None = None
-
-            resolved_project_id = project_id
-            plan_path = ""
-            try:
-                plan_path, resolved_project_id = _resolve_new_plan_path(root, plan_id, project_id)
-            except ValidationError as exc:
-                validation_errors.extend(validation_error_messages(exc))
-            except NotFoundError as exc:
-                path_resolution_error = exc
-
-            plan = None
-            try:
-                plan = build_plan_document_from_create_input(
-                    plan_id=plan_id,
-                    project_id=resolved_project_id,
-                    created=today_str(),
-                    session_id=session_id,
-                    status=status,
-                    purpose_summary=purpose_summary,
-                    purpose_context=purpose_context,
-                    questions=questions,
-                    phases=phases,
-                    budget=budget,
-                )
-            except ValidationError as exc:
-                validation_errors.extend(validation_error_messages(exc))
-
-            if path_resolution_error is not None and validation_errors:
-                validation_errors.append(str(path_resolution_error))
-                path_resolution_error = None
-
-            raise_collected_validation_errors(validation_errors)
-            if path_resolution_error is not None:
-                raise path_resolution_error
-
-            assert plan is not None
-            assert plan_path
-        except ValidationError as exc:
-            if not preview:
-                raise
-            validation_errors = validation_error_messages(exc)
-            invalid_warnings = list(warnings) + [
-                "Plan input is invalid; call memory_plan_schema for the nested contract."
-            ]
-            invalid_state = {
-                "valid": False,
-                "errors": validation_errors,
-                "schema_tool": "memory_plan_schema",
-            }
-            preview_payload = _create_preview(
-                mode="preview",
-                change_class="proposed",
-                summary="Plan creation request is invalid; no files would be written.",
-                reasoning=(
-                    "preview=True downgrades plan-input validation failures into structured feedback "
-                    "so callers can fix all surfaced issues before retrying."
-                ),
-                target_files=[],
-                invariant_effects=[
-                    "No files would be created or updated until validation errors are fixed."
-                ],
-                commit_message=None,
-                resulting_state=invalid_state,
-                warnings=invalid_warnings,
-            )
-            return MemoryWriteResult(
-                files_changed=[],
-                commit_sha=None,
-                commit_message=None,
-                new_state=invalid_state,
-                warnings=invalid_warnings,
-                preview=preview_payload,
-            ).to_json()
-
-        files_changed = [
-            plan_path,
-            _project_summary_path(resolved_project_id),
-            "memory/working/projects/SUMMARY.md",
-            f"memory/working/projects/{resolved_project_id}/operations.jsonl",
-        ]
-        new_state: dict[str, Any] = {
-            "plan_path": plan_path,
-            "project_id": resolved_project_id,
-            "status": plan.status,
-            "phase_count": len(plan.phases),
-            "next_action": next_action(plan),
-        }
-        bs = budget_status(plan)
-        if bs is not None:
-            new_state["budget_status"] = bs
-        commit_msg = f"[plan] Create {plan_id}"
-        preview_payload = _create_preview(
-            mode="preview" if preview else "apply",
-            change_class="proposed",
-            summary=f"Create YAML plan {plan_id} in project {resolved_project_id}.",
-            reasoning=(
-                "Structured YAML plans are the governed execution surface for multi-phase work, "
-                "so creation also refreshes project routing metadata and initializes operations logging."
-            ),
-            target_files=[
-                (plan_path, "create"),
-                (_project_summary_path(resolved_project_id), "update"),
-                ("memory/working/projects/SUMMARY.md", "update"),
-                (f"memory/working/projects/{resolved_project_id}/operations.jsonl", "append"),
-            ],
-            invariant_effects=[
-                "Creates a machine-validated YAML plan with structured purpose, phases, and change specs.",
-                "Refreshes project routing counters so active plan navigation stays accurate.",
-                "Initializes a project-scoped operations log entry for plan creation.",
-            ],
-            commit_message=commit_msg,
-            resulting_state=new_state,
-            warnings=warnings,
-        )
-        if preview:
-            return MemoryWriteResult(
-                files_changed=files_changed,
-                commit_sha=None,
-                commit_message=None,
-                new_state=new_state,
-                warnings=warnings,
-                preview=preview_payload,
-            ).to_json()
-
-        abs_plan = repo.abs_path(plan_path)
-        save_plan(abs_plan, plan, root)
-        repo.add(plan_path)
-        _append_plan_log(
-            root,
-            repo,
-            resolved_project_id,
-            files_changed,
+        result = create_plan_write_result(
+            repo=repo,
+            root=root,
+            plan_id=plan_id,
+            project_id=project_id,
+            purpose_summary=purpose_summary,
+            purpose_context=purpose_context,
+            phases=phases,
             session_id=session_id,
-            action="plan-created",
-            plan_id=plan.id,
-            detail=plan_title(plan),
+            questions=questions,
+            budget=budget,
+            status=status,
+            preview=preview,
         )
-        _sync_project_navigation(root, repo, resolved_project_id, files_changed)
-        record_trace(
-            root,
-            session_id,
-            span_type="plan_action",
-            name="create",
-            status="ok",
-            metadata={"plan_id": plan.id, "project_id": resolved_project_id, "action": "create"},
-        )
-        commit_result = repo.commit(commit_msg)
-        return MemoryWriteResult.from_commit(
-            files_changed=files_changed,
-            commit_result=commit_result,
-            commit_message=commit_msg,
-            new_state=new_state,
-            warnings=warnings,
-            preview=preview_payload,
-        ).to_json()
+        return result.to_json()
 
     @mcp.tool(
         name="memory_plan_execute",

@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
+import yaml  # type: ignore[import-untyped]
+
 from ..errors import NotFoundError, ValidationError
+from ..git_repo import GitRepo
 from ..path_policy import validate_slug
 from ..plan_utils import (
     PLAN_STATUSES,
@@ -15,10 +19,16 @@ from ..plan_utils import (
     load_plan,
     next_action,
     phase_payload,
+    plan_create_input_schema,
     plan_progress,
     plan_title,
+    raise_collected_validation_errors,
     resolve_phase,
+    validation_error_messages,
 )
+from ..tools.semantic.plan_tools import create_plan_write_result
+from .formatting import render_governed_preview
+from .plan_help import build_plan_create_help_text
 
 _STATUS_ORDER = {
     "active": 0,
@@ -28,6 +38,10 @@ _STATUS_ORDER = {
     "completed": 4,
     "abandoned": 5,
 }
+
+_PLAN_CREATE_SCHEMA = plan_create_input_schema()
+_PLAN_CREATE_HELP = build_plan_create_help_text(_PLAN_CREATE_SCHEMA)
+_PLAN_CREATE_FIELDS = frozenset(str(name) for name in (_PLAN_CREATE_SCHEMA.get("properties") or {}))
 
 
 def register_plan(
@@ -74,6 +88,30 @@ def register_plan(
         help="Optional phase slug to render instead of the current actionable phase.",
     )
     show_parser.set_defaults(handler=run_plan_show)
+
+    create_parser = plan_subparsers.add_parser(
+        "create",
+        help="Create a structured plan from YAML file input or stdin.",
+        description=_PLAN_CREATE_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=parents or [],
+    )
+    create_parser.add_argument(
+        "input",
+        nargs="?",
+        help="YAML file containing the plan-create input. Omit or use '-' to read from stdin.",
+    )
+    create_parser.add_argument(
+        "--preview",
+        action="store_true",
+        help="Validate and render the governed preview without writing or committing.",
+    )
+    create_parser.add_argument(
+        "--json-schema",
+        action="store_true",
+        help="Print the raw JSON schema accepted by plan create and exit.",
+    )
+    create_parser.set_defaults(handler=run_plan_create)
     return parser
 
 
@@ -90,6 +128,125 @@ def _run_plan_help(
         parser.print_help()
         return 0
     raise ValueError("plan parser unavailable")
+
+
+def _content_prefix(repo_root: Path, content_root: Path) -> str:
+    try:
+        return content_root.relative_to(repo_root).as_posix()
+    except ValueError:
+        return ""
+
+
+def _read_plan_input(raw_input: str | None) -> tuple[str, str | None]:
+    if raw_input is None or raw_input == "-":
+        if raw_input is None and sys.stdin.isatty():
+            raise ValueError("Provide a YAML file path or pipe plan input via stdin.")
+        return sys.stdin.read(), None
+
+    input_path = Path(raw_input).expanduser().resolve()
+    try:
+        return input_path.read_text(encoding="utf-8"), str(input_path)
+    except OSError as exc:
+        raise ValueError(f"Could not read input file: {raw_input}") from exc
+
+
+def _normalize_create_request(text: str, *, preview: bool) -> dict[str, Any]:
+    try:
+        raw_payload = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise ValidationError(f"Plan input is not valid YAML: {exc}") from exc
+
+    if not isinstance(raw_payload, dict):
+        raise ValidationError("Plan input must contain a top-level mapping")
+
+    errors = [
+        f"{field}: unexpected top-level field"
+        for field in sorted({str(key) for key in raw_payload} - _PLAN_CREATE_FIELDS)
+    ]
+    raw_preview = raw_payload.get("preview")
+    if "preview" in raw_payload and not isinstance(raw_preview, bool):
+        errors.append("preview must be a boolean when provided")
+    raise_collected_validation_errors(errors)
+
+    return {
+        "plan_id": str(raw_payload.get("plan_id", "")),
+        "project_id": str(raw_payload.get("project_id", "")),
+        "purpose_summary": str(raw_payload.get("purpose_summary", "")),
+        "purpose_context": str(raw_payload.get("purpose_context", "")),
+        "phases": raw_payload.get("phases", []),
+        "session_id": str(raw_payload.get("session_id", "")),
+        "questions": raw_payload.get("questions"),
+        "budget": raw_payload.get("budget"),
+        "status": str(raw_payload.get("status", "active")),
+        "preview": preview or bool(raw_preview),
+    }
+
+
+def _render_create_errors(errors: list[str]) -> str:
+    lines = ["Plan creation failed:"]
+    if errors:
+        lines.extend(f"- {error}" for error in errors)
+    lines.append("Use 'engram plan create --json-schema' to inspect the nested contract.")
+    return "\n".join(lines)
+
+
+def _render_create_preview(payload: dict[str, Any]) -> str:
+    preview_payload = payload.get("preview")
+    if not isinstance(preview_payload, dict):
+        return json.dumps(payload, indent=2, default=str)
+
+    rendered = render_governed_preview(preview_payload)
+    new_state = payload.get("new_state")
+    if isinstance(new_state, dict):
+        errors = new_state.get("errors")
+        if isinstance(errors, list) and errors:
+            rendered += "\n\nErrors:\n" + "\n".join(f"  - {error}" for error in errors)
+    return rendered
+
+
+def _render_create_result(payload: dict[str, Any]) -> str:
+    new_state = payload.get("new_state") if isinstance(payload.get("new_state"), dict) else {}
+    lines: list[str] = []
+
+    plan_path = new_state.get("plan_path") if isinstance(new_state, dict) else None
+    if plan_path:
+        lines.append(f"Created plan: {plan_path}")
+
+    status = new_state.get("status") if isinstance(new_state, dict) else None
+    if status:
+        lines.append(f"Status: {status}")
+
+    phase_count = new_state.get("phase_count") if isinstance(new_state, dict) else None
+    if isinstance(phase_count, int):
+        lines.append(f"Phases: {phase_count}")
+
+    next_step = new_state.get("next_action") if isinstance(new_state, dict) else None
+    if isinstance(next_step, dict):
+        lines.append(f"Next action: {next_step.get('id')} - {next_step.get('title')}")
+
+    budget_line = _summary_budget_line(
+        new_state.get("budget_status") if isinstance(new_state, dict) else None
+    )
+    if budget_line:
+        lines.append(f"Budget: {budget_line}")
+
+    commit_sha = payload.get("commit_sha")
+    if commit_sha:
+        lines.append(f"Commit: {commit_sha}")
+
+    commit_message = payload.get("commit_message")
+    if commit_message:
+        lines.append(f"Message: {commit_message}")
+
+    warnings = payload.get("warnings")
+    if isinstance(warnings, list) and warnings:
+        lines.append("")
+        lines.append("Warnings:")
+        lines.extend(f"  - {warning}" for warning in warnings)
+
+    if not lines:
+        return json.dumps(payload, indent=2, default=str)
+    return "\n".join(lines)
 
 
 def _plans_root(content_root: Path) -> Path:
@@ -433,4 +590,58 @@ def run_plan_show(args: argparse.Namespace, *, repo_root: Path, content_root: Pa
         print(json.dumps(payload, indent=2, default=str))
     else:
         print(_render_show(payload))
+    return 0
+
+
+def run_plan_create(args: argparse.Namespace, *, repo_root: Path, content_root: Path) -> int:
+    if getattr(args, "json_schema", False):
+        print(json.dumps(_PLAN_CREATE_SCHEMA, indent=2))
+        return 0
+
+    try:
+        input_text, _input_path = _read_plan_input(getattr(args, "input", None))
+        create_request = _normalize_create_request(
+            input_text,
+            preview=bool(getattr(args, "preview", False)),
+        )
+        repo = GitRepo(repo_root, content_prefix=_content_prefix(repo_root, content_root))
+        result = create_plan_write_result(
+            repo=repo,
+            root=content_root,
+            plan_id=create_request["plan_id"],
+            project_id=create_request["project_id"],
+            purpose_summary=create_request["purpose_summary"],
+            purpose_context=create_request["purpose_context"],
+            phases=create_request["phases"],
+            session_id=create_request["session_id"],
+            questions=create_request["questions"],
+            budget=create_request["budget"],
+            status=create_request["status"],
+            preview=bool(create_request["preview"]),
+        )
+    except (NotFoundError, ValidationError, ValueError) as exc:
+        errors = validation_error_messages(exc) if isinstance(exc, ValidationError) else [str(exc)]
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "valid": False,
+                        "errors": errors,
+                        "schema_command": "engram plan create --json-schema",
+                    },
+                    indent=2,
+                )
+            )
+        else:
+            print(_render_create_errors(errors), file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(result.to_json())
+    else:
+        payload = result.to_dict()
+        if create_request["preview"]:
+            print(_render_create_preview(payload))
+        else:
+            print(_render_create_result(payload))
     return 0

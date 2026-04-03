@@ -114,10 +114,11 @@ JSON output includes the filtered result count plus structured ACCESS entries wi
 
 ### `engram plan`
 
-Inspects structured plans from the Active Plans system without requiring an MCP host. The current CLI surface ships the read-only plan views first:
+Inspects and authors structured plans from the Active Plans system without requiring an MCP host.
 
 - `engram plan list` shows plan ids, status, progress, and next-action summaries.
 - `engram plan show <plan-id>` renders the current actionable phase, including sources, blockers, postconditions, and planned changes.
+- `engram plan create [file|-]` accepts YAML matching the `memory_plan_create` input contract, validates it, and creates the governed plan file. Use `--preview` to validate without writing, or `--json-schema` to print the nested authoring schema.
 
 Examples:
 
@@ -126,9 +127,14 @@ engram plan list
 engram plan list --status active --json
 engram plan show cli-v3-plan-commands --project cli-expansion
 engram plan show cli-v3-plan-commands --project cli-expansion --phase plan-read-surfaces
+engram plan create ./new-plan.yaml --preview
+cat new-plan.yaml | engram plan create --json
+engram plan create --json-schema
 ```
 
-JSON output mirrors the underlying plan runtime: `list` returns structured plan summaries with `next_action` and `phase_progress`, while `show` returns the selected phase packet plus plan progress and optional budget status.
+`engram plan create --help` renders schema-backed authoring guidance generated from the same nested contract used by `memory_plan_schema` and `engram-mcp plan create --json-schema`.
+
+JSON output mirrors the underlying plan runtime: `list` returns structured plan summaries with `next_action` and `phase_progress`, `show` returns the selected phase packet plus plan progress and optional budget status, and `create` returns the governed write result or preview envelope.
 
 ### `engram validate`
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -62,11 +63,85 @@ def _show_args(
     )()
 
 
+def _create_args(
+    *,
+    input_path: str | None = None,
+    json_output: bool = False,
+    preview: bool = False,
+    json_schema: bool = False,
+):
+    return type(
+        "Args",
+        (),
+        {
+            "json": json_output,
+            "input": input_path,
+            "preview": preview,
+            "json_schema": json_schema,
+        },
+    )()
+
+
+def _init_git_repo(repo_root: Path) -> None:
+    subprocess.run(["git", "init"], cwd=repo_root, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", "snapshot"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
 def _seed_plan_repo(tmp_path: Path) -> tuple[Path, Path]:
     repo_root = tmp_path / "repo"
     content_root = repo_root / "core"
 
     _write(content_root / "context.md", "Plan context fixture.\n")
+    _write(
+        content_root / "memory" / "working" / "projects" / "SUMMARY.md",
+        "# Projects\n\nFixture navigator.\n",
+    )
+    _write(
+        content_root / "memory" / "working" / "projects" / "example" / "SUMMARY.md",
+        textwrap.dedent(
+            """\
+        ---
+        active_plans: 1
+        cognitive_mode: execution
+        created: 2026-04-03
+        current_focus: Exercise plan CLI fixtures.
+        last_activity: '2026-04-03'
+        open_questions: 0
+        origin_session: memory/activity/2026/04/03/chat-001
+        plans: 1
+        source: agent-generated
+        status: active
+        trust: medium
+        type: project
+        ---
+
+        # Project: Example
+
+        Fixture project summary.
+        """
+        ),
+    )
 
     _write(
         content_root
@@ -174,6 +249,7 @@ def _seed_plan_repo(tmp_path: Path) -> tuple[Path, Path]:
             """
         ),
     )
+    _init_git_repo(repo_root)
     return repo_root, content_root
 
 
@@ -311,3 +387,160 @@ def test_plan_list_skips_invalid_plan_files_with_warning(
     assert payload["count"] == 2
     assert payload["warnings"]
     assert "broken-plan.yaml" in payload["warnings"][0]
+
+
+def test_plan_create_from_file_writes_plan_and_commits(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, content_root = _seed_plan_repo(tmp_path)
+    create_input = tmp_path / "create-plan.yaml"
+    create_input.write_text(
+        "plan_id: created-plan\n"
+        "project_id: example\n"
+        "purpose_summary: Create a new CLI plan\n"
+        "purpose_context: Exercise the terminal create flow.\n"
+        "session_id: memory/activity/2026/04/03/chat-010\n"
+        "phases:\n"
+        "  - id: author-plan\n"
+        "    title: Author the plan\n"
+        "    sources:\n"
+        "      - path: core/context.md\n"
+        "        type: internal\n"
+        "        intent: Reuse the fixture context.\n"
+        "    postconditions:\n"
+        "      - description: The new plan exists.\n"
+        "        type: check\n"
+        "        target: memory/working/projects/example/plans/created-plan.yaml\n"
+        "    changes:\n"
+        "      - path: HUMANS/docs/CLI.md\n"
+        "        action: update\n"
+        "        description: Document the new flow.\n",
+        encoding="utf-8",
+    )
+
+    exit_code = cmd_plan.run_plan_create(
+        _create_args(input_path=str(create_input)),
+        repo_root=repo_root,
+        content_root=content_root,
+    )
+    output = capsys.readouterr().out
+    created_plan = (
+        content_root / "memory" / "working" / "projects" / "example" / "plans" / "created-plan.yaml"
+    )
+
+    assert exit_code == 0
+    assert "Created plan: memory/working/projects/example/plans/created-plan.yaml" in output
+    assert "Message: [plan] Create created-plan" in output
+    assert created_plan.exists()
+    assert "id: created-plan" in created_plan.read_text(encoding="utf-8")
+
+    status_result = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status_result.stdout.strip() == ""
+
+
+def test_plan_create_preview_renders_governed_preview(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, content_root = _seed_plan_repo(tmp_path)
+    create_input = tmp_path / "preview-plan.yaml"
+    create_input.write_text(
+        "plan_id: preview-plan\n"
+        "project_id: example\n"
+        "purpose_summary: Preview a CLI plan\n"
+        "purpose_context: Exercise the preview flow.\n"
+        "session_id: memory/activity/2026/04/03/chat-011\n"
+        "phases:\n"
+        "  - id: preview-phase\n"
+        "    title: Preview the plan\n"
+        "    changes:\n"
+        "      - path: HUMANS/docs/CLI.md\n"
+        "        action: update\n"
+        "        description: Mention preview behavior.\n",
+        encoding="utf-8",
+    )
+
+    exit_code = cmd_plan.run_plan_create(
+        _create_args(input_path=str(create_input), preview=True),
+        repo_root=repo_root,
+        content_root=content_root,
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "Mode: preview" in output
+    assert "Summary: Create YAML plan preview-plan in project example." in output
+    assert "plan_path: memory/working/projects/example/plans/preview-plan.yaml" in output
+    assert not (
+        content_root / "memory" / "working" / "projects" / "example" / "plans" / "preview-plan.yaml"
+    ).exists()
+
+
+def test_plan_create_invalid_input_surfaces_aggregated_errors(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, content_root = _seed_plan_repo(tmp_path)
+    create_input = tmp_path / "invalid-plan.yaml"
+    create_input.write_text(
+        "plan_id: invalid-plan\n"
+        "project_id: example\n"
+        "purpose_summary: Invalid CLI plan\n"
+        "purpose_context: Exercise aggregated validation errors.\n"
+        "session_id: memory/activity/2026/04/03/chat-012\n"
+        "phases:\n"
+        "  - id: broken-phase\n"
+        "    title: Broken phase\n"
+        "    sources:\n"
+        "      - path: core/context.md\n"
+        "        type: nonsense\n"
+        "        intent: Break the source enum.\n"
+        "    postconditions:\n"
+        "      - description: Missing target.\n"
+        "        type: check\n"
+        "    changes:\n"
+        "      - path: HUMANS/docs/CLI.md\n"
+        "        action: invalid\n"
+        "        description: Break the change enum.\n",
+        encoding="utf-8",
+    )
+
+    exit_code = cmd_plan.run_plan_create(
+        _create_args(input_path=str(create_input)),
+        repo_root=repo_root,
+        content_root=content_root,
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "Plan creation failed:" in captured.err
+    assert "work.phases[0].sources[0]" in captured.err
+    assert "work.phases[0].postconditions[0]" in captured.err
+    assert "work.phases[0].changes[0]" in captured.err
+    assert "engram plan create --json-schema" in captured.err
+
+
+def test_plan_create_json_schema_output_matches_plan_contract(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, content_root = _seed_plan_repo(tmp_path)
+
+    exit_code = cmd_plan.run_plan_create(
+        _create_args(json_schema=True),
+        repo_root=repo_root,
+        content_root=content_root,
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["tool_name"] == "memory_plan_create"
+    assert "plan_id" in payload["required"]
+    assert "phases" in payload["properties"]

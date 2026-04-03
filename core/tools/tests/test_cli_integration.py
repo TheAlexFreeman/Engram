@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -129,6 +130,35 @@ def _seed_plan_fixture(repo_root: Path) -> None:
         / "tracked-plan.yaml"
     )
     plan_path.parent.mkdir(parents=True, exist_ok=True)
+    (repo_root / "core" / "memory" / "working" / "projects" / "SUMMARY.md").write_text(
+        "# Projects\n\nIntegration fixture navigator.\n",
+        encoding="utf-8",
+    )
+    (repo_root / "core" / "memory" / "working" / "projects" / "example" / "SUMMARY.md").write_text(
+        textwrap.dedent(
+            """\
+            ---
+            active_plans: 1
+            cognitive_mode: execution
+            created: 2026-04-03
+            current_focus: Exercise plan CLI integration fixtures.
+            last_activity: '2026-04-03'
+            open_questions: 0
+            origin_session: memory/activity/2026/04/03/chat-001
+            plans: 1
+            source: agent-generated
+            status: active
+            trust: medium
+            type: project
+            ---
+
+            # Project: Example
+
+            Integration fixture project summary.
+            """
+        ),
+        encoding="utf-8",
+    )
     (repo_root / "core" / "context.md").write_text(
         "CLI plan integration fixture\n", encoding="utf-8"
     )
@@ -321,3 +351,42 @@ def test_plan_list_and_show_integration(tmp_path: Path) -> None:
     assert show_run.returncode == 0
     assert "Plan: tracked-plan [active]" in show_run.stdout
     assert "Phase: phase-b [pending]" in show_run.stdout
+
+
+def test_plan_create_preview_and_help_integration(tmp_path: Path) -> None:
+    repo_copy = _copy_repo_tree(tmp_path)
+    _seed_plan_fixture(repo_copy)
+    create_input = (
+        "plan_id: preview-plan\n"
+        "project_id: example\n"
+        "purpose_summary: Preview the terminal create flow\n"
+        "purpose_context: Exercise stdin preview integration.\n"
+        "session_id: memory/activity/2026/04/03/chat-010\n"
+        "phases:\n"
+        "  - id: preview-phase\n"
+        "    title: Preview the plan\n"
+        "    changes:\n"
+        "      - path: HUMANS/docs/CLI.md\n"
+        "        action: update\n"
+        "        description: Mention preview integration.\n"
+    )
+
+    preview_run = _run_cli(
+        repo_copy,
+        "plan",
+        "create",
+        "--preview",
+        "--json",
+        input_text=create_input,
+    )
+    help_run = _run_cli(repo_copy, "plan", "create", "--help")
+
+    assert preview_run.returncode == 0
+    assert (
+        json.loads(preview_run.stdout)["new_state"]["plan_path"]
+        == "memory/working/projects/example/plans/preview-plan.yaml"
+    )
+
+    assert help_run.returncode == 0
+    assert "Schema-backed help for plan creation." in help_run.stdout
+    assert "--json-schema" in help_run.stdout
