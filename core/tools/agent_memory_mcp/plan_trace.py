@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import ValidationError
+from .path_policy import validate_session_id, validate_slug
 
 _log = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ _TRACE_STR_MAX = 200
 _TRACE_META_MAX_BYTES = 2048
 _CREDENTIAL_FIELD_RE = re.compile(r"(key|token|secret|password|auth)", re.IGNORECASE)
 _CHARS_PER_TOKEN = 4
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _sanitize_metadata(
@@ -181,3 +183,131 @@ def record_trace(
     except Exception:  # noqa: BLE001
         _log.debug("record_trace failed for session %s", session_id, exc_info=True)
         return None
+
+
+def query_trace_spans(
+    root: Path,
+    *,
+    session_id: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    span_type: str | None = None,
+    plan_id: str | None = None,
+    status: str | None = None,
+    limit: int = 100,
+) -> dict[str, Any]:
+    """Query trace spans across one session or a date-filtered activity window."""
+    if span_type is not None and span_type not in TRACE_SPAN_TYPES:
+        raise ValidationError(f"span_type must be one of {sorted(TRACE_SPAN_TYPES)}: {span_type!r}")
+    if status is not None and status not in TRACE_STATUSES:
+        raise ValidationError(f"status must be one of {sorted(TRACE_STATUSES)}: {status!r}")
+    if date_from is not None and not _DATE_RE.match(date_from):
+        raise ValidationError("date_from must be in YYYY-MM-DD format")
+    if date_to is not None and not _DATE_RE.match(date_to):
+        raise ValidationError("date_to must be in YYYY-MM-DD format")
+    if session_id is not None:
+        validate_session_id(session_id)
+    if plan_id is not None:
+        plan_id = validate_slug(plan_id, field_name="plan_id")
+
+    try:
+        normalized_limit = int(limit)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("limit must be an integer >= 1") from exc
+    if normalized_limit < 1:
+        raise ValidationError("limit must be >= 1")
+
+    activity_root = root / "memory" / "activity"
+    trace_files: list[Path] = []
+
+    if session_id is not None:
+        candidate = root / trace_file_path(session_id)
+        if candidate.exists():
+            trace_files = [candidate]
+    elif activity_root.is_dir():
+        for trace_file in sorted(activity_root.rglob("*.traces.jsonl"), reverse=True):
+            parts = trace_file.relative_to(activity_root).parts
+            if len(parts) >= 4:
+                file_date = f"{parts[0]}-{parts[1]}-{parts[2]}"
+                if date_from is not None and file_date < date_from:
+                    continue
+                if date_to is not None and file_date > date_to:
+                    continue
+            trace_files.append(trace_file)
+
+    all_spans: list[dict[str, Any]] = []
+    for trace_file in trace_files:
+        try:
+            raw_lines = trace_file.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+
+        for raw_line in raw_lines:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                span = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(span, dict):
+                continue
+            if span_type is not None and span.get("span_type") != span_type:
+                continue
+            if status is not None and span.get("status") != status:
+                continue
+            if plan_id is not None:
+                metadata = span.get("metadata")
+                if not isinstance(metadata, dict) or metadata.get("plan_id") != plan_id:
+                    continue
+            all_spans.append(span)
+
+    all_spans.sort(key=lambda span: str(span.get("timestamp") or ""), reverse=True)
+    total_matched = len(all_spans)
+    limited_spans = all_spans[:normalized_limit]
+
+    total_duration_ms = 0
+    total_tokens_in = 0
+    total_tokens_out = 0
+    by_type: dict[str, int] = {}
+    by_status: dict[str, int] = {}
+    error_count = 0
+    for span in all_spans:
+        try:
+            total_duration_ms += int(span.get("duration_ms") or 0)
+        except (TypeError, ValueError):
+            pass
+
+        span_type_name = str(span.get("span_type") or "unknown")
+        by_type[span_type_name] = by_type.get(span_type_name, 0) + 1
+
+        status_name = str(span.get("status") or "unknown")
+        by_status[status_name] = by_status.get(status_name, 0) + 1
+        if status_name == "error":
+            error_count += 1
+
+        span_cost = span.get("cost")
+        if isinstance(span_cost, dict):
+            try:
+                total_tokens_in += int(span_cost.get("tokens_in", 0))
+            except (TypeError, ValueError):
+                pass
+            try:
+                total_tokens_out += int(span_cost.get("tokens_out", 0))
+            except (TypeError, ValueError):
+                pass
+
+    return {
+        "spans": limited_spans,
+        "total_matched": total_matched,
+        "aggregates": {
+            "total_duration_ms": total_duration_ms,
+            "total_cost": {
+                "tokens_in": total_tokens_in,
+                "tokens_out": total_tokens_out,
+            },
+            "by_type": by_type,
+            "by_status": by_status,
+            "error_rate": round(error_count / total_matched, 3) if total_matched > 0 else 0.0,
+        },
+    }

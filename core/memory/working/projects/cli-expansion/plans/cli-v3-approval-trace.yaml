@@ -2,8 +2,8 @@ id: cli-v3-approval-trace
 project: cli-expansion
 created: '2026-04-03'
 origin_session: memory/activity/2026/04/02/chat-001
-status: active
-sessions_used: 2
+status: completed
+sessions_used: 4
 budget:
   deadline: '2026-09-15'
   max_sessions: 6
@@ -81,7 +81,7 @@ work:
           description: Document terminal approval workflows.
     - id: trace-query
       title: Implement terminal trace querying by plan, session, and date range
-      status: pending
+      status: completed
       commit: null
       blockers:
         - cli-v3-schema-foundations:foundation-verification
@@ -113,7 +113,7 @@ work:
           description: Tests for trace filtering and rendering.
     - id: approval-trace-verification
       title: Verify approval and trace docs, integration flows, and readiness metadata
-      status: pending
+      status: completed
       commit: null
       blockers:
         - approval-resolution

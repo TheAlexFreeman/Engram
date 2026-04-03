@@ -7,6 +7,7 @@ The `engram` CLI provides a terminal-oriented interface for searching, inspectin
 - `engram add` for governed ingestion into `memory/knowledge/_unverified/`.
 - `engram approval` for listing and resolving pending plan approval requests from a shell or script.
 - `engram plan` for plan list/show/create/advance workflows from a shell or script.
+- `engram trace` for querying session traces from a shell or script.
 - `engram recall` for reading a file or namespace with frontmatter and ACCESS context.
 - `engram log` for recent ACCESS timeline inspection.
 - `engram validate` for repository integrity checks.
@@ -139,9 +140,9 @@ engram plan advance cli-v3-plan-commands --project cli-expansion --session-id me
 
 `engram plan create --help` renders schema-backed authoring guidance generated from the same nested contract used by `memory_plan_schema` and `engram-mcp plan create --json-schema`.
 
-When `engram plan advance` hits unresolved blockers or an approval-gated phase, it surfaces the blocked or paused state instead of guessing a bypass. Approval resolution still uses the MCP-hosted approval tools until the terminal approval commands land.
+When `engram plan advance` hits unresolved blockers or an approval-gated phase, it surfaces the blocked or paused state instead of guessing a bypass. Follow that pause with `engram approval list` and `engram approval resolve` from the terminal, or switch to the browser approval view when you need queue-oriented review across many pending items.
 
-For local terminal work, `engram plan list`, `engram plan show`, `engram plan create`, and `engram plan advance` can replace the direct MCP read/create/execute surfaces for day-to-day plan authoring and progression. Use the MCP-hosted plan and approval tools when you need approval resolution, run-state coordination beyond the simple advance flow, or other review/observability commands that do not yet have terminal equivalents.
+For local terminal work, `engram plan list`, `engram plan show`, `engram plan create`, `engram plan advance`, and `engram approval resolve` can replace the direct MCP read/create/execute surfaces for day-to-day plan authoring and progression. Use the browser views or MCP-hosted tools when you need broader queue management, richer observability, or other coordination surfaces that are still more ergonomic outside the shell.
 
 JSON output mirrors the underlying plan runtime: `list` returns structured plan summaries with `next_action` and `phase_progress`, `show` returns the selected phase packet plus plan progress and optional budget status, `create` returns the governed write result or preview envelope, and `advance` returns the shared execute payload for started/completed/blocked/paused/verification states.
 
@@ -164,7 +165,32 @@ engram approval resolve tracked-plan--phase-a approve --preview
 
 Malformed approval ids fail fast, and expired approvals are rejected with a clear diagnostic instead of being silently rewritten.
 
+Use the terminal approval commands when you already know the plan or approval id and want a direct decision path. The browser approval view remains the better fit for scanning many pending requests, comparing context across items, or triaging the queue visually.
+
 JSON output includes approval ids, scope, status, expiry metadata, the stored approval context for `list`, and the governed write result for `resolve`.
+
+### `engram trace`
+
+Queries `TRACES.jsonl` spans from the terminal.
+
+- `engram trace` reads session trace files newest-first and returns the same structured payload as `memory_query_traces`, with aggregates for total duration, total cost, status counts, and error rate.
+- Filter with `--session-id`, `--date-from`, `--date-to`, `--plan`, `--span-type`, `--status`, and `--limit`.
+- When `--session-id` is supplied, it narrows directly to that session trace file and does not fall back to date-range discovery.
+
+Examples:
+
+```bash
+engram trace
+engram trace --plan cli-v3-approval-trace --json
+engram trace --date-from 2026-04-01 --date-to 2026-04-03 --span-type plan_action
+engram trace --session-id memory/activity/2026/04/03/chat-001 --status error
+```
+
+Malformed dates, invalid session ids, and invalid plan ids fail with clear diagnostics instead of returning partial results.
+
+`engram trace` is the fastest shell path for targeted debugging when you already know the plan, session, or date window. The browser trace view remains the better fit for exploratory browsing across sessions and for timeline-oriented inspection.
+
+JSON output mirrors `memory_query_traces`: `spans`, `total_matched`, and `aggregates` with duration, cost, type/status counts, and error rate.
 
 ### `engram validate`
 
@@ -196,6 +222,7 @@ If the validator's core dependencies are missing, the command prints a friendly 
 - `engram plan advance --json` emits the shared plan-execute payload, including blocked, paused, verification, and successful transition states.
 - `engram approval list --json` emits approval ids, scope, status, expiry metadata, and stored phase context.
 - `engram approval resolve --json` emits the governed approval-resolution write result, including the resolved approval id, plan status, and commit metadata.
+- `engram trace --json` emits the structured trace-query payload with spans, match counts, and aggregate duration/cost/error metrics.
 - `engram recall --json` emits a structured file or namespace inspection payload.
 - `engram log --json` emits a filtered ACCESS timeline payload.
 

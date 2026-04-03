@@ -264,6 +264,183 @@ def _seed_approval_fixture(repo_root: Path) -> None:
     )
 
 
+def _seed_approval_resolution_fixture(repo_root: Path) -> None:
+    context_path = repo_root / "core" / "context.md"
+    context_path.parent.mkdir(parents=True, exist_ok=True)
+    context_path.write_text("Approval resolution integration fixture\n", encoding="utf-8")
+
+    projects_summary = repo_root / "core" / "memory" / "working" / "projects" / "SUMMARY.md"
+    projects_summary.parent.mkdir(parents=True, exist_ok=True)
+    projects_summary.write_text("# Projects\n\nIntegration fixture navigator.\n", encoding="utf-8")
+
+    project_summary = (
+        repo_root / "core" / "memory" / "working" / "projects" / "example" / "SUMMARY.md"
+    )
+    project_summary.parent.mkdir(parents=True, exist_ok=True)
+    project_summary.write_text(
+        textwrap.dedent(
+            """\
+            ---
+            active_plans: 1
+            cognitive_mode: execution
+            created: 2026-04-03
+            current_focus: Exercise approval CLI integration fixtures.
+            last_activity: '2026-04-03'
+            open_questions: 0
+            origin_session: memory/activity/2026/04/03/chat-001
+            plans: 1
+            source: agent-generated
+            status: active
+            trust: medium
+            type: project
+            ---
+
+            # Project: Example
+
+            Approval fixture project summary.
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    plan_path = (
+        repo_root
+        / "core"
+        / "memory"
+        / "working"
+        / "projects"
+        / "example"
+        / "plans"
+        / "tracked-plan.yaml"
+    )
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_path.write_text(
+        textwrap.dedent(
+            """\
+            id: tracked-plan
+            project: example
+            created: '2026-04-03'
+            origin_session: memory/activity/2026/04/03/chat-001
+            status: paused
+            sessions_used: 1
+            purpose:
+              summary: Exercise terminal approval resolution
+              context: Keep the approval CLI fixture realistic.
+              questions: []
+            work:
+              phases:
+                - id: phase-a
+                  title: Approval-gated phase
+                  status: pending
+                  blockers: []
+                  sources:
+                    - path: core/context.md
+                      type: internal
+                      intent: Review approval CLI context.
+                  postconditions:
+                    - description: Approval can be resolved from the terminal.
+                  requires_approval: true
+                  changes:
+                    - path: HUMANS/docs/CLI.md
+                      action: update
+                      description: Document terminal approval flows.
+                  failures: []
+            review: null
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    approval_path = (
+        repo_root
+        / "core"
+        / "memory"
+        / "working"
+        / "approvals"
+        / "pending"
+        / "tracked-plan--phase-a.yaml"
+    )
+    approval_path.parent.mkdir(parents=True, exist_ok=True)
+    approval_path.write_text(
+        "plan_id: tracked-plan\n"
+        "phase_id: phase-a\n"
+        "project_id: example\n"
+        "status: pending\n"
+        "requested: 2026-04-03T09:00:00Z\n"
+        "expires: 2099-04-10T09:00:00Z\n"
+        "context:\n"
+        "  phase_title: Approval-gated phase\n"
+        "  phase_summary: Phase requires approval before execution.\n"
+        "  change_class: proposed\n"
+        "  sources:\n"
+        "    - core/context.md\n"
+        "  changes:\n"
+        "    - path: HUMANS/docs/CLI.md\n"
+        "      action: update\n"
+        "      description: Document approval resolution.\n",
+        encoding="utf-8",
+    )
+
+    subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", "seed approval resolution fixture"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _seed_trace_fixture(repo_root: Path) -> None:
+    trace_path = (
+        repo_root / "core" / "memory" / "activity" / "2026" / "04" / "03" / "chat-001.traces.jsonl"
+    )
+    trace_path.parent.mkdir(parents=True, exist_ok=True)
+    trace_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "session_id": "memory/activity/2026/04/03/chat-001",
+                        "timestamp": "2026-04-03T12:00:00Z",
+                        "span_type": "plan_action",
+                        "name": "approval follow-through",
+                        "status": "error",
+                        "duration_ms": 25,
+                        "span_id": "span-001",
+                        "metadata": {"plan_id": "tracked-plan", "phase_id": "phase-a"},
+                        "cost": {"tokens_in": 11, "tokens_out": 7},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "session_id": "memory/activity/2026/04/03/chat-001",
+                        "timestamp": "2026-04-03T11:30:00Z",
+                        "span_type": "retrieval",
+                        "name": "background lookup",
+                        "status": "ok",
+                        "duration_ms": 10,
+                        "span_id": "span-000",
+                        "metadata": {"plan_id": "other-plan"},
+                        "cost": {"tokens_in": 3, "tokens_out": 2},
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", "seed trace fixture"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
 def test_validate_status_and_search_integration(tmp_path: Path) -> None:
     repo_copy = _copy_repo_tree(tmp_path)
     _seed_warning_fixture(repo_copy)
@@ -586,6 +763,108 @@ def test_approval_list_integration(tmp_path: Path) -> None:
     assert payload["count"] == 1
     assert payload["results"][0]["id"] == "tracked-plan--phase-a"
     assert payload["results"][0]["status"] == "pending"
+
+    status_run = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=repo_copy,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status_run.stdout.strip() == ""
+
+
+def test_approval_resolve_integration(tmp_path: Path) -> None:
+    repo_copy = _copy_repo_tree(tmp_path)
+    _seed_approval_resolution_fixture(repo_copy)
+
+    resolve_run = _run_cli(
+        repo_copy,
+        "approval",
+        "resolve",
+        "tracked-plan--phase-a",
+        "approve",
+        "--comment",
+        "Ship it.",
+        "--json",
+    )
+
+    assert resolve_run.returncode == 0
+    payload = json.loads(resolve_run.stdout)
+    assert payload["new_state"]["approval_id"] == "tracked-plan--phase-a"
+    assert payload["new_state"]["status"] == "approved"
+    assert payload["new_state"]["plan_status"] == "active"
+    assert payload["new_state"]["comment"] == "Ship it."
+    assert payload["commit_sha"]
+
+    resolved_approval = (
+        repo_copy
+        / "core"
+        / "memory"
+        / "working"
+        / "approvals"
+        / "resolved"
+        / "tracked-plan--phase-a.yaml"
+    )
+    pending_approval = (
+        repo_copy
+        / "core"
+        / "memory"
+        / "working"
+        / "approvals"
+        / "pending"
+        / "tracked-plan--phase-a.yaml"
+    )
+    assert resolved_approval.exists()
+    assert not pending_approval.exists()
+
+    plan_body = yaml.safe_load(
+        (
+            repo_copy
+            / "core"
+            / "memory"
+            / "working"
+            / "projects"
+            / "example"
+            / "plans"
+            / "tracked-plan.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    assert plan_body["status"] == "active"
+
+    status_run = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=repo_copy,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status_run.stdout.strip() == ""
+
+
+def test_trace_json_integration(tmp_path: Path) -> None:
+    repo_copy = _copy_repo_tree(tmp_path)
+    _seed_trace_fixture(repo_copy)
+
+    trace_run = _run_cli(
+        repo_copy,
+        "trace",
+        "--date-from",
+        "2026-04-03",
+        "--plan",
+        "tracked-plan",
+        "--status",
+        "error",
+        "--json",
+    )
+
+    assert trace_run.returncode == 0
+    payload = json.loads(trace_run.stdout)
+    assert payload["total_matched"] == 1
+    assert payload["spans"][0]["name"] == "approval follow-through"
+    assert payload["aggregates"]["total_duration_ms"] == 25
+    assert payload["aggregates"]["total_cost"] == {"tokens_in": 11, "tokens_out": 7}
+    assert payload["aggregates"]["by_status"] == {"error": 1}
 
     status_run = subprocess.run(
         ["git", "status", "--short"],

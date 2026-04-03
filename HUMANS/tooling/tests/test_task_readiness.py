@@ -126,6 +126,28 @@ class TaskReadinessTests(unittest.TestCase):
         self.assertEqual(profile, "terminal_plan_authoring")
         self.assertEqual(source, "keyword_match")
 
+    def test_terminal_approval_resolution_task_infers_terminal_plan_profile(self) -> None:
+        manifest = resolver.load_manifest(REPO_ROOT)
+        profile, source = resolver.infer_profile(
+            manifest,
+            {"python": True, "node": False},
+            task_text="Use engram approval resolve to approve the pending phase",
+        )
+
+        self.assertEqual(profile, "terminal_plan_authoring")
+        self.assertEqual(source, "keyword_match")
+
+    def test_trace_inspection_defaults_to_workspace_general(self) -> None:
+        manifest = resolver.load_manifest(REPO_ROOT)
+        profile, source = resolver.infer_profile(
+            manifest,
+            {"python": True, "node": False},
+            task_text="Inspect engram trace output for one session",
+        )
+
+        self.assertEqual(profile, "workspace_general")
+        self.assertEqual(source, "default")
+
     def test_pull_request_profile_reports_ready_when_all_checks_pass(self) -> None:
         command_runner = make_command_runner(
             {

@@ -1885,107 +1885,19 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         with tool_name="memory_query_traces" for the filter contract.
         """
         import json as _json
-        import re as _re
-
-        from ...errors import ValidationError
-
-        if span_type is not None and span_type not in TRACE_SPAN_TYPES:
-            raise ValidationError(
-                f"span_type must be one of {sorted(TRACE_SPAN_TYPES)}: {span_type!r}"
-            )
-        if status is not None and status not in TRACE_STATUSES:
-            raise ValidationError(f"status must be one of {sorted(TRACE_STATUSES)}: {status!r}")
-
-        _date_pat = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
-        if date_from is not None and not _date_pat.match(date_from):
-            raise ValidationError("date_from must be in YYYY-MM-DD format")
-        if date_to is not None and not _date_pat.match(date_to):
-            raise ValidationError("date_to must be in YYYY-MM-DD format")
+        from ...plan_trace import query_trace_spans
 
         root = get_root()
-        activity_root = root / "memory" / "activity"
-        trace_files: list[Any] = []
-
-        if session_id is not None:
-            validate_session_id(session_id)
-            candidate = root / trace_file_path(session_id)
-            if candidate.exists():
-                trace_files = [candidate]
-        else:
-            if activity_root.is_dir():
-                for tf in sorted(activity_root.rglob("*.traces.jsonl"), reverse=True):
-                    parts = tf.relative_to(activity_root).parts
-                    if len(parts) >= 4:
-                        year, month, day = parts[0], parts[1], parts[2]
-                        file_date = f"{year}-{month}-{day}"
-                        if date_from is not None and file_date < date_from:
-                            continue
-                        if date_to is not None and file_date > date_to:
-                            continue
-                    trace_files.append(tf)
-
-        all_spans: list[dict[str, Any]] = []
-        for tf in trace_files:
-            try:
-                for raw_line in tf.read_text(encoding="utf-8").splitlines():
-                    line = raw_line.strip()
-                    if not line:
-                        continue
-                    try:
-                        span = _json.loads(line)
-                        if not isinstance(span, dict):
-                            continue
-                        if span_type is not None and span.get("span_type") != span_type:
-                            continue
-                        if status is not None and span.get("status") != status:
-                            continue
-                        if plan_id is not None:
-                            meta = span.get("metadata") or {}
-                            if meta.get("plan_id") != plan_id:
-                                continue
-                        all_spans.append(span)
-                    except (_json.JSONDecodeError, KeyError):
-                        continue
-            except OSError:
-                continue
-
-        all_spans.sort(key=lambda s: s.get("timestamp", ""), reverse=True)
-        total_matched = len(all_spans)
-        limited_spans = all_spans[: max(1, limit)]
-
-        total_duration_ms = sum(s.get("duration_ms") or 0 for s in all_spans)
-        total_tokens_in = 0
-        total_tokens_out = 0
-        by_type: dict[str, int] = {}
-        by_status: dict[str, int] = {}
-        error_count = 0
-        for span in all_spans:
-            st = span.get("span_type", "unknown")
-            by_type[st] = by_type.get(st, 0) + 1
-            ss = span.get("status", "unknown")
-            by_status[ss] = by_status.get(ss, 0) + 1
-            if ss == "error":
-                error_count += 1
-            span_cost = span.get("cost")
-            if isinstance(span_cost, dict):
-                total_tokens_in += int(span_cost.get("tokens_in", 0))
-                total_tokens_out += int(span_cost.get("tokens_out", 0))
-
-        result: dict[str, Any] = {
-            "spans": limited_spans,
-            "total_matched": total_matched,
-            "aggregates": {
-                "total_duration_ms": total_duration_ms,
-                "total_cost": {
-                    "tokens_in": total_tokens_in,
-                    "tokens_out": total_tokens_out,
-                },
-                "by_type": by_type,
-                "by_status": by_status,
-                "error_rate": round(error_count / total_matched, 3) if total_matched > 0 else 0.0,
-            },
-        }
-
+        result = query_trace_spans(
+            root,
+            session_id=session_id,
+            date_from=date_from,
+            date_to=date_to,
+            span_type=span_type,
+            plan_id=plan_id,
+            status=status,
+            limit=limit,
+        )
         return _json.dumps(result, indent=2)
 
     @mcp.tool(

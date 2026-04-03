@@ -2,9 +2,9 @@
 active_plans: 1
 cognitive_mode: execution
 created: 2026-04-02
-current_focus: Ship the v3 approval and trace coordination group; approval
-  listing and approval resolution are complete, and trace querying is the
-  next active slice.
+current_focus: The v3 approval and trace coordination group is complete;
+  terminal approval and trace workflows, docs, integration coverage, and
+  readiness metadata are now in sync.
 last_activity: '2026-04-03'
 open_questions: 0
 origin_session: memory/activity/2026/04/02/chat-001
@@ -25,9 +25,9 @@ follow-on plans instead of one monolithic backlog item.
 
 ## Cognitive mode
 Execution mode: `cli-v0`, the v1 read/write surfaces, the v3 schema
-foundations, and the v3 plan-command roadmap are complete as shipped slices.
-The v3 approval/trace roadmap is now active: approval listing and approval
-resolution are shipped, while trace querying remains the next queued slice.
+foundations, the v3 plan-command roadmap, and the v3 approval/trace roadmap
+are complete as shipped slices. The remaining CLI work is now in the draft
+roadmap set until the next slice is selected.
 
 ## Plan inventory (2026-04-03)
 
@@ -40,7 +40,7 @@ resolution are shipped, while trace querying remains the next queued slice.
 | v2 | `cli-v2-knowledge-lifecycle.yaml` | draft | 7 sessions / 2026-08-15 | v1 ingestion + v2 dry-run previews |
 | v3 | `cli-v3-schema-foundations.yaml` | completed | 5 sessions / 2026-07-15 | Accurate v0 baseline |
 | v3 | `cli-v3-plan-commands.yaml` | completed | 8 sessions / 2026-10-01 | v3 schema foundations |
-| v3 | `cli-v3-approval-trace.yaml` | active | 6 sessions / 2026-09-15 | v3 schema foundations |
+| v3 | `cli-v3-approval-trace.yaml` | completed | 6 sessions / 2026-09-15 | v3 schema foundations |
 | v4 | `cli-v4-portability.yaml` | draft | 7 sessions / 2026-11-15 | Stable v3 command contracts |
 | v4 | `cli-v4-diff.yaml` | draft | 4 sessions / 2026-11-01 | Stable read-side CLI foundations |
 
