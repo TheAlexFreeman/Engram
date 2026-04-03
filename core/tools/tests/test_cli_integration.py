@@ -9,6 +9,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
+import yaml  # type: ignore[import-untyped]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -454,3 +455,81 @@ def test_plan_create_apply_and_schema_integration(tmp_path: Path) -> None:
     schema_payload = json.loads(schema_run.stdout)
     assert schema_payload["tool_name"] == "memory_plan_create"
     assert "phases" in schema_payload["properties"]
+
+
+def test_plan_advance_start_and_complete_integration(tmp_path: Path) -> None:
+    repo_copy = _copy_repo_tree(tmp_path)
+    _seed_plan_fixture(repo_copy)
+    review_file = tmp_path / "advance-review.yaml"
+    review_file.write_text(
+        "outcome: completed\n"
+        "purpose_assessment: The terminal advance flow completed the plan successfully.\n"
+        "follow_up: cli-v3-approval-trace\n",
+        encoding="utf-8",
+    )
+
+    start_run = _run_cli(
+        repo_copy,
+        "plan",
+        "advance",
+        "tracked-plan",
+        "--project",
+        "example",
+        "--session-id",
+        "memory/activity/2026/04/03/chat-012",
+        "--json",
+    )
+    assert start_run.returncode == 0
+    start_payload = json.loads(start_run.stdout)
+    assert start_payload["new_state"]["phase_status"] == "in-progress"
+    assert start_payload["new_state"]["phase_id"] == "phase-b"
+
+    complete_run = _run_cli(
+        repo_copy,
+        "plan",
+        "advance",
+        "tracked-plan",
+        "--project",
+        "example",
+        "--session-id",
+        "memory/activity/2026/04/03/chat-012",
+        "--commit-sha",
+        "abc1234",
+        "--verify",
+        "--review-file",
+        str(review_file),
+        "--json",
+    )
+
+    assert complete_run.returncode == 0
+    complete_payload = json.loads(complete_run.stdout)
+    assert complete_payload["new_state"]["phase_status"] == "completed"
+    assert complete_payload["new_state"]["plan_status"] == "completed"
+    assert complete_payload["new_state"]["review_written"] is True
+    assert complete_payload["commit_sha"]
+
+    plan_body = yaml.safe_load(
+        (
+            repo_copy
+            / "core"
+            / "memory"
+            / "working"
+            / "projects"
+            / "example"
+            / "plans"
+            / "tracked-plan.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    assert plan_body["status"] == "completed"
+    assert plan_body["review"]["purpose_assessment"] == (
+        "The terminal advance flow completed the plan successfully."
+    )
+
+    status_run = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=repo_copy,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status_run.stdout.strip() == ""

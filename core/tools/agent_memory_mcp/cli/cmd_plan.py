@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
-from ..errors import NotFoundError, ValidationError
+from ..errors import AlreadyDoneError, NotFoundError, ValidationError
 from ..git_repo import GitRepo
 from ..path_policy import validate_slug
 from ..plan_utils import (
@@ -26,7 +26,7 @@ from ..plan_utils import (
     resolve_phase,
     validation_error_messages,
 )
-from ..tools.semantic.plan_tools import create_plan_write_result
+from ..tools.semantic.plan_tools import create_plan_write_result, execute_plan_action_result
 from .formatting import render_governed_preview
 from .plan_help import build_plan_create_help_text
 
@@ -112,6 +112,45 @@ def register_plan(
         help="Print the raw JSON schema accepted by plan create and exit.",
     )
     create_parser.set_defaults(handler=run_plan_create)
+
+    advance_parser = plan_subparsers.add_parser(
+        "advance",
+        help="Start or complete the current plan phase from the terminal.",
+        parents=parents or [],
+    )
+    advance_parser.add_argument("plan_id", help="Plan slug to advance.")
+    advance_parser.add_argument(
+        "--project",
+        help="Project slug when the plan id is ambiguous across projects.",
+    )
+    advance_parser.add_argument(
+        "--phase",
+        help="Optional phase slug to advance instead of the current actionable phase.",
+    )
+    advance_parser.add_argument(
+        "--session-id",
+        required=True,
+        help="Canonical memory/activity/YYYY/MM/DD/chat-NNN session id for the state change.",
+    )
+    advance_parser.add_argument(
+        "--commit-sha",
+        help="Required when the selected phase is already in progress and the command will complete it.",
+    )
+    advance_parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Verify postconditions before completing an in-progress phase.",
+    )
+    advance_parser.add_argument(
+        "--preview",
+        action="store_true",
+        help="Render the governed preview or guarded state without writing.",
+    )
+    advance_parser.add_argument(
+        "--review-file",
+        help="YAML or JSON file containing the final review payload. Use '-' to read from stdin.",
+    )
+    advance_parser.set_defaults(handler=run_plan_advance)
     return parser
 
 
@@ -246,6 +285,241 @@ def _render_create_result(payload: dict[str, Any]) -> str:
 
     if not lines:
         return json.dumps(payload, indent=2, default=str)
+    return "\n".join(lines)
+
+
+def _read_mapping_input(raw_input: str, *, label: str) -> dict[str, Any]:
+    text, _input_path = _read_plan_input(raw_input)
+    del _input_path
+
+    try:
+        raw_payload = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise ValidationError(f"{label.capitalize()} input is not valid YAML: {exc}") from exc
+
+    if raw_payload is None:
+        return {}
+    if not isinstance(raw_payload, dict):
+        raise ValidationError(f"{label.capitalize()} input must contain a top-level mapping")
+    if label in raw_payload and isinstance(raw_payload[label], dict) and len(raw_payload) == 1:
+        return dict(raw_payload[label])
+    return dict(raw_payload)
+
+
+def _resolve_advance_target(
+    content_root: Path,
+    *,
+    plan_id: str,
+    project_id: str | None,
+    phase_id: str | None,
+) -> tuple[str, str, str]:
+    plan_file, resolved_project_id = _resolve_plan_path(content_root, plan_id, project_id)
+    plan = load_plan(plan_file, content_root)
+
+    try:
+        phase = resolve_phase(plan, phase_id)
+    except NotFoundError as exc:
+        if phase_id is None:
+            raise ValidationError(f"Plan '{plan.id}' has no actionable phase to advance.") from exc
+        raise
+
+    if phase.status in {"pending", "blocked"}:
+        return "start", resolved_project_id, phase.id
+    if phase.status == "in-progress":
+        return "complete", resolved_project_id, phase.id
+    raise ValidationError(f"Phase '{phase.id}' cannot be advanced from status '{phase.status}'.")
+
+
+def _format_next_action(raw_next_action: Any) -> str | None:
+    if isinstance(raw_next_action, dict):
+        phase_id = raw_next_action.get("id")
+        title = raw_next_action.get("title")
+        if isinstance(phase_id, str) and isinstance(title, str):
+            return f"{phase_id} - {title}"
+        if isinstance(title, str):
+            return title
+        if isinstance(phase_id, str):
+            return phase_id
+        return None
+    if isinstance(raw_next_action, str) and raw_next_action.strip():
+        return raw_next_action.strip()
+    return None
+
+
+def _format_plan_progress(raw_progress: Any) -> str | None:
+    if (
+        isinstance(raw_progress, list)
+        and len(raw_progress) == 2
+        and all(isinstance(item, int) for item in raw_progress)
+    ):
+        return f"{raw_progress[0]}/{raw_progress[1]}"
+    return None
+
+
+def _effective_advance_state(payload: dict[str, Any]) -> dict[str, Any]:
+    new_state = payload.get("new_state")
+    if isinstance(new_state, dict):
+        return new_state
+    return payload
+
+
+def _render_verification_results(payload: dict[str, Any], lines: list[str]) -> None:
+    summary = payload.get("summary")
+    if isinstance(summary, dict):
+        parts: list[str] = []
+        for key in ("passed", "failed", "errors", "skipped"):
+            value = summary.get(key)
+            if isinstance(value, int):
+                parts.append(f"{key}: {value}")
+        if parts:
+            lines.append(f"Verification: {' | '.join(parts)}")
+
+    results = payload.get("results")
+    if not isinstance(results, list) or not results:
+        return
+
+    lines.append("")
+    lines.append("Verification results:")
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        status = str(item.get("status") or "unknown")
+        description = str(item.get("postcondition") or "verification item")
+        line = f"- [{status}] {description}"
+        result_type = item.get("type")
+        if isinstance(result_type, str) and result_type:
+            line += f" ({result_type})"
+        detail = item.get("detail")
+        if isinstance(detail, str) and detail:
+            line += f": {detail}"
+        lines.append(line)
+
+
+def _render_advance_preview(payload: dict[str, Any]) -> str:
+    preview_payload = payload.get("preview")
+    if not isinstance(preview_payload, dict):
+        return _render_advance_result(payload)
+    return render_governed_preview(preview_payload)
+
+
+def _render_advance_result(payload: dict[str, Any]) -> str:
+    state = _effective_advance_state(payload)
+    phase_id = state.get("phase_id") or payload.get("phase_id") or "unknown"
+    phase_status = state.get("phase_status") or payload.get("phase_status")
+    plan_status = state.get("plan_status") or payload.get("plan_status")
+
+    if payload.get("status") == "verification_failed":
+        header = f"Verification failed: {phase_id}"
+    elif phase_status == "completed":
+        header = f"Completed phase: {phase_id}"
+    elif phase_status == "in-progress":
+        header = f"Started phase: {phase_id}"
+    elif phase_status == "blocked" or plan_status == "blocked":
+        header = f"Blocked phase: {phase_id}"
+    elif plan_status == "paused":
+        header = f"Paused phase: {phase_id}"
+    else:
+        header = f"Plan advance: {phase_id}"
+
+    lines = [header]
+    message = state.get("message") or payload.get("message")
+    if isinstance(message, str) and message:
+        lines.append(message)
+
+    if isinstance(plan_status, str) and plan_status:
+        lines.append(f"Plan status: {plan_status}")
+    if isinstance(phase_status, str) and phase_status:
+        lines.append(f"Phase status: {phase_status}")
+
+    next_action = _format_next_action(state.get("next_action"))
+    if next_action:
+        lines.append(f"Next action: {next_action}")
+
+    plan_progress = _format_plan_progress(state.get("plan_progress"))
+    if plan_progress:
+        lines.append(f"Progress: {plan_progress}")
+
+    phase_commit = state.get("phase_commit")
+    if isinstance(phase_commit, str) and phase_commit:
+        lines.append(f"Commit: {phase_commit}")
+
+    sessions_used = state.get("sessions_used")
+    if isinstance(sessions_used, int):
+        lines.append(f"Sessions used: {sessions_used}")
+
+    if isinstance(state.get("approval_required"), bool):
+        lines.append("Approval required: " + ("yes" if state.get("approval_required") else "no"))
+
+    approval_file = state.get("approval_file")
+    if isinstance(approval_file, str) and approval_file:
+        lines.append(f"Approval file: {approval_file}")
+
+    expires = state.get("expires")
+    if isinstance(expires, str) and expires:
+        lines.append(f"Approval expires: {expires}")
+
+    approval = state.get("approval") if isinstance(state.get("approval"), dict) else None
+    if approval is None and isinstance(payload.get("approval"), dict):
+        approval = payload["approval"]
+    if isinstance(approval, dict):
+        approval_status = approval.get("status")
+        if isinstance(approval_status, str) and approval_status:
+            lines.append(f"Approval status: {approval_status}")
+
+    budget_line = _summary_budget_line(state.get("budget_status"))
+    if budget_line:
+        lines.append(f"Budget: {budget_line}")
+
+    if isinstance(state.get("review_written"), bool):
+        lines.append("Review written: " + ("yes" if state.get("review_written") else "no"))
+
+    blocked_by = state.get("blocked_by")
+    if isinstance(blocked_by, list) and blocked_by:
+        lines.append("")
+        lines.append("Blockers:")
+        for blocker in blocked_by:
+            if not isinstance(blocker, dict):
+                continue
+            reference = str(blocker.get("reference") or "unknown")
+            extras: list[str] = []
+            kind = blocker.get("kind")
+            if isinstance(kind, str) and kind:
+                extras.append(kind)
+            status = blocker.get("status")
+            if isinstance(status, str) and status:
+                extras.append(f"status={status}")
+            line = f"- {reference}"
+            if extras:
+                line += f" ({', '.join(extras)})"
+            detail = blocker.get("detail")
+            if isinstance(detail, str) and detail:
+                line += f": {detail}"
+            lines.append(line)
+
+    if payload.get("status") == "verification_failed":
+        _render_verification_results(payload, lines)
+
+    commit_sha = payload.get("commit_sha")
+    if isinstance(commit_sha, str) and commit_sha:
+        lines.append(f"Commit SHA: {commit_sha}")
+
+    commit_message = payload.get("commit_message")
+    if isinstance(commit_message, str) and commit_message:
+        lines.append(f"Message: {commit_message}")
+
+    warnings = payload.get("warnings")
+    if isinstance(warnings, list) and warnings:
+        lines.append("")
+        lines.append("Warnings:")
+        lines.extend(f"  - {warning}" for warning in warnings)
+
+    return "\n".join(lines)
+
+
+def _render_advance_errors(errors: list[str]) -> str:
+    lines = ["Plan advance failed:"]
+    if errors:
+        lines.extend(f"- {error}" for error in errors)
     return "\n".join(lines)
 
 
@@ -644,4 +918,68 @@ def run_plan_create(args: argparse.Namespace, *, repo_root: Path, content_root: 
             print(_render_create_preview(payload))
         else:
             print(_render_create_result(payload))
+    return 0
+
+
+def run_plan_advance(args: argparse.Namespace, *, repo_root: Path, content_root: Path) -> int:
+    try:
+        action, resolved_project_id, resolved_phase_id = _resolve_advance_target(
+            content_root,
+            plan_id=args.plan_id,
+            project_id=getattr(args, "project", None),
+            phase_id=getattr(args, "phase", None),
+        )
+
+        review_payload: dict[str, Any] | None = None
+        if action == "start":
+            if getattr(args, "commit_sha", None):
+                raise ValidationError(
+                    "--commit-sha is only valid when advancing an in-progress phase."
+                )
+            if getattr(args, "verify", False):
+                raise ValidationError(
+                    "--verify is only valid when completing an in-progress phase."
+                )
+            if getattr(args, "review_file", None):
+                raise ValidationError(
+                    "--review-file is only valid when completing an in-progress phase."
+                )
+        else:
+            if not getattr(args, "commit_sha", None):
+                raise ValidationError(
+                    "--commit-sha is required when advancing an in-progress phase."
+                )
+            review_file = getattr(args, "review_file", None)
+            if review_file:
+                review_payload = _read_mapping_input(review_file, label="review")
+
+        repo = GitRepo(repo_root, content_prefix=_content_prefix(repo_root, content_root))
+        payload = execute_plan_action_result(
+            repo=repo,
+            root=content_root,
+            plan_id=args.plan_id,
+            project_id=resolved_project_id,
+            phase_id=resolved_phase_id,
+            action=action,
+            session_id=args.session_id,
+            commit_sha=getattr(args, "commit_sha", None),
+            review=review_payload,
+            verify=bool(getattr(args, "verify", False)),
+            preview=bool(getattr(args, "preview", False)),
+        )
+    except (AlreadyDoneError, NotFoundError, ValidationError, ValueError) as exc:
+        errors = validation_error_messages(exc) if isinstance(exc, ValidationError) else [str(exc)]
+        if args.json:
+            print(json.dumps({"valid": False, "errors": errors}, indent=2))
+        else:
+            print(_render_advance_errors(errors), file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(payload, indent=2, default=str))
+    else:
+        if getattr(args, "preview", False) and isinstance(payload.get("preview"), dict):
+            print(_render_advance_preview(payload))
+        else:
+            print(_render_advance_result(payload))
     return 0

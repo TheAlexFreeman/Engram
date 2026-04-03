@@ -9,6 +9,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+import yaml  # type: ignore[import-untyped]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -82,6 +83,35 @@ def _create_args(
     )()
 
 
+def _advance_args(
+    plan_id: str,
+    *,
+    json_output: bool = False,
+    project: str | None = None,
+    phase: str | None = None,
+    session_id: str = "memory/activity/2026/04/03/chat-020",
+    commit_sha: str | None = None,
+    verify: bool = False,
+    preview: bool = False,
+    review_file: str | None = None,
+):
+    return type(
+        "Args",
+        (),
+        {
+            "json": json_output,
+            "plan_id": plan_id,
+            "project": project,
+            "phase": phase,
+            "session_id": session_id,
+            "commit_sha": commit_sha,
+            "verify": verify,
+            "preview": preview,
+            "review_file": review_file,
+        },
+    )()
+
+
 def _init_git_repo(repo_root: Path) -> None:
     subprocess.run(["git", "init"], cwd=repo_root, check=True, capture_output=True, text=True)
     subprocess.run(
@@ -91,6 +121,28 @@ def _init_git_repo(repo_root: Path) -> None:
         capture_output=True,
         text=True,
     )
+
+
+def _commit_all(repo_root: Path, message: str) -> None:
+    subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", message],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _git_status(repo_root: Path) -> str:
+    result = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
     subprocess.run(
         ["git", "config", "user.name", "Test User"],
         cwd=repo_root,
@@ -101,6 +153,13 @@ def _init_git_repo(repo_root: Path) -> None:
     subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True, capture_output=True, text=True)
     subprocess.run(
         ["git", "commit", "-m", "snapshot"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "initialize head"],
         cwd=repo_root,
         check=True,
         capture_output=True,
@@ -250,6 +309,8 @@ def _seed_plan_repo(tmp_path: Path) -> tuple[Path, Path]:
         ),
     )
     _init_git_repo(repo_root)
+    _write(repo_root / ".fixture-head", "unit fixture head\n")
+    _commit_all(repo_root, "ensure fixture head")
     return repo_root, content_root
 
 
@@ -544,3 +605,254 @@ def test_plan_create_json_schema_output_matches_plan_contract(
     assert payload["tool_name"] == "memory_plan_create"
     assert "plan_id" in payload["required"]
     assert "phases" in payload["properties"]
+
+
+def test_plan_advance_starts_pending_phase_and_commits(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, content_root = _seed_plan_repo(tmp_path)
+
+    exit_code = cmd_plan.run_plan_advance(
+        _advance_args(
+            "tracked-plan",
+            project="example",
+            session_id="memory/activity/2026/04/03/chat-021",
+        ),
+        repo_root=repo_root,
+        content_root=content_root,
+    )
+    output = capsys.readouterr().out
+    plan_body = yaml.safe_load(
+        (
+            content_root
+            / "memory"
+            / "working"
+            / "projects"
+            / "example"
+            / "plans"
+            / "tracked-plan.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert exit_code == 0
+    assert "Started phase: phase-b" in output
+    assert "Next action: Ship read surfaces" in output
+    assert plan_body["work"]["phases"][1]["status"] == "in-progress"
+    assert _git_status(repo_root) == ""
+
+
+def test_plan_advance_blocked_phase_surfaces_blockers(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, content_root = _seed_plan_repo(tmp_path)
+    _write(
+        content_root
+        / "memory"
+        / "working"
+        / "projects"
+        / "example"
+        / "plans"
+        / "blocked-plan.yaml",
+        textwrap.dedent(
+            """\
+            id: blocked-plan
+            project: example
+            created: '2026-04-03'
+            origin_session: memory/activity/2026/04/03/chat-022
+            status: active
+            sessions_used: 0
+            purpose:
+              summary: Exercise blocked phase output
+              context: Ensure plan advance surfaces unresolved blockers.
+              questions: []
+            work:
+              phases:
+                - id: phase-a
+                  title: Blocked phase
+                  status: pending
+                  blockers:
+                    - phase-b
+                  changes:
+                    - path: HUMANS/docs/CLI.md
+                      action: update
+                      description: Surface blocked output.
+                - id: phase-b
+                  title: Dependency phase
+                  status: pending
+                  blockers: []
+                  changes:
+                    - path: core/context.md
+                      action: update
+                      description: Satisfy the dependency later.
+            review: null
+            """
+        ),
+    )
+    _commit_all(repo_root, "add blocked plan fixture")
+
+    exit_code = cmd_plan.run_plan_advance(
+        _advance_args(
+            "blocked-plan",
+            project="example",
+            session_id="memory/activity/2026/04/03/chat-022",
+        ),
+        repo_root=repo_root,
+        content_root=content_root,
+    )
+    output = capsys.readouterr().out
+    plan_body = yaml.safe_load(
+        (
+            content_root
+            / "memory"
+            / "working"
+            / "projects"
+            / "example"
+            / "plans"
+            / "blocked-plan.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert exit_code == 0
+    assert "Blocked phase: phase-a" in output
+    assert "Blockers:" in output
+    assert "phase-b" in output
+    assert plan_body["status"] == "blocked"
+    assert plan_body["work"]["phases"][0]["status"] == "blocked"
+    assert _git_status(repo_root) == ""
+
+
+def test_plan_advance_approval_gated_phase_surfaces_pause_state(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, content_root = _seed_plan_repo(tmp_path)
+    _write(
+        content_root
+        / "memory"
+        / "working"
+        / "projects"
+        / "example"
+        / "plans"
+        / "approval-plan.yaml",
+        textwrap.dedent(
+            """\
+            id: approval-plan
+            project: example
+            created: '2026-04-03'
+            origin_session: memory/activity/2026/04/03/chat-023
+            status: active
+            sessions_used: 0
+            purpose:
+              summary: Exercise approval-gated advance output
+              context: Ensure plan advance surfaces pending approvals.
+              questions: []
+            work:
+              phases:
+                - id: phase-a
+                  title: Approval-gated phase
+                  status: pending
+                  blockers: []
+                  requires_approval: true
+                  changes:
+                    - path: HUMANS/docs/CLI.md
+                      action: update
+                      description: Surface approval gating.
+            review: null
+            """
+        ),
+    )
+    _commit_all(repo_root, "add approval plan fixture")
+
+    exit_code = cmd_plan.run_plan_advance(
+        _advance_args(
+            "approval-plan",
+            project="example",
+            session_id="memory/activity/2026/04/03/chat-023",
+        ),
+        repo_root=repo_root,
+        content_root=content_root,
+    )
+    output = capsys.readouterr().out
+    plan_body = yaml.safe_load(
+        (
+            content_root
+            / "memory"
+            / "working"
+            / "projects"
+            / "example"
+            / "plans"
+            / "approval-plan.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert exit_code == 0
+    assert "Paused phase: phase-a" in output
+    assert "Approval file:" in output
+    assert plan_body["status"] == "paused"
+    assert _git_status(repo_root) == ""
+
+
+def test_plan_advance_completes_final_phase_with_review_payload(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo_root, content_root = _seed_plan_repo(tmp_path)
+    review_file = tmp_path / "review.yaml"
+    review_file.write_text(
+        "outcome: completed\n"
+        "purpose_assessment: The terminal plan flow satisfied the project goal.\n"
+        "unresolved:\n"
+        "  - question: What should ship next?\n"
+        "    note: Follow up with approval subcommands.\n"
+        "follow_up: cli-v3-approval-trace\n",
+        encoding="utf-8",
+    )
+
+    start_exit_code = cmd_plan.run_plan_advance(
+        _advance_args(
+            "tracked-plan",
+            project="example",
+            session_id="memory/activity/2026/04/03/chat-024",
+        ),
+        repo_root=repo_root,
+        content_root=content_root,
+    )
+    assert start_exit_code == 0
+    capsys.readouterr()
+
+    exit_code = cmd_plan.run_plan_advance(
+        _advance_args(
+            "tracked-plan",
+            project="example",
+            session_id="memory/activity/2026/04/03/chat-024",
+            commit_sha="abc1234",
+            verify=True,
+            review_file=str(review_file),
+        ),
+        repo_root=repo_root,
+        content_root=content_root,
+    )
+    output = capsys.readouterr().out
+    plan_body = yaml.safe_load(
+        (
+            content_root
+            / "memory"
+            / "working"
+            / "projects"
+            / "example"
+            / "plans"
+            / "tracked-plan.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert exit_code == 0
+    assert "Completed phase: phase-b" in output
+    assert "Review written: yes" in output
+    assert plan_body["status"] == "completed"
+    assert plan_body["review"]["purpose_assessment"] == (
+        "The terminal plan flow satisfied the project goal."
+    )
+    assert plan_body["review"]["follow_up"] == "cli-v3-approval-trace"
+    assert _git_status(repo_root) == ""

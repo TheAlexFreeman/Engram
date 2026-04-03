@@ -5,7 +5,7 @@ The `engram` CLI provides a terminal-oriented interface for searching, inspectin
 - `engram search` for querying memory content from a shell or script.
 - `engram status` for a compact health dashboard.
 - `engram add` for governed ingestion into `memory/knowledge/_unverified/`.
-- `engram plan` for plan list/show/create workflows from a shell or script.
+- `engram plan` for plan list/show/create/advance workflows from a shell or script.
 - `engram recall` for reading a file or namespace with frontmatter and ACCESS context.
 - `engram log` for recent ACCESS timeline inspection.
 - `engram validate` for repository integrity checks.
@@ -119,6 +119,7 @@ Inspects and authors structured plans from the Active Plans system without requi
 - `engram plan list` shows plan ids, status, progress, and next-action summaries.
 - `engram plan show <plan-id>` renders the current actionable phase, including sources, blockers, postconditions, and planned changes.
 - `engram plan create [file|-]` accepts YAML matching the `memory_plan_create` input contract, validates it, and creates the governed plan file. Use `--preview` to validate without writing, or `--json-schema` to print the nested authoring schema.
+- `engram plan advance <plan-id>` moves the selected phase one legal step forward: it starts a pending/blocked phase, or completes an in-progress phase when `--commit-sha` is supplied. Use `--verify` to evaluate postconditions before completion and `--review-file` to attach the final review payload when the last phase closes.
 
 Examples:
 
@@ -130,13 +131,18 @@ engram plan show cli-v3-plan-commands --project cli-expansion --phase plan-read-
 engram plan create ./new-plan.yaml --preview
 cat new-plan.yaml | engram plan create --json
 engram plan create --json-schema
+engram plan advance cli-v3-plan-commands --project cli-expansion --session-id memory/activity/2026/04/03/chat-001
+engram plan advance cli-v3-plan-commands --project cli-expansion --session-id memory/activity/2026/04/03/chat-001 --commit-sha abc1234 --verify
+engram plan advance cli-v3-plan-commands --project cli-expansion --session-id memory/activity/2026/04/03/chat-001 --commit-sha abc1234 --review-file ./review.yaml
 ```
 
 `engram plan create --help` renders schema-backed authoring guidance generated from the same nested contract used by `memory_plan_schema` and `engram-mcp plan create --json-schema`.
 
-For local terminal work, `engram plan list`, `engram plan show`, and `engram plan create` can replace the direct MCP read/create surfaces. Use the MCP-hosted plan tools when you need execution-state mutations such as phase advancement, run-state coordination, or review-aware approval handling.
+When `engram plan advance` hits unresolved blockers or an approval-gated phase, it surfaces the blocked or paused state instead of guessing a bypass. Approval resolution still uses the MCP-hosted approval tools until the terminal approval commands land.
 
-JSON output mirrors the underlying plan runtime: `list` returns structured plan summaries with `next_action` and `phase_progress`, `show` returns the selected phase packet plus plan progress and optional budget status, and `create` returns the governed write result or preview envelope.
+For local terminal work, `engram plan list`, `engram plan show`, `engram plan create`, and `engram plan advance` can replace the direct MCP read/create/execute surfaces for day-to-day plan authoring and progression. Use the MCP-hosted plan and approval tools when you need approval resolution, run-state coordination beyond the simple advance flow, or other review/observability commands that do not yet have terminal equivalents.
+
+JSON output mirrors the underlying plan runtime: `list` returns structured plan summaries with `next_action` and `phase_progress`, `show` returns the selected phase packet plus plan progress and optional budget status, `create` returns the governed write result or preview envelope, and `advance` returns the shared execute payload for started/completed/blocked/paused/verification states.
 
 ### `engram validate`
 
@@ -165,6 +171,7 @@ If the validator's core dependencies are missing, the command prints a friendly 
 - `engram plan show --json` emits the selected phase packet with blockers, postconditions, and changes.
 - `engram plan create --json` emits the governed create result or preview envelope for terminal plan authoring.
 - `engram plan create --json-schema` emits the raw nested plan-authoring schema mirrored from `memory_plan_schema`.
+- `engram plan advance --json` emits the shared plan-execute payload, including blocked, paused, verification, and successful transition states.
 - `engram recall --json` emits a structured file or namespace inspection payload.
 - `engram log --json` emits a filtered ACCESS timeline payload.
 
