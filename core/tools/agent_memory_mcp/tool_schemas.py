@@ -1620,7 +1620,7 @@ def update_skill_input_schema() -> dict[str, Any]:
                     ]
                 },
                 "then": {"required": ["approval_token"]},
-            }
+            },
         ],
         notes=[
             "When create_if_missing=false, source/trust/origin_session are ignored.",

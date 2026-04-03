@@ -206,15 +206,21 @@ class MemoryMCPTests(unittest.TestCase):
         )
 
     def test_tool_schema_registry_includes_read_and_context_tools(self) -> None:
-        read_payload = json.loads(asyncio.run(self.module.memory_tool_schema(tool_name="memory_read_file")))
+        read_payload = json.loads(
+            asyncio.run(self.module.memory_tool_schema(tool_name="memory_read_file"))
+        )
         self.assertEqual(read_payload["tool_name"], "memory_read_file")
         self.assertIn("path", read_payload["properties"])
 
-        search_payload = json.loads(asyncio.run(self.module.memory_tool_schema(tool_name="memory_search")))
+        search_payload = json.loads(
+            asyncio.run(self.module.memory_tool_schema(tool_name="memory_search"))
+        )
         self.assertEqual(search_payload["tool_name"], "memory_search")
         self.assertIn("freshness_weight", search_payload["properties"])
 
-        home_payload = json.loads(asyncio.run(self.module.memory_tool_schema(tool_name="memory_context_home")))
+        home_payload = json.loads(
+            asyncio.run(self.module.memory_tool_schema(tool_name="memory_context_home"))
+        )
         self.assertEqual(home_payload["tool_name"], "memory_context_home")
         self.assertIn("max_context_chars", home_payload["properties"])
 

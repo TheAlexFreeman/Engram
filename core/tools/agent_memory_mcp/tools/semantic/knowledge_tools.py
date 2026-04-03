@@ -725,10 +725,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             summary=f"Promote reviewed subtree {source_folder} into {dest_folder}.",
             reasoning="Subtree promotion is a proposed durable-memory write because it elevates trust and reshapes future retrieval paths across multiple files.",
             target_files=[
-                *[
-                    preview_target(move["source_path"], "move_from")
-                    for move in planned_moves
-                ],
+                *[preview_target(move["source_path"], "move_from") for move in planned_moves],
                 *[
                     preview_target(
                         move["target_path"],
@@ -737,8 +734,16 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                     )
                     for move in planned_moves
                 ],
-                *([preview_target(source_summary_path, "update")] if abs_source_summary.exists() else []),
-                *([preview_target(target_summary_path, "update")] if abs_target_summary.exists() else []),
+                *(
+                    [preview_target(source_summary_path, "update")]
+                    if abs_source_summary.exists()
+                    else []
+                ),
+                *(
+                    [preview_target(target_summary_path, "update")]
+                    if abs_target_summary.exists()
+                    else []
+                ),
             ],
             invariant_effects=[
                 "Preserves nested paths relative to the source subtree while promoting reviewed files into verified knowledge.",
