@@ -8,7 +8,6 @@ import sys
 import textwrap
 from pathlib import Path
 
-import pytest
 import yaml  # type: ignore[import-untyped]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -72,6 +71,28 @@ def _run_cli(
         capture_output=True,
         text=True,
         check=False,
+    )
+
+
+def _commit_with_date(repo_root: Path, message: str, when: str) -> None:
+    environment = dict(os.environ)
+    environment["GIT_AUTHOR_DATE"] = when
+    environment["GIT_COMMITTER_DATE"] = when
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", message],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+        env=environment,
     )
 
 
@@ -441,6 +462,35 @@ def _seed_trace_fixture(repo_root: Path) -> None:
     )
 
 
+def _seed_diff_fixture(repo_root: Path) -> None:
+    knowledge_file = repo_root / "core" / "memory" / "knowledge" / "cli-diff.md"
+    knowledge_file.parent.mkdir(parents=True, exist_ok=True)
+    knowledge_file.write_text(
+        "---\n"
+        "trust: low\n"
+        "created: 2099-01-01\n"
+        "origin_session: manual\n"
+        "source: manual\n"
+        "---\n\n"
+        "CLI diff integration fixture.\n",
+        encoding="utf-8",
+    )
+    _commit_with_date(repo_root, "seed diff fixture", "2099-01-01T09:00:00Z")
+
+    knowledge_file.write_text(
+        "---\n"
+        "trust: medium\n"
+        "created: 2099-01-01\n"
+        "last_verified: 2099-01-02\n"
+        "origin_session: manual\n"
+        "source: manual\n"
+        "---\n\n"
+        "CLI diff integration fixture, verified.\n",
+        encoding="utf-8",
+    )
+    _commit_with_date(repo_root, "update diff fixture trust", "2099-01-02T11:30:00Z")
+
+
 def test_validate_status_and_search_integration(tmp_path: Path) -> None:
     repo_copy = _copy_repo_tree(tmp_path)
     _seed_warning_fixture(repo_copy)
@@ -470,6 +520,7 @@ def test_json_subcommands_emit_parseable_output(tmp_path: Path) -> None:
     _seed_warning_fixture(repo_copy)
     _seed_read_surface_fixture(repo_copy)
     _seed_add_fixture(repo_copy)
+    _seed_diff_fixture(repo_copy)
     add_source = repo_copy / "cli-add-source.md"
     add_source.write_text("# CLI Add\n\nBody\n", encoding="utf-8")
 
@@ -499,6 +550,15 @@ def test_json_subcommands_emit_parseable_output(tmp_path: Path) -> None:
         "2099-01-01",
         "--json",
     )
+    diff_run = _run_cli(
+        repo_copy,
+        "diff",
+        "--since",
+        "2099-01-01",
+        "--namespace",
+        "knowledge",
+        "--json",
+    )
     add_run = _run_cli(
         repo_copy,
         "add",
@@ -517,6 +577,10 @@ def test_json_subcommands_emit_parseable_output(tmp_path: Path) -> None:
     assert (
         json.loads(log_run.stdout)["results"][0]["file"]
         == "memory/knowledge/cli-integration/sentinel.md"
+    )
+    assert (
+        json.loads(diff_run.stdout)["commits"][0]["files"][0]["path"]
+        == "memory/knowledge/cli-diff.md"
     )
     assert (
         json.loads(add_run.stdout)["new_state"]["path"]
@@ -865,6 +929,34 @@ def test_trace_json_integration(tmp_path: Path) -> None:
     assert payload["aggregates"]["total_duration_ms"] == 25
     assert payload["aggregates"]["total_cost"] == {"tokens_in": 11, "tokens_out": 7}
     assert payload["aggregates"]["by_status"] == {"error": 1}
+
+    status_run = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=repo_copy,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status_run.stdout.strip() == ""
+
+
+def test_diff_human_output_integration(tmp_path: Path) -> None:
+    repo_copy = _copy_repo_tree(tmp_path)
+    _seed_diff_fixture(repo_copy)
+
+    diff_run = _run_cli(
+        repo_copy,
+        "diff",
+        "--since",
+        "2099-01-01",
+        "--namespace",
+        "knowledge",
+    )
+
+    assert diff_run.returncode == 0
+    assert "Diff query (namespace=knowledge, since=2099-01-01)" in diff_run.stdout
+    assert "memory/knowledge/cli-diff.md [modified/knowledge]" in diff_run.stdout
+    assert "frontmatter changed; trust: low -> medium" in diff_run.stdout
 
     status_run = subprocess.run(
         ["git", "status", "--short"],

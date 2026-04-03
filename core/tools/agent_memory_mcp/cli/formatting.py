@@ -310,7 +310,7 @@ def build_access_index(entries: Sequence[AccessEntry]) -> dict[str, dict[str, An
     return index
 
 
-def _namespace_prefixes(namespace: str | None) -> tuple[str, ...]:
+def namespace_prefixes(namespace: str | None) -> tuple[str, ...]:
     if not namespace:
         return ()
 
@@ -338,7 +338,7 @@ def filter_access_entries(
     until: str | None = None,
     file_path: str | None = None,
 ) -> list[AccessEntry]:
-    prefixes = _namespace_prefixes(namespace)
+    prefixes = namespace_prefixes(namespace)
     since_date = parse_iso_date(since) if since else None
     until_date = parse_iso_date(until) if until else None
     normalized_file_path = file_path.replace("\\", "/") if file_path else None

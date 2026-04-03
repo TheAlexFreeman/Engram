@@ -1,10 +1,9 @@
 ---
-active_plans: 1
+active_plans: 0
 cognitive_mode: execution
 created: 2026-04-02
-current_focus: The v3 approval and trace coordination group is complete;
-  terminal approval and trace workflows, docs, integration coverage, and
-  readiness metadata are now in sync.
+current_focus: The v4 diff inspection slice is complete; the remaining CLI
+  roadmap is the v2 maintenance and lifecycle work plus v4 portability.
 last_activity: '2026-04-03'
 open_questions: 0
 origin_session: memory/activity/2026/04/02/chat-001
@@ -25,9 +24,9 @@ follow-on plans instead of one monolithic backlog item.
 
 ## Cognitive mode
 Execution mode: `cli-v0`, the v1 read/write surfaces, the v3 schema
-foundations, the v3 plan-command roadmap, and the v3 approval/trace roadmap
-are complete as shipped slices. The remaining CLI work is now in the draft
-roadmap set until the next slice is selected.
+foundations, the v3 plan-command roadmap, the v3 approval/trace roadmap, and
+the v4 diff roadmap are complete as shipped slices. The remaining CLI work is
+the v2 maintenance/lifecycle set plus v4 portability.
 
 ## Plan inventory (2026-04-03)
 
@@ -42,7 +41,7 @@ roadmap set until the next slice is selected.
 | v3 | `cli-v3-plan-commands.yaml` | completed | 8 sessions / 2026-10-01 | v3 schema foundations |
 | v3 | `cli-v3-approval-trace.yaml` | completed | 6 sessions / 2026-09-15 | v3 schema foundations |
 | v4 | `cli-v4-portability.yaml` | draft | 7 sessions / 2026-11-15 | Stable v3 command contracts |
-| v4 | `cli-v4-diff.yaml` | draft | 4 sessions / 2026-11-01 | Stable read-side CLI foundations |
+| v4 | `cli-v4-diff.yaml` | completed | 4 sessions / 2026-11-01 | Stable read-side CLI foundations |
 
 ## Motivation
 Engram already ships infrastructure CLIs (`engram-mcp`, `engram-proxy`,

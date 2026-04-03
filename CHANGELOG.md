@@ -18,6 +18,12 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-04-03] Git-backed memory diff surface for the terminal CLI
+
+**Changed:** Added `engram diff` as a git-backed memory inspection command with namespace and inclusive date filters, human and JSON rendering, and annotations for frontmatter edits, trust transitions, and newly added files. Added focused unit and subprocess coverage and documented the new terminal surface in the CLI guide.
+**Reasoning:** The CLI expansion roadmap still lacked a read-only way to answer "what changed?" without manually composing git commands and then translating raw file diffs back into memory concepts. A memory-aware diff surface closes that inspection gap for humans, shell-based agents, and automation.
+**Approved by:** agent (pending review)
+
 ## [2026-04-02] Full Tier 1 semantic schema coverage
 
 **Changed:** Extended the shared `memory_tool_schema` registry to cover the remaining Tier 1 semantic helpers, including `memory_analyze_graph`, `memory_list_pending_reviews`, `memory_list_plans`, `memory_plan_verify`, `memory_query_traces`, `memory_plan_briefing`, `memory_scan_drop_zone`, `memory_get_tool_policy`, `memory_semantic_search`, and `memory_reindex`. Updated the corresponding semantic-tool docstrings, aligned the existing `memory_update_user_trait` and `memory_update_skill` docstrings with the schema-backed guidance pattern, and simplified the README and MCP guide wording to describe full Tier 1 semantic coverage.

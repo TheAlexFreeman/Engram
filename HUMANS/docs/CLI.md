@@ -10,6 +10,7 @@ The `engram` CLI provides a terminal-oriented interface for searching, inspectin
 - `engram trace` for querying session traces from a shell or script.
 - `engram recall` for reading a file or namespace with frontmatter and ACCESS context.
 - `engram log` for recent ACCESS timeline inspection.
+- `engram diff` for git-backed memory history with memory-aware annotations.
 - `engram validate` for repository integrity checks.
 
 ## Installation
@@ -113,6 +114,20 @@ engram log --namespace knowledge --since 2026-04-01 --json
 ```
 
 JSON output includes the filtered result count plus structured ACCESS entries with namespace labels.
+
+### `engram diff`
+
+Inspects recent git history for memory content and annotates file changes with memory-aware context such as frontmatter edits, trust transitions, and newly added files. By default it scans the memory tree; use namespace aliases like `knowledge`, `skills`, or `plans` to narrow the history.
+
+Examples:
+
+```bash
+engram diff
+engram diff --namespace knowledge --since 2026-04-01
+engram diff --namespace plans --until 2026-04-03 --json
+```
+
+JSON output includes the matched commits, changed files, namespace-level change counts, and annotations for frontmatter and trust changes.
 
 ### `engram plan`
 
@@ -225,5 +240,6 @@ If the validator's core dependencies are missing, the command prints a friendly 
 - `engram trace --json` emits the structured trace-query payload with spans, match counts, and aggregate duration/cost/error metrics.
 - `engram recall --json` emits a structured file or namespace inspection payload.
 - `engram log --json` emits a filtered ACCESS timeline payload.
+- `engram diff --json` emits recent memory-history commits, changed files, namespace summaries, and memory-aware annotations.
 
 For onboarding and broader setup instructions, see [QUICKSTART.md](QUICKSTART.md).

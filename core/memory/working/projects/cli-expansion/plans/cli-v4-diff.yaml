@@ -2,8 +2,8 @@ id: cli-v4-diff
 project: cli-expansion
 created: '2026-04-03'
 origin_session: memory/activity/2026/04/02/chat-001
-status: draft
-sessions_used: 0
+status: completed
+sessions_used: 1
 budget:
   deadline: '2026-11-01'
   max_sessions: 4
@@ -19,7 +19,7 @@ work:
   phases:
     - id: diff-data-model
       title: Define memory-aware diff model and host-repo resolution
-      status: pending
+      status: completed
       commit: null
       blockers:
         - cli-v1-read-surfaces:read-surface-verification
@@ -45,7 +45,7 @@ work:
           description: Document the intended filter surface and annotations for diff.
     - id: diff-rendering
       title: Implement human-oriented diff rendering with memory annotations
-      status: pending
+      status: completed
       commit: null
       blockers:
         - diff-data-model
@@ -74,7 +74,7 @@ work:
           description: Document human-facing diff output and examples.
     - id: diff-filters-json
       title: Implement date filters, namespace filters, and JSON output
-      status: pending
+      status: completed
       commit: null
       blockers:
         - diff-data-model
@@ -103,7 +103,7 @@ work:
           description: Document filters and JSON usage for diff.
     - id: diff-verification
       title: Verify diff docs, subprocess behavior, and release readiness
-      status: pending
+      status: completed
       commit: null
       blockers:
         - diff-rendering
