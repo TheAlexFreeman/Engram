@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
 import importlib
+import json
+import sys
 from pathlib import Path
 from types import ModuleType
-import sys
 
 import pytest
 

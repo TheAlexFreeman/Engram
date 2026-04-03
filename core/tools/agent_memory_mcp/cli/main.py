@@ -129,20 +129,20 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_arguments(common_parser)
     subparsers = parser.add_subparsers(dest="command")
 
-    from .cmd_search import register_search
-    from .cmd_status import register_status
     from .cmd_add import register_add
-    from .cmd_archive import register_archive
-    from .cmd_approval import register_approval
     from .cmd_aggregate import register_aggregate
+    from .cmd_approval import register_approval
+    from .cmd_archive import register_archive
     from .cmd_diff import register_diff
     from .cmd_export import register_export
     from .cmd_import import register_import
-    from .cmd_promote import register_promote
-    from .cmd_review import register_review
-    from .cmd_recall import register_recall
     from .cmd_log import register_log
     from .cmd_plan import register_plan
+    from .cmd_promote import register_promote
+    from .cmd_recall import register_recall
+    from .cmd_review import register_review
+    from .cmd_search import register_search
+    from .cmd_status import register_status
     from .cmd_trace import register_trace
     from .cmd_validate import register_validate
 

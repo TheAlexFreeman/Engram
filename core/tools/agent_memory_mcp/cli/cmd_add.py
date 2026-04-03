@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 from ..errors import ValidationError
 from ..git_repo import GitRepo
 from ..knowledge_ingestion import (
+    apply_prepared_knowledge_add,
     build_knowledge_add_preview,
     knowledge_add_new_state,
     prepare_knowledge_add,
     slugify_filename_stem,
     summary_entry_from_content,
-    apply_prepared_knowledge_add,
 )
 from ..models import MemoryWriteResult
 from ..tools.semantic.session_tools import (

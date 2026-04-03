@@ -3025,7 +3025,9 @@ class TestApprovalExpiry(unittest.TestCase):
 
             ap = _make_approval(expires=self._past_ts())
             save_approval(root, ap)
-            subprocess.run(["git", "add", "."], cwd=root, check=True, capture_output=True, text=True)
+            subprocess.run(
+                ["git", "add", "."], cwd=root, check=True, capture_output=True, text=True
+            )
             subprocess.run(
                 ["git", "commit", "-m", "seed approvals"],
                 cwd=root,

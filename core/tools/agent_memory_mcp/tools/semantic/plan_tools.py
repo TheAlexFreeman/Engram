@@ -22,8 +22,8 @@ from ...plan_utils import (
     approval_filename,
     approvals_summary_path,
     assemble_briefing,
-    build_plan_document_from_create_input,
     budget_status,
+    build_plan_document_from_create_input,
     build_review_from_input,
     check_run_state_staleness,
     estimate_cost,
@@ -41,6 +41,7 @@ from ...plan_utils import (
     plan_title,
     project_outbox_root,
     project_plan_path,
+    raise_collected_validation_errors,
     record_trace,
     regenerate_approvals_summary,
     regenerate_registry_summary,
@@ -58,7 +59,6 @@ from ...plan_utils import (
     unresolved_blockers,
     update_run_state,
     validate_run_state_against_plan,
-    raise_collected_validation_errors,
     validation_error_messages,
     verify_postconditions,
 )
@@ -1885,6 +1885,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         with tool_name="memory_query_traces" for the filter contract.
         """
         import json as _json
+
         from ...plan_trace import query_trace_spans
 
         root = get_root()

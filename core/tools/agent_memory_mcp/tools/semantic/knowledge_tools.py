@@ -3,24 +3,23 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from ...path_policy import (
-    require_under_prefix,
-    resolve_repo_path,
-    validate_knowledge_path,
-    validate_session_id,
-)
 from ...knowledge_ingestion import (
     apply_prepared_knowledge_add,
     build_knowledge_add_preview,
     knowledge_add_new_state,
     prepare_knowledge_add,
+)
+from ...path_policy import (
+    require_under_prefix,
+    resolve_repo_path,
+    validate_knowledge_path,
+    validate_session_id,
 )
 from ...preview_contract import build_governed_preview, preview_target
 from ...tool_schemas import KNOWLEDGE_BATCH_TRUST_LEVELS, REVIEW_VERDICTS

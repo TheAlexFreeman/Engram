@@ -17,8 +17,8 @@ from .frontmatter_utils import (
     today_str,
     write_with_frontmatter,
 )
-from .preview_contract import build_governed_preview, preview_target
 from .path_policy import require_under_prefix, resolve_repo_path, validate_session_id
+from .preview_contract import build_governed_preview, preview_target
 
 _H1_RE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 _SLUG_RE = re.compile(r"[^a-z0-9\s-]+")

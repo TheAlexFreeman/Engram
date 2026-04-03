@@ -8,19 +8,13 @@ from typing import Any
 from .errors import ValidationError
 from .plan_approvals import APPROVAL_RESOLUTIONS
 from .plan_utils import (
-    CHANGE_ACTION_ALIASES,
-    CHANGE_ACTIONS,
+    _PLAN_SLUG_PATTERN,
+    _SESSION_ID_PATTERN,
     COST_TIERS,
     PLAN_OUTCOMES,
-    POSTCONDITION_TYPE_ALIASES,
-    POSTCONDITION_TYPES,
-    SOURCE_TYPE_ALIASES,
-    SOURCE_TYPES,
     TRACE_SPAN_TYPES,
     TRACE_STATUSES,
     VERIFICATION_RESULT_STATUSES,
-    _PLAN_SLUG_PATTERN,
-    _SESSION_ID_PATTERN,
     plan_create_input_schema,
     verification_results_item_schema,
 )
