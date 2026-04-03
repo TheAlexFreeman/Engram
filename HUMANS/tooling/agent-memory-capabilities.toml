@@ -1223,9 +1223,11 @@ result_fields = [
   "trust",
   "planned_moves",
   "summary_updates",
+  "preview_token",
 ]
 fallback_tools = ["memory_move", "memory_update_frontmatter", "memory_commit"]
 error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+notes = "dry_run issues a preview_token receipt, and apply mode requires that fresh receipt before promoting the subtree."
 
 [operations.memory_update_names_index]
 group = "knowledge"
@@ -1465,7 +1467,7 @@ error_kinds = [
   "ValidationError",
   "StagingError",
 ]
-notes = "Protected apply mode requires the approval_token returned by preview mode."
+notes = "Protected apply mode requires the opaque approval_token receipt returned by preview mode."
 
 [operations.memory_register_tool]
 group = "skill"
@@ -1487,7 +1489,7 @@ owns_review_queue = []
 result_fields = ["tool_name", "provider", "registry_file", "action"]
 fallback_tools = []
 error_kinds = ["ValidationError", "StagingError"]
-notes = "Protected apply mode requires the approval_token returned by preview mode, then commits the provider YAML and generated summary together."
+notes = "Protected apply mode requires the opaque approval_token receipt returned by preview mode, then commits the provider YAML and generated summary together."
 
 [operations.memory_get_tool_policy]
 group = "skill"
@@ -1518,9 +1520,10 @@ owns_frontmatter = ["memory/users/{file}.md"]
 owns_summaries = []
 owns_access_logs = []
 owns_review_queue = []
-result_fields = ["key", "mode", "identity_updates_this_session"]
+result_fields = ["key", "mode", "identity_updates_this_session", "preview_token"]
 fallback_tools = ["memory_edit", "memory_update_frontmatter", "memory_commit"]
 error_kinds = ["ConflictError", "ValidationError", "StagingError"]
+notes = "preview mode issues a preview_token receipt, and apply mode rejects writes until that fresh receipt is supplied."
 
 [operations.memory_record_chat_summary]
 group = "chat"
@@ -1705,7 +1708,7 @@ result_fields = [
 ]
 fallback_tools = ["memory_edit", "memory_commit"]
 error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
-notes = "Protected apply mode requires the approval_token returned by preview mode."
+notes = "Protected apply mode requires the opaque approval_token receipt returned by preview mode."
 
 [operations.memory_revert_commit]
 group = "governance"
@@ -1731,6 +1734,7 @@ result_fields = [
 ]
 fallback_tools = ["memory_commit"]
 error_kinds = ["ValidationError", "ConflictError", "StagingError"]
+notes = "confirm=true requires the preview_token receipt issued by the latest confirm=false preview at the current HEAD."
 
 [operations.memory_score_existing_links]
 group = "curation"

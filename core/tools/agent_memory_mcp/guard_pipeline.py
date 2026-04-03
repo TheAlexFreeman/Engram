@@ -314,6 +314,59 @@ def default_pipeline(*, repo: Any | None = None) -> GuardPipeline:
     return GuardPipeline(guards)
 
 
+def run_default_guards(
+    *,
+    path: str,
+    operation: str,
+    root: Path,
+    content: str | None = None,
+    repo: Any | None = None,
+    session_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> PipelineResult:
+    """Run the standard guard pipeline for a pending write-like operation."""
+    context = GuardContext(
+        path=path,
+        operation=operation,
+        root=root,
+        content=content,
+        session_id=session_id,
+        metadata=dict(metadata or {}),
+    )
+    return default_pipeline(repo=repo).run(context)
+
+
+def require_guarded_write_pass(
+    *,
+    path: str,
+    operation: str,
+    root: Path,
+    content: str | None = None,
+    repo: Any | None = None,
+    session_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> PipelineResult:
+    """Run the standard guards and raise ValidationError on block/approval."""
+    result = run_default_guards(
+        path=path,
+        operation=operation,
+        root=root,
+        content=content,
+        repo=repo,
+        session_id=session_id,
+        metadata=metadata,
+    )
+    if result.allowed:
+        return result
+
+    blocked = next(
+        guard_result
+        for guard_result in result.results
+        if guard_result.status in {"block", "require_approval"}
+    )
+    raise ValidationError(f"Blocked by {blocked.guard_name}: {blocked.message}")
+
+
 __all__ = [
     "ContentSizeGuard",
     "FrontmatterGuard",
@@ -326,4 +379,6 @@ __all__ = [
     "PipelineResult",
     "TrustBoundaryGuard",
     "default_pipeline",
+    "require_guarded_write_pass",
+    "run_default_guards",
 ]

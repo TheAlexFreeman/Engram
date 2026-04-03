@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from ...frontmatter_policy import validate_frontmatter_metadata
 from ...knowledge_ingestion import (
     apply_prepared_knowledge_add,
     build_knowledge_add_preview,
@@ -21,7 +22,12 @@ from ...path_policy import (
     validate_knowledge_path,
     validate_session_id,
 )
-from ...preview_contract import build_governed_preview, preview_target
+from ...preview_contract import (
+    attach_preview_requirement,
+    build_governed_preview,
+    preview_target,
+    require_preview_token,
+)
 from ...tool_schemas import KNOWLEDGE_BATCH_TRUST_LEVELS, REVIEW_VERDICTS
 from ..name_index import generate_names_index, write_names_index
 from ..reference_extractor import plan_reorganization
@@ -571,6 +577,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         trust_level: str = "medium",
         reason: str = "",
         dry_run: bool = False,
+        preview_token: str | None = None,
     ) -> str:
         """Promote an entire unverified knowledge subtree in one governed commit.
 
@@ -586,9 +593,11 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         from ...errors import NotFoundError, ValidationError
         from ...frontmatter_utils import (
             read_with_frontmatter,
+            render_with_frontmatter,
             today_str,
             write_with_frontmatter,
         )
+        from ...guard_pipeline import require_guarded_write_pass
         from ...models import MemoryWriteResult
 
         repo = get_repo()
@@ -646,11 +655,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                     raise ValidationError(f"Target already exists: {target_path}")
 
                 fm_dict, body = read_with_frontmatter(abs_source)
-                missing = [key for key in ("created", "source", "trust") if not fm_dict.get(key)]
-                if missing:
-                    raise ValidationError(
-                        f"missing required frontmatter fields: {', '.join(missing)}"
-                    )
+                validate_frontmatter_metadata(
+                    fm_dict,
+                    context=f"knowledge frontmatter for {source_path}",
+                )
                 prepared_files.append(
                     {
                         "source_path": source_path,
@@ -678,23 +686,6 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             }
             for prepared in prepared_files
         ]
-        if dry_run:
-            return json.dumps(
-                {
-                    "source_folder": source_folder,
-                    "dest_folder": dest_folder,
-                    "dry_run": True,
-                    "promoted_count": len(prepared_files),
-                    "planned_moves": planned_moves,
-                    "trust": trust_level,
-                },
-                indent=2,
-            )
-
-        today = today_str()
-        files_changed: list[str] = []
-        promoted_files: list[str] = []
-
         source_summary_path = "memory/knowledge/_unverified/SUMMARY.md"
         abs_source_summary = root / source_summary_path
         source_summary_content = (
@@ -707,6 +698,88 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             abs_target_summary.read_text(encoding="utf-8") if abs_target_summary.exists() else None
         )
 
+        preview_files_changed = [
+            *[cast(str, prepared["source_path"]) for prepared in prepared_files],
+            *[cast(str, prepared["target_path"]) for prepared in prepared_files],
+            *([source_summary_path] if abs_source_summary.exists() else []),
+            *([target_summary_path] if abs_target_summary.exists() else []),
+        ]
+        preview_files_changed = list(dict.fromkeys(preview_files_changed))
+        new_state = {
+            "source_folder": source_folder,
+            "target_folder": dest_folder,
+            "promoted_count": len(prepared_files),
+            "trust": trust_level,
+            "planned_moves": planned_moves,
+            "dry_run": dry_run,
+        }
+        operation_arguments = {
+            "source_folder": source_folder,
+            "dest_folder": dest_folder,
+            "trust_level": trust_level,
+            "reason": reason,
+        }
+        preview_payload = build_governed_preview(
+            mode="preview" if dry_run else "apply",
+            change_class="proposed",
+            summary=f"Promote reviewed subtree {source_folder} into {dest_folder}.",
+            reasoning="Subtree promotion is a proposed durable-memory write because it elevates trust and reshapes future retrieval paths across multiple files.",
+            target_files=[
+                *[
+                    preview_target(move["source_path"], "move_from")
+                    for move in planned_moves
+                ],
+                *[
+                    preview_target(
+                        move["target_path"],
+                        "move_to",
+                        from_path=move["source_path"],
+                    )
+                    for move in planned_moves
+                ],
+                *([preview_target(source_summary_path, "update")] if abs_source_summary.exists() else []),
+                *([preview_target(target_summary_path, "update")] if abs_target_summary.exists() else []),
+            ],
+            invariant_effects=[
+                "Preserves nested paths relative to the source subtree while promoting reviewed files into verified knowledge.",
+                "Refreshes trust and last_verified for each promoted file before moving it.",
+                "Requires a fresh preview receipt before apply mode can publish the subtree move.",
+            ],
+            commit_message=(
+                f"[curation] Promote subtree {source_folder} -> {dest_folder} "
+                f"({len(prepared_files)} files, trust: {trust_level}"
+                f"{'; reason: ' + reason if reason else ''})"
+            ),
+            resulting_state=new_state,
+            warnings=[],
+        )
+        preview_payload, required_preview_token = attach_preview_requirement(
+            preview_payload,
+            repo,
+            tool_name="memory_promote_knowledge_subtree",
+            operation_arguments=operation_arguments,
+        )
+        if dry_run:
+            return MemoryWriteResult(
+                files_changed=preview_files_changed,
+                commit_sha=None,
+                commit_message=None,
+                new_state={**new_state, "preview_token": required_preview_token},
+                warnings=[],
+                preview=preview_payload,
+            ).to_json()
+
+        require_preview_token(
+            repo,
+            tool_name="memory_promote_knowledge_subtree",
+            operation_arguments=operation_arguments,
+            preview_token=preview_token,
+        )
+
+        today = today_str()
+        files_changed: list[str] = []
+        promoted_files: list[str] = []
+
         for prepared in prepared_files:
             source_path = cast(str, prepared["source_path"])
             abs_source = cast(Path, prepared["abs_source"])
@@ -717,6 +790,13 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
             fm_dict["trust"] = trust_level
             fm_dict["last_verified"] = today
+            rendered = render_with_frontmatter(fm_dict, body)
+            require_guarded_write_pass(
+                path=source_path,
+                operation="write",
+                root=root,
+                content=rendered,
+            )
             write_with_frontmatter(abs_source, fm_dict, body)
             repo.add(source_path)
 
@@ -784,6 +864,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 "dry_run": False,
             },
             warnings=warnings,
+            preview=preview_payload,
         )
         return result.to_json()
 

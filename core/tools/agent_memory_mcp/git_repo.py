@@ -136,6 +136,15 @@ class GitRepo:
             self.content_prefix = ""
             self.content_root = self.root
 
+    def engram_state_dir(self, *parts: str, create: bool = False) -> Path:
+        """Return a path under the repo-local untracked Engram state directory."""
+        path = self.git_dir / "engram"
+        if parts:
+            path = path.joinpath(*parts)
+        if create:
+            path.mkdir(parents=True, exist_ok=True)
+        return path
+
     # ------------------------------------------------------------------
     # Path translation (content-relative <-> git-relative)
     # ------------------------------------------------------------------

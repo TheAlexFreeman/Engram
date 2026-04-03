@@ -18,9 +18,11 @@ from ...path_policy import (
 )
 from ...preview_contract import (
     attach_approval_requirement,
+    attach_preview_requirement,
     build_governed_preview,
     preview_target,
     require_approval_token,
+    require_preview_token,
 )
 from ...tool_schemas import ACCESS_MODES, REVIEW_PRIORITIES
 
@@ -2396,6 +2398,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         repo = get_repo()
         preview = _build_revert_preview(repo, sha)
+        operation_arguments = {"sha": str(preview["resolved_sha"])}
         preview_payload = build_governed_preview(
             mode="preview" if not confirm else "apply",
             change_class="protected",
@@ -2412,27 +2415,29 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             resulting_state=cast(dict[str, Any], preview),
             warnings=cast(list[str], preview["policy_reasons"]),
         )
+        preview_payload, required_preview_token = attach_preview_requirement(
+            preview_payload,
+            repo,
+            tool_name="memory_revert_commit",
+            operation_arguments=operation_arguments,
+        )
         if not confirm:
             result = MemoryWriteResult(
                 files_changed=cast(list[str], preview["files_changed"]),
                 commit_sha=None,
                 commit_message=None,
-                new_state={"mode": "preview", **preview},
+                new_state={"mode": "preview", **preview, "preview_token": required_preview_token},
                 warnings=cast(list[str], preview["policy_reasons"]),
                 preview=preview_payload,
             )
             return result.to_json()
 
-        if not preview_token:
-            raise ValidationError(
-                "preview_token is required when confirm=True. Call memory_revert_commit with confirm=False first."
-            )
-
-        current_head = repo.current_head()
-        if preview_token != current_head:
-            raise ValidationError(
-                "Repository HEAD changed since preview. Re-run memory_revert_commit with confirm=False and review the new preview."
-            )
+        require_preview_token(
+            repo,
+            tool_name="memory_revert_commit",
+            operation_arguments=operation_arguments,
+            preview_token=preview_token,
+        )
 
         if not bool(preview["applies_cleanly"]):
             conflict_details = str(preview["conflict_details"] or "")

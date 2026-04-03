@@ -329,7 +329,7 @@ These are the governed semantic operations. Most are the normal write path and u
 | `memory_scan_drop_zone` | Scan configured `[[watch_folders]]` entries from `agent-bootstrap.toml` and bulk-stage new `.md`, `.txt`, or `.pdf` content into project inboxes. |
 | `memory_run_eval` | Run declarative offline eval scenarios from `memory/skills/eval-scenarios/` and record compact eval summary spans. |
 | `memory_eval_report` | Read historical eval runs from trace spans and aggregate summary metrics and trends. |
-| `memory_register_tool` | Register or update an external tool definition in the tool registry. Returns action ("created"\|"updated") and registry_file path. |
+| `memory_register_tool` | Register or update an external tool definition in the tool registry. Protected apply mode requires a preview-issued `approval_token`. Returns action ("created"\|"updated") and `registry_file`. |
 | `memory_get_tool_policy` | Query the tool registry by tool name, provider, tags, or cost tier. Returns matching definitions. |
 | `memory_request_approval` | Create a pending approval document for a plan phase and pause the plan. Returns approval_file, expires, and plan_status. |
 | `memory_resolve_approval` | Approve or reject a pending approval. Moves document to resolved/, updates plan status to active (approve) or blocked (reject). |
@@ -487,6 +487,8 @@ Returns `{runs, summary, metrics, trends}` sourced from existing `eval:*` trace 
 | `timeout_seconds` | int | Expected invocation timeout (default 30). |
 | `tags` | list[str] \| null | Categorization tags (e.g. `["lint", "test"]`). |
 | `notes` | str \| null | Usage notes, gotchas, or warnings. |
+| `preview` | bool | When true, return the governed preview envelope and an opaque `approval_token` instead of writing. |
+| `approval_token` | str \| null | Preview-issued receipt required when applying the protected change. |
 
 Returns `{tool_name, provider, registry_file, action}` where `action` is `"created"` or `"updated"`. SUMMARY.md at `memory/skills/tool-registry/SUMMARY.md` is regenerated on every call.
 
@@ -546,7 +548,7 @@ Plan statuses now include `paused` (awaiting human approval), in addition to `dr
 | `memory_add_knowledge_file` | Create a new knowledge file with proper frontmatter. |
 | `memory_promote_knowledge` | Move a file from `_unverified/` to a verified domain folder. |
 | `memory_promote_knowledge_batch` | Batch promotion of multiple knowledge files. |
-| `memory_promote_knowledge_subtree` | Promote an entire subtree of knowledge files. |
+| `memory_promote_knowledge_subtree` | Promote an entire subtree of knowledge files. `dry_run=true` returns planned moves plus a `preview_token`; apply mode requires that receipt. |
 | `memory_demote_knowledge` | Move knowledge to a lower trust tier. |
 | `memory_archive_knowledge` | Archive knowledge files to historical storage. |
 | `memory_mark_reviewed` | Mark a knowledge file as reviewed. |
@@ -589,8 +591,8 @@ Plan statuses now include `paused` (awaiting human approval), in addition to `dr
 | Tool | Description |
 | --- | --- |
 | `memory_append_scratchpad` | Append a section to the session scratchpad (CURRENT.md). |
-| `memory_update_skill` | Update a skill definition in the skills folder. |
-| `memory_update_user_trait` | Update a user trait in the identity file. |
+| `memory_update_skill` | Update a skill definition in the skills folder. Protected apply mode requires a preview-issued `approval_token`. |
+| `memory_update_user_trait` | Update a user trait in the identity file. Proposed apply mode now requires a preview-issued `preview_token`. |
 
 **Governance and safety**
 
@@ -598,8 +600,8 @@ Plan statuses now include `paused` (awaiting human approval), in addition to `dr
 | --- | --- |
 | `memory_flag_for_review` | Flag a file or item for the review queue. |
 | `memory_resolve_review_item` | Resolve a flagged review item. |
-| `memory_record_periodic_review` | Record a periodic review cycle. |
-| `memory_revert_commit` | Revert a memory commit with preview-first flow. |
+| `memory_record_periodic_review` | Record a periodic review cycle. Protected apply mode requires a preview-issued `approval_token`. |
+| `memory_revert_commit` | Revert a memory commit with preview-first flow. `confirm=true` requires the latest preview-issued `preview_token`. |
 
 ### Tier 2: Raw fallback tools
 

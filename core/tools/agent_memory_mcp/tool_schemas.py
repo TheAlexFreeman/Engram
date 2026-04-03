@@ -1141,9 +1141,23 @@ def promote_knowledge_subtree_input_schema() -> dict[str, Any]:
         tool_name="memory_promote_knowledge_subtree",
         title="memory_promote_knowledge_subtree input schema",
         required=["source_folder", "dest_folder"],
+        all_of=[
+            {
+                "if": {
+                    "anyOf": [
+                        {
+                            "required": ["dry_run"],
+                            "properties": {"dry_run": {"const": False}},
+                        },
+                        {"not": {"required": ["dry_run"]}},
+                    ]
+                },
+                "then": {"required": ["preview_token"]},
+            }
+        ],
         notes=[
             "Nested markdown paths are preserved relative to source_folder when constructing destination targets.",
-            "dry_run returns planned_moves without writing or staging anything.",
+            "dry_run returns the governed preview envelope, planned_moves, and a preview_token without writing or staging anything.",
         ],
         properties={
             "source_folder": {
@@ -1168,7 +1182,14 @@ def promote_knowledge_subtree_input_schema() -> dict[str, Any]:
             "dry_run": {
                 "type": "boolean",
                 "default": False,
-                "description": "When true, return planned_moves and counts without mutating files.",
+                "description": "When true, return planned_moves, counts, and a preview_token without mutating files.",
+            },
+            "preview_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Fresh preview receipt returned by dry_run=true; required when applying the subtree promotion.",
             },
         },
     )
@@ -1521,6 +1542,20 @@ def update_user_trait_input_schema() -> dict[str, Any]:
         tool_name="memory_update_user_trait",
         title="memory_update_user_trait input schema",
         required=["file", "key", "value"],
+        all_of=[
+            {
+                "if": {
+                    "anyOf": [
+                        {
+                            "required": ["preview"],
+                            "properties": {"preview": {"const": False}},
+                        },
+                        {"not": {"required": ["preview"]}},
+                    ]
+                },
+                "then": {"required": ["preview_token"]},
+            }
+        ],
         properties={
             "file": {
                 "type": "string",
@@ -1551,7 +1586,14 @@ def update_user_trait_input_schema() -> dict[str, Any]:
             "preview": {
                 "type": "boolean",
                 "default": False,
-                "description": "When true, return the governed preview envelope instead of writing.",
+                "description": "When true, return the governed preview envelope and preview_token instead of writing.",
+            },
+            "preview_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Fresh preview receipt required for proposed apply mode.",
             },
         },
     )
@@ -1566,11 +1608,23 @@ def update_skill_input_schema() -> dict[str, Any]:
             {
                 "if": {"properties": {"create_if_missing": {"const": True}}},
                 "then": {"required": ["source", "trust", "origin_session"]},
+            },
+            {
+                "if": {
+                    "anyOf": [
+                        {
+                            "required": ["preview"],
+                            "properties": {"preview": {"const": False}},
+                        },
+                        {"not": {"required": ["preview"]}},
+                    ]
+                },
+                "then": {"required": ["approval_token"]},
             }
         ],
         notes=[
             "When create_if_missing=false, source/trust/origin_session are ignored.",
-            "Protected apply mode requires the approval_token returned by preview mode.",
+            "Protected apply mode requires the opaque approval_token returned by preview mode.",
         ],
         properties={
             "file": {
@@ -1635,7 +1689,7 @@ def update_skill_input_schema() -> dict[str, Any]:
                     {"type": "string"},
                     {"type": "null"},
                 ],
-                "description": "Fresh preview approval token required for protected apply mode.",
+                "description": "Fresh preview-issued approval receipt required for protected apply mode.",
             },
         },
     )
@@ -1815,10 +1869,24 @@ def register_tool_input_schema() -> dict[str, Any]:
         tool_name="memory_register_tool",
         title="memory_register_tool input schema",
         required=["name", "description", "provider"],
+        all_of=[
+            {
+                "if": {
+                    "anyOf": [
+                        {
+                            "required": ["preview"],
+                            "properties": {"preview": {"const": False}},
+                        },
+                        {"not": {"required": ["preview"]}},
+                    ]
+                },
+                "then": {"required": ["approval_token"]},
+            }
+        ],
         notes=[
             "An existing provider/name pair is updated in place; otherwise a new registry entry is created.",
             "schema stores provider-specific parameter metadata; the runtime only requires it to be an object when supplied.",
-            "Protected apply mode requires the approval_token returned by preview mode.",
+            "Protected apply mode requires the opaque approval_token returned by preview mode.",
         ],
         properties={
             "name": {
@@ -1900,7 +1968,7 @@ def register_tool_input_schema() -> dict[str, Any]:
                     {"type": "string"},
                     {"type": "null"},
                 ],
-                "description": "Fresh preview approval token required for protected apply mode.",
+                "description": "Fresh preview-issued approval receipt required for protected apply mode.",
             },
         },
     )
@@ -1997,7 +2065,7 @@ def record_periodic_review_input_schema() -> dict[str, Any]:
         notes=[
             "active_stage may be blank to reuse the current active stage from the live router.",
             "review_queue_entries is appended verbatim when non-empty.",
-            "Protected apply mode requires the approval_token returned by preview mode.",
+            "Protected apply mode requires the opaque approval_token returned by preview mode.",
         ],
         properties={
             "review_date": {
@@ -2035,14 +2103,14 @@ def record_periodic_review_input_schema() -> dict[str, Any]:
             "preview": {
                 "type": "boolean",
                 "default": False,
-                "description": "When true, return the governed preview envelope and approval token instead of writing.",
+                "description": "When true, return the governed preview envelope and approval_token instead of writing.",
             },
             "approval_token": {
                 "oneOf": [
                     {"type": "string"},
                     {"type": "null"},
                 ],
-                "description": "Fresh preview approval token required for protected apply mode.",
+                "description": "Fresh preview-issued approval receipt required for protected apply mode.",
             },
         },
     )
@@ -2064,7 +2132,7 @@ def revert_commit_input_schema() -> dict[str, Any]:
         ],
         notes=[
             "Call with confirm=false first to receive eligibility details, conflict metadata, and the preview_token required for apply mode.",
-            "preview_token must come from a fresh preview at the current repository HEAD.",
+            "preview_token must come from a fresh preview receipt at the current repository HEAD.",
         ],
         properties={
             "sha": {
@@ -2082,7 +2150,7 @@ def revert_commit_input_schema() -> dict[str, Any]:
                     {"type": "string"},
                     {"type": "null"},
                 ],
-                "description": "Preview token returned by the latest preview run; required when confirm=true.",
+                "description": "Preview receipt returned by the latest preview run; required when confirm=true.",
             },
         },
     )

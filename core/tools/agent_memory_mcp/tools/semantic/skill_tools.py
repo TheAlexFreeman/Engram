@@ -88,7 +88,13 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         full create-if-missing and approval-token contract.
         """
         from ...errors import NotFoundError, ValidationError
-        from ...frontmatter_utils import read_with_frontmatter, today_str, write_with_frontmatter
+        from ...frontmatter_utils import (
+            read_with_frontmatter,
+            render_with_frontmatter,
+            today_str,
+            write_with_frontmatter,
+        )
+        from ...guard_pipeline import require_guarded_write_pass
         from ...models import MemoryWriteResult
 
         repo = get_repo()
@@ -195,6 +201,13 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             tool_name="memory_update_skill",
             operation_arguments=operation_arguments,
             approval_token=approval_token,
+        )
+        rendered = render_with_frontmatter(fm_dict, body)
+        require_guarded_write_pass(
+            path=rel_path,
+            operation="write",
+            root=repo.root,
+            content=rendered,
         )
         write_with_frontmatter(abs_path, fm_dict, body)
         repo.add(rel_path)

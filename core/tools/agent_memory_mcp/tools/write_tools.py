@@ -101,25 +101,16 @@ def register(
 ) -> dict[str, object]:
     """Register all Tier 2 low-level write tools and return their callables."""
 
-    from ..guard_pipeline import (
-        ContentSizeGuard,
-        FrontmatterGuard,
-        GuardContext,
-        GuardPipeline,
-        TrustBoundaryGuard,
-    )
-
-    _guard_pipeline = GuardPipeline([ContentSizeGuard(), FrontmatterGuard(), TrustBoundaryGuard()])
+    from ..guard_pipeline import require_guarded_write_pass
 
     def _run_guards(path: str, operation: str, content: str | None = None) -> None:
-        """Run the guard pipeline; raise ValidationError on block."""
-        from ..errors import ValidationError
-
-        ctx = GuardContext(path=path, operation=operation, root=get_root(), content=content)
-        result = _guard_pipeline.run(ctx)
-        if not result.allowed:
-            blocked = next(r for r in result.results if r.status in ("block", "require_approval"))
-            raise ValidationError(f"Blocked by {blocked.guard_name}: {blocked.message}")
+        """Run the shared guard pipeline; raise ValidationError on block."""
+        require_guarded_write_pass(
+            path=path,
+            operation=operation,
+            root=get_root(),
+            content=content,
+        )
 
     tracked_paths: list[str] = []
 
@@ -189,6 +180,17 @@ def register(
                 raise NotFoundError(f"Cannot check version_token: {path} does not exist")
             repo.check_version_token(path, version_token)
 
+        if abs_path.exists():
+            existing_content = abs_path.read_text(encoding="utf-8")
+            if existing_content == content:
+                result = MemoryWriteResult(
+                    files_changed=[],
+                    commit_sha=None,
+                    commit_message=None,
+                    new_state={"version_token": repo.hash_object(path), "changed": False},
+                )
+                return result.to_json()
+
         if create_dirs:
             abs_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -201,7 +203,7 @@ def register(
             files_changed=[path],
             commit_sha=None,
             commit_message=None,
-            new_state={"version_token": new_token},
+            new_state={"version_token": new_token, "changed": True},
         )
         return result.to_json()
 
@@ -276,6 +278,19 @@ def register(
             new_content = content.replace(old_string, new_string, 1)
 
         _run_guards(path, "write", content=new_content)
+        if new_content == content:
+            result = MemoryWriteResult(
+                files_changed=[],
+                commit_sha=None,
+                commit_message=None,
+                new_state={
+                    "version_token": repo.hash_object(path),
+                    "replacements": 0,
+                    "changed": False,
+                },
+            )
+            return result.to_json()
+
         abs_path.write_text(new_content, encoding="utf-8")
         repo.add(path)
         track_paths(path)
@@ -285,7 +300,11 @@ def register(
             files_changed=[path],
             commit_sha=None,
             commit_message=None,
-            new_state={"version_token": new_token, "replacements": count if replace_all else 1},
+            new_state={
+                "version_token": new_token,
+                "replacements": count if replace_all else 1,
+                "changed": True,
+            },
         )
         return result.to_json()
 
@@ -518,14 +537,17 @@ def register(
         _run_guards(path, "write", content=rendered)
         if changed:
             write_with_frontmatter(abs_path, updated_fm, body)
-        repo.add(path)
-        track_paths(path)
+            repo.add(path)
+            track_paths(path)
 
         result = MemoryWriteResult(
-            files_changed=[path],
+            files_changed=[path] if changed else [],
             commit_sha=None,
             commit_message=None,
-            new_state={"frontmatter": json.loads(json.dumps(updated_fm, default=str))},
+            new_state={
+                "frontmatter": json.loads(json.dumps(updated_fm, default=str)),
+                "changed": changed,
+            },
         )
         return result.to_json()
 

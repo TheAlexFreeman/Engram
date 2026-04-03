@@ -146,9 +146,16 @@ class AgentMemoryWriteToolTests(unittest.TestCase):
         return cast(dict[str, ToolCallable], tools)
 
     def _preview_tool(
-        self, tools: dict[str, ToolCallable], tool_name: str, **kwargs: Any
+        self,
+        tools: dict[str, ToolCallable],
+        tool_name: str,
+        *,
+        preview_argument: str = "preview",
+        **kwargs: Any,
     ) -> dict[str, Any]:
-        return json.loads(asyncio.run(tools[tool_name](preview=True, **kwargs)))
+        preview_kwargs = dict(kwargs)
+        preview_kwargs[preview_argument] = True
+        return json.loads(asyncio.run(tools[tool_name](**preview_kwargs)))
 
     def _approval_token_for(
         self,
@@ -158,6 +165,22 @@ class AgentMemoryWriteToolTests(unittest.TestCase):
     ) -> tuple[str, dict[str, Any]]:
         preview = self._preview_tool(tools, tool_name, **kwargs)
         return cast(str, preview["new_state"]["approval_token"]), preview
+
+    def _preview_token_for(
+        self,
+        tools: dict[str, ToolCallable],
+        tool_name: str,
+        *,
+        preview_argument: str = "preview",
+        **kwargs: Any,
+    ) -> tuple[str, dict[str, Any]]:
+        preview = self._preview_tool(
+            tools,
+            tool_name,
+            preview_argument=preview_argument,
+            **kwargs,
+        )
+        return cast(str, preview["new_state"]["preview_token"]), preview
 
     def _policy_contract_seed_files(self) -> dict[str, str]:
         return {
@@ -1078,8 +1101,9 @@ origin_session: manual
             text=True,
         ).stdout.strip()
 
-        self.assertTrue(payload["dry_run"])
-        self.assertEqual(payload["promoted_count"], 2)
+        self.assertTrue(payload["new_state"]["dry_run"])
+        self.assertEqual(payload["new_state"]["promoted_count"], 2)
+        self.assertIn("preview_token", payload["new_state"])
         self.assertEqual(before_count, after_count)
         self.assertEqual(status, "")
         self.assertTrue(
@@ -1091,7 +1115,7 @@ origin_session: manual
                 "source_path": "memory/knowledge/_unverified/mcp/nested/b-note.md",
                 "target_path": "memory/knowledge/tooling/nested/b-note.md",
             },
-            payload["planned_moves"],
+            payload["new_state"]["planned_moves"],
         )
 
     def test_promote_knowledge_subtree_moves_nested_files_in_single_commit(self) -> None:
@@ -1136,6 +1160,14 @@ origin_session: manual
             }
         )
         tools = self._create_tools(repo_root)
+        preview_token, _ = self._preview_token_for(
+            tools,
+            "memory_promote_knowledge_subtree",
+            preview_argument="dry_run",
+            source_folder="memory/knowledge/_unverified/mcp",
+            dest_folder="memory/knowledge/tooling",
+            trust_level="medium",
+        )
 
         before_count = int(
             subprocess.run(
@@ -1152,7 +1184,8 @@ origin_session: manual
                 tools["memory_promote_knowledge_subtree"](
                     source_folder="memory/knowledge/_unverified/mcp",
                     dest_folder="memory/knowledge/tooling",
-                    trust_level="high",
+                    trust_level="medium",
+                    preview_token=preview_token,
                 )
             )
         )
@@ -1180,7 +1213,7 @@ origin_session: manual
         self.assertFalse(
             (repo_root / "memory" / "knowledge" / "_unverified" / "mcp" / "a-note.md").exists()
         )
-        self.assertEqual(frontmatter["trust"], "high")
+        self.assertEqual(frontmatter["trust"], "medium")
         self.assertEqual(str(frontmatter["last_verified"]), str(date.today()))
         self.assertIn("memory/knowledge/tooling/a-note.md", verified_summary)
         self.assertIn("memory/knowledge/tooling/nested/b-note.md", verified_summary)
@@ -1216,13 +1249,22 @@ origin_session: manual
             }
         )
         tools = self._create_tools(repo_root)
+        preview_token, _ = self._preview_token_for(
+            tools,
+            "memory_promote_knowledge_subtree",
+            preview_argument="dry_run",
+            source_folder="memory/knowledge/_unverified/mcp",
+            dest_folder="memory/knowledge/tooling",
+            trust_level="medium",
+        )
 
         payload = json.loads(
             asyncio.run(
                 tools["memory_promote_knowledge_subtree"](
                     source_folder="memory/knowledge/_unverified/mcp",
                     dest_folder="memory/knowledge/tooling",
-                    trust_level="high",
+                    trust_level="medium",
+                    preview_token=preview_token,
                 )
             )
         )
@@ -1260,13 +1302,22 @@ origin_session: manual
             }
         )
         tools = self._create_tools(repo_root)
+        preview_token, _ = self._preview_token_for(
+            tools,
+            "memory_promote_knowledge_subtree",
+            preview_argument="dry_run",
+            source_folder="memory/knowledge/_unverified/mcp",
+            dest_folder="memory/knowledge/tooling",
+            trust_level="medium",
+        )
 
         payload = json.loads(
             asyncio.run(
                 tools["memory_promote_knowledge_subtree"](
                     source_folder="memory/knowledge/_unverified/mcp",
                     dest_folder="memory/knowledge/tooling",
-                    trust_level="high",
+                    trust_level="medium",
+                    preview_token=preview_token,
                 )
             )
         )
@@ -1908,6 +1959,45 @@ trust: medium
         self.assertEqual(frontmatter["origin_session"], "unknown")
         self.assertNotIn("last_verified", frontmatter)
 
+    def test_memory_update_frontmatter_noop_skips_staging_when_values_match(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic.md": """---
+source: unknown
+origin_session: unknown
+created: 2026-03-17
+trust: medium
+status: active
+---
+
+# Topic
+""",
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        payload = json.loads(
+            asyncio.run(
+                tools["memory_update_frontmatter"](
+                    path="memory/knowledge/topic.md",
+                    updates='{"status": "active"}',
+                )
+            )
+        )
+
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        self.assertEqual(payload["files_changed"], [])
+        self.assertFalse(payload["new_state"]["changed"])
+        self.assertEqual(payload["new_state"]["frontmatter"]["status"], "active")
+        self.assertEqual(staged, "")
+
     def test_memory_update_frontmatter_bulk_rejects_invalid_trust_without_staging(self) -> None:
         repo_root = self._init_repo(
             {
@@ -2155,6 +2245,7 @@ declared_gaps = []
         )
         self.assertEqual(payload["properties"]["timeout_seconds"]["minimum"], 1)
         self.assertEqual(payload["properties"]["schema"]["oneOf"][0]["type"], "object")
+        self.assertEqual(payload["allOf"][0]["then"]["required"], ["approval_token"])
         self.assertFalse(payload["properties"]["preview"]["default"])
 
     def test_memory_tool_schema_returns_periodic_review_contract(self) -> None:
@@ -2223,6 +2314,8 @@ declared_gaps = []
         self.assertEqual(payload["properties"]["trust_level"]["default"], "medium")
         self.assertEqual(payload["properties"]["reason"]["default"], "")
         self.assertFalse(payload["properties"]["dry_run"]["default"])
+        self.assertEqual(payload["allOf"][0]["then"]["required"], ["preview_token"])
+        self.assertEqual(payload["properties"]["preview_token"]["oneOf"][1]["type"], "null")
 
     def test_memory_tool_schema_returns_reorganize_path_contract(self) -> None:
         repo_root = self._init_repo({"README.md": "# Test\n"})
@@ -2570,6 +2663,8 @@ declared_gaps = []
         self.assertEqual(payload["required"], ["file", "key", "value"])
         self.assertEqual(payload["properties"]["mode"]["default"], "upsert")
         self.assertFalse(payload["properties"]["preview"]["default"])
+        self.assertEqual(payload["allOf"][0]["then"]["required"], ["preview_token"])
+        self.assertEqual(payload["properties"]["preview_token"]["oneOf"][1]["type"], "null")
 
     def test_memory_tool_schema_returns_update_skill_contract(self) -> None:
         repo_root = self._init_repo({"README.md": "# Test\n"})
@@ -2584,6 +2679,7 @@ declared_gaps = []
         self.assertEqual(
             payload["allOf"][0]["then"]["required"], ["source", "trust", "origin_session"]
         )
+        self.assertEqual(payload["allOf"][1]["then"]["required"], ["approval_token"])
         self.assertFalse(payload["properties"]["create_if_missing"]["default"])
 
     def test_memory_tool_schema_returns_list_plans_contract(self) -> None:
@@ -5203,12 +5299,21 @@ Structured.
         )
         tools = self._create_tools(repo_root)
 
+        preview_token, _ = self._preview_token_for(
+            tools,
+            "memory_update_user_trait",
+            file="profile",
+            key="tone",
+            value="Even more direct.",
+            mode="upsert",
+        )
         asyncio.run(
             tools["memory_update_user_trait"](
                 file="profile",
                 key="tone",
                 value="Even more direct.",
                 mode="upsert",
+                preview_token=preview_token,
             )
         )
 
@@ -5238,15 +5343,12 @@ Direct and concise.
         )
         tools = self._create_tools(repo_root)
 
-        preview = json.loads(
-            asyncio.run(
-                tools["memory_update_user_trait"](
-                    file="profile",
-                    key="tone",
-                    value="Even more direct.",
-                    preview=True,
-                )
-            )
+        preview_token, preview = self._preview_token_for(
+            tools,
+            "memory_update_user_trait",
+            file="profile",
+            key="tone",
+            value="Even more direct.",
         )
 
         self.assertIn(
@@ -5260,6 +5362,7 @@ Direct and concise.
                     file="profile",
                     key="tone",
                     value="Even more direct.",
+                    preview_token=preview_token,
                 )
             )
         )
@@ -5273,6 +5376,96 @@ Direct and concise.
             preview["preview"]["commit_suggestion"]["message"],
             applied["commit_message"],
         )
+
+    def test_memory_update_user_trait_requires_preview_token_for_apply(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/users/profile.md": """---
+source: user-stated
+origin_session: manual
+created: 2026-03-17
+trust: high
+---
+
+# Profile
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError) as ctx:
+            asyncio.run(
+                tools["memory_update_user_trait"](
+                    file="profile",
+                    key="tone",
+                    value="Even more direct.",
+                )
+            )
+
+        self.assertIn("preview_token is required", str(ctx.exception))
+
+    def test_memory_update_user_trait_rejects_invalid_provenance_until_repaired(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/users/profile.md": """---
+foo: bar
+---
+
+# Profile
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+        profile_path = repo_root / "memory" / "users" / "profile.md"
+
+        with self.assertRaises(self.errors.ValidationError) as ctx:
+            self._preview_tool(
+                tools,
+                "memory_update_user_trait",
+                file="profile",
+                key="tone",
+                value="Even more direct.",
+            )
+
+        self.assertIn("user frontmatter", str(ctx.exception))
+
+        profile_path.write_text(
+            """---
+source: user-stated
+origin_session: manual
+created: 2026-03-17
+trust: high
+---
+
+# Profile
+
+## tone
+
+Direct and concise.
+""",
+            encoding="utf-8",
+        )
+
+        preview_token, _ = self._preview_token_for(
+            tools,
+            "memory_update_user_trait",
+            file="profile",
+            key="tone",
+            value="Even more direct.",
+        )
+        payload = json.loads(
+            asyncio.run(
+                tools["memory_update_user_trait"](
+                    file="profile",
+                    key="tone",
+                    value="Even more direct.",
+                    preview_token=preview_token,
+                )
+            )
+        )
+
+        self.assertIsNotNone(payload["commit_sha"])
+        self.assertIn("Even more direct.", profile_path.read_text(encoding="utf-8"))
 
     def test_memory_record_chat_summary_rejects_noncanonical_session_id(self) -> None:
         repo_root = self._init_repo({"memory/activity/SUMMARY.md": "# Chats\n## Structure\n"})
@@ -6290,6 +6483,62 @@ Load compact context.
                 )
             )
 
+    def test_memory_update_skill_rejects_forged_approval_token(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/skills/session-start.md": """---
+source: user-stated
+origin_session: manual
+created: 2026-03-16
+last_verified: 2026-03-16
+trust: high
+---
+
+# Session Start
+
+## Steps
+
+Load compact context.
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        import hashlib
+
+        forged_token = hashlib.sha256(
+            json.dumps(
+                {
+                    "head": subprocess.run(
+                        ["git", "rev-parse", "HEAD"],
+                        cwd=self._git_root(repo_root),
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    ).stdout.strip(),
+                    "tool_name": "memory_update_skill",
+                    "arguments": {
+                        "file": "session-start",
+                        "section": "Steps",
+                        "content": "Load compact context and active plans.",
+                    },
+                },
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+
+        with self.assertRaises(self.errors.ValidationError) as ctx:
+            asyncio.run(
+                tools["memory_update_skill"](
+                    file="session-start",
+                    section="Steps",
+                    content="Load compact context and active plans.",
+                    approval_token=forged_token,
+                )
+            )
+
+        self.assertIn("approval_token is invalid or stale", str(ctx.exception))
+
     def test_memory_register_tool_preview_requires_token_and_apply_commits(self) -> None:
         repo_root = self._init_repo({"memory/skills/SUMMARY.md": "# Skills\n"})
         tools = self._create_tools(repo_root)
@@ -7299,6 +7548,64 @@ current_focus: Example project.
             (repo_root / "memory" / "knowledge" / "_unverified" / "test" / "note.md").exists()
         )
 
+    def test_memory_write_noop_skips_staging_when_content_matches(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/test.md": "# Note\n"})
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        read_payload = json.loads(
+            asyncio.run(tools["memory_read_file"](path="memory/knowledge/test.md"))
+        )
+        payload = json.loads(
+            asyncio.run(
+                tools["memory_write"](
+                    path="memory/knowledge/test.md",
+                    content="# Note\n",
+                )
+            )
+        )
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        self.assertEqual(payload["files_changed"], [])
+        self.assertFalse(payload["new_state"]["changed"])
+        self.assertEqual(payload["new_state"]["version_token"], read_payload["version_token"])
+        self.assertEqual(staged, "")
+
+    def test_memory_edit_noop_skips_staging_when_replacement_is_identical(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/test.md": "# Hello\n\nSome text.\n"})
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        read_payload = json.loads(
+            asyncio.run(tools["memory_read_file"](path="memory/knowledge/test.md"))
+        )
+        payload = json.loads(
+            asyncio.run(
+                tools["memory_edit"](
+                    path="memory/knowledge/test.md",
+                    old_string="Some text.",
+                    new_string="Some text.",
+                )
+            )
+        )
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=self._git_root(repo_root),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        self.assertEqual(payload["files_changed"], [])
+        self.assertFalse(payload["new_state"]["changed"])
+        self.assertEqual(payload["new_state"]["replacements"], 0)
+        self.assertEqual(payload["new_state"]["version_token"], read_payload["version_token"])
+        self.assertEqual(staged, "")
+
     # ------------------------------------------------------------------
     # P1: File size limits
     # ------------------------------------------------------------------
@@ -8087,7 +8394,8 @@ current_focus: Example project.
         self.assertEqual(new_state["mode"], "preview")
         self.assertTrue(new_state["eligible"])
         self.assertEqual(new_state["resolved_sha"], target_sha)
-        self.assertEqual(new_state["preview_token"], head_before)
+        self.assertIsInstance(new_state["preview_token"], str)
+        self.assertNotEqual(new_state["preview_token"], head_before)
         self.assertTrue(new_state["applies_cleanly"])
         self.assertEqual(new_state["conflict_details"], "")
         self.assertIn("memory/working/projects/demo.md", new_state["files_changed"])
@@ -10102,22 +10410,29 @@ trust: high
 
         # Make 5 successful updates (at the limit)
         for i in range(5):
+            preview_token, _ = self._preview_token_for(
+                tools,
+                "memory_update_user_trait",
+                file="profile",
+                key=f"trait_{i}",
+                value=f"value_{i}",
+            )
             asyncio.run(
                 tools["memory_update_user_trait"](
                     file="profile",
                     key=f"trait_{i}",
                     value=f"value_{i}",
+                    preview_token=preview_token,
                 )
             )
 
-        # The 6th update should raise the churn alarm
         with self.assertRaises(self.errors.ValidationError) as ctx:
-            asyncio.run(
-                tools["memory_update_user_trait"](
-                    file="profile",
-                    key="trait_6",
-                    value="value_6",
-                )
+            self._preview_tool(
+                tools,
+                "memory_update_user_trait",
+                file="profile",
+                key="trait_6",
+                value="value_6",
             )
         self.assertIn("churn alarm", str(ctx.exception).lower())
 
@@ -10139,11 +10454,19 @@ trust: high
 
         # Exhaust the counter
         for i in range(5):
+            preview_token, _ = self._preview_token_for(
+                tools,
+                "memory_update_user_trait",
+                file="profile",
+                key=f"trait_{i}",
+                value=f"value_{i}",
+            )
             asyncio.run(
                 tools["memory_update_user_trait"](
                     file="profile",
                     key=f"trait_{i}",
                     value=f"value_{i}",
+                    preview_token=preview_token,
                 )
             )
 
@@ -10153,11 +10476,19 @@ trust: high
         self.assertEqual(reset_payload["identity_updates_this_session"], 0)
 
         # Should now succeed
+        preview_token, _ = self._preview_token_for(
+            tools,
+            "memory_update_user_trait",
+            file="profile",
+            key="trait_after_reset",
+            value="allowed",
+        )
         asyncio.run(
             tools["memory_update_user_trait"](
                 file="profile",
                 key="trait_after_reset",
                 value="allowed",
+                preview_token=preview_token,
             )
         )
 
@@ -10182,13 +10513,37 @@ trust: high
 
         # Exhaust counter on instance A
         for i in range(5):
+            preview_token, _ = self._preview_token_for(
+                tools_a,
+                "memory_update_user_trait",
+                file="profile",
+                key=f"a_{i}",
+                value=f"v{i}",
+            )
             asyncio.run(
-                tools_a["memory_update_user_trait"](file="profile", key=f"a_{i}", value=f"v{i}")
+                tools_a["memory_update_user_trait"](
+                    file="profile",
+                    key=f"a_{i}",
+                    value=f"v{i}",
+                    preview_token=preview_token,
+                )
             )
 
         # Instance B counter is independent — should not be affected
+        preview_token, _ = self._preview_token_for(
+            tools_b,
+            "memory_update_user_trait",
+            file="profile",
+            key="b_0",
+            value="independent",
+        )
         asyncio.run(
-            tools_b["memory_update_user_trait"](file="profile", key="b_0", value="independent")
+            tools_b["memory_update_user_trait"](
+                file="profile",
+                key="b_0",
+                value="independent",
+                preview_token=preview_token,
+            )
         )
 
     # ------------------------------------------------------------------
