@@ -10,11 +10,14 @@ from .plan_approvals import APPROVAL_RESOLUTIONS
 from .plan_utils import (
     CHANGE_ACTION_ALIASES,
     CHANGE_ACTIONS,
+    COST_TIERS,
     PLAN_OUTCOMES,
     POSTCONDITION_TYPE_ALIASES,
     POSTCONDITION_TYPES,
     SOURCE_TYPE_ALIASES,
     SOURCE_TYPES,
+    TRACE_SPAN_TYPES,
+    TRACE_STATUSES,
     VERIFICATION_RESULT_STATUSES,
     _PLAN_SLUG_PATTERN,
     _SESSION_ID_PATTERN,
@@ -29,6 +32,7 @@ REVIEW_PRIORITIES = frozenset({"normal", "urgent"})
 REVIEW_VERDICTS = frozenset({"approve", "reject", "defer"})
 SKILL_CREATE_TRUST_LEVELS = frozenset({"high", "medium", "low"})
 UPDATE_MODES = frozenset({"upsert", "append", "replace"})
+PERIODIC_REVIEW_STAGES = frozenset({"Exploration", "Calibration", "Consolidation"})
 
 ToolSchemaBuilder = Callable[[], dict[str, Any]]
 
@@ -420,6 +424,283 @@ def promote_knowledge_batch_input_schema() -> dict[str, Any]:
     )
 
 
+def promote_knowledge_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_promote_knowledge",
+        title="memory_promote_knowledge input schema",
+        required=["source_path"],
+        notes=[
+            "target_path is optional; when omitted, the runtime infers the verified destination by replacing memory/knowledge/_unverified/ with memory/knowledge/.",
+            "summary_entry is optional; when provided, missing target sections in memory/knowledge/SUMMARY.md may be auto-created.",
+        ],
+        properties={
+            "source_path": {
+                "type": "string",
+                "description": "Repo-relative file path under memory/knowledge/_unverified/.",
+            },
+            "trust_level": {
+                "type": "string",
+                "enum": sorted(KNOWLEDGE_BATCH_TRUST_LEVELS),
+                "default": "high",
+                "description": "Trust level assigned to the promoted file.",
+            },
+            "target_path": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional explicit verified destination path under memory/knowledge/.",
+            },
+            "summary_entry": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional markdown summary entry inserted into memory/knowledge/SUMMARY.md.",
+            },
+            "version_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional optimistic-lock token returned by memory_read_file for the source file.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope instead of moving the file.",
+            },
+        },
+    )
+
+
+def promote_knowledge_subtree_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_promote_knowledge_subtree",
+        title="memory_promote_knowledge_subtree input schema",
+        required=["source_folder", "dest_folder"],
+        notes=[
+            "Nested markdown paths are preserved relative to source_folder when constructing destination targets.",
+            "dry_run returns planned_moves without writing or staging anything.",
+        ],
+        properties={
+            "source_folder": {
+                "type": "string",
+                "description": "Repo-relative folder under memory/knowledge/_unverified/ whose markdown subtree should be promoted.",
+            },
+            "dest_folder": {
+                "type": "string",
+                "description": "Destination folder under memory/knowledge/ where the subtree should be recreated.",
+            },
+            "trust_level": {
+                "type": "string",
+                "enum": sorted(KNOWLEDGE_BATCH_TRUST_LEVELS),
+                "default": "medium",
+                "description": "Trust level assigned to every promoted file in the subtree.",
+            },
+            "reason": {
+                "type": "string",
+                "default": "",
+                "description": "Optional freeform reason appended to the commit message.",
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return planned_moves and counts without mutating files.",
+            },
+        },
+    )
+
+
+def reorganize_path_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_reorganize_path",
+        title="memory_reorganize_path input schema",
+        required=["source", "dest"],
+        notes=[
+            "dry_run defaults to true and returns the governed preview envelope without mutating any files.",
+            "Apply mode aborts when preview warnings indicate destination conflicts.",
+            "Plain body-path mentions may be previewed as warnings even when they are not rewritten automatically.",
+        ],
+        properties={
+            "source": {
+                "type": "string",
+                "description": "Verified knowledge file or subtree path to move. Archive paths are also accepted.",
+            },
+            "dest": {
+                "type": "string",
+                "description": "Destination knowledge or archive path for the moved file or subtree.",
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": True,
+                "description": "When true, preview the reorganization plan; when false, apply the move and reference rewrites atomically.",
+            },
+        },
+    )
+
+
+def update_names_index_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_update_names_index",
+        title="memory_update_names_index input schema",
+        notes=[
+            "path defaults to memory/knowledge and must resolve to memory/knowledge or one of its subfolders.",
+            "The output path is always <path>/NAMES.md.",
+            "preview returns the governed preview envelope plus generated content_preview.",
+        ],
+        properties={
+            "path": {
+                "type": "string",
+                "default": "memory/knowledge",
+                "description": "Knowledge subtree whose names index should be refreshed.",
+            },
+            "version_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional optimistic-lock token checked when the destination NAMES.md already exists.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope and generated content_preview instead of writing.",
+            },
+        },
+    )
+
+
+def demote_knowledge_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_demote_knowledge",
+        title="memory_demote_knowledge input schema",
+        required=["source_path"],
+        notes=[
+            "source_path must point to a verified file under memory/knowledge/ and cannot already live under memory/knowledge/_unverified/.",
+            "The runtime infers the destination by moving the file under memory/knowledge/_unverified/ and resets trust to low.",
+            "preview returns the governed preview envelope without mutating files or summaries.",
+        ],
+        properties={
+            "source_path": {
+                "type": "string",
+                "description": "Repo-relative verified knowledge file path under memory/knowledge/.",
+            },
+            "reason": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional freeform reason appended to the commit message.",
+            },
+            "version_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional optimistic-lock token returned by memory_read_file for the source file.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope instead of demoting the file.",
+            },
+        },
+    )
+
+
+def archive_knowledge_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_archive_knowledge",
+        title="memory_archive_knowledge input schema",
+        required=["source_path"],
+        notes=[
+            "source_path may refer to verified or _unverified knowledge; the runtime preserves the path relative to memory/knowledge/ when moving under memory/knowledge/_archive/.",
+            "Archival removes the file from the active or unverified summary when that summary exists.",
+            "preview returns the governed preview envelope without mutating files or summaries.",
+        ],
+        properties={
+            "source_path": {
+                "type": "string",
+                "description": "Repo-relative knowledge file path under memory/knowledge/ or memory/knowledge/_unverified/.",
+            },
+            "reason": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional freeform reason appended to the commit message.",
+            },
+            "version_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional optimistic-lock token returned by memory_read_file for the source file.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope instead of archiving the file.",
+            },
+        },
+    )
+
+
+def add_knowledge_file_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_add_knowledge_file",
+        title="memory_add_knowledge_file input schema",
+        required=["path", "content", "source", "session_id"],
+        notes=[
+            "path must be under memory/knowledge/_unverified/ and existing files are rejected.",
+            "trust is fixed to low for new unverified knowledge files.",
+            "summary_entry defaults to the first H1 heading or the filename stem when omitted.",
+            "expires, when provided, must be an ISO date in YYYY-MM-DD format.",
+        ],
+        properties={
+            "path": {
+                "type": "string",
+                "description": "Repo-relative destination path under memory/knowledge/_unverified/.",
+            },
+            "content": {
+                "type": "string",
+                "description": "Markdown body written after generated frontmatter.",
+            },
+            "source": {
+                "type": "string",
+                "description": "Provenance string stored in frontmatter.",
+            },
+            "session_id": _session_id_string_schema(
+                description="Canonical memory/activity/YYYY/MM/DD/chat-NNN id.",
+            ),
+            "trust": {
+                "type": "string",
+                "enum": ["low"],
+                "default": "low",
+                "description": "Must remain low for new unverified knowledge.",
+            },
+            "summary_entry": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional summary text to insert into memory/knowledge/_unverified/SUMMARY.md.",
+            },
+            "expires": {
+                "oneOf": [
+                    {
+                        "type": "string",
+                        "format": "date",
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional ISO date (YYYY-MM-DD) recorded in frontmatter for time-bound knowledge.",
+            },
+        },
+    )
+
+
 def mark_reviewed_input_schema() -> dict[str, Any]:
     return _base_schema(
         tool_name="memory_mark_reviewed",
@@ -760,18 +1041,321 @@ def update_frontmatter_input_schema() -> dict[str, Any]:
     )
 
 
+def record_trace_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_record_trace",
+        title="memory_record_trace input schema",
+        required=["session_id", "span_type", "name", "status"],
+        notes=[
+            "metadata is sanitized before write: credential-like keys are redacted, long strings are truncated, deeply nested objects are stringified, and oversized payloads are reduced to top-level scalars.",
+            "cost usually comes from estimate_cost() as {tokens_in, tokens_out}, but arbitrary object payloads remain accepted for compatibility.",
+        ],
+        properties={
+            "session_id": _session_id_string_schema(
+                description="Canonical memory/activity/YYYY/MM/DD/chat-NNN id for the trace file.",
+            ),
+            "span_type": {
+                "type": "string",
+                "enum": sorted(TRACE_SPAN_TYPES),
+                "description": "Trace span classification.",
+            },
+            "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Short span name stored in TRACES.jsonl.",
+            },
+            "status": {
+                "type": "string",
+                "enum": sorted(TRACE_STATUSES),
+                "description": "Trace span outcome status.",
+            },
+            "duration_ms": {
+                "oneOf": [
+                    {"type": "integer", "minimum": 0},
+                    {"type": "null"},
+                ],
+                "description": "Optional span duration in milliseconds.",
+            },
+            "metadata": {
+                "oneOf": [
+                    {
+                        "type": "object",
+                        "additionalProperties": True,
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional metadata object. Nested content is sanitized before it is written.",
+            },
+            "cost": {
+                "anyOf": [
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["tokens_in", "tokens_out"],
+                        "properties": {
+                            "tokens_in": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Estimated input token count.",
+                            },
+                            "tokens_out": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Estimated output token count.",
+                            },
+                        },
+                    },
+                    {
+                        "type": "object",
+                        "additionalProperties": True,
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional usage metadata. estimate_cost() returns {tokens_in, tokens_out}; custom object payloads are also accepted.",
+            },
+            "parent_span_id": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional parent span id for nesting. Generated span ids are 12-character lowercase hex strings.",
+            },
+        },
+    )
+
+
+def register_tool_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_register_tool",
+        title="memory_register_tool input schema",
+        required=["name", "description", "provider"],
+        notes=[
+            "An existing provider/name pair is updated in place; otherwise a new registry entry is created.",
+            "schema stores provider-specific parameter metadata; the runtime only requires it to be an object when supplied.",
+            "Protected apply mode requires the approval_token returned by preview mode.",
+        ],
+        properties={
+            "name": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Tool name slug stored under the provider registry.",
+            },
+            "description": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Human-readable description of the external tool.",
+            },
+            "provider": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Provider slug naming the registry file.",
+            },
+            "approval_required": {
+                "type": "boolean",
+                "default": False,
+                "description": "Whether callers should obtain explicit approval before using the external tool.",
+            },
+            "cost_tier": {
+                "type": "string",
+                "enum": sorted(COST_TIERS),
+                "default": "free",
+                "description": "Qualitative cost bucket stored in the tool registry.",
+            },
+            "schema": {
+                "oneOf": [
+                    {
+                        "type": "object",
+                        "additionalProperties": True,
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional provider-specific parameter or JSON Schema metadata for the external tool.",
+            },
+            "rate_limit": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional rate limit hint such as '60/minute', '500/hour', or '1/session'.",
+            },
+            "timeout_seconds": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 30,
+                "description": "Timeout budget stored with the registry entry.",
+            },
+            "tags": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "minLength": 1,
+                        },
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional tag list used for registry queries and policy filtering.",
+            },
+            "notes": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional freeform operator notes stored with the registry entry.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope instead of writing.",
+            },
+            "approval_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Fresh preview approval token required for protected apply mode.",
+            },
+        },
+    )
+
+
+def record_periodic_review_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_record_periodic_review",
+        title="memory_record_periodic_review input schema",
+        required=["review_date", "assessment_summary", "belief_diff_entry"],
+        all_of=[
+            {
+                "if": {
+                    "anyOf": [
+                        {
+                            "required": ["preview"],
+                            "properties": {"preview": {"const": False}},
+                        },
+                        {"not": {"required": ["preview"]}},
+                    ]
+                },
+                "then": {"required": ["approval_token"]},
+            }
+        ],
+        notes=[
+            "active_stage may be blank to reuse the current active stage from the live router.",
+            "review_queue_entries is appended verbatim when non-empty.",
+            "Protected apply mode requires the approval_token returned by preview mode.",
+        ],
+        properties={
+            "review_date": {
+                "type": "string",
+                "pattern": r"^\d{4}-\d{2}-\d{2}$",
+                "format": "date",
+                "description": "ISO review date written into the live router and governance outputs.",
+            },
+            "assessment_summary": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Non-empty assessment text written into the active-stage block.",
+            },
+            "belief_diff_entry": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Markdown block appended to governance/belief-diff-log.md.",
+            },
+            "review_queue_entries": {
+                "type": "string",
+                "default": "",
+                "description": "Optional markdown block appended to governance/review-queue.md when non-empty.",
+            },
+            "active_stage": {
+                "oneOf": [
+                    {
+                        "type": "string",
+                        "enum": sorted(PERIODIC_REVIEW_STAGES),
+                    },
+                    {"type": "string", "const": ""},
+                ],
+                "default": "",
+                "description": "Optional active stage override. Use an empty string to retain the current stage.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope and approval token instead of writing.",
+            },
+            "approval_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Fresh preview approval token required for protected apply mode.",
+            },
+        },
+    )
+
+
+def revert_commit_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_revert_commit",
+        title="memory_revert_commit input schema",
+        required=["sha"],
+        all_of=[
+            {
+                "if": {
+                    "required": ["confirm"],
+                    "properties": {"confirm": {"const": True}},
+                },
+                "then": {"required": ["preview_token"]},
+            }
+        ],
+        notes=[
+            "Call with confirm=false first to receive eligibility details, conflict metadata, and the preview_token required for apply mode.",
+            "preview_token must come from a fresh preview at the current repository HEAD.",
+        ],
+        properties={
+            "sha": {
+                "type": "string",
+                "pattern": r"^[0-9a-fA-F]{4,64}$",
+                "description": "Commit SHA or unique prefix to inspect or revert.",
+            },
+            "confirm": {
+                "type": "boolean",
+                "default": False,
+                "description": "When false, return preview metadata only. When true, attempt the revert after token validation.",
+            },
+            "preview_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Preview token returned by the latest preview run; required when confirm=true.",
+            },
+        },
+    )
+
+
 TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
+    "memory_add_knowledge_file": add_knowledge_file_input_schema,
+    "memory_archive_knowledge": archive_knowledge_input_schema,
+    "memory_demote_knowledge": demote_knowledge_input_schema,
     "memory_flag_for_review": flag_for_review_input_schema,
     "memory_log_access_batch": log_access_batch_input_schema,
     "memory_mark_reviewed": mark_reviewed_input_schema,
     "memory_plan_create": plan_create_input_schema,
     "memory_plan_execute": plan_execute_input_schema,
+    "memory_promote_knowledge": promote_knowledge_input_schema,
     "memory_promote_knowledge_batch": promote_knowledge_batch_input_schema,
+    "memory_promote_knowledge_subtree": promote_knowledge_subtree_input_schema,
+    "memory_record_periodic_review": record_periodic_review_input_schema,
     "memory_record_session": record_session_input_schema,
+    "memory_record_trace": record_trace_input_schema,
+    "memory_register_tool": register_tool_input_schema,
+    "memory_reorganize_path": reorganize_path_input_schema,
     "memory_request_approval": request_approval_input_schema,
+    "memory_revert_commit": revert_commit_input_schema,
     "memory_resolve_approval": resolve_approval_input_schema,
     "memory_update_frontmatter": update_frontmatter_input_schema,
     "memory_update_frontmatter_bulk": update_frontmatter_bulk_input_schema,
+    "memory_update_names_index": update_names_index_input_schema,
     "memory_update_skill": update_skill_input_schema,
     "memory_update_user_trait": update_user_trait_input_schema,
 }
@@ -798,6 +1382,7 @@ __all__ = [
     "ACCESS_MODES",
     "FRONTMATTER_BULK_MAX_UPDATES",
     "KNOWLEDGE_BATCH_TRUST_LEVELS",
+    "PERIODIC_REVIEW_STAGES",
     "REVIEW_PRIORITIES",
     "REVIEW_VERDICTS",
     "SKILL_CREATE_TRUST_LEVELS",
@@ -805,17 +1390,28 @@ __all__ = [
     "UPDATE_MODES",
     "VERIFICATION_RESULT_STATUSES",
     "access_entry_input_schema",
+    "add_knowledge_file_input_schema",
+    "archive_knowledge_input_schema",
+    "demote_knowledge_input_schema",
     "get_tool_input_schema",
     "list_tool_schema_names",
     "log_access_batch_input_schema",
     "mark_reviewed_input_schema",
     "plan_execute_input_schema",
+    "promote_knowledge_input_schema",
     "promote_knowledge_batch_input_schema",
+    "promote_knowledge_subtree_input_schema",
     "request_approval_input_schema",
+    "record_periodic_review_input_schema",
     "record_session_input_schema",
+    "record_trace_input_schema",
+    "register_tool_input_schema",
+    "reorganize_path_input_schema",
+    "revert_commit_input_schema",
     "resolve_approval_input_schema",
     "update_frontmatter_input_schema",
     "update_frontmatter_bulk_input_schema",
+    "update_names_index_input_schema",
     "update_skill_input_schema",
     "update_user_trait_input_schema",
 ]

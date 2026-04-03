@@ -18,6 +18,30 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-04-02] Schema coverage expansion for knowledge lifecycle transitions
+
+**Changed:** Extended the shared `memory_tool_schema` registry to cover `memory_demote_knowledge`, `memory_archive_knowledge`, and `memory_add_knowledge_file`, including inferred destination behavior for demotion/archival, governed preview support, optimistic-lock version tokens, low-trust-only creation, canonical session ids, and optional ISO expiration dates. Updated the corresponding knowledge-tool docstrings plus the README and MCP guide coverage notes.
+**Reasoning:** After the promotion/reorganization pass, the remaining high-value knowledge write surfaces were lifecycle transitions and unverified file creation. Their real constraints are mostly hidden behind plain string parameters, so surfacing them through the shared registry reduces host guesswork without changing runtime behavior.
+**Approved by:** user
+
+## [2026-04-02] Schema coverage expansion for preview-first knowledge workflows
+
+**Changed:** Extended the shared `memory_tool_schema` registry to cover `memory_promote_knowledge`, `memory_promote_knowledge_subtree`, `memory_reorganize_path`, and `memory_update_names_index`, including inferred target behavior, dry-run defaults, and the fixed output-path contract for generated names indexes. Updated the corresponding knowledge-tool docstrings plus the README and MCP guide coverage notes.
+**Reasoning:** After the governance-flow pass, the main remaining opaque semantic writes were the knowledge workflows whose preview, dry-run, and path-inference behavior is not visible from outer type hints alone. Surfacing those contracts through the shared registry reduces caller guesswork without altering runtime semantics.
+**Approved by:** user
+
+## [2026-04-02] Schema coverage expansion for protected governance workflows
+
+**Changed:** Extended the shared `memory_tool_schema` registry to cover `memory_record_periodic_review` and `memory_revert_commit`, including the stage enum, preview/apply approval-token requirement, and revert preview-token confirmation flow. Added docstrings for both tools and refreshed the README and MCP guide coverage notes.
+**Reasoning:** After the earlier trace and tool-registry pass, the most important remaining opaque inputs were the protected governance tools whose write path depends on preview-time tokens and conditional arguments. Surfacing those contracts through the shared registry removes another source of host-side guesswork without changing runtime behavior.
+**Approved by:** user
+
+## [2026-04-02] Schema coverage expansion for traces and tool registry writes
+
+**Changed:** Extended the shared `memory_tool_schema` registry to cover `memory_record_trace` and `memory_register_tool`, including the canonical trace span enums, the sanitized metadata and cost payload guidance, and the protected tool-registry write fields. Updated the corresponding semantic-tool docstrings plus the README and MCP guide coverage notes.
+**Reasoning:** After the earlier plan, approval, ACCESS, and frontmatter passes, the remaining caller-facing opaque inputs were concentrated in trace logging and tool-registry registration. Surfacing those contracts through the same additive schema path removes another pair of guessy dict-shaped inputs without changing runtime behavior.
+**Approved by:** user
+
 ## [2026-04-02] Plan-schema parity for failure payloads and single-file frontmatter updates
 
 **Changed:** Moved the verification-result item schema into the shared plan-schema source so `memory_plan_schema`, `memory_tool_schema("memory_plan_create")`, and `engram-mcp plan create --json-schema` all expose the same typed failure payload shape. Extended the generic schema registry to cover `memory_update_frontmatter` in addition to the existing bulk frontmatter path, and updated the raw frontmatter tool docstring to point callers at `memory_tool_schema`.

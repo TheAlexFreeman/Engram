@@ -2114,6 +2114,183 @@ declared_gaps = []
         self.assertEqual(payload["required"], ["path", "updates"])
         self.assertEqual(payload["properties"]["updates"]["contentMediaType"], "application/json")
 
+    def test_memory_tool_schema_returns_trace_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_record_trace"))
+        )
+        recommended_cost = payload["properties"]["cost"]["anyOf"][0]
+
+        self.assertEqual(payload["tool_name"], "memory_record_trace")
+        self.assertEqual(
+            payload["properties"]["span_type"]["enum"],
+            [
+                "guardrail_check",
+                "plan_action",
+                "policy_violation",
+                "retrieval",
+                "tool_call",
+                "verification",
+            ],
+        )
+        self.assertTrue(payload["properties"]["metadata"]["oneOf"][0]["additionalProperties"])
+        self.assertEqual(recommended_cost["required"], ["tokens_in", "tokens_out"])
+        self.assertEqual(recommended_cost["properties"]["tokens_in"]["minimum"], 0)
+
+    def test_memory_tool_schema_returns_register_tool_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_register_tool"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_register_tool")
+        self.assertEqual(payload["required"], ["name", "description", "provider"])
+        self.assertEqual(
+            payload["properties"]["cost_tier"]["enum"],
+            ["free", "high", "low", "medium"],
+        )
+        self.assertEqual(payload["properties"]["timeout_seconds"]["minimum"], 1)
+        self.assertEqual(payload["properties"]["schema"]["oneOf"][0]["type"], "object")
+        self.assertFalse(payload["properties"]["preview"]["default"])
+
+    def test_memory_tool_schema_returns_periodic_review_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_record_periodic_review"))
+        )
+        apply_guard = payload["allOf"][0]
+        active_stage = payload["properties"]["active_stage"]["oneOf"][0]
+
+        self.assertEqual(payload["tool_name"], "memory_record_periodic_review")
+        self.assertEqual(
+            payload["required"],
+            ["review_date", "assessment_summary", "belief_diff_entry"],
+        )
+        self.assertEqual(
+            active_stage["enum"],
+            ["Calibration", "Consolidation", "Exploration"],
+        )
+        self.assertEqual(payload["properties"]["review_date"]["format"], "date")
+        self.assertEqual(apply_guard["then"]["required"], ["approval_token"])
+        self.assertFalse(payload["properties"]["preview"]["default"])
+
+    def test_memory_tool_schema_returns_revert_commit_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_revert_commit"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_revert_commit")
+        self.assertEqual(payload["required"], ["sha"])
+        self.assertEqual(payload["properties"]["sha"]["pattern"], r"^[0-9a-fA-F]{4,64}$")
+        self.assertFalse(payload["properties"]["confirm"]["default"])
+        self.assertEqual(payload["allOf"][0]["then"]["required"], ["preview_token"])
+        self.assertEqual(payload["properties"]["preview_token"]["oneOf"][1]["type"], "null")
+
+    def test_memory_tool_schema_returns_promote_knowledge_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_promote_knowledge"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_promote_knowledge")
+        self.assertEqual(payload["required"], ["source_path"])
+        self.assertEqual(payload["properties"]["trust_level"]["enum"], ["high", "medium"])
+        self.assertEqual(payload["properties"]["trust_level"]["default"], "high")
+        self.assertEqual(payload["properties"]["target_path"]["oneOf"][1]["type"], "null")
+        self.assertFalse(payload["properties"]["preview"]["default"])
+
+    def test_memory_tool_schema_returns_promote_subtree_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_promote_knowledge_subtree"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_promote_knowledge_subtree")
+        self.assertEqual(payload["required"], ["source_folder", "dest_folder"])
+        self.assertEqual(payload["properties"]["trust_level"]["default"], "medium")
+        self.assertEqual(payload["properties"]["reason"]["default"], "")
+        self.assertFalse(payload["properties"]["dry_run"]["default"])
+
+    def test_memory_tool_schema_returns_reorganize_path_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_reorganize_path"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_reorganize_path")
+        self.assertEqual(payload["required"], ["source", "dest"])
+        self.assertTrue(payload["properties"]["dry_run"]["default"])
+
+    def test_memory_tool_schema_returns_update_names_index_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_update_names_index"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_update_names_index")
+        self.assertEqual(payload["properties"]["path"]["default"], "memory/knowledge")
+        self.assertEqual(payload["properties"]["version_token"]["oneOf"][1]["type"], "null")
+        self.assertFalse(payload["properties"]["preview"]["default"])
+
+    def test_memory_tool_schema_returns_demote_knowledge_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_demote_knowledge"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_demote_knowledge")
+        self.assertEqual(payload["required"], ["source_path"])
+        self.assertEqual(payload["properties"]["reason"]["oneOf"][1]["type"], "null")
+        self.assertEqual(payload["properties"]["version_token"]["oneOf"][1]["type"], "null")
+        self.assertFalse(payload["properties"]["preview"]["default"])
+
+    def test_memory_tool_schema_returns_archive_knowledge_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_archive_knowledge"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_archive_knowledge")
+        self.assertEqual(payload["required"], ["source_path"])
+        self.assertEqual(payload["properties"]["reason"]["oneOf"][1]["type"], "null")
+        self.assertEqual(payload["properties"]["version_token"]["oneOf"][1]["type"], "null")
+        self.assertFalse(payload["properties"]["preview"]["default"])
+
+    def test_memory_tool_schema_returns_add_knowledge_file_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_add_knowledge_file"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_add_knowledge_file")
+        self.assertEqual(payload["required"], ["path", "content", "source", "session_id"])
+        self.assertEqual(payload["properties"]["trust"]["enum"], ["low"])
+        self.assertEqual(payload["properties"]["trust"]["default"], "low")
+        self.assertEqual(payload["properties"]["expires"]["oneOf"][0]["format"], "date")
+
     def test_memory_tool_schema_rejects_unknown_tool(self) -> None:
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
@@ -3939,6 +4116,51 @@ Secondary body.
                 )
             )
 
+    def test_memory_add_knowledge_file_writes_unverified_file_and_updates_summary(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/_unverified/SUMMARY.md": """# Unverified Knowledge
+
+<!-- section: django -->
+### Django
+
+---
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        result = json.loads(
+            asyncio.run(
+                tools["memory_add_knowledge_file"](
+                    path="memory/knowledge/_unverified/django/test.md",
+                    content="# Test Note\n\nBody\n",
+                    source="external-research",
+                    session_id="memory/activity/2026/03/19/chat-001",
+                    expires="2026-04-30",
+                )
+            )
+        )
+
+        file_text = (
+            repo_root / "memory" / "knowledge" / "_unverified" / "django" / "test.md"
+        ).read_text(encoding="utf-8")
+        summary_text = (
+            repo_root / "memory" / "knowledge" / "_unverified" / "SUMMARY.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertEqual(result["commit_message"], "[knowledge] Add test.md")
+        self.assertIn("version_token", result["new_state"])
+        self.assertIn("source: external-research", file_text)
+        self.assertIn("trust: low", file_text)
+        self.assertIn("origin_session: memory/activity/2026/03/19/chat-001", file_text)
+        self.assertIn("2026-04-30", file_text)
+        self.assertIn("# Test Note", file_text)
+        self.assertIn(
+            "**[test.md](memory/knowledge/_unverified/django/test.md)** — Test Note",
+            summary_text,
+        )
+
     def test_memory_plan_create_rejects_noncanonical_session_id(self) -> None:
         repo_root = self._init_repo(
             {
@@ -4282,6 +4504,156 @@ trust: low
             (repo_root / "memory" / "knowledge" / "_unverified" / "django" / "note.md").exists()
         )
         self.assertTrue((repo_root / "memory" / "knowledge" / "django" / "note.md").exists())
+        self.assertEqual(preview["preview"]["target_files"], applied["preview"]["target_files"])
+        self.assertEqual(
+            preview["preview"]["commit_suggestion"]["message"],
+            applied["commit_message"],
+        )
+
+    def test_memory_demote_knowledge_preview_does_not_move_file_and_matches_apply(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/django/note.md": """---
+created: 2026-03-20
+source: test
+trust: high
+last_verified: 2026-03-20
+---
+
+# Note
+""",
+                "memory/knowledge/SUMMARY.md": """# Knowledge
+
+<!-- section: django -->
+### Django
+- **[note.md](memory/knowledge/django/note.md)** — Note
+
+---
+""",
+                "memory/knowledge/_unverified/SUMMARY.md": """# Unverified Knowledge
+
+<!-- section: django -->
+### Django
+
+---
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        preview = json.loads(
+            asyncio.run(
+                tools["memory_demote_knowledge"](
+                    source_path="memory/knowledge/django/note.md",
+                    reason="needs review",
+                    preview=True,
+                )
+            )
+        )
+
+        self.assertTrue((repo_root / "memory" / "knowledge" / "django" / "note.md").exists())
+        self.assertFalse(
+            (repo_root / "memory" / "knowledge" / "_unverified" / "django" / "note.md").exists()
+        )
+        self.assertEqual(preview["preview"]["mode"], "preview")
+
+        applied = json.loads(
+            asyncio.run(
+                tools["memory_demote_knowledge"](
+                    source_path="memory/knowledge/django/note.md",
+                    reason="needs review",
+                )
+            )
+        )
+
+        demoted_text = (
+            repo_root / "memory" / "knowledge" / "_unverified" / "django" / "note.md"
+        ).read_text(encoding="utf-8")
+        verified_summary = (repo_root / "memory" / "knowledge" / "SUMMARY.md").read_text(
+            encoding="utf-8"
+        )
+        unverified_summary = (
+            repo_root / "memory" / "knowledge" / "_unverified" / "SUMMARY.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertFalse((repo_root / "memory" / "knowledge" / "django" / "note.md").exists())
+        self.assertTrue(
+            (repo_root / "memory" / "knowledge" / "_unverified" / "django" / "note.md").exists()
+        )
+        self.assertIn("trust: low", demoted_text)
+        self.assertIn("last_verified:", demoted_text)
+        self.assertNotIn("memory/knowledge/django/note.md", verified_summary)
+        self.assertIn("memory/knowledge/_unverified/django/note.md", unverified_summary)
+        self.assertIn("_(demoted)_", unverified_summary)
+        self.assertEqual(preview["preview"]["target_files"], applied["preview"]["target_files"])
+        self.assertEqual(
+            preview["preview"]["commit_suggestion"]["message"],
+            applied["commit_message"],
+        )
+
+    def test_memory_archive_knowledge_preview_does_not_move_file_and_matches_apply(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/django/note.md": """---
+created: 2026-03-20
+source: test
+trust: high
+last_verified: 2026-03-20
+---
+
+# Note
+""",
+                "memory/knowledge/SUMMARY.md": """# Knowledge
+
+<!-- section: django -->
+### Django
+- **[note.md](memory/knowledge/django/note.md)** — Note
+
+---
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        preview = json.loads(
+            asyncio.run(
+                tools["memory_archive_knowledge"](
+                    source_path="memory/knowledge/django/note.md",
+                    reason="stale",
+                    preview=True,
+                )
+            )
+        )
+
+        self.assertTrue((repo_root / "memory" / "knowledge" / "django" / "note.md").exists())
+        self.assertFalse(
+            (repo_root / "memory" / "knowledge" / "_archive" / "django" / "note.md").exists()
+        )
+        self.assertEqual(preview["preview"]["mode"], "preview")
+
+        applied = json.loads(
+            asyncio.run(
+                tools["memory_archive_knowledge"](
+                    source_path="memory/knowledge/django/note.md",
+                    reason="stale",
+                )
+            )
+        )
+
+        archived_text = (
+            repo_root / "memory" / "knowledge" / "_archive" / "django" / "note.md"
+        ).read_text(encoding="utf-8")
+        summary_text = (repo_root / "memory" / "knowledge" / "SUMMARY.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertFalse((repo_root / "memory" / "knowledge" / "django" / "note.md").exists())
+        self.assertTrue(
+            (repo_root / "memory" / "knowledge" / "_archive" / "django" / "note.md").exists()
+        )
+        self.assertIn("status: archived", archived_text)
+        self.assertIn("last_verified:", archived_text)
+        self.assertNotIn("memory/knowledge/django/note.md", summary_text)
         self.assertEqual(preview["preview"]["target_files"], applied["preview"]["target_files"])
         self.assertEqual(
             preview["preview"]["commit_suggestion"]["message"],

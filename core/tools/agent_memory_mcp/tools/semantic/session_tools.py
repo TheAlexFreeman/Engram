@@ -2152,6 +2152,15 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         preview: bool = False,
         approval_token: str | None = None,
     ) -> str:
+        """Record approved periodic-review outputs in one protected commit.
+
+        Updates the live router's last-review date and active-stage assessment,
+        appends the supplied belief-diff entry, and optionally appends review
+        queue follow-up items. active_stage may be blank to retain the current
+        stage from the live router. Use preview=True first to receive the
+        approval_token required for apply mode. Use memory_tool_schema for the
+        machine-readable contract.
+        """
         from ...errors import NotFoundError, ValidationError
         from ...models import MemoryWriteResult
 
@@ -2305,6 +2314,13 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         confirm: bool = False,
         preview_token: str | None = None,
     ) -> str:
+        """Preview or confirm reversion of a governed commit.
+
+        Call with confirm=False first to receive eligibility details,
+        conflict metadata, and the preview_token required for apply mode.
+        confirm=True requires that preview_token from a fresh preview at the
+        current HEAD. Use memory_tool_schema for the machine-readable contract.
+        """
         import re as _re
 
         from ...errors import ValidationError

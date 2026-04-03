@@ -571,6 +571,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         Prefer this over memory_promote_knowledge_batch when the source is a
         nested folder hierarchy rather than a flat batch.
+        Use memory_tool_schema for the machine-readable contract.
         """
         from ...errors import NotFoundError, ValidationError
         from ...frontmatter_utils import (
@@ -785,7 +786,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         dest: str,
         dry_run: bool = True,
     ) -> str:
-        """Move a verified knowledge file or subtree and update governed references atomically."""
+        """Move a verified knowledge file or subtree and update governed references atomically.
+
+        dry_run defaults to True and returns the governed preview envelope
+        without mutating files. Use memory_tool_schema for the machine-readable
+        contract.
+        """
         from ...errors import NotFoundError, ValidationError
         from ...models import MemoryWriteResult
 
@@ -978,6 +984,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         See also: memory_promote_knowledge_batch to promote multiple files in one
         call, and memory_promote_knowledge_subtree to promote an entire folder tree.
+        Use memory_tool_schema for the machine-readable contract.
         """
         from ...errors import NotFoundError, ValidationError
         from ...frontmatter_utils import (
@@ -1158,6 +1165,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         memory_generate_names_index, but through the governed semantic write
         path. It only writes to the conventional target ``<path>/NAMES.md`` and
         supports preview before applying the durable update.
+        Use memory_tool_schema for the machine-readable contract.
         """
         from ...errors import ValidationError
         from ...models import MemoryWriteResult
@@ -1248,7 +1256,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         Use this when a promoted file should re-enter the review queue. Prefer
         memory_archive_knowledge when the file should leave active review rather
-        than be reconsidered.
+        than be reconsidered. Call memory_tool_schema with
+        tool_name="memory_demote_knowledge" for the full preview/version-token
+        contract.
         """
         from ...errors import NotFoundError, ValidationError
         from ...frontmatter_utils import (
@@ -1405,7 +1415,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         Use this when content should leave the active retrieval path without
         being deleted from git history. Prefer demotion if the file still needs
-        active review.
+        active review. Call memory_tool_schema with
+        tool_name="memory_archive_knowledge" for the full preview/version-token
+        contract.
         """
         from ...errors import NotFoundError
         from ...frontmatter_utils import (
@@ -1546,7 +1558,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         Use this for new material that has not yet been explicitly reviewed.
         The file is always written under memory/knowledge/_unverified and indexed in
         the unverified summary when possible. Use a promotion tool only after
-        review.
+        review. Call memory_tool_schema with tool_name="memory_add_knowledge_file"
+        for the low-trust/session-id/expires contract.
 
         Args:
             expires: Optional ISO date (YYYY-MM-DD) for explicit expiration.

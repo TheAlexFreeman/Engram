@@ -1542,6 +1542,13 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         non-blocking — the tool returns a failed status rather than raising if
         writing fails for any reason.
 
+        metadata is sanitized before write: credential-like keys are redacted,
+        long strings are truncated, deeply nested objects are stringified, and
+        oversized payloads are reduced to top-level scalar fields.
+        cost is optional usage metadata; tool-generated spans typically use
+        {tokens_in, tokens_out} from estimate_cost(). Use memory_tool_schema
+        for the machine-readable contract.
+
         span_type must be one of: tool_call, plan_action, retrieval,
         verification, guardrail_check.
         status must be one of: ok, error, denied.
@@ -2471,6 +2478,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         Creates a new entry if the tool name is unknown for this provider, or
         replaces the existing entry if it already exists. SUMMARY.md is
         regenerated after every call.
+
+        schema stores optional provider-specific parameter metadata and must be
+        a JSON object when supplied. Use memory_tool_schema for the
+        machine-readable contract.
 
         Returns JSON with ``tool_name``, ``provider``, ``registry_file``,
         and ``action`` ("created" or "updated").
