@@ -84,6 +84,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         mode must be one of "upsert", "append", or "replace".
         When create_if_missing=True, source, trust, and origin_session are required.
+        Call memory_tool_schema with tool_name="memory_update_skill" for the
+        full create-if-missing and approval-token contract.
         """
         from ...errors import NotFoundError, ValidationError
         from ...frontmatter_utils import read_with_frontmatter, today_str, write_with_frontmatter

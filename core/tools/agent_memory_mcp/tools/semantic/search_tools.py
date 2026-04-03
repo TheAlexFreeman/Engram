@@ -465,7 +465,8 @@ def register_tools(
 
         The embedding index is built lazily on first search and updated
         incrementally on subsequent calls. Use ``memory_reindex`` to force
-        a full rebuild.
+        a full rebuild. Call ``memory_tool_schema`` with
+        ``"memory_semantic_search"`` for the filter and weighting contract.
 
         Args:
             query:              Natural language search query.
@@ -650,6 +651,9 @@ def register_tools(
         re-embed everything.
 
         Requires ``sentence-transformers``.
+
+        Call ``memory_tool_schema`` with ``"memory_reindex"`` for the
+        incremental-versus-full rebuild contract.
 
         Args:
             force: Re-index all files regardless of modification time.

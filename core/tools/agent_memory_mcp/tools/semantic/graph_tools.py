@@ -40,6 +40,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         centrality, small-world σ, per-domain density, bridges, hubs,
         and orphans.
 
+          Call ``memory_tool_schema`` with ``"memory_analyze_graph"`` to
+          inspect the scope and detail-toggle contract from an MCP client.
+
         Args:
             path: Optional scope — a domain folder like ``"knowledge/mathematics"``
                   or empty string for the full knowledge base.
@@ -86,6 +89,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         Removes: Connections entries that duplicate body links, duplicate
         body links (keeping first occurrence), duplicate Connections
         entries, and empty Connections sections.
+
+          Call ``memory_tool_schema`` with ``"memory_prune_redundant_links"``
+          to inspect the supported scope and dry-run contract from an MCP
+          client.
 
         Args:
             path: Optional scope — a domain folder like ``"knowledge/mathematics"``
@@ -155,6 +162,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         where some cross-references may be purely mechanical rather than
         genuinely useful for navigation.
 
+        Call ``memory_tool_schema`` with ``"memory_audit_link_density"`` to
+        inspect the path and threshold contract. Values below 1 for
+        ``degree_threshold`` are clamped before the audit runs.
+
         Args:
             path: Optional scope — a domain folder like
                   ``"knowledge/rationalist-community"`` or empty for the full
@@ -202,6 +213,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         co-citation, body mentions) and/or access-log co-occurrence to
         identify weak links.  Always runs as ``dry_run=True`` by default;
         set ``dry_run=False`` to apply changes and commit.
+
+        Call ``memory_tool_schema`` with ``"memory_prune_weak_links"`` to
+        inspect the path-versus-scope precedence, signal enum, and dry-run
+        contract from an MCP client.
 
         Args:
             path: Restrict to a single file.  Overrides *scope*.

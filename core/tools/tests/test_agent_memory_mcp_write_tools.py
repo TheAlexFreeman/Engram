@@ -2291,6 +2291,403 @@ declared_gaps = []
         self.assertEqual(payload["properties"]["trust"]["default"], "low")
         self.assertEqual(payload["properties"]["expires"]["oneOf"][0]["format"], "date")
 
+    def test_memory_tool_schema_returns_checkpoint_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_checkpoint"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_checkpoint")
+        self.assertEqual(payload["required"], ["content"])
+        self.assertEqual(payload["properties"]["label"]["default"], "")
+        self.assertEqual(payload["properties"]["session_id"]["oneOf"][1]["const"], "")
+
+    def test_memory_tool_schema_returns_append_scratchpad_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_append_scratchpad"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_append_scratchpad")
+        self.assertEqual(payload["required"], ["target", "content"])
+        self.assertEqual(payload["properties"]["target"]["oneOf"][0]["enum"], ["user", "current"])
+        self.assertEqual(payload["properties"]["section"]["oneOf"][1]["type"], "null")
+
+    def test_memory_tool_schema_returns_record_chat_summary_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_record_chat_summary"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_record_chat_summary")
+        self.assertEqual(payload["required"], ["session_id", "summary"])
+        self.assertEqual(payload["properties"]["key_topics"]["default"], "")
+
+    def test_memory_tool_schema_returns_record_reflection_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_record_reflection"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_record_reflection")
+        self.assertEqual(
+            payload["required"],
+            [
+                "session_id",
+                "memory_retrieved",
+                "memory_influence",
+                "outcome_quality",
+                "gaps_noticed",
+            ],
+        )
+        self.assertEqual(payload["properties"]["system_observations"]["default"], "")
+
+    def test_memory_tool_schema_returns_resolve_review_item_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_resolve_review_item"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_resolve_review_item")
+        self.assertEqual(payload["required"], ["item_id"])
+        self.assertEqual(payload["properties"]["version_token"]["oneOf"][1]["type"], "null")
+        self.assertFalse(payload["properties"]["preview"]["default"])
+
+    def test_memory_tool_schema_returns_plan_resume_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_plan_resume"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_plan_resume")
+        self.assertEqual(payload["required"], ["plan_id", "session_id"])
+        self.assertEqual(payload["properties"]["max_context_chars"]["default"], 8000)
+        self.assertEqual(payload["properties"]["max_context_chars"]["minimum"], 0)
+
+    def test_memory_tool_schema_returns_plan_review_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_plan_review"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_plan_review")
+        self.assertEqual(payload["required"], ["project_id"])
+        self.assertEqual(payload["allOf"][0]["then"]["required"], ["session_id"])
+        self.assertFalse(payload["properties"]["preview"]["default"])
+
+    def test_memory_tool_schema_returns_stage_external_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_stage_external"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_stage_external")
+        self.assertEqual(
+            payload["required"],
+            ["project", "filename", "content", "source_url", "fetched_date", "source_label"],
+        )
+        self.assertEqual(payload["properties"]["fetched_date"]["format"], "date")
+        self.assertFalse(payload["properties"]["dry_run"]["default"])
+
+    def test_memory_tool_schema_returns_run_eval_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(asyncio.run(tools["memory_tool_schema"](tool_name="memory_run_eval")))
+
+        self.assertEqual(payload["tool_name"], "memory_run_eval")
+        self.assertEqual(payload["required"], ["session_id"])
+        self.assertEqual(payload["properties"]["scenario_id"]["oneOf"][1]["type"], "null")
+        self.assertEqual(payload["properties"]["tag"]["oneOf"][1]["type"], "null")
+
+    def test_memory_tool_schema_returns_eval_report_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_eval_report"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_eval_report")
+        self.assertEqual(payload["properties"]["date_from"]["oneOf"][0]["format"], "date")
+        self.assertEqual(payload["properties"]["scenario_id"]["oneOf"][1]["type"], "null")
+
+    def test_memory_tool_schema_returns_log_access_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_log_access"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_log_access")
+        self.assertEqual(payload["required"], ["file", "task", "helpfulness", "note"])
+        self.assertEqual(payload["properties"]["helpfulness"]["maximum"], 1.0)
+        self.assertEqual(payload["properties"]["mode"]["oneOf"][1]["type"], "null")
+        self.assertEqual(payload["properties"]["min_helpfulness"]["oneOf"][1]["type"], "null")
+
+    def test_memory_tool_schema_returns_run_aggregation_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_run_aggregation"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_run_aggregation")
+        self.assertEqual(
+            payload["properties"]["folders"]["oneOf"][0]["items"]["enum"],
+            [
+                "memory/users",
+                "memory/knowledge",
+                "memory/knowledge/_unverified",
+                "memory/skills",
+                "memory/working/projects",
+                "memory/activity",
+            ],
+        )
+        self.assertTrue(payload["properties"]["dry_run"]["default"])
+
+    def test_memory_tool_schema_returns_session_flush_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_session_flush"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_session_flush")
+        self.assertEqual(payload["required"], ["summary"])
+        self.assertEqual(payload["properties"]["label"]["default"], "")
+        self.assertEqual(payload["properties"]["trigger"]["default"], "context_pressure")
+        self.assertEqual(payload["properties"]["session_id"]["oneOf"][1]["const"], "")
+
+    def test_memory_tool_schema_returns_reset_session_state_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_reset_session_state"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_reset_session_state")
+        self.assertEqual(payload["properties"], {})
+        self.assertFalse("required" in payload)
+
+    def test_memory_tool_schema_returns_prune_redundant_links_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_prune_redundant_links"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_prune_redundant_links")
+        self.assertEqual(payload["properties"]["path"]["default"], "")
+        self.assertTrue(payload["properties"]["dry_run"]["default"])
+
+    def test_memory_tool_schema_returns_audit_link_density_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_audit_link_density"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_audit_link_density")
+        self.assertEqual(payload["properties"]["path"]["default"], "")
+        self.assertEqual(payload["properties"]["degree_threshold"]["default"], 6)
+        self.assertEqual(payload["properties"]["clustering_threshold"]["default"], 0.5)
+
+    def test_memory_tool_schema_returns_prune_weak_links_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_prune_weak_links"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_prune_weak_links")
+        self.assertEqual(payload["properties"]["scope"]["default"], "")
+        self.assertEqual(
+            payload["properties"]["signal"]["enum"], ["access", "combined", "structural"]
+        )
+        self.assertEqual(payload["properties"]["signal"]["default"], "structural")
+        self.assertTrue(payload["properties"]["dry_run"]["default"])
+
+    def test_memory_tool_schema_returns_analyze_graph_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_analyze_graph"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_analyze_graph")
+        self.assertEqual(payload["properties"]["path"]["default"], "")
+        self.assertFalse(payload["properties"]["include_details"]["default"])
+
+    def test_memory_tool_schema_returns_list_pending_reviews_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_list_pending_reviews"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_list_pending_reviews")
+        self.assertEqual(
+            payload["properties"]["folder_path"]["default"],
+            "memory/knowledge/_unverified",
+        )
+
+    def test_memory_tool_schema_returns_update_user_trait_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_update_user_trait"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_update_user_trait")
+        self.assertEqual(payload["required"], ["file", "key", "value"])
+        self.assertEqual(payload["properties"]["mode"]["default"], "upsert")
+        self.assertFalse(payload["properties"]["preview"]["default"])
+
+    def test_memory_tool_schema_returns_update_skill_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_update_skill"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_update_skill")
+        self.assertEqual(payload["required"], ["file", "section", "content"])
+        self.assertEqual(
+            payload["allOf"][0]["then"]["required"], ["source", "trust", "origin_session"]
+        )
+        self.assertFalse(payload["properties"]["create_if_missing"]["default"])
+
+    def test_memory_tool_schema_returns_list_plans_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_list_plans"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_list_plans")
+        self.assertEqual(payload["properties"]["status"]["oneOf"][1]["type"], "null")
+        self.assertEqual(payload["properties"]["project_id"]["oneOf"][1]["type"], "null")
+
+    def test_memory_tool_schema_returns_plan_verify_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_plan_verify"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_plan_verify")
+        self.assertEqual(payload["required"], ["plan_id", "phase_id"])
+        self.assertEqual(payload["properties"]["project_id"]["oneOf"][1]["type"], "null")
+
+    def test_memory_tool_schema_returns_query_traces_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_query_traces"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_query_traces")
+        self.assertEqual(payload["properties"]["limit"]["default"], 100)
+        self.assertEqual(payload["properties"]["date_from"]["oneOf"][0]["format"], "date")
+        self.assertEqual(payload["properties"]["status"]["oneOf"][1]["type"], "null")
+
+    def test_memory_tool_schema_returns_plan_briefing_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_plan_briefing"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_plan_briefing")
+        self.assertEqual(payload["required"], ["plan_id"])
+        self.assertEqual(payload["properties"]["max_context_chars"]["default"], 8000)
+        self.assertTrue(payload["properties"]["include_sources"]["default"])
+        self.assertTrue(payload["properties"]["include_traces"]["default"])
+        self.assertTrue(payload["properties"]["include_approval"]["default"])
+
+    def test_memory_tool_schema_returns_scan_drop_zone_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_scan_drop_zone"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_scan_drop_zone")
+        self.assertEqual(payload["properties"]["project_filter"]["oneOf"][1]["type"], "null")
+
+    def test_memory_tool_schema_returns_get_tool_policy_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_get_tool_policy"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_get_tool_policy")
+        self.assertEqual(len(payload["allOf"]), 1)
+        self.assertEqual(
+            payload["properties"]["cost_tier"]["oneOf"][0]["enum"],
+            ["free", "high", "low", "medium"],
+        )
+        self.assertEqual(payload["properties"]["tags"]["oneOf"][1]["type"], "null")
+
+    def test_memory_tool_schema_returns_semantic_search_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_semantic_search"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_semantic_search")
+        self.assertEqual(payload["required"], ["query"])
+        self.assertEqual(payload["properties"]["limit"]["default"], 10)
+        self.assertEqual(payload["properties"]["limit"]["maximum"], 50)
+        self.assertEqual(payload["properties"]["vector_weight"]["default"], 0.4)
+        self.assertEqual(payload["properties"]["bm25_weight"]["default"], 0.3)
+
+    def test_memory_tool_schema_returns_reindex_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = json.loads(asyncio.run(tools["memory_tool_schema"](tool_name="memory_reindex")))
+
+        self.assertEqual(payload["tool_name"], "memory_reindex")
+        self.assertFalse(payload["properties"]["force"]["default"])
+
     def test_memory_tool_schema_rejects_unknown_tool(self) -> None:
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
@@ -4859,6 +5256,54 @@ Direct and concise.
                 )
             )
 
+    def test_memory_record_reflection_requires_summary_and_writes_file(self) -> None:
+        repo_root = self._init_repo({"memory/activity/SUMMARY.md": "# Chats\n## Structure\n"})
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_record_reflection"](
+                    session_id="memory/activity/2026/03/20/chat-004",
+                    memory_retrieved="Referenced the prior summary.",
+                    memory_influence="Guided the implementation choice.",
+                    outcome_quality="Good outcome.",
+                    gaps_noticed="Need better eval coverage.",
+                )
+            )
+
+        asyncio.run(
+            tools["memory_record_chat_summary"](
+                session_id="memory/activity/2026/03/20/chat-004",
+                summary="# Session Summary\n\nDid the work.\n",
+            )
+        )
+        raw = asyncio.run(
+            tools["memory_record_reflection"](
+                session_id="memory/activity/2026/03/20/chat-004",
+                memory_retrieved="Referenced the prior summary.",
+                memory_influence="Guided the implementation choice.",
+                outcome_quality="Good outcome.",
+                gaps_noticed="Need better eval coverage.",
+                system_observations="No tooling surprises.",
+            )
+        )
+        payload = json.loads(raw)
+
+        reflection = (
+            repo_root / "memory" / "activity" / "2026" / "03" / "20" / "chat-004" / "reflection.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertEqual(
+            payload["commit_message"],
+            "[chat] Add session reflection for memory/activity/2026/03/20/chat-004",
+        )
+        self.assertEqual(
+            payload["new_state"]["reflection_path"],
+            "memory/activity/2026/03/20/chat-004/reflection.md",
+        )
+        self.assertIn("**Memory retrieved:** Referenced the prior summary.\n", reflection)
+        self.assertIn("**System observations:** No tooling surprises.\n", reflection)
+
     def test_memory_record_session_writes_summary_reflection_and_access_in_one_commit(self) -> None:
         repo_root = self._init_repo(
             {
@@ -6697,6 +7142,51 @@ current_focus: Example project.
             "memory/working/projects/example/notes/result.md",
             payload["completed_plans"][0]["exportable_artifacts"],
         )
+
+    def test_memory_plan_review_requires_session_id_when_exporting(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/SUMMARY.md": """---
+type: projects-navigator
+generated: 2026-03-21
+project_count: 1
+---
+
+# Projects
+
+_No active or ongoing projects._
+""",
+                "memory/working/projects/example/SUMMARY.md": """---
+source: agent-generated
+origin_session: manual
+created: 2026-03-21
+trust: medium
+type: project
+status: active
+cognitive_mode: exploration
+open_questions: 0
+active_plans: 1
+last_activity: 2026-03-21
+current_focus: Example project.
+---
+
+# Project: Example
+""",
+                "memory/working/projects/example/plans/test-plan.yaml": "id: test-plan\nproject: example\ncreated: 2026-03-17\norigin_session: memory/activity/2026/03/17/chat-001\nstatus: completed\npurpose:\n  summary: Test Plan\n  context: Example project.\n  questions: []\nwork:\n  phases:\n    - id: phase-a\n      title: Original next action\n      status: completed\n      commit: abc1234\n      blockers: []\n      changes:\n        - path: memory/working/projects/example/notes/result.md\n          action: create\n          description: Capture the reviewable output.\nreview:\n  completed: 2026-03-17\n  completed_session: memory/activity/2026/03/17/chat-001\n  outcome: completed\n  purpose_assessment: Completed successfully.\n  unresolved: []\n  follow_up: null\n",
+                "memory/working/projects/example/notes/result.md": "# Result\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError) as ctx:
+            asyncio.run(
+                tools["memory_plan_review"](
+                    project_id="example",
+                    plan_id="test-plan",
+                )
+            )
+
+        self.assertIn("session_id is required", str(ctx.exception))
 
     def test_memory_write_allows_knowledge_path(self) -> None:
         """Sanity check: memory/knowledge/ writes still work after the policy change."""
@@ -10618,6 +11108,42 @@ trust: high
         self.assertEqual(len(briefing_spans), 1)
         self.assertEqual(briefing_spans[0]["metadata"]["plan_id"], "tracked-plan")
         self.assertEqual(briefing_spans[0]["metadata"]["phase_id"], "phase-a")
+
+    def test_memory_plan_resume_returns_briefing_and_trace(self) -> None:
+        repo_root = self._init_repo(
+            {
+                **self._plan_repo_files(self._phase8_plan_yaml()),
+                "core/context.md": "Briefing source body\n" * 4,
+            }
+        )
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_plan_resume"](
+                plan_id="tracked-plan",
+                project_id="example",
+                session_id="memory/activity/2026/03/27/chat-205",
+                max_context_chars=700,
+            )
+        )
+        payload = json.loads(raw)
+
+        trace_path = (
+            repo_root / "memory" / "activity" / "2026" / "03" / "27" / "chat-205.traces.jsonl"
+        )
+        trace_spans = [
+            json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()
+        ]
+        resume_spans = [span for span in trace_spans if span["name"] == "memory_plan_resume"]
+
+        self.assertEqual(payload["plan_id"], "tracked-plan")
+        self.assertFalse(payload["has_run_state"])
+        self.assertEqual(payload["resumption"]["current_phase_id"], "phase-a")
+        self.assertEqual(payload["phase_briefing"]["phase_id"], "phase-a")
+        self.assertEqual(payload["phase_briefing"]["phase"]["phase"]["id"], "phase-a")
+        self.assertEqual(len(resume_spans), 1)
+        self.assertEqual(resume_spans[0]["metadata"]["plan_id"], "tracked-plan")
+        self.assertEqual(resume_spans[0]["metadata"]["phase_id"], "phase-a")
 
     def test_memory_stage_external_writes_project_inbox_file(self) -> None:
         repo_root = self._init_repo(self._phase9_project_files())

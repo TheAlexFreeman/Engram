@@ -393,6 +393,674 @@ def record_session_input_schema() -> dict[str, Any]:
     )
 
 
+def session_flush_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_session_flush",
+        title="memory_session_flush input schema",
+        required=["summary"],
+        notes=[
+            "session_id resolves from the explicit argument first, then MEMORY_SESSION_ID, then memory/activity/CURRENT_SESSION.",
+            "trigger accepts underscore or hyphen separators; underscores are normalized to hyphens before slug validation.",
+        ],
+        properties={
+            "summary": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Non-empty checkpoint summary written to {session_id}/checkpoint.md.",
+            },
+            "session_id": _session_id_string_schema(
+                description="Optional canonical session id override for the checkpoint target.",
+                allow_empty=True,
+            ),
+            "label": {
+                "type": "string",
+                "default": "",
+                "description": "Optional checkpoint label. When empty, a default context-pressure label is used.",
+            },
+            "trigger": {
+                "type": "string",
+                "pattern": r"^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+                "default": "context_pressure",
+                "description": "Flush trigger slug. Underscores are normalized to hyphens before validation.",
+            },
+        },
+    )
+
+
+def log_access_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_log_access",
+        title="memory_log_access input schema",
+        required=["file", "task", "helpfulness", "note"],
+        notes=[
+            "session_id resolves from the explicit argument first, then MEMORY_SESSION_ID, then memory/activity/CURRENT_SESSION.",
+            "category and task_id require their controlled vocabularies to exist before they can be used.",
+            "min_helpfulness routes entries below the threshold to ACCESS_SCANS.jsonl instead of the hot ACCESS.jsonl file.",
+        ],
+        properties={
+            "file": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Repo-relative path under an access-tracked namespace.",
+            },
+            "task": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Short description of the retrieval task.",
+            },
+            "helpfulness": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "description": "Observed retrieval usefulness score.",
+            },
+            "note": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Short freeform justification for the score.",
+            },
+            "session_id": _session_id_string_schema(
+                description="Optional canonical session id associated with the entry.",
+                nullable=True,
+            ),
+            "category": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional controlled-vocabulary category slug.",
+            },
+            "mode": {
+                "oneOf": [
+                    {"type": "string", "enum": sorted(ACCESS_MODES)},
+                    {"type": "null"},
+                ],
+                "description": "Optional access mode classification.",
+            },
+            "task_id": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional controlled task-id slug from the capability manifest.",
+            },
+            "estimator": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional helpfulness-estimator slug.",
+            },
+            "min_helpfulness": {
+                "oneOf": [
+                    {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0,
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional routing threshold for ACCESS_SCANS.jsonl.",
+            },
+        },
+    )
+
+
+def run_aggregation_input_schema() -> dict[str, Any]:
+    allowed_folders = [
+        "memory/users",
+        "memory/knowledge",
+        "memory/knowledge/_unverified",
+        "memory/skills",
+        "memory/working/projects",
+        "memory/activity",
+    ]
+    return _base_schema(
+        tool_name="memory_run_aggregation",
+        title="memory_run_aggregation input schema",
+        notes=[
+            "When folders is omitted or empty, aggregation scans the standard hot ACCESS roots across users, knowledge, skills, projects, and activity.",
+            "dry_run defaults to true and previews summary, archive, and hot-log reset targets without mutating files.",
+        ],
+        properties={
+            "folders": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": allowed_folders,
+                        },
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional subset of supported ACCESS roots to aggregate.",
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": True,
+                "description": "When true, preview summary and archive targets without applying the aggregation commit.",
+            },
+        },
+    )
+
+
+def reset_session_state_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_reset_session_state",
+        title="memory_reset_session_state input schema",
+        notes=[
+            "This tool accepts no arguments and resets per-session counters such as the identity churn alarm.",
+        ],
+        properties={},
+    )
+
+
+def analyze_graph_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_analyze_graph",
+        title="memory_analyze_graph input schema",
+        notes=[
+            "path may be empty for the full knowledge base or a scoped folder such as knowledge/mathematics.",
+            "include_details adds duplicate-link detail to the otherwise summary-focused graph report.",
+        ],
+        properties={
+            "path": {
+                "type": "string",
+                "default": "",
+                "description": "Optional knowledge-graph scope. Use an empty string for the full knowledge base.",
+            },
+            "include_details": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, include duplicate-link details in the returned graph report.",
+            },
+        },
+    )
+
+
+def prune_redundant_links_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_prune_redundant_links",
+        title="memory_prune_redundant_links input schema",
+        notes=[
+            "path may be empty for the full knowledge base or a scoped folder such as knowledge/mathematics.",
+            "dry_run defaults to true and returns the pruning report without staging or committing files.",
+        ],
+        properties={
+            "path": {
+                "type": "string",
+                "default": "",
+                "description": "Optional knowledge-graph scope. Use an empty string for the full knowledge base.",
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": True,
+                "description": "When true, preview redundant-link removals without writing or committing changes.",
+            },
+        },
+    )
+
+
+def audit_link_density_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_audit_link_density",
+        title="memory_audit_link_density input schema",
+        notes=[
+            "path may be empty for the full knowledge base or a scoped folder such as knowledge/rationalist-community.",
+            "degree_threshold values below 1 are clamped to 1 before the audit runs.",
+        ],
+        properties={
+            "path": {
+                "type": "string",
+                "default": "",
+                "description": "Optional knowledge-graph scope. Use an empty string for the full knowledge base.",
+            },
+            "degree_threshold": {
+                "type": "integer",
+                "default": 6,
+                "description": "Minimum node degree examined by the dense-link audit.",
+            },
+            "clustering_threshold": {
+                "type": "number",
+                "default": 0.5,
+                "description": "Minimum local clustering coefficient examined by the dense-link audit.",
+            },
+        },
+    )
+
+
+def prune_weak_links_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_prune_weak_links",
+        title="memory_prune_weak_links input schema",
+        notes=[
+            "path restricts pruning to a single file and overrides scope when both are provided.",
+            "signal must be one of structural, access, or combined.",
+            "dry_run defaults to true and only applies a commit when weak-link removals are written.",
+        ],
+        properties={
+            "path": {
+                "type": "string",
+                "default": "",
+                "description": "Optional single-file target. Overrides scope when non-empty.",
+            },
+            "scope": {
+                "type": "string",
+                "default": "",
+                "description": "Optional folder scope used when path is empty.",
+            },
+            "min_structural_score": {
+                "type": "number",
+                "default": 1.0,
+                "description": "Structural-score threshold below which links become pruning candidates.",
+            },
+            "min_access_score": {
+                "type": "integer",
+                "default": 0,
+                "description": "Access-score threshold below which links become pruning candidates.",
+            },
+            "signal": {
+                "type": "string",
+                "enum": ["access", "combined", "structural"],
+                "default": "structural",
+                "description": "Weak-link scoring mode.",
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": True,
+                "description": "When true, preview weak-link removals without writing or committing changes.",
+            },
+        },
+    )
+
+
+def checkpoint_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_checkpoint",
+        title="memory_checkpoint input schema",
+        required=["content"],
+        notes=[
+            "Writes a timestamped entry to memory/working/CURRENT.md and stages the file without creating a commit.",
+            "session_id is optional but must be canonical when supplied.",
+        ],
+        properties={
+            "content": {
+                "type": "string",
+                "description": "Checkpoint body appended under a timestamped heading in memory/working/CURRENT.md.",
+            },
+            "label": {
+                "type": "string",
+                "default": "",
+                "description": "Optional heading suffix shown after the timestamp.",
+            },
+            "session_id": _session_id_string_schema(
+                description="Optional canonical session id embedded in the checkpoint entry.",
+                allow_empty=True,
+            ),
+        },
+    )
+
+
+def append_scratchpad_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_append_scratchpad",
+        title="memory_append_scratchpad input schema",
+        required=["target", "content"],
+        notes=[
+            "target accepts the aliases user/current or a governed memory/working/notes/{slug}.md scratchpad path.",
+            "When section is supplied, the runtime creates the H2 heading if it does not already exist.",
+        ],
+        properties={
+            "target": {
+                "oneOf": [
+                    {
+                        "type": "string",
+                        "enum": ["user", "current"],
+                    },
+                    {
+                        "type": "string",
+                        "pattern": r"^memory/working/notes/[a-z0-9]+(?:-[a-z0-9]+)*\.md$",
+                    },
+                ],
+                "description": "Scratchpad target alias or governed notes path.",
+            },
+            "content": {
+                "type": "string",
+                "description": "Markdown content appended to the selected scratchpad target.",
+            },
+            "section": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional H2 section heading used for targeted insertion.",
+            },
+        },
+    )
+
+
+def record_chat_summary_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_record_chat_summary",
+        title="memory_record_chat_summary input schema",
+        required=["session_id", "summary"],
+        notes=[
+            "Idempotent replay succeeds only when the existing SUMMARY.md content already matches session_id, summary, and key_topics.",
+            "Use memory_record_session instead when summary, reflection, and ACCESS writes should land in one commit.",
+        ],
+        properties={
+            "session_id": _session_id_string_schema(
+                description="Canonical memory/activity/YYYY/MM/DD/chat-NNN id.",
+            ),
+            "summary": {
+                "type": "string",
+                "description": "Markdown session summary written to {session_id}/SUMMARY.md.",
+            },
+            "key_topics": {
+                "type": "string",
+                "default": "",
+                "description": "Comma-separated topic list written into the session summary frontmatter.",
+            },
+        },
+    )
+
+
+def record_reflection_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_record_reflection",
+        title="memory_record_reflection input schema",
+        required=[
+            "session_id",
+            "memory_retrieved",
+            "memory_influence",
+            "outcome_quality",
+            "gaps_noticed",
+        ],
+        notes=[
+            "The target session folder must already exist; record the chat summary first if needed.",
+            "Only one structured reflection is created per session; later edits should use direct editing tools.",
+        ],
+        properties={
+            "session_id": _session_id_string_schema(
+                description="Canonical memory/activity/YYYY/MM/DD/chat-NNN id whose reflection should be written.",
+            ),
+            "memory_retrieved": {
+                "type": "string",
+                "description": "What memory was retrieved during the session.",
+            },
+            "memory_influence": {
+                "type": "string",
+                "description": "How retrieved memory influenced the work.",
+            },
+            "outcome_quality": {
+                "type": "string",
+                "description": "Assessment of the session outcome quality.",
+            },
+            "gaps_noticed": {
+                "type": "string",
+                "description": "Observed memory or workflow gaps from the session.",
+            },
+            "system_observations": {
+                "type": "string",
+                "default": "",
+                "description": "Optional additional system observations for the reflection.",
+            },
+        },
+    )
+
+
+def resolve_review_item_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_resolve_review_item",
+        title="memory_resolve_review_item input schema",
+        required=["item_id"],
+        notes=[
+            "Only pending review-queue items can be resolved.",
+            "preview returns the governed preview envelope without mutating the review queue.",
+        ],
+        properties={
+            "item_id": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Canonical review-queue item slug returned by memory_flag_for_review.",
+            },
+            "resolution_note": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional note appended to the resolved review-queue section.",
+            },
+            "version_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional optimistic-lock token for governance/review-queue.md.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope instead of resolving the queue item.",
+            },
+        },
+    )
+
+
+def plan_review_exports_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_plan_review",
+        title="memory_plan_review input schema",
+        required=["project_id"],
+        all_of=[
+            {
+                "if": {
+                    "required": ["plan_id"],
+                    "properties": {"plan_id": {"type": "string"}},
+                },
+                "then": {"required": ["session_id"]},
+            }
+        ],
+        notes=[
+            "When plan_id is omitted, the tool lists completed plans for the project and ignores artifact_paths and session_id.",
+            "When plan_id is provided, artifact_paths must be a subset of the plan's exportable outputs and session_id becomes required.",
+        ],
+        properties={
+            "project_id": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Project id in kebab-case.",
+            },
+            "plan_id": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional completed plan id to export. Omit to list completed plans only.",
+            },
+            "artifact_paths": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "items": {"type": "string", "minLength": 1},
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional subset of exportable artifact paths to copy into the outbox.",
+            },
+            "session_id": _session_id_string_schema(
+                description="Required when exporting artifacts from a specific completed plan.",
+                nullable=True,
+            ),
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed export preview envelope instead of copying artifacts.",
+            },
+        },
+    )
+
+
+def plan_resume_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_plan_resume",
+        title="memory_plan_resume input schema",
+        required=["plan_id", "session_id"],
+        notes=[
+            "When a run state already exists, the runtime refreshes the stored session_id before returning the restart context.",
+            "max_context_chars must coerce to an integer greater than or equal to zero.",
+        ],
+        properties={
+            "plan_id": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Plan id in kebab-case.",
+            },
+            "session_id": _session_id_string_schema(
+                description="Canonical session id used for resume tracing and run-state refresh.",
+            ),
+            "project_id": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional project id used to disambiguate plan lookup.",
+            },
+            "max_context_chars": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 8000,
+                "description": "Approximate maximum context budget for the assembled resume briefing.",
+            },
+        },
+    )
+
+
+def stage_external_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_stage_external",
+        title="memory_stage_external input schema",
+        required=["project", "filename", "content", "source_url", "fetched_date", "source_label"],
+        notes=[
+            "content must be a non-empty string and is size-limited by the staging helper.",
+            "fetched_date must be an ISO date in YYYY-MM-DD format.",
+            "dry_run returns the staging envelope without writing the IN/ file or staged-hash registry.",
+        ],
+        properties={
+            "project": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Project slug under memory/working/projects/.",
+            },
+            "filename": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Suggested filename for the staged IN/ document.",
+            },
+            "content": {
+                "type": "string",
+                "minLength": 1,
+                "description": "External content body staged into the project's IN/ folder.",
+            },
+            "source_url": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Origin URL recorded in frontmatter after sanitization.",
+            },
+            "fetched_date": {
+                "type": "string",
+                "pattern": r"^\d{4}-\d{2}-\d{2}$",
+                "format": "date",
+                "description": "ISO date recorded in the staged frontmatter.",
+            },
+            "source_label": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Non-empty provenance label written into the staged frontmatter.",
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the staging envelope without writing files.",
+            },
+        },
+    )
+
+
+def run_eval_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_run_eval",
+        title="memory_run_eval input schema",
+        required=["session_id"],
+        notes=[
+            "Requires ENGRAM_TIER2=1 because eval scenarios may invoke verification on test-type postconditions.",
+            "scenario_id and tag are optional filters; when both are omitted the runtime executes the full suite.",
+        ],
+        properties={
+            "session_id": _session_id_string_schema(
+                description="Canonical session id used for trace logging of eval results.",
+            ),
+            "scenario_id": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional scenario id filter.",
+            },
+            "tag": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional scenario tag filter.",
+            },
+        },
+    )
+
+
+def eval_report_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_eval_report",
+        title="memory_eval_report input schema",
+        notes=[
+            "date_from and date_to, when provided, must be ISO dates in YYYY-MM-DD format.",
+            "scenario_id filters the historical eval report to a single scenario.",
+        ],
+        properties={
+            "date_from": {
+                "oneOf": [
+                    {
+                        "type": "string",
+                        "pattern": r"^\d{4}-\d{2}-\d{2}$",
+                        "format": "date",
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional inclusive lower date bound for historical eval runs.",
+            },
+            "date_to": {
+                "oneOf": [
+                    {
+                        "type": "string",
+                        "pattern": r"^\d{4}-\d{2}-\d{2}$",
+                        "format": "date",
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional inclusive upper date bound for historical eval runs.",
+            },
+            "scenario_id": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional scenario id filter applied to the report.",
+            },
+        },
+    )
+
+
 def promote_knowledge_batch_input_schema() -> dict[str, Any]:
     return _base_schema(
         tool_name="memory_promote_knowledge_batch",
@@ -725,6 +1393,24 @@ def mark_reviewed_input_schema() -> dict[str, Any]:
                 description="Optional canonical session id associated with the review.",
                 allow_empty=True,
             ),
+        },
+    )
+
+
+def list_pending_reviews_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_list_pending_reviews",
+        title="memory_list_pending_reviews input schema",
+        notes=[
+            "folder_path defaults to memory/knowledge/_unverified and must stay under that subtree.",
+            "The result reports only the latest surviving verdict per file, grouped by approve/defer/reject.",
+        ],
+        properties={
+            "folder_path": {
+                "type": "string",
+                "default": "memory/knowledge/_unverified",
+                "description": "Existing directory under memory/knowledge/_unverified whose review log should be summarized.",
+            },
         },
     )
 
@@ -1220,6 +1906,75 @@ def register_tool_input_schema() -> dict[str, Any]:
     )
 
 
+def get_tool_policy_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_get_tool_policy",
+        title="memory_get_tool_policy input schema",
+        all_of=[
+            {
+                "anyOf": [
+                    {
+                        "required": ["tool_name"],
+                        "properties": {"tool_name": {"type": "string", "minLength": 1}},
+                    },
+                    {
+                        "required": ["provider"],
+                        "properties": {"provider": {"type": "string", "minLength": 1}},
+                    },
+                    {
+                        "required": ["tags"],
+                        "properties": {
+                            "tags": {"type": "array", "minItems": 1},
+                        },
+                    },
+                    {
+                        "required": ["cost_tier"],
+                        "properties": {"cost_tier": {"type": "string", "minLength": 1}},
+                    },
+                ]
+            }
+        ],
+        notes=[
+            "At least one filter parameter is required.",
+            "tool_name returns at most one match; the other filters may return multiple registry entries.",
+        ],
+        properties={
+            "tool_name": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional tool name slug filter.",
+            },
+            "provider": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional provider slug filter.",
+            },
+            "tags": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"type": "string", "minLength": 1},
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional non-empty tag list used for policy filtering.",
+            },
+            "cost_tier": {
+                "oneOf": [
+                    {"type": "string", "enum": sorted(COST_TIERS)},
+                    {"type": "null"},
+                ],
+                "description": "Optional qualitative cost bucket filter.",
+            },
+        },
+    )
+
+
 def record_periodic_review_input_schema() -> dict[str, Any]:
     return _base_schema(
         tool_name="memory_record_periodic_review",
@@ -1333,26 +2088,329 @@ def revert_commit_input_schema() -> dict[str, Any]:
     )
 
 
+def list_plans_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_list_plans",
+        title="memory_list_plans input schema",
+        notes=[
+            "status filters the discovered YAML plans by their stored plan.status value.",
+            "project_id narrows the scan to one project slug under memory/working/projects/.",
+        ],
+        properties={
+            "status": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional exact plan status filter.",
+            },
+            "project_id": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional project slug used to narrow the plan scan.",
+            },
+        },
+    )
+
+
+def plan_verify_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_plan_verify",
+        title="memory_plan_verify input schema",
+        required=["plan_id", "phase_id"],
+        notes=[
+            "Evaluates phase postconditions without mutating plan state.",
+            "test-type postconditions still require ENGRAM_TIER2=1 during runtime verification.",
+        ],
+        properties={
+            "plan_id": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Plan id in kebab-case.",
+            },
+            "phase_id": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Phase id in kebab-case.",
+            },
+            "project_id": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional project id used to disambiguate plan lookup.",
+            },
+        },
+    )
+
+
+def query_traces_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_query_traces",
+        title="memory_query_traces input schema",
+        notes=[
+            "session_id, when provided, narrows the query to one trace file and overrides date-range file discovery.",
+            "date_from and date_to must be ISO dates in YYYY-MM-DD format when supplied.",
+        ],
+        properties={
+            "session_id": _session_id_string_schema(
+                description="Optional canonical session id whose trace file should be queried directly.",
+                nullable=True,
+            ),
+            "date_from": {
+                "oneOf": [
+                    {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "format": "date"},
+                    {"type": "null"},
+                ],
+                "description": "Optional inclusive lower date bound used during trace-file discovery.",
+            },
+            "date_to": {
+                "oneOf": [
+                    {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "format": "date"},
+                    {"type": "null"},
+                ],
+                "description": "Optional inclusive upper date bound used during trace-file discovery.",
+            },
+            "span_type": {
+                "oneOf": [
+                    {"type": "string", "enum": sorted(TRACE_SPAN_TYPES)},
+                    {"type": "null"},
+                ],
+                "description": "Optional trace span type filter.",
+            },
+            "plan_id": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional plan id filter matched against metadata.plan_id.",
+            },
+            "status": {
+                "oneOf": [
+                    {"type": "string", "enum": sorted(TRACE_STATUSES)},
+                    {"type": "null"},
+                ],
+                "description": "Optional trace status filter.",
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 100,
+                "description": "Maximum number of spans returned after newest-first sorting.",
+            },
+        },
+    )
+
+
+def plan_briefing_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_plan_briefing",
+        title="memory_plan_briefing input schema",
+        required=["plan_id"],
+        notes=[
+            "When phase_id is omitted, the runtime selects the next actionable phase and returns a summary packet if none exists.",
+            "max_context_chars must coerce to an integer greater than or equal to zero.",
+        ],
+        properties={
+            "plan_id": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Plan id in kebab-case.",
+            },
+            "phase_id": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional phase id override. When omitted, the next actionable phase is selected.",
+            },
+            "project_id": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional project id used to disambiguate plan lookup.",
+            },
+            "max_context_chars": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 8000,
+                "description": "Approximate maximum context budget for the assembled briefing.",
+            },
+            "include_sources": {
+                "type": "boolean",
+                "default": True,
+                "description": "When true, include source excerpts in the assembled phase briefing.",
+            },
+            "include_traces": {
+                "type": "boolean",
+                "default": True,
+                "description": "When true, include recent trace context in the assembled phase briefing.",
+            },
+            "include_approval": {
+                "type": "boolean",
+                "default": True,
+                "description": "When true, include approval context in the assembled phase briefing.",
+            },
+        },
+    )
+
+
+def scan_drop_zone_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_scan_drop_zone",
+        title="memory_scan_drop_zone input schema",
+        notes=[
+            "Scans configured watch_folders from agent-bootstrap.toml and stages new content into project IN/ folders.",
+            "When MEMORY_SESSION_ID is set, the runtime also records a tool_call trace span for the scan.",
+        ],
+        properties={
+            "project_filter": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional project slug used to restrict which configured drop-zone entries are scanned.",
+            },
+        },
+    )
+
+
+def semantic_search_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_semantic_search",
+        title="memory_semantic_search input schema",
+        required=["query"],
+        notes=[
+            "Requires sentence-transformers at runtime; otherwise the tool returns a dependency warning string instead of ranked results.",
+            "limit is clamped into the 1..50 range and all weight parameters are clamped into the 0.0..1.0 range before scoring.",
+        ],
+        properties={
+            "query": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Natural-language search query.",
+            },
+            "scope": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional folder path used to restrict semantic search.",
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50,
+                "default": 10,
+                "description": "Maximum number of deduplicated file results returned.",
+            },
+            "min_trust": {
+                "oneOf": [
+                    {"type": "string", "enum": ["low", "medium", "high"]},
+                    {"type": "null"},
+                ],
+                "description": "Optional minimum trust threshold applied before ranking truncation.",
+            },
+            "freshness_weight": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.15,
+                "description": "Relative weight of temporal freshness in the hybrid ranking.",
+            },
+            "helpfulness_weight": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.15,
+                "description": "Relative weight of ACCESS helpfulness in the hybrid ranking.",
+            },
+            "vector_weight": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.4,
+                "description": "Relative weight of vector similarity in the hybrid ranking.",
+            },
+            "bm25_weight": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.3,
+                "description": "Relative weight of BM25 lexical matching in the hybrid ranking.",
+            },
+        },
+    )
+
+
+def reindex_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_reindex",
+        title="memory_reindex input schema",
+        notes=[
+            "Requires sentence-transformers at runtime; otherwise the tool returns a dependency warning string.",
+            "force=false only embeds changed files, while force=true rebuilds the full index.",
+        ],
+        properties={
+            "force": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, rebuild the full semantic index instead of incrementally updating it.",
+            },
+        },
+    )
+
+
 TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
+    "memory_analyze_graph": analyze_graph_input_schema,
     "memory_add_knowledge_file": add_knowledge_file_input_schema,
+    "memory_append_scratchpad": append_scratchpad_input_schema,
     "memory_archive_knowledge": archive_knowledge_input_schema,
+    "memory_audit_link_density": audit_link_density_input_schema,
+    "memory_checkpoint": checkpoint_input_schema,
     "memory_demote_knowledge": demote_knowledge_input_schema,
+    "memory_eval_report": eval_report_input_schema,
     "memory_flag_for_review": flag_for_review_input_schema,
+    "memory_get_tool_policy": get_tool_policy_input_schema,
+    "memory_list_pending_reviews": list_pending_reviews_input_schema,
+    "memory_list_plans": list_plans_input_schema,
+    "memory_log_access": log_access_input_schema,
     "memory_log_access_batch": log_access_batch_input_schema,
     "memory_mark_reviewed": mark_reviewed_input_schema,
+    "memory_plan_briefing": plan_briefing_input_schema,
     "memory_plan_create": plan_create_input_schema,
     "memory_plan_execute": plan_execute_input_schema,
+    "memory_plan_resume": plan_resume_input_schema,
+    "memory_plan_verify": plan_verify_input_schema,
+    "memory_prune_redundant_links": prune_redundant_links_input_schema,
+    "memory_prune_weak_links": prune_weak_links_input_schema,
+    "memory_plan_review": plan_review_exports_input_schema,
     "memory_promote_knowledge": promote_knowledge_input_schema,
     "memory_promote_knowledge_batch": promote_knowledge_batch_input_schema,
     "memory_promote_knowledge_subtree": promote_knowledge_subtree_input_schema,
+    "memory_query_traces": query_traces_input_schema,
+    "memory_reindex": reindex_input_schema,
+    "memory_record_chat_summary": record_chat_summary_input_schema,
     "memory_record_periodic_review": record_periodic_review_input_schema,
+    "memory_record_reflection": record_reflection_input_schema,
     "memory_record_session": record_session_input_schema,
     "memory_record_trace": record_trace_input_schema,
     "memory_register_tool": register_tool_input_schema,
+    "memory_reset_session_state": reset_session_state_input_schema,
     "memory_reorganize_path": reorganize_path_input_schema,
     "memory_request_approval": request_approval_input_schema,
     "memory_revert_commit": revert_commit_input_schema,
+    "memory_resolve_review_item": resolve_review_item_input_schema,
     "memory_resolve_approval": resolve_approval_input_schema,
+    "memory_run_aggregation": run_aggregation_input_schema,
+    "memory_run_eval": run_eval_input_schema,
+    "memory_scan_drop_zone": scan_drop_zone_input_schema,
+    "memory_semantic_search": semantic_search_input_schema,
+    "memory_session_flush": session_flush_input_schema,
+    "memory_stage_external": stage_external_input_schema,
     "memory_update_frontmatter": update_frontmatter_input_schema,
     "memory_update_frontmatter_bulk": update_frontmatter_bulk_input_schema,
     "memory_update_names_index": update_names_index_input_schema,
@@ -1391,24 +2449,51 @@ __all__ = [
     "VERIFICATION_RESULT_STATUSES",
     "access_entry_input_schema",
     "add_knowledge_file_input_schema",
+    "analyze_graph_input_schema",
+    "append_scratchpad_input_schema",
     "archive_knowledge_input_schema",
+    "audit_link_density_input_schema",
+    "checkpoint_input_schema",
     "demote_knowledge_input_schema",
+    "eval_report_input_schema",
+    "get_tool_policy_input_schema",
     "get_tool_input_schema",
+    "list_pending_reviews_input_schema",
+    "list_plans_input_schema",
     "list_tool_schema_names",
+    "log_access_input_schema",
     "log_access_batch_input_schema",
     "mark_reviewed_input_schema",
+    "plan_briefing_input_schema",
     "plan_execute_input_schema",
+    "plan_resume_input_schema",
+    "plan_review_exports_input_schema",
+    "plan_verify_input_schema",
+    "prune_redundant_links_input_schema",
+    "prune_weak_links_input_schema",
     "promote_knowledge_input_schema",
     "promote_knowledge_batch_input_schema",
     "promote_knowledge_subtree_input_schema",
+    "query_traces_input_schema",
+    "reindex_input_schema",
     "request_approval_input_schema",
+    "record_chat_summary_input_schema",
     "record_periodic_review_input_schema",
+    "record_reflection_input_schema",
     "record_session_input_schema",
     "record_trace_input_schema",
     "register_tool_input_schema",
+    "reset_session_state_input_schema",
     "reorganize_path_input_schema",
     "revert_commit_input_schema",
+    "resolve_review_item_input_schema",
     "resolve_approval_input_schema",
+    "run_aggregation_input_schema",
+    "run_eval_input_schema",
+    "scan_drop_zone_input_schema",
+    "semantic_search_input_schema",
+    "session_flush_input_schema",
+    "stage_external_input_schema",
     "update_frontmatter_input_schema",
     "update_frontmatter_bulk_input_schema",
     "update_names_index_input_schema",

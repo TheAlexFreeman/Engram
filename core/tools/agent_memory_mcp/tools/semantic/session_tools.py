@@ -1199,6 +1199,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         ),
     )
     async def memory_checkpoint(content: str, label: str = "", session_id: str = "") -> str:
+        """Append a timestamped checkpoint entry to memory/working/CURRENT.md.
+
+        label and session_id are optional. The write is staged but not
+        committed, so use memory_tool_schema with tool_name="memory_checkpoint"
+        for the full machine-readable contract.
+        """
         from ...models import MemoryWriteResult
 
         repo = get_repo()
@@ -1250,7 +1256,14 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         label: str = "",
         trigger: str = "context_pressure",
     ) -> str:
-        """Persist a mid-session checkpoint for context-pressure recovery."""
+        """Persist a committed mid-session checkpoint for context-pressure recovery.
+
+        session_id resolves from the explicit argument first, then
+        MEMORY_SESSION_ID, then memory/activity/CURRENT_SESSION. trigger may use
+        underscores or hyphens and is normalized before validation. Call
+        memory_tool_schema with tool_name="memory_session_flush" for the full
+        machine-readable contract.
+        """
 
         from ...errors import ValidationError
         from ...models import MemoryWriteResult
@@ -1319,6 +1332,13 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     async def memory_append_scratchpad(
         target: str, content: str, section: str | None = None
     ) -> str:
+        """Append content to USER.md, CURRENT.md, or a working-notes scratchpad.
+
+        target must be "user", "current", or memory/working/notes/{slug}.md.
+        When section is provided, the runtime creates the H2 heading if needed
+        before appending. Call memory_tool_schema with
+        tool_name="memory_append_scratchpad" for the full target contract.
+        """
         from ...models import MemoryWriteResult
 
         repo = get_repo()
@@ -1377,7 +1397,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         """Record a chat summary.
 
         For full session wrap-up, prefer memory_record_session so summary,
-        reflection, and ACCESS writes land in a single commit.
+        reflection, and ACCESS writes land in a single commit. Call
+        memory_tool_schema with tool_name="memory_record_chat_summary" for the
+        exact session_id and key_topics contract.
         """
         from ...errors import ValidationError
         from ...frontmatter_utils import today_str
@@ -1539,6 +1561,13 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         version_token: str | None = None,
         preview: bool = False,
     ) -> str:
+        """Resolve a pending governance review-queue item.
+
+        item_id must be the canonical slug recorded in the queue. preview
+        returns the governed preview envelope, and version_token is an optional
+        optimistic-lock token for the queue file. Call memory_tool_schema with
+        tool_name="memory_resolve_review_item" for the full contract.
+        """
         from ...errors import NotFoundError, ValidationError
         from ...frontmatter_utils import today_str
         from ...models import MemoryWriteResult
@@ -1643,6 +1672,14 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         estimator: str | None = None,
         min_helpfulness: float | None = None,
     ) -> str:
+        """Record a single ACCESS entry and commit it immediately.
+
+        session_id resolves from the explicit argument first, then
+        MEMORY_SESSION_ID, then memory/activity/CURRENT_SESSION. category,
+        mode, task_id, and estimator are optional controlled fields; use
+        memory_tool_schema with tool_name="memory_log_access" for the complete
+        input contract and routing semantics.
+        """
         from ...models import MemoryWriteResult
 
         repo = get_repo()
@@ -1921,7 +1958,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         Phase 1 uses session_id as the primary grouping key and falls back to
         date-based legacy grouping for older ACCESS entries that do not include
         session_id. Use dry_run=True to preview summary/archive targets before
-        applying the aggregation commit.
+        applying the aggregation commit. Call memory_tool_schema with
+        tool_name="memory_run_aggregation" for the supported folder set and
+        preview semantics.
         """
         from ...models import MemoryWriteResult
 
@@ -2090,7 +2129,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         """Record a structured reflection.
 
         For full session wrap-up, prefer memory_record_session so summary,
-        reflection, and ACCESS writes land in a single commit.
+        reflection, and ACCESS writes land in a single commit. The session
+        summary must already exist; call memory_tool_schema with
+        tool_name="memory_record_reflection" for the required reflection fields.
         """
         from ...errors import ValidationError
         from ...models import MemoryWriteResult

@@ -18,6 +18,30 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-04-02] Full Tier 1 semantic schema coverage
+
+**Changed:** Extended the shared `memory_tool_schema` registry to cover the remaining Tier 1 semantic helpers, including `memory_analyze_graph`, `memory_list_pending_reviews`, `memory_list_plans`, `memory_plan_verify`, `memory_query_traces`, `memory_plan_briefing`, `memory_scan_drop_zone`, `memory_get_tool_policy`, `memory_semantic_search`, and `memory_reindex`. Updated the corresponding semantic-tool docstrings, aligned the existing `memory_update_user_trait` and `memory_update_skill` docstrings with the schema-backed guidance pattern, and simplified the README and MCP guide wording to describe full Tier 1 semantic coverage.
+**Reasoning:** After the earlier knowledge, governance, session, access, and graph passes, the only remaining schema-discoverability gaps were helper tools whose filters, defaults, and runtime caveats still required caller guesswork. Covering the rest of Tier 1 closes that gap and makes the semantic surface uniformly introspectable without changing behavior.
+**Approved by:** user
+
+## [2026-04-02] Schema coverage expansion for graph curation workflows
+
+**Changed:** Extended the shared `memory_tool_schema` registry to cover `memory_prune_redundant_links`, `memory_audit_link_density`, and `memory_prune_weak_links`, including dry-run defaults, graph-scope path behavior, dense-link audit thresholds, the weak-link signal enum, and path-versus-scope precedence. Updated the corresponding graph-tool docstrings plus the README and MCP guide coverage notes.
+**Reasoning:** After the access logging and aggregation pass, the remaining high-value graph curation surfaces still hid their real scope, threshold, and preview semantics behind plain scalar parameters. Surfacing those contracts through the shared registry reduces host guesswork without changing runtime behavior.
+**Approved by:** user
+
+## [2026-04-02] Schema coverage expansion for access logging and aggregation workflows
+
+**Changed:** Extended the shared `memory_tool_schema` registry to cover `memory_log_access`, `memory_run_aggregation`, `memory_session_flush`, and `memory_reset_session_state`, including session-id fallback behavior, controlled ACCESS fields, dry-run aggregation defaults, supported folder roots, trigger normalization, and the explicit no-argument session-state reset contract. Updated the corresponding session-tool docstrings plus the README and MCP guide coverage notes.
+**Reasoning:** After the session continuity and plan governance pass, the remaining high-value semantic gaps were the access logging and aggregation tools whose routing, fallback, and preview semantics were not visible from their plain signatures. Surfacing those contracts through the shared registry reduces host guesswork without changing runtime behavior.
+**Approved by:** user
+
+## [2026-04-02] Schema coverage expansion for session continuity and plan governance workflows
+
+**Changed:** Extended the shared `memory_tool_schema` registry to cover `memory_checkpoint`, `memory_append_scratchpad`, `memory_record_chat_summary`, `memory_record_reflection`, `memory_plan_resume`, `memory_plan_review`, `memory_stage_external`, `memory_run_eval`, `memory_eval_report`, and `memory_resolve_review_item`, including staged-without-commit checkpointing, scratchpad target normalization, canonical session requirements, governed preview and version-token review-queue behavior, list-versus-export plan review flow, and eval environment and date-filter constraints. Updated the corresponding session and plan tool docstrings plus the README and MCP guide coverage notes.
+**Reasoning:** After the knowledge lifecycle pass, the main remaining opaque semantic surfaces were session continuity and plan governance workflows whose stateful behavior and conditional requirements were not visible from their plain string signatures. Surfacing those contracts through the shared registry reduces host guesswork without changing runtime behavior.
+**Approved by:** user
+
 ## [2026-04-02] Schema coverage expansion for knowledge lifecycle transitions
 
 **Changed:** Extended the shared `memory_tool_schema` registry to cover `memory_demote_knowledge`, `memory_archive_knowledge`, and `memory_add_knowledge_file`, including inferred destination behavior for demotion/archival, governed preview support, optimistic-lock version tokens, low-trust-only creation, canonical session ids, and optional ISO expiration dates. Updated the corresponding knowledge-tool docstrings plus the README and MCP guide coverage notes.

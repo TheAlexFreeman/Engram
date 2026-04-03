@@ -79,7 +79,9 @@ def register_tools(
         """Update a named field in a user file.
 
         mode must be one of "upsert", "append", or "replace".
-        preview=True returns the governed preview envelope without writing.
+            preview=True returns the governed preview envelope without writing. Call
+            memory_tool_schema with tool_name="memory_update_user_trait" for the
+            full file/key/version-token contract.
         """
         from ...errors import ValidationError
         from ...frontmatter_utils import read_with_frontmatter, today_str, write_with_frontmatter

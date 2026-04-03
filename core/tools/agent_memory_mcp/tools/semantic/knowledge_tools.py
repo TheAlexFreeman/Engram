@@ -1732,7 +1732,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         ),
     )
     async def memory_list_pending_reviews(folder_path: str = "memory/knowledge/_unverified") -> str:
-        """List the latest pending review verdicts for unverified knowledge files."""
+        """List the latest pending review verdicts for unverified knowledge files.
+
+        folder_path defaults to the root unverified folder and must remain
+        under memory/knowledge/_unverified. Call memory_tool_schema with
+        tool_name="memory_list_pending_reviews" for the exact folder contract.
+        """
         from ...errors import ValidationError
 
         repo = get_repo()

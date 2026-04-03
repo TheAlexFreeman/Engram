@@ -64,6 +64,9 @@ def register_tools(mcp: "FastMCP", session_state: SessionState) -> dict[str, obj
         particularly in long-running MCP server processes where the server is
         not restarted between sessions.
 
+        Use memory_tool_schema with tool_name="memory_reset_session_state" for
+        the explicit no-argument contract.
+
         Returns:
             JSON object with the reset state values.
         """

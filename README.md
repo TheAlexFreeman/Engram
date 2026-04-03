@@ -204,7 +204,7 @@ help or `engram-mcp plan create --json-schema` for the raw schema used by
 `memory_plan_schema` and mirrored by `memory_tool_schema("memory_plan_create")`.
 The broader `memory_tool_schema` lookup also covers plan execution, approval
 workflow inputs, ACCESS batch/session payloads, trace-span logging, tool-registry
-registration, protected periodic-review/revert workflows, knowledge promotion/reorganization/name-index/lifecycle workflows plus unverified file creation, and raw frontmatter update tools such as
+registration, protected periodic-review/revert workflows, the full Tier 1 semantic tool surface, and raw frontmatter update tools such as
 `memory_update_frontmatter` and `memory_update_frontmatter_bulk`.
 `engram-mcp serve` starts the server explicitly; bare
 `engram-mcp` still starts the server for backward compatibility.

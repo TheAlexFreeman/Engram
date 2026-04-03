@@ -1259,7 +1259,14 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         session_id: str | None = None,
         preview: bool = False,
     ) -> str:
-        """Scan completed plans or export selected completed-plan artifacts to the outbox."""
+        """List completed plans or export selected artifacts to the project outbox.
+
+        When plan_id is omitted, the tool returns a read-only list of completed
+        plans for the project. When plan_id is supplied, session_id becomes
+        required and artifact_paths must be a subset of the plan's exportable
+        outputs. Call memory_tool_schema with tool_name="memory_plan_review"
+        for the full list-versus-export contract.
+        """
         from ...errors import ValidationError
         from ...models import MemoryWriteResult
 
@@ -1420,7 +1427,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         status: str | None = None,
         project_id: str | None = None,
     ) -> str:
-        """List YAML plans with phase-level progress and next actions."""
+        """List YAML plans with phase-level progress and next actions.
+
+        status is an exact plan-status filter and project_id narrows the scan
+        to one project slug. Call memory_tool_schema with
+        tool_name="memory_list_plans" for the machine-readable filter contract.
+        """
         import json as _json
 
         root = get_root()
@@ -1477,7 +1489,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         Returns structured pass/fail/skip/error results for each postcondition.
         Manual postconditions are skipped. check/grep/test types are evaluated
-        automatically. test-type evaluation requires ENGRAM_TIER2=1.
+        automatically. test-type evaluation requires ENGRAM_TIER2=1. Call
+        memory_tool_schema with tool_name="memory_plan_verify" for the
+        plan/phase/project lookup contract.
         """
         import json as _json
 
@@ -1610,7 +1624,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         Filter by session_id (exact match), date range (YYYY-MM-DD), span_type,
         plan_id (matched against metadata.plan_id), or status.  Returns spans
         newest-first up to ``limit``, plus aggregates: total_duration_ms,
-        by_type counts, by_status counts, error_rate.
+        by_type counts, by_status counts, error_rate. Call memory_tool_schema
+        with tool_name="memory_query_traces" for the filter contract.
         """
         import json as _json
         import re as _re
@@ -1735,7 +1750,13 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         include_traces: bool = True,
         include_approval: bool = True,
     ) -> str:
-        """Return a single-call briefing packet for a plan phase."""
+        """Return a single-call briefing packet for a plan phase.
+
+        phase_id is optional and defaults to the next actionable phase.
+        max_context_chars must coerce to an integer >= 0. Call
+        memory_tool_schema with tool_name="memory_plan_briefing" for the full
+        briefing contract.
+        """
         import json as _json
         import os as _os
 
@@ -1848,7 +1869,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         """Load run state and assemble minimal restart context for resuming a plan.
 
         Returns the current resumption point (phase, task, outputs, errors) plus
-        a phase briefing.  Degrades gracefully when no run state exists.
+        a phase briefing. Degrades gracefully when no run state exists. When a
+        run state is present, the stored session_id is refreshed before the
+        briefing is returned. Call memory_tool_schema with
+        tool_name="memory_plan_resume" for the machine-readable contract.
         """
         import json as _json
 
@@ -1969,7 +1993,13 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         source_label: str,
         dry_run: bool = False,
     ) -> str:
-        """Stage external content into a project's IN/ directory."""
+        """Stage external content into a project's IN/ directory.
+
+        content must be non-empty, fetched_date must be YYYY-MM-DD, and dry_run
+        returns the staging envelope without writing files. Call
+        memory_tool_schema with tool_name="memory_stage_external" for the full
+        input contract.
+        """
         import json as _json
         import os as _os
 
@@ -2013,7 +2043,13 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         ),
     )
     async def memory_scan_drop_zone(project_filter: str | None = None) -> str:
-        """Scan configured watch folders and stage newly discovered content."""
+        """Scan configured watch folders and stage newly discovered content.
+
+        project_filter optionally restricts the scan to one configured project
+        slug. When MEMORY_SESSION_ID is set, the runtime also records a
+        tool_call trace for the scan. Call memory_tool_schema with
+        tool_name="memory_scan_drop_zone" for the input contract.
+        """
         import json as _json
         import os as _os
 
@@ -2058,7 +2094,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         back into the live session trace.
 
         Requires ENGRAM_TIER2=1 because scenarios may invoke verification on
-        test-type postconditions.
+        test-type postconditions. Call memory_tool_schema with
+        tool_name="memory_run_eval" for the filter and environment contract.
         """
         import json as _json
         import os as _os
@@ -2128,7 +2165,12 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         date_to: str | None = None,
         scenario_id: str | None = None,
     ) -> str:
-        """Return historical eval runs and aggregate trends from trace spans."""
+        """Return historical eval runs and aggregate trends from trace spans.
+
+        date_from and date_to, when provided, must be YYYY-MM-DD. Call
+        memory_tool_schema with tool_name="memory_eval_report" for the report
+        filter contract.
+        """
         import json as _json
         import re as _re
 
@@ -2622,7 +2664,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         At least one filter parameter must be provided. When ``tool_name`` is
         given, returns at most one result. All other filters return all matching
-        tools. An empty result is not an error.
+        tools. An empty result is not an error. Call memory_tool_schema with
+        tool_name="memory_get_tool_policy" for the filter requirements.
 
         Returns JSON with ``tools`` (list of tool dicts) and ``count``.
         """
