@@ -673,6 +673,22 @@ def _seed_lifecycle_fixture(repo_root: Path) -> None:
     _commit_with_date(repo_root, "seed lifecycle fixture", "2099-01-06T15:00:00Z")
 
 
+def _seed_export_fixture(repo_root: Path) -> None:
+    _write(
+        repo_root / "core" / "memory" / "knowledge" / "portable.md",
+        "---\ntrust: high\nsource: manual\ncreated: 2099-01-07\n---\n\n# Portable\n",
+    )
+    _commit_with_date(repo_root, "seed export fixture", "2099-01-07T09:00:00Z")
+
+
+def _seed_import_conflict_fixture(repo_root: Path) -> None:
+    _write(
+        repo_root / "core" / "memory" / "knowledge" / "portable.md",
+        "---\ntrust: low\nsource: manual\ncreated: 2099-01-07\n---\n\n# Different Portable\n",
+    )
+    _commit_with_date(repo_root, "seed import conflict fixture", "2099-01-07T10:00:00Z")
+
+
 def test_validate_status_and_search_integration(tmp_path: Path) -> None:
     repo_copy = _copy_repo_tree(tmp_path)
     _seed_warning_fixture(repo_copy)
@@ -1283,6 +1299,87 @@ def test_promote_and_archive_human_output_integration(tmp_path: Path) -> None:
     status_run = subprocess.run(
         ["git", "status", "--short"],
         cwd=repo_copy,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status_run.stdout.strip() == ""
+
+
+def test_export_and_import_json_integration(tmp_path: Path) -> None:
+    source_repo = _copy_repo_tree(tmp_path / "source")
+    target_repo = _copy_repo_tree(tmp_path / "target")
+    _seed_export_fixture(source_repo)
+    bundle_path = tmp_path / "portable-bundle.json"
+
+    export_run = _run_cli(
+        source_repo,
+        "export",
+        "--format",
+        "json",
+        "--output",
+        str(bundle_path),
+        "--json",
+    )
+    import_run = _run_cli(
+        target_repo,
+        "import",
+        str(bundle_path),
+        "--apply",
+        "--json",
+    )
+
+    export_payload = json.loads(export_run.stdout)
+    import_payload = json.loads(import_run.stdout)
+
+    assert export_run.returncode == 0
+    assert export_payload["format"] == "json"
+    assert bundle_path.exists()
+
+    assert import_run.returncode == 0
+    assert import_payload["commit_sha"]
+    assert "core/memory/knowledge/portable.md" in import_payload["new_state"]["created_paths"]
+    assert (target_repo / "core" / "memory" / "knowledge" / "portable.md").exists()
+
+    status_run = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=target_repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status_run.stdout.strip() == ""
+
+
+def test_export_markdown_and_import_preview_human_output_integration(tmp_path: Path) -> None:
+    source_repo = _copy_repo_tree(tmp_path / "source")
+    target_repo = _copy_repo_tree(tmp_path / "target")
+    _seed_export_fixture(source_repo)
+    _seed_import_conflict_fixture(target_repo)
+    bundle_path = tmp_path / "portable-bundle.md"
+
+    export_run = _run_cli(
+        source_repo,
+        "export",
+        "--format",
+        "md",
+        "--output",
+        str(bundle_path),
+    )
+    import_run = _run_cli(target_repo, "import", str(bundle_path))
+
+    assert export_run.returncode == 0
+    assert "Exported bundle:" in export_run.stdout
+    assert "Format: md" in export_run.stdout
+
+    assert import_run.returncode == 0
+    assert "Mode: preview" in import_run.stdout
+    assert "Summary: Import" in import_run.stdout
+    assert "can_apply: False" in import_run.stdout
+
+    status_run = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=target_repo,
         check=True,
         capture_output=True,
         text=True,

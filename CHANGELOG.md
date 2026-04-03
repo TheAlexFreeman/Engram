@@ -18,6 +18,12 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-04-03] Terminal portability commands for export and import
+
+**Changed:** Added `engram export` with markdown, JSON, and tar bundle formats over the stable portability roots (`core/INIT.md`, `core/governance/review-queue.md`, and `core/memory/`), plus `engram import` for previewing or applying those bundles with digest validation and explicit overwrite handling. Added focused unit coverage, subprocess integration tests, and updated the CLI guide and quickstart with backup and migration workflows.
+**Reasoning:** The final CLI roadmap gap was portability: there was no shell-native way to package an Engram instance for backup, migration, or seeding another repo without reverse-engineering repository state by hand. Shipping export/import closes that gap with a shared runtime contract instead of ad hoc scripts.
+**Approved by:** agent (pending review)
+
 ## [2026-04-03] Terminal lifecycle commands for promote and archive
 
 **Changed:** Added `engram promote` and `engram archive` as governed lifecycle commands that wrap the existing semantic knowledge tools. The CLI now exposes preview and apply flows for promoting reviewed `_unverified` notes into verified knowledge and archiving stale knowledge into `memory/knowledge/_archive/`, with focused unit coverage, subprocess integration tests, and updated CLI/quickstart docs.

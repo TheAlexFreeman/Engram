@@ -9,6 +9,8 @@ The `engram` CLI provides a terminal-oriented interface for searching, inspectin
 - `engram aggregate` for dry-run ACCESS aggregation previews.
 - `engram promote` for moving reviewed `_unverified` notes into verified knowledge.
 - `engram archive` for routing stale knowledge into `memory/knowledge/_archive/`.
+- `engram export` for portability bundles in markdown, JSON, or tar form.
+- `engram import` for previewing or applying portability bundles back into an Engram repo.
 - `engram approval` for listing and resolving pending plan approval requests from a shell or script.
 - `engram plan` for plan list/show/create/advance workflows from a shell or script.
 - `engram trace` for querying session traces from a shell or script.
@@ -192,6 +194,39 @@ engram archive memory/knowledge/_unverified/react/superseded-note.md --reason du
 
 JSON output mirrors the governed write result: `new_state.archive_path` reports the archived destination and `preview` carries the dry-run envelope when requested.
 
+### `engram export`
+
+Creates a portability bundle rooted at the stable instance-specific state: `core/INIT.md`, `core/governance/review-queue.md`, and everything under `core/memory/`. Export supports three formats:
+
+- `md` for a human-readable, round-trippable Markdown bundle.
+- `json` for a machine-friendly bundle with inline file content.
+- `tar` for an archive containing `manifest.json` plus the exported files at their original repo-relative paths.
+
+Examples:
+
+```bash
+engram export --format md
+engram export --format json --output ./memory-bundle.json --json
+engram export --format tar --output ./memory-bundle.tar
+```
+
+When `--output` is omitted, `md` and `json` bundle content is written directly to stdout. Tar bundles require `--output`.
+
+### `engram import`
+
+Validates or applies a portability bundle created by `engram export`. Preview is the default mode: the command checks bundle kind, version, UTF-8 content, and file digests before showing which files would be created or overwritten. Use `--apply` to write the validated bundle into the current repo, and `--overwrite` to allow updates when existing files differ.
+
+Examples:
+
+```bash
+engram import ./memory-bundle.json
+engram import ./memory-bundle.md --json
+engram import ./memory-bundle.tar --apply
+engram import ./memory-bundle.json --apply --overwrite
+```
+
+`engram import` accepts only bundles produced by `engram export`; the older onboarding-export template remains a separate import path through `HUMANS/tooling/scripts/onboard-export.sh`.
+
 ### `engram plan`
 
 Inspects and authors structured plans from the Active Plans system without requiring an MCP host.
@@ -308,5 +343,7 @@ If the validator's core dependencies are missing, the command prints a friendly 
 - `engram aggregate --json` emits the dry-run aggregation preview contract, including threshold reports and target files.
 - `engram promote --json` emits the governed promotion result or preview envelope.
 - `engram archive --json` emits the governed archive result or preview envelope.
+- `engram export --json` emits export operation metadata when `--output` is used; otherwise the bundle format itself determines stdout content.
+- `engram import --json` emits either the preview payload or the applied write result for the validated bundle.
 
 For onboarding and broader setup instructions, see [QUICKSTART.md](QUICKSTART.md).

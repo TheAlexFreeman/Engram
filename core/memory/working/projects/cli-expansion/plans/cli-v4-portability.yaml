@@ -2,8 +2,8 @@ id: cli-v4-portability
 project: cli-expansion
 created: '2026-04-03'
 origin_session: memory/activity/2026/04/02/chat-001
-status: draft
-sessions_used: 0
+status: completed
+sessions_used: 1
 budget:
   deadline: '2026-11-15'
   max_sessions: 7
@@ -19,7 +19,7 @@ work:
   phases:
     - id: bundle-contracts
       title: Define portable bundle schema and format guarantees
-      status: pending
+      status: completed
       commit: null
       blockers:
         - cli-v3-plan-commands:plan-command-verification
@@ -49,7 +49,7 @@ work:
           description: Document the planned portability formats and guarantees.
     - id: export-command
       title: Implement export in markdown, json, and tar formats
-      status: pending
+      status: completed
       commit: null
       blockers:
         - bundle-contracts
@@ -78,7 +78,7 @@ work:
           description: Document export usage and format tradeoffs.
     - id: import-command
       title: Implement import validation and restore flow
-      status: pending
+      status: completed
       commit: null
       blockers:
         - bundle-contracts
@@ -108,7 +108,7 @@ work:
           description: Document import safety expectations and supported bundle types.
     - id: portability-verification
       title: Verify portability docs, integration coverage, and onboarding fit
-      status: pending
+      status: completed
       commit: null
       blockers:
         - export-command

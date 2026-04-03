@@ -136,6 +136,8 @@ def build_parser() -> argparse.ArgumentParser:
     from .cmd_approval import register_approval
     from .cmd_aggregate import register_aggregate
     from .cmd_diff import register_diff
+    from .cmd_export import register_export
+    from .cmd_import import register_import
     from .cmd_promote import register_promote
     from .cmd_review import register_review
     from .cmd_recall import register_recall
@@ -151,6 +153,8 @@ def build_parser() -> argparse.ArgumentParser:
     register_approval(subparsers, parents=[common_parser])
     register_aggregate(subparsers, parents=[common_parser])
     register_diff(subparsers, parents=[common_parser])
+    register_export(subparsers, parents=[common_parser])
+    register_import(subparsers, parents=[common_parser])
     register_promote(subparsers, parents=[common_parser])
     register_review(subparsers, parents=[common_parser])
     register_recall(subparsers, parents=[common_parser])
