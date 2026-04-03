@@ -121,6 +121,21 @@ def _init_git_repo(repo_root: Path) -> None:
         capture_output=True,
         text=True,
     )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", "snapshot"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def _commit_all(repo_root: Path, message: str) -> None:
@@ -143,28 +158,6 @@ def _git_status(repo_root: Path) -> str:
         text=True,
     )
     return result.stdout.strip()
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=repo_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True, capture_output=True, text=True)
-    subprocess.run(
-        ["git", "commit", "-m", "snapshot"],
-        cwd=repo_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "initialize head"],
-        cwd=repo_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
 
 
 def _seed_plan_repo(tmp_path: Path) -> tuple[Path, Path]:

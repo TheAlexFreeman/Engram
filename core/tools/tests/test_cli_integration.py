@@ -224,6 +224,46 @@ def _seed_plan_fixture(repo_root: Path) -> None:
     )
 
 
+def _seed_approval_fixture(repo_root: Path) -> None:
+    approval_path = (
+        repo_root
+        / "core"
+        / "memory"
+        / "working"
+        / "approvals"
+        / "pending"
+        / "tracked-plan--phase-a.yaml"
+    )
+    approval_path.parent.mkdir(parents=True, exist_ok=True)
+    approval_path.write_text(
+        "plan_id: tracked-plan\n"
+        "phase_id: phase-a\n"
+        "project_id: example\n"
+        "status: pending\n"
+        "requested: 2026-04-03T09:00:00Z\n"
+        "expires: 2099-04-10T09:00:00Z\n"
+        "context:\n"
+        "  phase_title: Approval-gated phase\n"
+        "  phase_summary: Phase requires approval before execution.\n"
+        "  change_class: proposed\n"
+        "  sources:\n"
+        "    - core/context.md\n"
+        "  changes:\n"
+        "    - path: HUMANS/docs/CLI.md\n"
+        "      action: update\n"
+        "      description: Document approval listing.\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", "seed approval fixture"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
 def test_validate_status_and_search_integration(tmp_path: Path) -> None:
     repo_copy = _copy_repo_tree(tmp_path)
     _seed_warning_fixture(repo_copy)
@@ -524,6 +564,28 @@ def test_plan_advance_start_and_complete_integration(tmp_path: Path) -> None:
     assert plan_body["review"]["purpose_assessment"] == (
         "The terminal advance flow completed the plan successfully."
     )
+
+    status_run = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=repo_copy,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status_run.stdout.strip() == ""
+
+
+def test_approval_list_integration(tmp_path: Path) -> None:
+    repo_copy = _copy_repo_tree(tmp_path)
+    _seed_approval_fixture(repo_copy)
+
+    list_run = _run_cli(repo_copy, "approval", "list", "--json")
+
+    assert list_run.returncode == 0
+    payload = json.loads(list_run.stdout)
+    assert payload["count"] == 1
+    assert payload["results"][0]["id"] == "tracked-plan--phase-a"
+    assert payload["results"][0]["status"] == "pending"
 
     status_run = subprocess.run(
         ["git", "status", "--short"],

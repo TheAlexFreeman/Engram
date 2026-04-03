@@ -226,6 +226,43 @@ def save_approval(root: Path, approval: ApprovalDocument) -> Path:
     return abs_path
 
 
+def list_approval_documents(
+    root: Path,
+    *,
+    include_resolved: bool = False,
+) -> list[tuple[str, ApprovalDocument]]:
+    """Return approval documents with their content-relative paths.
+
+    Pending approvals are returned with lazy expiry applied in memory, so callers
+    can surface expired state without mutating the repository.
+    """
+
+    approvals_root = _find_approvals_root(root)
+    queue_names = ["pending"]
+    if include_resolved:
+        queue_names.append("resolved")
+
+    results: list[tuple[str, ApprovalDocument]] = []
+    for queue_name in queue_names:
+        queue_dir = approvals_root / queue_name
+        if not queue_dir.exists():
+            continue
+        for yaml_file in sorted(queue_dir.glob("*.yaml")):
+            try:
+                raw = yaml.safe_load(yaml_file.read_text(encoding="utf-8"))
+            except yaml.YAMLError as exc:
+                raise ValidationError(f"Invalid approval YAML {yaml_file.name}: {exc}") from exc
+            if not isinstance(raw, dict):
+                raise ValidationError(f"Approval file must be a mapping: {yaml_file.name}")
+
+            approval = _coerce_approval(raw)
+            if queue_name == "pending":
+                _check_approval_expiry(approval, root)
+            rel_path = f"memory/working/approvals/{queue_name}/{yaml_file.name}"
+            results.append((rel_path, approval))
+    return results
+
+
 def regenerate_approvals_summary(root: Path) -> None:
     """Rewrite memory/working/approvals/SUMMARY.md from pending and resolved directories."""
     approvals_root = _find_approvals_root(root)

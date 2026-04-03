@@ -2,7 +2,7 @@ id: cli-v3-plan-commands
 project: cli-expansion
 created: '2026-04-03'
 origin_session: memory/activity/2026/04/02/chat-001
-status: active
+status: completed
 sessions_used: 1
 budget:
   deadline: '2026-10-01'
@@ -60,7 +60,7 @@ work:
           description: Tests for plan list and show rendering.
     - id: plan-create-flow
       title: Implement schema-backed plan create from file or stdin
-      status: in-progress
+      status: completed
       commit: null
       blockers:
         - plan-read-surfaces
@@ -92,7 +92,7 @@ work:
           description: Document plan authoring and creation workflows.
     - id: plan-advance-flow
       title: Implement current-phase advancement and next-step rendering
-      status: pending
+      status: completed
       commit: null
       blockers:
         - plan-read-surfaces
@@ -122,7 +122,7 @@ work:
           description: Document plan advancement and review-aware behavior.
     - id: plan-command-verification
       title: Verify plan command docs, integration flows, and readiness metadata
-      status: pending
+      status: completed
       commit: null
       blockers:
         - plan-create-flow

@@ -2,8 +2,8 @@ id: cli-v3-approval-trace
 project: cli-expansion
 created: '2026-04-03'
 origin_session: memory/activity/2026/04/02/chat-001
-status: draft
-sessions_used: 0
+status: active
+sessions_used: 1
 budget:
   deadline: '2026-09-15'
   max_sessions: 6
@@ -19,7 +19,7 @@ work:
   phases:
     - id: approval-listing
       title: Implement terminal listing for pending approval requests
-      status: pending
+      status: completed
       commit: null
       blockers:
         - cli-v3-schema-foundations:foundation-verification

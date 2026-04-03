@@ -132,6 +132,7 @@ def build_parser() -> argparse.ArgumentParser:
     from .cmd_search import register_search
     from .cmd_status import register_status
     from .cmd_add import register_add
+    from .cmd_approval import register_approval
     from .cmd_recall import register_recall
     from .cmd_log import register_log
     from .cmd_plan import register_plan
@@ -140,6 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
     register_search(subparsers, parents=[common_parser])
     register_status(subparsers, parents=[common_parser])
     register_add(subparsers, parents=[common_parser])
+    register_approval(subparsers, parents=[common_parser])
     register_recall(subparsers, parents=[common_parser])
     register_log(subparsers, parents=[common_parser])
     register_plan(subparsers, parents=[common_parser])
