@@ -5,7 +5,7 @@ The `engram` CLI provides a terminal-oriented interface for searching, inspectin
 - `engram search` for querying memory content from a shell or script.
 - `engram status` for a compact health dashboard.
 - `engram add` for governed ingestion into `memory/knowledge/_unverified/`.
-- `engram approval` for listing pending plan approval requests from a shell or script.
+- `engram approval` for listing and resolving pending plan approval requests from a shell or script.
 - `engram plan` for plan list/show/create/advance workflows from a shell or script.
 - `engram recall` for reading a file or namespace with frontmatter and ACCESS context.
 - `engram log` for recent ACCESS timeline inspection.
@@ -147,20 +147,24 @@ JSON output mirrors the underlying plan runtime: `list` returns structured plan 
 
 ### `engram approval`
 
-Lists pending structured-plan approval requests from the terminal.
+Inspects and resolves structured-plan approval requests from the terminal.
 
 - `engram approval list` shows pending approvals with stable ids, scope, expiry metadata, and the stored phase context needed to decide whether the work should proceed. Pending approvals that have aged past `expires` are surfaced as `expired` without mutating the repository.
+- `engram approval resolve <approval-id> approve|reject` records the reviewer decision, moves the approval file into the resolved queue, and updates the plan status to `active` or `blocked`. Use `--preview` to render the governed write envelope before mutating the repository.
 
 Examples:
 
 ```bash
 engram approval list
 engram approval list --json
+engram approval resolve tracked-plan--phase-a approve --comment "Looks good."
+engram approval resolve tracked-plan--phase-a reject --comment "Need more detail." --json
+engram approval resolve tracked-plan--phase-a approve --preview
 ```
 
-Approval resolution still uses the MCP-hosted approval tools until the terminal `resolve` flow lands.
+Malformed approval ids fail fast, and expired approvals are rejected with a clear diagnostic instead of being silently rewritten.
 
-JSON output includes approval ids, scope, status, expiry metadata, and the stored approval context for scripts.
+JSON output includes approval ids, scope, status, expiry metadata, the stored approval context for `list`, and the governed write result for `resolve`.
 
 ### `engram validate`
 
@@ -191,6 +195,7 @@ If the validator's core dependencies are missing, the command prints a friendly 
 - `engram plan create --json-schema` emits the raw nested plan-authoring schema mirrored from `memory_plan_schema`.
 - `engram plan advance --json` emits the shared plan-execute payload, including blocked, paused, verification, and successful transition states.
 - `engram approval list --json` emits approval ids, scope, status, expiry metadata, and stored phase context.
+- `engram approval resolve --json` emits the governed approval-resolution write result, including the resolved approval id, plan status, and commit metadata.
 - `engram recall --json` emits a structured file or namespace inspection payload.
 - `engram log --json` emits a filtered ACCESS timeline payload.
 

@@ -3,7 +3,7 @@ project: cli-expansion
 created: '2026-04-03'
 origin_session: memory/activity/2026/04/02/chat-001
 status: active
-sessions_used: 1
+sessions_used: 2
 budget:
   deadline: '2026-09-15'
   max_sessions: 6
@@ -51,7 +51,7 @@ work:
           description: Tests for approval listing in human and JSON modes.
     - id: approval-resolution
       title: Implement terminal approval resolution with guardrails
-      status: pending
+      status: completed
       commit: null
       blockers:
         - approval-listing

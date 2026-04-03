@@ -1126,6 +1126,179 @@ def execute_plan_action_result(
     ).to_dict()
 
 
+def resolve_approval_action_result(
+    *,
+    repo: Any,
+    root: Path,
+    plan_id: str,
+    phase_id: str,
+    resolution: str,
+    comment: str | None = None,
+    preview: bool = False,
+) -> dict[str, Any]:
+    """Approve or reject a pending plan approval using the shared governed write path."""
+    from datetime import datetime, timezone
+
+    from ...errors import NotFoundError, ValidationError
+    from ...models import MemoryWriteResult
+
+    warnings: list[str] = []
+
+    if resolution not in APPROVAL_RESOLUTIONS:
+        raise ValidationError(
+            f"resolution must be one of {sorted(APPROVAL_RESOLUTIONS)}: {resolution!r}"
+        )
+
+    existing = load_approval(root, plan_id, phase_id)
+    if existing is None:
+        raise NotFoundError(f"No approval document found for plan '{plan_id}' phase '{phase_id}'")
+    if existing.status == "expired":
+        raise ValidationError(
+            f"Approval for phase '{phase_id}' has expired and can no longer be resolved"
+        )
+    if existing.status != "pending":
+        raise ValidationError(
+            f"Approval for phase '{phase_id}' is already resolved (status: {existing.status!r})"
+        )
+
+    plan_path_r, resolved_project_id = _resolve_existing_plan_path(
+        root, plan_id, existing.project_id
+    )
+    abs_plan = repo.abs_path(plan_path_r)
+    plan = load_plan(abs_plan, root)
+    phase = resolve_phase(plan, phase_id)
+    change_class = phase_change_class(phase)
+
+    filename_r = approval_filename(plan.id, phase.id)
+    approval_id = filename_r.removesuffix(".yaml")
+    approval_pending_file = f"memory/working/approvals/pending/{filename_r}"
+    approval_resolved_file = f"memory/working/approvals/resolved/{filename_r}"
+    operations_log_path = f"memory/working/projects/{resolved_project_id}/operations.jsonl"
+    files_res = [
+        plan_path_r,
+        approval_pending_file,
+        approval_resolved_file,
+        _project_summary_path(resolved_project_id),
+        "memory/working/projects/SUMMARY.md",
+        operations_log_path,
+        approvals_summary_path(),
+    ]
+
+    resolved_status = "approved" if resolution == "approve" else "rejected"
+    resulting_plan_status = "active" if resolution == "approve" else "blocked"
+    normalized_comment = comment.strip() if comment and comment.strip() else None
+    commit_msg_res = (
+        f"[plan] {'Approve' if resolution == 'approve' else 'Reject'} {plan.id}:{phase.id}"
+    )
+    result_res: dict[str, Any] = {
+        "approval_id": approval_id,
+        "approval_file": approval_resolved_file,
+        "plan_id": plan.id,
+        "project_id": resolved_project_id,
+        "phase_id": phase.id,
+        "status": resolved_status,
+        "plan_status": resulting_plan_status,
+        "resolution": resolution,
+        "comment": normalized_comment,
+        "message": (
+            "Approval recorded; the plan can resume."
+            if resolution == "approve"
+            else "Approval rejected; the plan remains blocked until work is revised or re-requested."
+        ),
+    }
+    preview_payload = _create_preview(
+        mode="preview" if preview else "apply",
+        change_class=change_class,
+        summary=f"Resolve approval {approval_id} with decision {resolution}.",
+        reasoning=(
+            "Approval resolution moves the queue entry into the resolved archive and updates the "
+            "plan status so subsequent execution respects the human decision."
+        ),
+        target_files=[
+            (plan_path_r, "update"),
+            (approval_pending_file, "delete"),
+            (approval_resolved_file, "create"),
+            (_project_summary_path(resolved_project_id), "update"),
+            ("memory/working/projects/SUMMARY.md", "update"),
+            (operations_log_path, "append"),
+            (approvals_summary_path(), "update"),
+        ],
+        invariant_effects=[
+            "Moves the approval request from pending to resolved with reviewer metadata.",
+            "Returns the plan to active status on approval or blocked status on rejection.",
+            "Records the decision in the project operations log and refreshes approval navigation.",
+        ],
+        commit_message=commit_msg_res,
+        resulting_state=result_res,
+        warnings=warnings,
+    )
+    if preview:
+        return MemoryWriteResult(
+            files_changed=files_res,
+            commit_sha=None,
+            commit_message=None,
+            new_state=result_res,
+            warnings=warnings,
+            preview=preview_payload,
+        ).to_dict()
+
+    existing.resolution = resolution
+    existing.reviewer = "user"
+    existing.resolved_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    existing.comment = normalized_comment
+    existing.status = resolved_status
+
+    from ...plan_utils import _find_approvals_root
+
+    approvals_root = _find_approvals_root(root)
+    pending_path_r = approvals_root / "pending" / filename_r
+    (approvals_root / "resolved").mkdir(parents=True, exist_ok=True)
+    save_approval(root, existing)
+    if pending_path_r.exists():
+        pending_path_r.unlink()
+
+    plan.status = resulting_plan_status
+
+    regenerate_approvals_summary(root)
+    save_plan(abs_plan, plan, root)
+    repo.add(plan_path_r)
+    if repo.is_tracked(approval_pending_file):
+        repo.add(approval_pending_file)
+    repo.add(approval_resolved_file)
+    repo.add(approvals_summary_path())
+
+    resolution_event = "approved" if resolution == "approve" else "rejected"
+    _append_plan_log(
+        root,
+        repo,
+        resolved_project_id,
+        files_res,
+        session_id=None,
+        action=f"approval-{resolution_event}",
+        plan_id=plan.id,
+        phase_id=phase.id,
+        detail=normalized_comment or "",
+    )
+    _sync_project_navigation(root, repo, resolved_project_id, files_res)
+    record_trace(
+        root,
+        None,
+        span_type="plan_action",
+        name=f"approval-{resolution_event}",
+        status="ok",
+        metadata={"plan_id": plan.id, "phase_id": phase.id, "resolution": resolution},
+    )
+    commit_result_res = repo.commit(commit_msg_res)
+    return MemoryWriteResult.from_commit(
+        files_changed=files_res,
+        commit_result=commit_result_res,
+        commit_message=commit_msg_res,
+        new_state=result_res,
+        warnings=warnings,
+        preview=preview_payload,
+    ).to_dict()
+
+
 def _append_plan_log(
     root: Path,
     repo,
@@ -2424,115 +2597,17 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         Returns JSON with ``approval_file``, ``status``, ``plan_status``, and
         the resolved ``phase_id``.
         """
-        from datetime import datetime, timezone
-
-        from ...errors import NotFoundError
-        from ...errors import ValidationError as _VE
-        from ...models import MemoryWriteResult
-
         repo = get_repo()
         root = get_root()
-
-        if resolution not in APPROVAL_RESOLUTIONS:
-            raise _VE(f"resolution must be one of {sorted(APPROVAL_RESOLUTIONS)}: {resolution!r}")
-
-        plan_path_r, resolved_project_id = _resolve_existing_plan_path(root, plan_id, None)
-        abs_plan = repo.abs_path(plan_path_r)
-        plan = load_plan(abs_plan, root)
-        phase = resolve_phase(plan, phase_id)
-
-        existing = load_approval(root, plan.id, phase.id)
-        if existing is None:
-            raise NotFoundError(
-                f"No approval document found for plan '{plan.id}' phase '{phase.id}'"
-            )
-        if existing.status != "pending":
-            raise _VE(
-                f"Approval for phase '{phase.id}' is already resolved (status: {existing.status!r})"
-            )
-
-        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        existing.resolution = resolution
-        existing.reviewer = "user"
-        existing.resolved_at = now_str
-        existing.comment = comment.strip() if comment else None
-        existing.status = "approved" if resolution == "approve" else "rejected"
-
-        # Move from pending/ to resolved/
-        from ...plan_utils import _find_approvals_root
-
-        approvals_root = _find_approvals_root(root)
-        filename_r = approval_filename(plan.id, phase.id)
-        approval_pending_file = f"memory/working/approvals/pending/{filename_r}"
-        approval_resolved_file = f"memory/working/approvals/resolved/{filename_r}"
-        pending_path_r = approvals_root / "pending" / filename_r
-        resolved_dir_r = approvals_root / "resolved"
-        resolved_dir_r.mkdir(parents=True, exist_ok=True)
-        save_approval(root, existing)  # saves to resolved/ since status != pending
-        if pending_path_r.exists():
-            pending_path_r.unlink()
-
-        if resolution == "approve":
-            plan.status = "active"
-        else:
-            plan.status = "blocked"
-
-        regenerate_approvals_summary(root)
-        save_plan(abs_plan, plan, root)
-        repo.add(plan_path_r)
-        if repo.is_tracked(approval_pending_file):
-            repo.add(approval_pending_file)
-        repo.add(approval_resolved_file)
-        repo.add(approvals_summary_path())
-
-        files_res = [
-            plan_path_r,
-            approval_pending_file,
-            approval_resolved_file,
-            _project_summary_path(resolved_project_id),
-            "memory/working/projects/SUMMARY.md",
-            f"memory/working/projects/{resolved_project_id}/operations.jsonl",
-            approvals_summary_path(),
-        ]
-        resolution_event = "approved" if resolution == "approve" else "rejected"
-        _append_plan_log(
-            root,
-            repo,
-            resolved_project_id,
-            files_res,
-            session_id=None,
-            action=f"approval-{resolution_event}",
-            plan_id=plan.id,
-            phase_id=phase.id,
-            detail=comment or "",
+        payload = resolve_approval_action_result(
+            repo=repo,
+            root=root,
+            plan_id=plan_id,
+            phase_id=phase_id,
+            resolution=resolution,
+            comment=comment,
         )
-        _sync_project_navigation(root, repo, resolved_project_id, files_res)
-        record_trace(
-            root,
-            None,
-            span_type="plan_action",
-            name=f"approval-{resolution_event}",
-            status="ok",
-            metadata={"plan_id": plan.id, "phase_id": phase.id, "resolution": resolution},
-        )
-        commit_msg_res = (
-            f"[plan] {'Approve' if resolution == 'approve' else 'Reject'} {plan.id}:{phase.id}"
-        )
-        commit_result_res = repo.commit(commit_msg_res)
-        result_res: dict[str, Any] = {
-            "approval_file": (
-                f"memory/working/approvals/resolved/{approval_filename(plan.id, phase.id)}"
-            ),
-            "status": existing.status,
-            "plan_status": plan.status,
-        }
-        return MemoryWriteResult.from_commit(
-            files_changed=files_res,
-            commit_result=commit_result_res,
-            commit_message=commit_msg_res,
-            new_state=result_res,
-            warnings=[],
-        ).to_json()
+        return json.dumps(payload, indent=2)
 
     # ── Tool Registry MCP tools ──────────────────────────────────────────────
 
@@ -2772,4 +2847,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     }
 
 
-__all__ = ["register_tools"]
+__all__ = [
+    "register_tools",
+    "create_plan_write_result",
+    "execute_plan_action_result",
+    "resolve_approval_action_result",
+]
