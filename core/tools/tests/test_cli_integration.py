@@ -213,6 +213,14 @@ def _seed_plan_fixture(repo_root: Path) -> None:
         "review: null\n",
         encoding="utf-8",
     )
+    subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", "seed plan fixture"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def test_validate_status_and_search_integration(tmp_path: Path) -> None:
@@ -390,3 +398,59 @@ def test_plan_create_preview_and_help_integration(tmp_path: Path) -> None:
     assert help_run.returncode == 0
     assert "Schema-backed help for plan creation." in help_run.stdout
     assert "--json-schema" in help_run.stdout
+
+
+def test_plan_create_apply_and_schema_integration(tmp_path: Path) -> None:
+    repo_copy = _copy_repo_tree(tmp_path)
+    _seed_plan_fixture(repo_copy)
+    create_input_path = tmp_path / "apply-plan.yaml"
+    create_input_path.write_text(
+        "plan_id: integrated-plan\n"
+        "project_id: example\n"
+        "purpose_summary: Create a plan through the CLI entrypoint\n"
+        "purpose_context: Exercise the real apply path from the terminal CLI.\n"
+        "session_id: memory/activity/2026/04/03/chat-011\n"
+        "phases:\n"
+        "  - id: integrated-phase\n"
+        "    title: Create the plan\n"
+        "    changes:\n"
+        "      - path: HUMANS/docs/CLI.md\n"
+        "        action: update\n"
+        "        description: Verify terminal plan creation.\n",
+        encoding="utf-8",
+    )
+
+    create_run = _run_cli(repo_copy, "plan", "create", str(create_input_path), "--json")
+    schema_run = _run_cli(repo_copy, "plan", "create", "--json-schema")
+
+    assert create_run.returncode == 0
+    create_payload = json.loads(create_run.stdout)
+    assert (
+        create_payload["new_state"]["plan_path"]
+        == "memory/working/projects/example/plans/integrated-plan.yaml"
+    )
+    assert create_payload["commit_sha"]
+    assert (
+        repo_copy
+        / "core"
+        / "memory"
+        / "working"
+        / "projects"
+        / "example"
+        / "plans"
+        / "integrated-plan.yaml"
+    ).exists()
+
+    status_run = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=repo_copy,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status_run.stdout.strip() == ""
+
+    assert schema_run.returncode == 0
+    schema_payload = json.loads(schema_run.stdout)
+    assert schema_payload["tool_name"] == "memory_plan_create"
+    assert "phases" in schema_payload["properties"]

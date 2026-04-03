@@ -5,7 +5,7 @@ The `engram` CLI provides a terminal-oriented interface for searching, inspectin
 - `engram search` for querying memory content from a shell or script.
 - `engram status` for a compact health dashboard.
 - `engram add` for governed ingestion into `memory/knowledge/_unverified/`.
-- `engram plan` for plan list/show inspection from a shell or script.
+- `engram plan` for plan list/show/create workflows from a shell or script.
 - `engram recall` for reading a file or namespace with frontmatter and ACCESS context.
 - `engram log` for recent ACCESS timeline inspection.
 - `engram validate` for repository integrity checks.
@@ -134,6 +134,8 @@ engram plan create --json-schema
 
 `engram plan create --help` renders schema-backed authoring guidance generated from the same nested contract used by `memory_plan_schema` and `engram-mcp plan create --json-schema`.
 
+For local terminal work, `engram plan list`, `engram plan show`, and `engram plan create` can replace the direct MCP read/create surfaces. Use the MCP-hosted plan tools when you need execution-state mutations such as phase advancement, run-state coordination, or review-aware approval handling.
+
 JSON output mirrors the underlying plan runtime: `list` returns structured plan summaries with `next_action` and `phase_progress`, `show` returns the selected phase packet plus plan progress and optional budget status, and `create` returns the governed write result or preview envelope.
 
 ### `engram validate`
@@ -161,6 +163,8 @@ If the validator's core dependencies are missing, the command prints a friendly 
 - `engram add --json` emits a governed write result with `preview` support for dry runs.
 - `engram plan list --json` emits structured plan summaries for scripts or terminal agents.
 - `engram plan show --json` emits the selected phase packet with blockers, postconditions, and changes.
+- `engram plan create --json` emits the governed create result or preview envelope for terminal plan authoring.
+- `engram plan create --json-schema` emits the raw nested plan-authoring schema mirrored from `memory_plan_schema`.
 - `engram recall --json` emits a structured file or namespace inspection payload.
 - `engram log --json` emits a filtered ACCESS timeline payload.
 

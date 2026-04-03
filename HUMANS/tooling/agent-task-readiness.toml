@@ -8,6 +8,7 @@ default_profile = "workspace_general"
 profile_order = [
   "pull_request",
   "publish_branch",
+  "terminal_plan_authoring",
   "python_dependency_install",
   "node_dependency_install",
   "python_validation",
@@ -45,13 +46,29 @@ manifest_only = "Manifest loaded"
 
 [profiles.workspace_general]
 title = "Workspace General"
-description = "Generic local editing, schema-backed CLI help, or investigation with no publish, install, or validation requirement."
+description = "Generic local editing, read-only plan inspection, schema-backed CLI help, or investigation with no publish, install, or validation requirement."
 keywords = []
 checks = []
 final_gate_checks = []
 fallback_message = "Local work can continue, including schema-backed help and guided authoring."
 blocked_reason = "No task-specific preflight gates were requested."
-success_message = "No preflight checks are required for local edits, schema-backed help, or inspection tasks."
+success_message = "No preflight checks are required for local edits, read-only plan inspection, schema-backed help, or general investigation."
+
+[profiles.terminal_plan_authoring]
+title = "Terminal Plan Authoring"
+description = "Tasks that use the local `engram plan create` workflow for schema help, preview, or commit-backed plan creation without an MCP host."
+keywords = [
+  "engram plan create",
+  "plan create",
+  "plan authoring",
+  "author plan",
+  "plan yaml",
+]
+checks = ["python_runtime", "git_cli"]
+final_gate_checks = ["python_runtime", "git_cli"]
+fallback_message = "Schema help and YAML editing can continue, but terminal plan creation or apply is blocked."
+blocked_reason = "Restore the repo Python runtime or Git CLI before retrying terminal plan authoring."
+success_message = "Terminal plan authoring prerequisites are available."
 
 [profiles.pull_request]
 title = "Pull Request"
