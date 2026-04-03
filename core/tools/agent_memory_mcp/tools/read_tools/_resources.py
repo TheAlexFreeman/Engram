@@ -18,10 +18,26 @@ def register_resources(
     tools: dict[str, object],
 ) -> None:
     """Register MCP-native resources and prompts."""
-    memory_session_health_check = tools["memory_session_health_check"]
-    memory_prepare_unverified_review = tools["memory_prepare_unverified_review"]
-    memory_prepare_promotion_batch = tools["memory_prepare_promotion_batch"]
-    memory_prepare_periodic_review = tools["memory_prepare_periodic_review"]
+    memory_session_health_check = cast(Any, tools["memory_session_health_check"])
+    memory_prepare_unverified_review = cast(Any, tools["memory_prepare_unverified_review"])
+    memory_prepare_promotion_batch = cast(Any, tools["memory_prepare_promotion_batch"])
+    memory_prepare_periodic_review = cast(Any, tools["memory_prepare_periodic_review"])
+
+    def _dump_resource_payload(payload: Any) -> str:
+        return json.dumps(payload, indent=2)
+
+    def _load_tool_payload(raw: str) -> dict[str, Any]:
+        payload = cast(dict[str, Any], json.loads(raw))
+        result = payload.get("result")
+        if isinstance(result, dict) and "_session" in payload:
+            return cast(dict[str, Any], result)
+        return payload
+
+    def _load_manifest_resource_payload() -> tuple[dict[str, Any] | None, str | None]:
+        manifest, error_payload = _load_capabilities_manifest(get_root())
+        if error_payload is not None:
+            return None, _dump_resource_payload(error_payload)
+        return cast(dict[str, Any], manifest), None
 
     _build_active_plan_summary_payload = H._build_active_plan_summary_payload
     _build_capabilities_summary = H._build_capabilities_summary
@@ -43,21 +59,19 @@ def register_resources(
         mime_type="application/json",
     )
     async def memory_capability_summary_resource() -> str:
-        root = get_root()
-        manifest, error_payload = _load_capabilities_manifest(root)
-        if error_payload is not None:
-            return json.dumps(error_payload, indent=2)
+        manifest_dict, error_json = _load_manifest_resource_payload()
+        if error_json is not None:
+            return error_json
 
-        manifest_dict = cast(dict[str, Any], manifest)
         runtime_tool_names = await _list_registered_tool_names(mcp)
         payload = {
             "summary": _build_capabilities_summary(
-                manifest_dict,
+                cast(dict[str, Any], manifest_dict),
                 runtime_tool_names=runtime_tool_names,
             ),
-            "tool_profiles": _build_tool_profile_payload(manifest_dict),
+            "tool_profiles": _build_tool_profile_payload(cast(dict[str, Any], manifest_dict)),
         }
-        return json.dumps(payload, indent=2)
+        return _dump_resource_payload(payload)
 
     @mcp.resource(
         "memory://policy/summary",
@@ -67,13 +81,12 @@ def register_resources(
         mime_type="application/json",
     )
     async def memory_policy_summary_resource() -> str:
-        root = get_root()
-        manifest, error_payload = _load_capabilities_manifest(root)
-        if error_payload is not None:
-            return json.dumps(error_payload, indent=2)
+        manifest_dict, error_json = _load_manifest_resource_payload()
+        if error_json is not None:
+            return error_json
 
-        payload = _build_policy_summary_payload(cast(dict[str, Any], manifest))
-        return json.dumps(payload, indent=2)
+        payload = _build_policy_summary_payload(cast(dict[str, Any], manifest_dict))
+        return _dump_resource_payload(payload)
 
     @mcp.resource(
         "memory://session/health",
@@ -83,7 +96,7 @@ def register_resources(
         mime_type="application/json",
     )
     async def memory_session_health_resource() -> str:
-        return await memory_session_health_check()
+        return _dump_resource_payload(_load_tool_payload(await memory_session_health_check()))
 
     @mcp.resource(
         "memory://plans/active",
@@ -95,7 +108,7 @@ def register_resources(
     async def memory_active_plans_resource() -> str:
         root = get_root()
         payload = _build_active_plan_summary_payload(root)
-        return json.dumps(payload, indent=2)
+        return _dump_resource_payload(payload)
 
     # ------------------------------------------------------------------
     # MCP-native prompts
@@ -110,7 +123,7 @@ def register_resources(
         max_files: int = 12,
         max_extract_words: int = 60,
     ) -> str:
-        bundle = json.loads(
+        bundle = _load_tool_payload(
             await memory_prepare_unverified_review(
                 folder_path=folder_path,
                 max_files=max_files,
@@ -134,7 +147,7 @@ def register_resources(
         folder_path: str = "memory/knowledge/_unverified",
         max_files: int = 12,
     ) -> str:
-        bundle = json.loads(
+        bundle = _load_tool_payload(
             await memory_prepare_promotion_batch(
                 folder_path=folder_path,
                 max_files=max_files,
@@ -156,7 +169,7 @@ def register_resources(
         max_queue_items: int = 8,
         max_deferred_targets: int = 8,
     ) -> str:
-        bundle = json.loads(
+        bundle = _load_tool_payload(
             await memory_prepare_periodic_review(
                 max_queue_items=max_queue_items,
                 max_deferred_targets=max_deferred_targets,

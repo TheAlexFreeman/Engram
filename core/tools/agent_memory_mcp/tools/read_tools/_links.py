@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from ...response_envelope import dump_tool_result
 
 from ..reference_extractor import (
     build_connectivity_graph,
@@ -23,8 +24,17 @@ from ..reference_extractor import (
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
 
+    from ...session_state import SessionState
 
-def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
+
+def register_links(
+    mcp: "FastMCP",
+    get_repo,
+    get_root,
+    H,
+    *,
+    session_state: "SessionState | None" = None,
+) -> dict[str, object]:
     """Register links read tools and return their callables."""
     _filter_link_delta_payload = H._filter_link_delta_payload
     _git_snapshot_graph = H._git_snapshot_graph
@@ -33,6 +43,11 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
     _resolve_repo_relative_target = H._resolve_repo_relative_target
     _resolve_visible_path = H._resolve_visible_path
     _tool_annotations = H._tool_annotations
+
+    def _dump_payload(payload: Any) -> str:
+        if session_state is not None:
+            session_state.record_tool_call()
+        return dump_tool_result(payload, session_state, indent=2)
 
     # ------------------------------------------------------------------
     @mcp.tool(
@@ -65,7 +80,9 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
 
         rel_path = source_path.relative_to(root).as_posix()
         payload = resolve_link_diagnostics(root, rel_path, target)
-        return json.dumps(payload, indent=2)
+        if session_state is not None:
+            session_state.record_read(rel_path)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_find_references
@@ -96,7 +113,7 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
             "matches": matches,
             "total": len(matches),
         }
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_validate_links
@@ -128,7 +145,7 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
                 return f"Error: Path not found: {path}"
 
         payload = validate_links(root, requested_path)
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_reorganize_preview
@@ -175,7 +192,7 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
             )
 
         payload = preview_reorganization(root, normalized_source, normalized_dest)
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_suggest_structure
@@ -219,7 +236,7 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
             payload = suggest_structure(root, requested_path, heuristics)
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_check_cross_references
@@ -272,7 +289,9 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
             )
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
-        return json.dumps(payload, indent=2)
+        if session_state is not None:
+            session_state.record_read(rel_path)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_score_existing_links
@@ -365,7 +384,9 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
             "in_degree": len(graph.incoming.get(rel_path, set())),
             "out_degree": len(graph.outgoing.get(rel_path, set())),
         }
-        return json.dumps(payload, indent=2)
+        if session_state is not None:
+            session_state.record_read(rel_path)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_score_links_by_access
@@ -440,7 +461,9 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
             "strong_links": strong_links,
             "out_degree": len(graph.outgoing.get(rel_path, set())),
         }
-        return json.dumps(payload, indent=2)
+        if session_state is not None:
+            session_state.record_read(rel_path)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_check_cross_references
@@ -585,7 +608,7 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
                 ),
             },
         }
-        return json.dumps(result, indent=2)
+        return _dump_payload(result)
 
     # ------------------------------------------------------------------
     # memory_surface_unlinked
@@ -629,7 +652,7 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
             target_domain=target_domain,
             min_edge_count=min_edge_count,
         )
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_surface_unlinked
@@ -714,7 +737,7 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_link_delta
@@ -771,7 +794,7 @@ def register_links(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
         if len(payload["removed_edges"]) > 200:
             payload["removed_edges"] = payload["removed_edges"][:200]
             payload["removed_edges_truncated"] = True
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_generate_summary

@@ -6,7 +6,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from .response_envelope import envelope_tool_result
+
+if TYPE_CHECKING:
+    from .session_state import SessionState
 
 
 @dataclass
@@ -72,5 +77,13 @@ class MemoryWriteResult:
             payload["preview"] = self.preview
         return payload
 
-    def to_json(self, indent: int = 2) -> str:
-        return json.dumps(self.to_dict(), indent=indent)
+    def to_json(
+        self,
+        indent: int = 2,
+        *,
+        session_state: "SessionState | None" = None,
+    ) -> str:
+        payload: dict[str, Any] = self.to_dict()
+        if session_state is not None:
+            payload = envelope_tool_result(payload, session_state)
+        return json.dumps(payload, indent=indent)

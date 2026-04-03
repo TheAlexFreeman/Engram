@@ -24,6 +24,7 @@ from ...preview_contract import (
     require_approval_token,
     require_preview_token,
 )
+from ...session_state import SessionState
 from ...tool_schemas import ACCESS_MODES, REVIEW_PRIORITIES
 
 if TYPE_CHECKING:
@@ -1187,7 +1188,12 @@ def _build_revert_preview(repo, sha: str) -> dict[str, object]:
     }
 
 
-def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
+def register_tools(
+    mcp: "FastMCP",
+    get_repo,
+    get_root,
+    session_state: SessionState | None = None,
+) -> dict[str, object]:
     """Register session and governance semantic tools."""
 
     @mcp.tool(
@@ -1214,6 +1220,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         if session_id:
             validate_session_id(session_id)
+        if session_state is not None:
+            session_state.record_tool_call()
 
         rel_path = "memory/working/CURRENT.md"
         abs_path = root / rel_path
@@ -1228,6 +1236,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
 
         abs_path.write_text(new_content, encoding="utf-8")
         repo.add(rel_path)
+        if session_state is not None:
+            session_state.record_write(rel_path)
+            session_state.record_checkpoint()
 
         result = MemoryWriteResult(
             files_changed=[rel_path],
@@ -1240,7 +1251,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 "staged": True,
             },
         )
-        return result.to_json()
+        return result.to_json(session_state=session_state)
 
     @mcp.tool(
         name="memory_session_flush",
@@ -1283,6 +1294,8 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             raise ValidationError(
                 "session_id is required when MEMORY_SESSION_ID and memory/activity/CURRENT_SESSION are unset"
             )
+        if session_state is not None:
+            session_state.record_tool_call()
 
         checkpoint_rel, abs_checkpoint = resolve_repo_path(
             repo,
@@ -1308,6 +1321,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             trigger=normalized_trigger,
         )
         commit_result = repo.commit(commit_msg)
+        if session_state is not None:
+            session_state.record_write(checkpoint_rel)
+            session_state.record_checkpoint()
+            session_state.record_flush()
         result = MemoryWriteResult.from_commit(
             files_changed=[checkpoint_rel],
             commit_result=commit_result,
@@ -1319,7 +1336,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                 "trigger": normalized_trigger,
             },
         )
-        return result.to_json()
+        return result.to_json(session_state=session_state)
 
     @mcp.tool(
         name="memory_append_scratchpad",

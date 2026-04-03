@@ -118,6 +118,7 @@ def register_tools(
             raise ValidationError(f"User file not found: {rel_path}")
 
         repo.check_version_token(rel_path, version_token)
+        session_state.record_tool_call()
 
         fm_dict, body = read_with_frontmatter(abs_path)
         validate_frontmatter_metadata(fm_dict, context=f"user frontmatter for {rel_path}")
@@ -186,7 +187,7 @@ def register_tools(
                 new_state={**new_state, "preview_token": required_preview_token},
                 preview=preview_payload,
             )
-            return result.to_json()
+            return result.to_json(session_state=session_state)
 
         require_preview_token(
             repo,
@@ -206,6 +207,7 @@ def register_tools(
         identity_updates = increment_identity_updates(session_state)
         new_state["identity_updates_this_session"] = identity_updates
         commit_result = repo.commit(commit_msg)
+        session_state.record_write(rel_path)
 
         result = MemoryWriteResult.from_commit(
             files_changed=[rel_path],
@@ -214,7 +216,7 @@ def register_tools(
             new_state=new_state,
             preview=preview_payload,
         )
-        return result.to_json()
+        return result.to_json(session_state=session_state)
 
     return {"memory_update_user_trait": memory_update_user_trait}
 

@@ -38,6 +38,16 @@ class MemoryMCPTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.module = load_memory_mcp_module()
 
+    def _load_tool_payload(self, raw: str) -> Any:
+        payload = cast(dict[str, Any], json.loads(raw))
+        if "_session" in payload and "result" in payload:
+            return payload["result"]
+        return payload
+
+    def _load_resource_payload(self, resource_blocks: list[Any]) -> dict[str, Any]:
+        self.assertEqual(len(resource_blocks), 1)
+        return cast(dict[str, Any], json.loads(cast(str, resource_blocks[0].content)))
+
     def test_root_listing_hides_humans_by_default(self) -> None:
         output = asyncio.run(self.module.memory_list_folder(path="."))
 
@@ -75,16 +85,20 @@ class MemoryMCPTests(unittest.TestCase):
 
     def test_explicit_humans_read_still_works(self) -> None:
         raw = asyncio.run(self.module.memory_read_file(path="HUMANS/README.md"))
-        output = json.loads(raw)
+        payload = json.loads(raw)
+        output = payload["result"]
 
+        self.assertIn("_session", payload)
         self.assertTrue(output["inline"])
         self.assertIn("Human-Focused Documentation", output["content"])
         self.assertIn("version_token", output)
 
     def test_read_file_returns_structured_payload(self) -> None:
         raw = asyncio.run(self.module.memory_read_file(path="INIT.md"))
-        payload = json.loads(raw)
+        envelope = json.loads(raw)
+        payload = envelope["result"]
 
+        self.assertIn("_session", envelope)
         self.assertEqual(payload["path"], "INIT.md")
         self.assertTrue(payload["inline"])
         self.assertGreater(payload["size_bytes"], 0)
@@ -95,8 +109,10 @@ class MemoryMCPTests(unittest.TestCase):
 
     def test_get_capabilities_returns_structured_payload(self) -> None:
         raw = asyncio.run(self.module.memory_get_capabilities())
-        payload = json.loads(raw)
+        envelope = json.loads(raw)
+        payload = envelope["result"]
 
+        self.assertIn("_session", envelope)
         self.assertEqual(payload["kind"], "agent-memory-capabilities")
         self.assertEqual(payload["contract_versions"]["capabilities"], 1)
         self.assertEqual(payload["contract_versions"]["resources"], 1)
@@ -132,7 +148,7 @@ class MemoryMCPTests(unittest.TestCase):
     def test_get_capabilities_summary_reports_registered_tool_count(self) -> None:
         async def run_call() -> tuple[dict[str, Any], int]:
             raw = await self.module.memory_get_capabilities()
-            payload = cast(dict[str, Any], json.loads(raw))
+            payload = self._load_tool_payload(raw)
             listed = await self.module.mcp.list_tools()
             return payload, len(listed)
 
@@ -163,8 +179,10 @@ class MemoryMCPTests(unittest.TestCase):
 
     def test_get_tool_profiles_returns_expanded_advisory_profiles(self) -> None:
         raw = asyncio.run(self.module.memory_get_tool_profiles())
-        payload = json.loads(raw)
+        envelope = json.loads(raw)
+        payload = envelope["result"]
 
+        self.assertIn("_session", envelope)
         self.assertEqual(payload["default_profile"], "guided_write")
         self.assertFalse(payload["dynamic_runtime_switching"])
         self.assertFalse(payload["list_changed_supported"])
@@ -183,8 +201,10 @@ class MemoryMCPTests(unittest.TestCase):
 
     def test_plan_schema_returns_structured_payload(self) -> None:
         raw = asyncio.run(self.module.memory_plan_schema())
-        payload = json.loads(raw)
+        envelope = json.loads(raw)
+        payload = envelope["result"]
 
+        self.assertIn("_session", envelope)
         self.assertEqual(payload["tool_name"], "memory_plan_create")
         self.assertIn("phases", payload["properties"])
         self.assertEqual(
@@ -196,8 +216,10 @@ class MemoryMCPTests(unittest.TestCase):
 
     def test_tool_schema_returns_structured_payload(self) -> None:
         raw = asyncio.run(self.module.memory_tool_schema(tool_name="memory_log_access_batch"))
-        payload = json.loads(raw)
+        envelope = json.loads(raw)
+        payload = envelope["result"]
 
+        self.assertIn("_session", envelope)
         self.assertEqual(payload["tool_name"], "memory_log_access_batch")
         self.assertIn("access_entries", payload["properties"])
         self.assertEqual(
@@ -206,19 +228,19 @@ class MemoryMCPTests(unittest.TestCase):
         )
 
     def test_tool_schema_registry_includes_read_and_context_tools(self) -> None:
-        read_payload = json.loads(
+        read_payload = self._load_tool_payload(
             asyncio.run(self.module.memory_tool_schema(tool_name="memory_read_file"))
         )
         self.assertEqual(read_payload["tool_name"], "memory_read_file")
         self.assertIn("path", read_payload["properties"])
 
-        search_payload = json.loads(
+        search_payload = self._load_tool_payload(
             asyncio.run(self.module.memory_tool_schema(tool_name="memory_search"))
         )
         self.assertEqual(search_payload["tool_name"], "memory_search")
         self.assertIn("freshness_weight", search_payload["properties"])
 
-        home_payload = json.loads(
+        home_payload = self._load_tool_payload(
             asyncio.run(self.module.memory_tool_schema(tool_name="memory_context_home"))
         )
         self.assertEqual(home_payload["tool_name"], "memory_context_home")
@@ -226,7 +248,7 @@ class MemoryMCPTests(unittest.TestCase):
 
     def test_tool_schema_types_plan_execute_and_approval_inputs(self) -> None:
         execute_raw = asyncio.run(self.module.memory_tool_schema(tool_name="memory_plan_execute"))
-        execute_payload = json.loads(execute_raw)
+        execute_payload = self._load_tool_payload(execute_raw)
         verification_item = execute_payload["properties"]["verification_results"]["oneOf"][0][
             "items"
         ]["anyOf"][0]
@@ -241,7 +263,7 @@ class MemoryMCPTests(unittest.TestCase):
         approval_raw = asyncio.run(
             self.module.memory_tool_schema(tool_name="memory_request_approval")
         )
-        approval_payload = json.loads(approval_raw)
+        approval_payload = self._load_tool_payload(approval_raw)
 
         self.assertEqual(approval_payload["tool_name"], "memory_request_approval")
         self.assertEqual(approval_payload["properties"]["expires_days"]["minimum"], 1)
@@ -249,7 +271,7 @@ class MemoryMCPTests(unittest.TestCase):
     def test_read_only_profile_contains_only_runtime_read_only_tools(self) -> None:
         async def run_call() -> tuple[dict[str, Any], dict[str, object | None]]:
             raw = await self.module.memory_get_tool_profiles()
-            payload = cast(dict[str, Any], json.loads(raw))
+            payload = self._load_tool_payload(raw)
             listed = await self.module.mcp.list_tools()
             hints = {
                 str(tool.name): getattr(getattr(tool, "annotations", None), "readOnlyHint", None)
@@ -268,13 +290,13 @@ class MemoryMCPTests(unittest.TestCase):
         async def run_call() -> tuple[dict[str, Any], dict[str, Any]]:
             flush = cast(
                 dict[str, Any],
-                json.loads(
+                self._load_tool_payload(
                     await self.module.memory_get_policy_state(operation="memory_session_flush")
                 ),
             )
             reset = cast(
                 dict[str, Any],
-                json.loads(
+                self._load_tool_payload(
                     await self.module.memory_get_policy_state(
                         operation="memory_reset_session_state"
                     )
@@ -348,16 +370,31 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertIn("version_token", payload)
 
     def test_native_resources_enumerate_and_read(self) -> None:
-        async def run_call() -> tuple[list[tuple[str, str]], list[Any], dict[str, Any]]:
+        async def run_call() -> tuple[
+            list[tuple[str, str]], list[Any], list[Any], list[Any], list[Any]
+        ]:
             resources = await self.module.mcp.list_resources()
             resource_pairs = [(str(resource.name), str(resource.uri)) for resource in resources]
             capability_summary = await self.module.mcp.read_resource(
                 "memory://capabilities/summary"
             )
-            capability_payload = json.loads(cast(str, capability_summary[0].content))
-            return resource_pairs, capability_summary, capability_payload
+            policy_summary = await self.module.mcp.read_resource("memory://policy/summary")
+            session_health = await self.module.mcp.read_resource("memory://session/health")
+            active_plans = await self.module.mcp.read_resource("memory://plans/active")
+            return resource_pairs, capability_summary, policy_summary, session_health, active_plans
 
-        resource_pairs, capability_summary, capability_payload = asyncio.run(run_call())
+        (
+            resource_pairs,
+            capability_summary,
+            policy_summary,
+            session_health,
+            active_plans,
+        ) = asyncio.run(run_call())
+
+        capability_payload = self._load_resource_payload(capability_summary)
+        policy_payload = self._load_resource_payload(policy_summary)
+        session_payload = self._load_resource_payload(session_health)
+        active_payload = self._load_resource_payload(active_plans)
 
         self.assertIn(
             ("memory_capability_summary", "memory://capabilities/summary"), resource_pairs
@@ -365,10 +402,18 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertIn(("memory_policy_summary", "memory://policy/summary"), resource_pairs)
         self.assertIn(("memory_session_health_resource", "memory://session/health"), resource_pairs)
         self.assertIn(("memory_active_plans_resource", "memory://plans/active"), resource_pairs)
-        self.assertEqual(len(capability_summary), 1)
         self.assertIn("summary", capability_payload)
         self.assertIn("tool_profiles", capability_payload)
         self.assertIn("full", capability_payload["tool_profiles"]["profiles"])
+        self.assertIn("change_classes", policy_payload)
+        self.assertIn("resources_vs_tools", policy_payload)
+        self.assertIn("tool_profiles", policy_payload)
+        self.assertIn("aggregation_due", session_payload)
+        self.assertIn("review_queue_pending", session_payload)
+        self.assertIn("periodic_review_due", session_payload)
+        self.assertIn("generated_at", active_payload)
+        self.assertIn("active_plan_count", active_payload)
+        self.assertIn("plans", active_payload)
 
     def test_native_prompts_enumerate_and_render(self) -> None:
         async def run_call() -> tuple[list[str], Any, Any]:

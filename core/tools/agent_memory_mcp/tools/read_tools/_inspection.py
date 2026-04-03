@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import tempfile
 from datetime import date
 from pathlib import Path
@@ -10,12 +9,22 @@ from typing import TYPE_CHECKING, Any, cast
 
 from ...errors import NotFoundError, ValidationError
 from ...frontmatter_utils import read_with_frontmatter
+from ...response_envelope import dump_tool_result
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
 
+    from ...session_state import SessionState
 
-def register_inspection(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
+
+def register_inspection(
+    mcp: "FastMCP",
+    get_repo,
+    get_root,
+    H,
+    *,
+    session_state: "SessionState | None" = None,
+) -> dict[str, object]:
     """Register inspection read tools and return their callables."""
     _IGNORED_NAMES = H._IGNORED_NAMES
     _READ_FILE_INLINE_THRESHOLD_BYTES = H._READ_FILE_INLINE_THRESHOLD_BYTES
@@ -58,18 +67,19 @@ def register_inspection(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
             path: Repo-relative content path (e.g. 'memory/users/profile.md',
                 'memory/knowledge/_unverified/django/celery-canvas.md').
 
-        Returns:
-            JSON with keys:
-              path         (str)       Repo-relative path requested
-              size_bytes   (int)       UTF-8 byte size of the file content
-              inline       (bool)      True when content is returned inline;
-                                       false when content is written to temp_file
-              content      (str)       Full file text when inline is true
-              temp_file    (str)       Temporary file containing full text when
-                                       inline is false
-              version_token (str)      Git SHA-1 of the file; pass back to write
-                                       tools to detect concurrent modifications
-              frontmatter  (dict|null) Parsed YAML frontmatter, or null
+                Returns:
+                        JSON envelope with keys:
+                            result.path          (str)       Repo-relative path requested
+                            result.size_bytes    (int)       UTF-8 byte size of the file content
+                            result.inline        (bool)      True when content is returned inline;
+                                                                                             false when content is written to temp_file
+                            result.content       (str)       Full file text when inline is true
+                            result.temp_file     (str)       Temporary file containing full text when
+                                                                                             inline is false
+                            result.version_token (str)       Git SHA-1 of the file; pass back to write
+                                                                                             tools to detect concurrent modifications
+                            result.frontmatter   (dict|null) Parsed YAML frontmatter, or null
+                            _session             (dict)      Compact session metadata for the call
         """
 
         root = get_root()
@@ -111,7 +121,10 @@ def register_inspection(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
                 handle.write(content)
                 temp_path = handle.name
             result["temp_file"] = temp_path
-        return json.dumps(result, indent=2, default=str)
+        if session_state is not None:
+            session_state.record_tool_call()
+            session_state.record_read(display_path)
+        return dump_tool_result(result, session_state, default=str)
 
     # ------------------------------------------------------------------
     # memory_list_folder
@@ -195,15 +208,14 @@ def register_inspection(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
                 else:
                     payload_entries.append(_preview_file_entry(entry, root, preview_chars))
 
-            return json.dumps(
-                {
-                    "path": path,
-                    "preview_chars": preview_chars,
-                    "entries": payload_entries,
-                },
-                indent=2,
-                default=str,
-            )
+            result = {
+                "path": path,
+                "preview_chars": preview_chars,
+                "entries": payload_entries,
+            }
+            if session_state is not None:
+                session_state.record_tool_call()
+            return dump_tool_result(result, session_state, default=str)
 
         for entry in entries:
             rel = _display_rel_path(entry, root)
@@ -215,6 +227,8 @@ def register_inspection(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
 
         if len(lines) == 1:
             lines.append("_(empty)_")
+        if session_state is not None:
+            session_state.record_tool_call()
         return "\n".join(lines)
 
     @mcp.tool(
@@ -244,19 +258,18 @@ def register_inspection(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         root = get_root()
         folder = _resolve_memory_subpath(root, folder_path, "knowledge/_unverified")
         if not folder.exists():
-            return json.dumps(
-                {
-                    "folder_path": folder_path,
-                    "max_extract_words": max_extract_words,
-                    "include_expired": include_expired,
-                    "total_files": 0,
-                    "expired_count": 0,
-                    "trust_counts": {"low": 0, "medium": 0, "high": 0, "unknown": 0},
-                    "groups": {},
-                },
-                indent=2,
-                default=str,
-            )
+            result = {
+                "folder_path": folder_path,
+                "max_extract_words": max_extract_words,
+                "include_expired": include_expired,
+                "total_files": 0,
+                "expired_count": 0,
+                "trust_counts": {"low": 0, "medium": 0, "high": 0, "unknown": 0},
+                "groups": {},
+            }
+            if session_state is not None:
+                session_state.record_tool_call()
+            return dump_tool_result(result, session_state, default=str)
         if not folder.is_dir():
             raise ValidationError(f"Not a directory: {folder_path}")
 
@@ -309,19 +322,18 @@ def register_inspection(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
                 }
             )
 
-        return json.dumps(
-            {
-                "folder_path": folder_path,
-                "max_extract_words": max_extract_words,
-                "include_expired": include_expired,
-                "total_files": total_files,
-                "expired_count": expired_count,
-                "trust_counts": trust_counts,
-                "groups": grouped,
-            },
-            indent=2,
-            default=str,
-        )
+        result = {
+            "folder_path": folder_path,
+            "max_extract_words": max_extract_words,
+            "include_expired": include_expired,
+            "total_files": total_files,
+            "expired_count": expired_count,
+            "trust_counts": trust_counts,
+            "groups": grouped,
+        }
+        if session_state is not None:
+            session_state.record_tool_call()
+        return dump_tool_result(result, session_state, default=str)
 
     # ------------------------------------------------------------------
     # memory_search
@@ -367,7 +379,9 @@ def register_inspection(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
             "issue_counts": dict(sorted(issue_counts.items())),
             "files": [report for report in reports if report["issues"]],
         }
-        return json.dumps(payload, indent=2)
+        if session_state is not None:
+            session_state.record_tool_call()
+        return dump_tool_result(payload, session_state)
 
     # ------------------------------------------------------------------
     # memory_validate_links
@@ -448,7 +462,10 @@ def register_inspection(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
                 "preview_chars": preview_chars,
             },
         }
-        return json.dumps(payload, indent=2, default=str)
+        if session_state is not None:
+            session_state.record_tool_call()
+            session_state.record_read(path)
+        return dump_tool_result(payload, session_state, default=str)
 
     # ------------------------------------------------------------------
     # memory_get_file_provenance

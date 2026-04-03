@@ -11,6 +11,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from .git_repo import GitRepo
+from .session_state import create_session_state
 from .tools import read_tools, semantic, write_tools
 
 DeletePermissionHook = Callable[[str], None]
@@ -105,8 +106,9 @@ def create_mcp(
     def get_root() -> Path:
         return repo.content_root
 
+    session_state = create_session_state()
     tools: dict[str, object] = {}
-    tools.update(read_tools.register(mcp, get_repo, get_root))
+    tools.update(read_tools.register(mcp, get_repo, get_root, session_state=session_state))
     raw_write_tools_enabled = (
         enable_raw_write_tools
         if enable_raw_write_tools is not None
@@ -121,7 +123,7 @@ def create_mcp(
                 grant_delete_permission=delete_permission_hook,
             )
         )
-    tools.update(semantic.register(mcp, get_repo, get_root))
+    tools.update(semantic.register(mcp, get_repo, get_root, session_state=session_state))
     return mcp, tools, root, repo
 
 
