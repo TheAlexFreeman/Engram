@@ -39,6 +39,7 @@ These files define the MCP setup:
 | `core/tools/agent_memory_mcp/tools/read_tools.py` | Tier 0 — read-only inspection, analysis, and reporting tools. |
 | `core/tools/agent_memory_mcp/tools/semantic/` | Tier 1 — semantic write tools split by domain: `graph_tools.py`, `knowledge_tools.py`, `plan_tools.py`, `session_tools.py`, `skill_tools.py`, `user_tools.py`. |
 | `core/tools/agent_memory_mcp/tools/write_tools.py` | Tier 2 — raw fallback mutation tools, gated behind `MEMORY_ENABLE_RAW_WRITE_TOOLS`. |
+| `core/tools/agent_memory_mcp/tool_schemas.py` | Shared JSON Schema registry for `memory_tool_schema` / `memory_plan_schema` (`TOOL_INPUT_SCHEMAS`). |
 | `HUMANS/tooling/agent-memory-capabilities.toml` | Capability manifest — declares tools, approval classes, tool profiles, error taxonomy, and resource/prompt metadata. |
 | `HUMANS/tooling/mcp-config-example.json` | Example client config for Claude Desktop and other MCP hosts. |
 | `.codex/config.toml` | Project-scoped Codex MCP config using portable relative paths. |
@@ -141,6 +142,10 @@ For worktree deployments, set `MEMORY_REPO_ROOT` to the worktree path and `HOST_
 
 The MCP server exposes **96 tools by default**: 48 Tier 0 read-only tools plus 48 Tier 1 semantic tools. Enabling `MEMORY_ENABLE_RAW_WRITE_TOOLS=1` adds **7 Tier 2** raw fallback tools for a full surface of **103**. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
 
+### JSON Schema registry (`memory_tool_schema`)
+
+Structured input contracts for complex tools live in [`core/tools/agent_memory_mcp/tool_schemas.py`](../../core/tools/agent_memory_mcp/tool_schemas.py) (`TOOL_INPUT_SCHEMAS`). The `memory_tool_schema` tool returns JSON Schema for every name in that registry: Tier 1 semantic tools (nested objects, enums, preview flows), Tier 2 raw tools when you need an explicit contract, and selected Tier 0 tools where the maintainers added registry entries (for example `memory_read_file`, `memory_extract_file`, `memory_search`, and the context injectors). Most other Tier 0 tools expose only FastMCP-generated schemas derived from their Python type hints; calling `memory_tool_schema` for those names raises a validation error that lists the registry tool names. Use `memory_plan_schema` when you specifically want the `memory_plan_create` contract without passing the tool name.
+
 ### Tier 0: Read-only tools
 
 These tools inspect, analyze, and report on the repo without changing it. Always available.
@@ -151,7 +156,7 @@ These tools inspect, analyze, and report on the repo without changing it. Always
 | --- | --- |
 | `memory_get_capabilities` | Return the governed capability manifest as structured JSON. |
 | `memory_get_tool_profiles` | Return advisory tool-profile metadata for host-side narrowing. |
-| `memory_tool_schema` | Return the structured input contract for a supported or optionally gated MCP tool whose nested schema is not obvious from FastMCP type hints alone. |
+| `memory_tool_schema` | Return JSON Schema for tools listed in `tool_schemas.TOOL_INPUT_SCHEMAS` (see [JSON Schema registry](#json-schema-registry-memory_tool_schema)); other Tier 0 tools use FastMCP signature schemas only. |
 | `memory_plan_schema` | Return the nested input contract for `memory_plan_create`, including canonical enums, aliases, and conditional requirements. |
 | `memory_get_policy_state` | Compile the current governed contract for an operation and optional path. |
 | `memory_route_intent` | Recommend the best governed operation for a natural-language intent. |
@@ -621,7 +626,7 @@ Tier 2 tools use a **staged-transaction model**: mutations are staged in git's i
 
 ### Semantic search (optional)
 
-When the `sentence-transformers` package is installed (`pip install agent-memory-mcp[search]`), two additional tools become available:
+`memory_semantic_search` and `memory_reindex` are always registered with the server, but they need optional dependencies to return ranked results or rebuild the index. Install them from the same package root you use for the MCP server, for example `pip install -e ".[search]"` in the Engram checkout or `pip install agent-memory-mcp[search]` when using the published package. Without `sentence-transformers` (and its NumPy stack), calls return an explicit dependency message instead of search results.
 
 | Tool | Description |
 | --- | --- |

@@ -440,7 +440,18 @@ def execute_plan_action_result(
     verification_results: list[dict[str, Any]] | None = None,
     preview: bool = False,
 ) -> dict[str, Any]:
-    """Inspect, start, complete, or record failure on a plan phase."""
+    """Inspect, start, complete, or record failure on a plan phase.
+
+    ``action`` must be one of ``inspect``, ``start``, ``complete``, or
+    ``record_failure``. ``blocked`` is a plan/phase status set automatically when
+    blockers or rejected approvals prevent progress; it is not a caller-selectable
+    action.
+
+    ``session_id`` is required for ``start``, ``complete``, and ``record_failure``,
+    but not for ``inspect``. ``commit_sha`` is required when completing a phase.
+    ``reason`` is required for ``record_failure``. The optional ``review`` object
+    is consumed when the final phase completes.
+    """
     from ...errors import AlreadyDoneError, ValidationError
     from ...frontmatter_utils import today_str
     from ...models import MemoryWriteResult

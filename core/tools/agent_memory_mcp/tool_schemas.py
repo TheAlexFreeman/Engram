@@ -2432,6 +2432,344 @@ def reindex_input_schema() -> dict[str, Any]:
     )
 
 
+def read_file_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_read_file",
+        title="memory_read_file input schema",
+        required=["path"],
+        properties={
+            "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Repo-relative content path to read.",
+            },
+        },
+    )
+
+
+def extract_file_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_extract_file",
+        title="memory_extract_file input schema",
+        required=["path"],
+        notes=[
+            "max_sections must be >= 1; preview_chars must be >= 1 at runtime.",
+            "section_headings accepts comma- or newline-separated heading text to match.",
+        ],
+        properties={
+            "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Repo-relative path to the Markdown file.",
+            },
+            "section_headings": {
+                "type": "string",
+                "default": "",
+                "description": "Optional CSV or newline-separated headings to extract.",
+            },
+            "max_sections": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 5,
+                "description": "Maximum number of matched sections to return.",
+            },
+            "preview_chars": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 1200,
+                "description": "Maximum characters per preview window.",
+            },
+            "include_outline": {
+                "type": "boolean",
+                "default": True,
+                "description": "When true, include the heading outline (up to 50 headings).",
+            },
+        },
+    )
+
+
+def grep_search_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_search",
+        title="memory_search input schema",
+        required=["query"],
+        notes=[
+            "max_results is clamped at runtime (default 30, upper bound 100).",
+            "context_lines is clamped into 0..10 at runtime.",
+            "freshness_weight is clamped into 0.0..1.0 at runtime.",
+        ],
+        properties={
+            "query": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Search string or regex (git grep / Python fallback).",
+            },
+            "path": {
+                "type": "string",
+                "default": ".",
+                "description": "Folder to search within (repo-relative).",
+            },
+            "glob_pattern": {
+                "type": "string",
+                "default": "**/*.md",
+                "description": "Glob filter for files under path.",
+            },
+            "case_sensitive": {
+                "type": "boolean",
+                "default": False,
+                "description": "Case-sensitive matching when true.",
+            },
+            "max_results": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 30,
+                "description": "Maximum matching lines to return.",
+            },
+            "context_lines": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0,
+                "description": "Surrounding lines before/after each match.",
+            },
+            "include_humans": {
+                "type": "boolean",
+                "default": False,
+                "description": "Include HUMANS/ when searching broad scopes.",
+            },
+            "freshness_weight": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.0,
+                "description": "Blend weight for temporal freshness reranking.",
+            },
+        },
+    )
+
+
+def context_home_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_context_home",
+        title="memory_context_home input schema",
+        notes=[
+            "max_context_chars coerces to an integer; 0 means unbounded budget at runtime.",
+        ],
+        properties={
+            "max_context_chars": {
+                "type": "integer",
+                "default": 16000,
+                "description": "Soft character budget for the assembled response.",
+            },
+            "include_project_index": {
+                "type": "boolean",
+                "default": True,
+                "description": "Include memory/working/projects/SUMMARY.md when budget allows.",
+            },
+            "include_knowledge_index": {
+                "type": "boolean",
+                "default": False,
+                "description": "Include memory/knowledge/SUMMARY.md when budget allows.",
+            },
+            "include_skills_index": {
+                "type": "boolean",
+                "default": False,
+                "description": "Include memory/skills/SUMMARY.md when budget allows.",
+            },
+        },
+    )
+
+
+def context_project_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_context_project",
+        title="memory_context_project input schema",
+        required=["project"],
+        notes=[
+            "max_context_chars coerces to an integer; 0 means unbounded budget at runtime.",
+            "include_user_profile may be null for auto behavior at runtime.",
+        ],
+        properties={
+            "project": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Project slug under memory/working/projects/.",
+            },
+            "max_context_chars": {
+                "type": "integer",
+                "default": 24000,
+                "description": "Soft character budget for the assembled response.",
+            },
+            "include_plan_sources": {
+                "type": "boolean",
+                "default": True,
+                "description": "Include whole-file sources for the active plan phase when budget allows.",
+            },
+            "include_user_profile": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    {"type": "null"},
+                ],
+                "description": "Force include/omit memory/users/SUMMARY.md; null uses auto rules.",
+            },
+        },
+    )
+
+
+def write_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_write",
+        title="memory_write input schema",
+        required=["path", "content"],
+        notes=[
+            "Gated behind MEMORY_ENABLE_RAW_WRITE_TOOLS; rejects protected directories at runtime.",
+        ],
+        properties={
+            "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Repo-relative path to create or overwrite.",
+            },
+            "content": {
+                "type": "string",
+                "description": "Full file body to write.",
+            },
+            "version_token": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional optimistic-lock token from memory_read_file.",
+            },
+            "create_dirs": {
+                "type": "boolean",
+                "default": True,
+                "description": "Create parent directories when missing.",
+            },
+        },
+    )
+
+
+def edit_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_edit",
+        title="memory_edit input schema",
+        required=["path", "old_string", "new_string"],
+        notes=[
+            "Gated behind MEMORY_ENABLE_RAW_WRITE_TOOLS; rejects protected directories at runtime.",
+        ],
+        properties={
+            "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Repo-relative file path.",
+            },
+            "old_string": {
+                "type": "string",
+                "description": "Exact substring to replace.",
+            },
+            "new_string": {
+                "type": "string",
+                "description": "Replacement text.",
+            },
+            "replace_all": {
+                "type": "boolean",
+                "default": False,
+                "description": "Replace every occurrence of old_string.",
+            },
+            "version_token": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional optimistic-lock token from memory_read_file.",
+            },
+        },
+    )
+
+
+def delete_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_delete",
+        title="memory_delete input schema",
+        required=["path"],
+        notes=[
+            "Gated behind MEMORY_ENABLE_RAW_WRITE_TOOLS; rejects protected directories at runtime.",
+        ],
+        properties={
+            "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Repo-relative file path to delete.",
+            },
+            "version_token": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional optimistic-lock token from memory_read_file.",
+            },
+        },
+    )
+
+
+def move_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_move",
+        title="memory_move input schema",
+        required=["source", "dest"],
+        notes=[
+            "Gated behind MEMORY_ENABLE_RAW_WRITE_TOOLS; validates source/destination governance at runtime.",
+        ],
+        properties={
+            "source": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Repo-relative source path.",
+            },
+            "dest": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Repo-relative destination path.",
+            },
+            "version_token": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional optimistic-lock token for the source file.",
+            },
+            "create_dirs": {
+                "type": "boolean",
+                "default": True,
+                "description": "Create destination parent directories when missing.",
+            },
+        },
+    )
+
+
+def commit_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_commit",
+        title="memory_commit input schema",
+        required=["message"],
+        notes=[
+            "Gated behind MEMORY_ENABLE_RAW_WRITE_TOOLS alongside other raw mutation tools.",
+        ],
+        properties={
+            "message": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Git commit message following Engram conventions.",
+            },
+            "allow_empty": {
+                "type": "boolean",
+                "default": False,
+                "description": "Allow committing with an empty index when true.",
+            },
+        },
+    )
+
+
 TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_analyze_graph": analyze_graph_input_schema,
     "memory_add_knowledge_file": add_knowledge_file_input_schema,
@@ -2439,8 +2777,14 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_archive_knowledge": archive_knowledge_input_schema,
     "memory_audit_link_density": audit_link_density_input_schema,
     "memory_checkpoint": checkpoint_input_schema,
+    "memory_commit": commit_input_schema,
+    "memory_context_home": context_home_input_schema,
+    "memory_context_project": context_project_input_schema,
+    "memory_delete": delete_input_schema,
     "memory_demote_knowledge": demote_knowledge_input_schema,
+    "memory_edit": edit_input_schema,
     "memory_eval_report": eval_report_input_schema,
+    "memory_extract_file": extract_file_input_schema,
     "memory_flag_for_review": flag_for_review_input_schema,
     "memory_get_tool_policy": get_tool_policy_input_schema,
     "memory_list_pending_reviews": list_pending_reviews_input_schema,
@@ -2448,6 +2792,7 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_log_access": log_access_input_schema,
     "memory_log_access_batch": log_access_batch_input_schema,
     "memory_mark_reviewed": mark_reviewed_input_schema,
+    "memory_move": move_input_schema,
     "memory_plan_briefing": plan_briefing_input_schema,
     "memory_plan_create": plan_create_input_schema,
     "memory_plan_execute": plan_execute_input_schema,
@@ -2460,6 +2805,7 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_promote_knowledge_batch": promote_knowledge_batch_input_schema,
     "memory_promote_knowledge_subtree": promote_knowledge_subtree_input_schema,
     "memory_query_traces": query_traces_input_schema,
+    "memory_read_file": read_file_input_schema,
     "memory_reindex": reindex_input_schema,
     "memory_record_chat_summary": record_chat_summary_input_schema,
     "memory_record_periodic_review": record_periodic_review_input_schema,
@@ -2476,6 +2822,7 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_run_aggregation": run_aggregation_input_schema,
     "memory_run_eval": run_eval_input_schema,
     "memory_scan_drop_zone": scan_drop_zone_input_schema,
+    "memory_search": grep_search_input_schema,
     "memory_semantic_search": semantic_search_input_schema,
     "memory_session_flush": session_flush_input_schema,
     "memory_stage_external": stage_external_input_schema,
@@ -2484,6 +2831,7 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_update_names_index": update_names_index_input_schema,
     "memory_update_skill": update_skill_input_schema,
     "memory_update_user_trait": update_user_trait_input_schema,
+    "memory_write": write_input_schema,
 }
 
 
@@ -2522,8 +2870,15 @@ __all__ = [
     "archive_knowledge_input_schema",
     "audit_link_density_input_schema",
     "checkpoint_input_schema",
+    "commit_input_schema",
+    "context_home_input_schema",
+    "context_project_input_schema",
+    "delete_input_schema",
     "demote_knowledge_input_schema",
+    "edit_input_schema",
+    "extract_file_input_schema",
     "eval_report_input_schema",
+    "grep_search_input_schema",
     "get_tool_policy_input_schema",
     "get_tool_input_schema",
     "list_pending_reviews_input_schema",
@@ -2532,6 +2887,7 @@ __all__ = [
     "log_access_input_schema",
     "log_access_batch_input_schema",
     "mark_reviewed_input_schema",
+    "move_input_schema",
     "plan_briefing_input_schema",
     "plan_execute_input_schema",
     "plan_resume_input_schema",
@@ -2543,6 +2899,7 @@ __all__ = [
     "promote_knowledge_batch_input_schema",
     "promote_knowledge_subtree_input_schema",
     "query_traces_input_schema",
+    "read_file_input_schema",
     "reindex_input_schema",
     "request_approval_input_schema",
     "record_chat_summary_input_schema",
@@ -2567,4 +2924,5 @@ __all__ = [
     "update_names_index_input_schema",
     "update_skill_input_schema",
     "update_user_trait_input_schema",
+    "write_input_schema",
 ]

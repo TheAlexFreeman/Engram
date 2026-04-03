@@ -100,12 +100,18 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         ),
     )
     async def memory_tool_schema(tool_name: str) -> str:
-        """Return the structured input schema for a supported MCP tool.
+        """Return the structured input schema for tools in the shared registry.
 
-        Use this when a caller needs the nested input contract for a semantic
-        or optionally gated raw tool whose FastMCP type hints erase inner
-        structure. Unsupported tool names return a validation error listing the
-        currently registered schema surfaces.
+        The registry in ``core/tools/agent_memory_mcp/tool_schemas.py`` covers
+        Tier 1 semantic tools (nested dicts, enums, preview tokens), Tier 2 raw
+        tools when enabled, and selected Tier 0 tools whose parameters benefit
+        from explicit JSON Schema (for example context injectors and
+        ``memory_read_file``). Remaining Tier 0 tools rely on FastMCP-generated
+        schemas from their Python signatures only; calling this tool for those
+        names raises ``ValidationError`` with the list of registry tool names.
+
+        Use ``memory_plan_schema`` for the full ``memory_plan_create`` contract
+        without naming the tool, or pass ``tool_name="memory_plan_create"`` here.
         """
 
         return json.dumps(get_tool_input_schema(tool_name), indent=2, default=str)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -140,6 +141,25 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertEqual(payload["summary"]["runtime_total_tools"], registered_count)
         self.assertEqual(payload["summary"]["runtime_not_in_manifest_count"], 0)
         self.assertEqual(payload["summary"]["runtime_not_in_manifest"], [])
+        raw_enabled = os.environ.get("MEMORY_ENABLE_RAW_WRITE_TOOLS", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        declared_missing = list(payload["summary"]["declared_not_in_runtime"])
+        if not raw_enabled:
+            raw_fb = {
+                t
+                for t in cast(list[Any], payload.get("tool_sets", {}).get("raw_fallback", []))
+                if isinstance(t, str)
+            }
+            declared_missing = [t for t in declared_missing if t not in raw_fb]
+        self.assertEqual(
+            declared_missing,
+            [],
+            msg="Manifest lists tools with no MCP registration (excluding raw_fallback when Tier 2 is disabled).",
+        )
 
     def test_get_tool_profiles_returns_expanded_advisory_profiles(self) -> None:
         raw = asyncio.run(self.module.memory_get_tool_profiles())
@@ -184,6 +204,19 @@ class MemoryMCPTests(unittest.TestCase):
             payload["properties"]["access_entries"]["items"]["properties"]["mode"]["enum"],
             ["create", "read", "update", "write"],
         )
+
+    def test_tool_schema_registry_includes_read_and_context_tools(self) -> None:
+        read_payload = json.loads(asyncio.run(self.module.memory_tool_schema(tool_name="memory_read_file")))
+        self.assertEqual(read_payload["tool_name"], "memory_read_file")
+        self.assertIn("path", read_payload["properties"])
+
+        search_payload = json.loads(asyncio.run(self.module.memory_tool_schema(tool_name="memory_search")))
+        self.assertEqual(search_payload["tool_name"], "memory_search")
+        self.assertIn("freshness_weight", search_payload["properties"])
+
+        home_payload = json.loads(asyncio.run(self.module.memory_tool_schema(tool_name="memory_context_home")))
+        self.assertEqual(home_payload["tool_name"], "memory_context_home")
+        self.assertIn("max_context_chars", home_payload["properties"])
 
     def test_tool_schema_types_plan_execute_and_approval_inputs(self) -> None:
         execute_raw = asyncio.run(self.module.memory_tool_schema(tool_name="memory_plan_execute"))

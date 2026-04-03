@@ -80,3 +80,47 @@ class TestPlanCreateValidationAggregation(unittest.TestCase):
         self.assertTrue(any("purpose.questions must be a list" in error for error in errors))
         self.assertTrue(any("budget.deadline" in error for error in errors))
         self.assertTrue(any("budget.max_sessions" in error for error in errors))
+
+    def test_build_plan_document_aggregates_errors_across_multiple_phases(self) -> None:
+        with self.assertRaises(ValidationError) as ctx:
+            build_plan_document_from_create_input(
+                plan_id="test-plan",
+                project_id="test-project",
+                created="2026-04-03",
+                session_id="memory/activity/2026/04/03/chat-001",
+                status="active",
+                purpose_summary="Multi-phase invalid changes",
+                purpose_context="Each phase has an empty change description.",
+                questions=None,
+                phases=[
+                    {
+                        "id": "phase-a",
+                        "title": "First",
+                        "changes": [
+                            {
+                                "path": "memory/working/projects/test-project/notes/a.md",
+                                "action": "create",
+                                "description": "   ",
+                            }
+                        ],
+                    },
+                    {
+                        "id": "phase-b",
+                        "title": "Second",
+                        "changes": [
+                            {
+                                "path": "memory/working/projects/test-project/notes/b.md",
+                                "action": "create",
+                                "description": "",
+                            }
+                        ],
+                    },
+                ],
+                budget=None,
+            )
+
+        errors = validation_error_messages(ctx.exception)
+        p0 = "work.phases[0].changes[0]"
+        p1 = "work.phases[1].changes[0]"
+        self.assertTrue(any(p0 in error for error in errors))
+        self.assertTrue(any(p1 in error for error in errors))

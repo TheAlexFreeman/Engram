@@ -8,6 +8,22 @@ type: design-note
 
 # MCP Tool Schema Discoverability Audit
 
+## Remediation status (April 2026)
+
+Follow-up from the internal MCP tools review:
+
+| Area | What changed |
+| --- | --- |
+| **`memory_tool_schema` scope** | Documented in [`HUMANS/docs/MCP.md`](../../../../../../HUMANS/docs/MCP.md) (JSON Schema registry section) and [`core/tools/agent_memory_mcp/tools/read_tools/_capability.py`](../../../../../../core/tools/agent_memory_mcp/tools/read_tools/_capability.py). Registry file: [`tool_schemas.py`](../../../../../../core/tools/agent_memory_mcp/tool_schemas.py) (`TOOL_INPUT_SCHEMAS`). |
+| **Registry expansion** | Tier 2: `memory_write`, `memory_edit`, `memory_delete`, `memory_move`, `memory_commit`. Tier 0: `memory_read_file`, `memory_extract_file`, `memory_search`, `memory_context_home`, `memory_context_project`. |
+| **`memory_plan_execute` docs** | MCP tool docstring and `execute_plan_action_result` document actions vs `blocked` state and conditional fields ([`plan_tools.py`](../../../../../../core/tools/agent_memory_mcp/tools/semantic/plan_tools.py)). |
+| **`memory_log_access_batch`** | Docstring + batch validation with `aggregate_validation_errors` ([`session_tools.py`](../../../../../../core/tools/agent_memory_mcp/tools/semantic/session_tools.py)). |
+| **Manifest / runtime drift** | [`test_memory_mcp.py`](../../../../../../core/tools/tests/test_memory_mcp.py) checks `declared_not_in_runtime` (manifest tools missing from MCP registration), treating `raw_fallback` as optional when `MEMORY_ENABLE_RAW_WRITE_TOOLS` is unset. |
+| **`memory_plan_create` aggregation** | `build_plan_document_from_create_input` and `_coerce_phases` already collect errors across top-level fields and phases; regression: `test_build_plan_document_aggregates_errors_across_multiple_phases` in [`test_plan_validation.py`](../../../../../../core/tools/tests/test_plan_validation.py). |
+| **Semantic search extras** | MCP.md clarifies tools are always registered; `pip install -e ".[search]"` (or `agent-memory-mcp[search]`) needed for full behavior. |
+
+The sections below are the original audit snapshot (some line references and metrics may be stale).
+
 ## Context
 
 The plan-tool-ux-improvements note identified schema discoverability as the root cause of the `memory_plan_create` retry loop. This audit examines the full Engram MCP tool surface to determine how widespread the problem is. Findings inform both the CLI expansion (which will expose these same operations) and a potential cross-cutting improvement to tool descriptions.
