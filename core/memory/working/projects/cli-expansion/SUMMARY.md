@@ -1,9 +1,9 @@
 ---
-active_plans: 3
+active_plans: 2
 cognitive_mode: execution
 created: 2026-04-02
-current_focus: Execute v1 read/write CLI surfaces while the v2-v4 governance,
-  plan, and portability work remains staged behind explicit blockers.
+current_focus: Consolidate shipped v1 CLI surfaces while the remaining v3-v4
+  governance, plan, and portability work stays behind explicit blockers.
 last_activity: '2026-04-03'
 open_questions: 0
 origin_session: memory/activity/2026/04/02/chat-001
@@ -25,8 +25,8 @@ follow-on plans instead of one monolithic backlog item.
 ## Cognitive mode
 Execution mode: `cli-v0` is complete as a shipped foundation release, and the
 rest of the roadmap is decomposed into nine follow-on plans. The active queue
-prioritizes v1 read/write surfaces and the v3 schema groundwork that unblocks
-plan-oriented terminal workflows.
+now centers on syncing the remaining v1 tracking state and the v3 schema
+groundwork that unblocks plan-oriented terminal workflows.
 
 ## Plan inventory (2026-04-03)
 
@@ -34,7 +34,7 @@ plan-oriented terminal workflows.
 |---|---|---|---|---|
 | v0 | `cli-v0.yaml` | completed | 8 sessions / 2026-05-01 | Shipped foundation |
 | v1 | `cli-v1-read-surfaces.yaml` | active | 6 sessions / 2026-06-15 | Accurate v0 baseline |
-| v1 | `cli-v1-write-ingestion.yaml` | active | 6 sessions / 2026-06-30 | Accurate v0 baseline |
+| v1 | `cli-v1-write-ingestion.yaml` | completed | 6 sessions / 2026-06-30 | Accurate v0 baseline |
 | v2 | `cli-v2-maintenance-dry-run.yaml` | draft | 7 sessions / 2026-08-01 | v1 read/write helpers |
 | v2 | `cli-v2-knowledge-lifecycle.yaml` | draft | 7 sessions / 2026-08-15 | v1 ingestion + v2 dry-run previews |
 | v3 | `cli-v3-schema-foundations.yaml` | active | 5 sessions / 2026-07-15 | Accurate v0 baseline |

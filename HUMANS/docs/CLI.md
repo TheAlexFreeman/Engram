@@ -4,6 +4,7 @@ The `engram` CLI provides a terminal-oriented interface for searching, inspectin
 
 - `engram search` for querying memory content from a shell or script.
 - `engram status` for a compact health dashboard.
+- `engram add` for governed ingestion into `memory/knowledge/_unverified/`.
 - `engram recall` for reading a file or namespace with frontmatter and ACCESS context.
 - `engram log` for recent ACCESS timeline inspection.
 - `engram validate` for repository integrity checks.
@@ -63,6 +64,23 @@ engram search "context budget" --json
 
 JSON output includes the selected mode plus a structured list of results with path, trust, snippet, and score when semantic search is active.
 
+### `engram add`
+
+Adds new knowledge through a preview-first CLI flow. The command always routes writes into `memory/knowledge/_unverified/`, generates low-trust provenance frontmatter, updates the unverified summary when the matching section exists, and records a create-mode ACCESS entry on apply.
+
+Examples:
+
+```bash
+engram add knowledge/react ./notes/hooks.md --session-id memory/activity/2026/04/03/chat-001 --preview
+engram add knowledge/react ./notes/hooks.md --session-id memory/activity/2026/04/03/chat-001
+cat hooks.md | engram add knowledge/react --name hooks-recap --session-id memory/activity/2026/04/03/chat-001
+engram add memory/knowledge/react ./notes/hooks.md --session-id memory/activity/2026/04/03/chat-001 --json
+```
+
+`<namespace>` accepts `knowledge/...`, `memory/knowledge/...`, or an explicit path already under `memory/knowledge/_unverified/...`. Verified knowledge paths are automatically rewritten into `_unverified/` for safe ingestion. When reading from stdin, `--name` is required unless the markdown contains an H1 heading that can be converted into a filename.
+
+JSON output mirrors the governed write result shape: `new_state` includes the created path, version token, and ACCESS log path on apply, while `preview` carries the dry-run envelope when `--preview` is used.
+
 ### `engram recall`
 
 Reads a memory file with its frontmatter and ACCESS context, or inspects a namespace by showing its `SUMMARY.md` plus a file listing. If the target does not resolve to a path, `recall` falls back to search and loads the best match.
@@ -115,6 +133,7 @@ If the validator's core dependencies are missing, the command prints a friendly 
 - `engram validate --json` emits a JSON array of findings.
 - `engram status --json` emits a structured object suitable for dashboards or shell pipelines.
 - `engram search --json` emits a structured object with the search mode and result list.
+- `engram add --json` emits a governed write result with `preview` support for dry runs.
 - `engram recall --json` emits a structured file or namespace inspection payload.
 - `engram log --json` emits a filtered ACCESS timeline payload.
 

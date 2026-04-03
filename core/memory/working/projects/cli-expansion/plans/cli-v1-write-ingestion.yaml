@@ -2,8 +2,8 @@ id: cli-v1-write-ingestion
 project: cli-expansion
 created: '2026-04-03'
 origin_session: memory/activity/2026/04/02/chat-001
-status: active
-sessions_used: 0
+status: completed
+sessions_used: 1
 budget:
   deadline: '2026-06-30'
   max_sessions: 6
@@ -23,7 +23,7 @@ work:
   phases:
     - id: ingestion-contract
       title: Define add command input, routing, and preview contract
-      status: pending
+      status: completed
       commit: null
       blockers: []
       sources:
@@ -48,7 +48,7 @@ work:
           description: Document the planned input modes and preview behavior for add.
     - id: governed-write-adapter
       title: Reuse governed write helpers for CLI ingestion
-      status: pending
+      status: completed
       commit: null
       blockers:
         - ingestion-contract
@@ -78,7 +78,7 @@ work:
           description: Record the CLI write capability and its dependency expectations.
     - id: add-command
       title: Implement file and stdin ingestion with ACCESS logging
-      status: pending
+      status: completed
       commit: null
       blockers:
         - governed-write-adapter
@@ -113,7 +113,7 @@ work:
           description: Add add-command examples for humans and automation scripts.
     - id: write-surface-verification
       title: Verify add docs, subprocess coverage, and capability metadata
-      status: pending
+      status: completed
       commit: null
       blockers:
         - add-command

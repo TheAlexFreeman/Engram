@@ -21,6 +21,7 @@ def _copy_repo_tree(tmp_path: Path) -> Path:
             ".git",
             ".venv",
             ".pytest_cache",
+            ".mypy_cache",
             ".ruff_cache",
             "__pycache__",
             "agent_memory_mcp.egg-info",
@@ -54,13 +55,18 @@ def _copy_repo_tree(tmp_path: Path) -> Path:
     return clone_root
 
 
-def _run_cli(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _run_cli(
+    repo_root: Path,
+    *args: str,
+    input_text: str | None = None,
+) -> subprocess.CompletedProcess[str]:
     environment = dict(os.environ)
     environment["MEMORY_REPO_ROOT"] = str(repo_root)
     return subprocess.run(
         [sys.executable, "-m", "engram_mcp.agent_memory_mcp.cli.main", *args],
         cwd=str(REPO_ROOT),
         env=environment,
+        input=input_text,
         capture_output=True,
         text=True,
         check=False,
@@ -102,6 +108,15 @@ def _seed_read_surface_fixture(repo_root: Path) -> None:
     access_path.write_text(existing + extra_entry + "\n", encoding="utf-8")
 
 
+def _seed_add_fixture(repo_root: Path) -> None:
+    summary_path = repo_root / "core" / "memory" / "knowledge" / "_unverified" / "SUMMARY.md"
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(
+        "# Unverified Knowledge\n\n<!-- section: cli-integration -->\n### Cli Integration\n\n---\n",
+        encoding="utf-8",
+    )
+
+
 def test_validate_status_and_search_integration(tmp_path: Path) -> None:
     repo_copy = _copy_repo_tree(tmp_path)
     _seed_warning_fixture(repo_copy)
@@ -130,6 +145,9 @@ def test_json_subcommands_emit_parseable_output(tmp_path: Path) -> None:
     repo_copy = _copy_repo_tree(tmp_path)
     _seed_warning_fixture(repo_copy)
     _seed_read_surface_fixture(repo_copy)
+    _seed_add_fixture(repo_copy)
+    add_source = repo_copy / "cli-add-source.md"
+    add_source.write_text("# CLI Add\n\nBody\n", encoding="utf-8")
 
     validate_run = _run_cli(repo_copy, "validate", "--json")
     status_run = _run_cli(repo_copy, "status", "--json")
@@ -157,6 +175,16 @@ def test_json_subcommands_emit_parseable_output(tmp_path: Path) -> None:
         "2099-01-01",
         "--json",
     )
+    add_run = _run_cli(
+        repo_copy,
+        "add",
+        "knowledge/cli-integration",
+        str(add_source),
+        "--session-id",
+        "memory/activity/2026/04/03/chat-001",
+        "--preview",
+        "--json",
+    )
 
     assert isinstance(json.loads(validate_run.stdout), list)
     assert "stage" in json.loads(status_run.stdout)
@@ -166,14 +194,30 @@ def test_json_subcommands_emit_parseable_output(tmp_path: Path) -> None:
         json.loads(log_run.stdout)["results"][0]["file"]
         == "memory/knowledge/cli-integration/sentinel.md"
     )
+    assert (
+        json.loads(add_run.stdout)["new_state"]["path"]
+        == "memory/knowledge/_unverified/cli-integration/cli-add-source.md"
+    )
 
 
 def test_recall_and_log_human_output_integration(tmp_path: Path) -> None:
     repo_copy = _copy_repo_tree(tmp_path)
     _seed_read_surface_fixture(repo_copy)
+    _seed_add_fixture(repo_copy)
 
     recall_run = _run_cli(repo_copy, "recall", "knowledge/cli-integration")
     log_run = _run_cli(repo_copy, "log", "--namespace", "knowledge", "--since", "2099-01-01")
+    add_run = _run_cli(
+        repo_copy,
+        "add",
+        "knowledge/cli-integration",
+        "-",
+        "--name",
+        "cli-add-stdin",
+        "--session-id",
+        "memory/activity/2026/04/03/chat-001",
+        input_text="# CLI Add Stdin\n\nBody\n",
+    )
 
     assert recall_run.returncode == 0
     assert "Namespace: memory/knowledge/cli-integration" in recall_run.stdout
@@ -182,3 +226,6 @@ def test_recall_and_log_human_output_integration(tmp_path: Path) -> None:
     assert log_run.returncode == 0
     assert "memory/knowledge/cli-integration/sentinel.md" in log_run.stdout
     assert "2099-01-01" in log_run.stdout
+
+    assert add_run.returncode == 0
+    assert "Added: memory/knowledge/_unverified/cli-integration/cli-add-stdin.md" in add_run.stdout

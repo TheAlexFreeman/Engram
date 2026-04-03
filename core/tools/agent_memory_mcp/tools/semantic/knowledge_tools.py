@@ -16,6 +16,12 @@ from ...path_policy import (
     validate_knowledge_path,
     validate_session_id,
 )
+from ...knowledge_ingestion import (
+    apply_prepared_knowledge_add,
+    build_knowledge_add_preview,
+    knowledge_add_new_state,
+    prepare_knowledge_add,
+)
 from ...preview_contract import build_governed_preview, preview_target
 from ...tool_schemas import KNOWLEDGE_BATCH_TRUST_LEVELS, REVIEW_VERDICTS
 from ..name_index import generate_names_index, write_names_index
@@ -1552,6 +1558,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         trust: str = "low",
         summary_entry: str | None = None,
         expires: str | None = None,
+        preview: bool = False,
     ) -> str:
         """Create a new unverified knowledge file with frontmatter and SUMMARY entry.
 
@@ -1566,88 +1573,47 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
                      Useful for time-bound facts, temporary workarounds, or
                      sprint-scoped context. The file will be flagged for
                      review/archival after this date.
+            preview: When true, return the governed preview envelope without
+                     writing or committing.
         """
-        from ...errors import ValidationError
-        from ...frontmatter_utils import (
-            infer_section_id_from_path,
-            insert_entry_in_section,
-            today_str,
-            write_with_frontmatter,
-        )
         from ...models import MemoryWriteResult
 
         repo = get_repo()
         root = get_root()
-        warnings: list[str] = []
-
-        validate_session_id(session_id)
-        path, abs_path = resolve_repo_path(repo, path)
-        require_under_prefix(path, "memory/knowledge/_unverified")
-        if trust != "low":
-            raise ValidationError("trust must be 'low' for new unverified knowledge")
-
-        max_bytes = int(os.environ.get("ENGRAM_MAX_FILE_SIZE", "512000"))
-        content_bytes = len(content.encode("utf-8"))
-        if content_bytes > max_bytes:
-            raise ValidationError(
-                f"Content is {content_bytes:,} bytes, which exceeds the "
-                f"{max_bytes:,}-byte limit (set ENGRAM_MAX_FILE_SIZE to override). "
-                "Summarize or split the content before writing."
+        prepared = prepare_knowledge_add(
+            repo,
+            root,
+            path=path,
+            content=content,
+            source=source,
+            session_id=session_id,
+            trust=trust,
+            summary_entry=summary_entry,
+            expires=expires,
+        )
+        preview_payload = build_knowledge_add_preview(prepared)
+        if preview:
+            result = MemoryWriteResult(
+                files_changed=[prepared.path],
+                commit_sha=None,
+                commit_message=None,
+                new_state=knowledge_add_new_state(prepared),
+                warnings=prepared.warnings,
+                preview=preview_payload,
             )
-        if abs_path.exists():
-            raise ValidationError(f"File already exists: {path}. Use memory_write to overwrite.")
+            return result.to_json()
 
-        today = today_str()
-        fm_dict: dict[str, Any] = {
-            "source": source,
-            "created": today,
-            "trust": "low",
-            "origin_session": session_id,
-        }
-        if expires:
-            # Validate ISO date format
-            try:
-                datetime.strptime(expires, "%Y-%m-%d")
-            except ValueError:
-                raise ValidationError(f"expires must be ISO date (YYYY-MM-DD), got {expires!r}")
-            fm_dict["expires"] = expires
+        files_changed = apply_prepared_knowledge_add(repo, prepared)
+        commit_result = repo.commit(prepared.commit_message)
 
-        abs_path.parent.mkdir(parents=True, exist_ok=True)
-        write_with_frontmatter(abs_path, fm_dict, content)
-        repo.add(path)
-
-        if summary_entry is None:
-            h1_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
-            summary_entry = h1_match.group(1).strip() if h1_match else Path(path).stem
-
-        section_id = infer_section_id_from_path(path)
-        filename = Path(path).name
-        summary_path = "memory/knowledge/_unverified/SUMMARY.md"
-        abs_summary = root / summary_path
-        if abs_summary.exists():
-            summary_content = abs_summary.read_text(encoding="utf-8")
-            entry = f"- **[{filename}]({path})** — {summary_entry}"
-            updated = insert_entry_in_section(summary_content, section_id, entry)
-            if updated is None:
-                warnings.append(
-                    f"Section '<!-- section: {section_id} -->' not found in "
-                    f"{summary_path}. Entry not added — add manually."
-                )
-            else:
-                abs_summary.write_text(updated, encoding="utf-8")
-                repo.add(summary_path)
-
-        files_changed = [path] + ([summary_path] if abs_summary.exists() else [])
-        commit_msg = f"[knowledge] Add {filename}"
-        commit_result = repo.commit(commit_msg)
-
-        new_token = repo.hash_object(path)
+        new_token = repo.hash_object(prepared.path)
         result = MemoryWriteResult.from_commit(
             files_changed=files_changed,
             commit_result=commit_result,
-            commit_message=commit_msg,
-            new_state={"version_token": new_token},
-            warnings=warnings,
+            commit_message=prepared.commit_message,
+            new_state=knowledge_add_new_state(prepared, version_token=new_token),
+            warnings=prepared.warnings,
+            preview=preview_payload,
         )
         return result.to_json()
 

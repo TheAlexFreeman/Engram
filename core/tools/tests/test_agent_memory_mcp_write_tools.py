@@ -2290,6 +2290,7 @@ declared_gaps = []
         self.assertEqual(payload["properties"]["trust"]["enum"], ["low"])
         self.assertEqual(payload["properties"]["trust"]["default"], "low")
         self.assertEqual(payload["properties"]["expires"]["oneOf"][0]["format"], "date")
+        self.assertFalse(payload["properties"]["preview"]["default"])
 
     def test_memory_tool_schema_returns_checkpoint_contract(self) -> None:
         repo_root = self._init_repo({"README.md": "# Test\n"})
@@ -4556,6 +4557,45 @@ Secondary body.
         self.assertIn(
             "**[test.md](memory/knowledge/_unverified/django/test.md)** — Test Note",
             summary_text,
+        )
+
+    def test_memory_add_knowledge_file_preview_returns_governed_preview_without_mutation(
+        self,
+    ) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/_unverified/SUMMARY.md": """# Unverified Knowledge
+
+<!-- section: django -->
+### Django
+
+---
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = self._preview_tool(
+            tools,
+            "memory_add_knowledge_file",
+            path="memory/knowledge/_unverified/django/test.md",
+            content="# Test Note\n\nBody\n",
+            source="external-research",
+            session_id="memory/activity/2026/03/19/chat-001",
+        )
+
+        self.assertIsNone(payload["commit_sha"])
+        self.assertEqual(
+            payload["new_state"]["path"], "memory/knowledge/_unverified/django/test.md"
+        )
+        self.assertEqual(payload["preview"]["mode"], "preview")
+        self.assertEqual(
+            payload["preview"]["target_files"][0]["path"],
+            "memory/knowledge/_unverified/django/test.md",
+        )
+        self.assertIn("# Test Note", payload["preview"]["content_preview"])
+        self.assertFalse(
+            (repo_root / "memory" / "knowledge" / "_unverified" / "django" / "test.md").exists()
         )
 
     def test_memory_plan_create_rejects_noncanonical_session_id(self) -> None:
@@ -11289,7 +11329,9 @@ trust: high
         ).stdout.strip()
 
         self.assertTrue(payload["has_run_state"])
-        self.assertEqual(payload["resumption"]["previous_session"], "memory/activity/2026/03/27/chat-111")
+        self.assertEqual(
+            payload["resumption"]["previous_session"], "memory/activity/2026/03/27/chat-111"
+        )
         self.assertEqual(payload["intermediate_outputs"][0]["key"], "notes")
         self.assertEqual(before, after)
         self.assertEqual(git_status, "")

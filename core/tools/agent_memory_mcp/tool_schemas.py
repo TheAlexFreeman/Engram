@@ -1325,6 +1325,7 @@ def add_knowledge_file_input_schema() -> dict[str, Any]:
             "trust is fixed to low for new unverified knowledge files.",
             "summary_entry defaults to the first H1 heading or the filename stem when omitted.",
             "expires, when provided, must be an ISO date in YYYY-MM-DD format.",
+            "preview=true returns the governed preview envelope without writing or committing.",
         ],
         properties={
             "path": {
@@ -1364,6 +1365,11 @@ def add_knowledge_file_input_schema() -> dict[str, Any]:
                     {"type": "null"},
                 ],
                 "description": "Optional ISO date (YYYY-MM-DD) recorded in frontmatter for time-bound knowledge.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "Return the governed preview envelope without writing or committing.",
             },
         },
     )

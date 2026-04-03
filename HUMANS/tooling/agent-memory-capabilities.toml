@@ -623,6 +623,10 @@ tool = "memory_add_knowledge_file"
 tier = "semantic"
 operation_group = "knowledge"
 change_class = "automatic"
+notes = "Low-trust unverified knowledge ingestion. The MCP tool supports preview mode; the engram CLI layers file/stdin routing plus ACCESS logging on the same helper contract."
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
 
 [desktop_operations.promote_knowledge]
 status = "implemented"
@@ -1102,6 +1106,9 @@ notes = "Bulk project-inbox write driven by configured watch folders; per-file e
 group = "knowledge"
 tier = "semantic"
 change_class = "automatic"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
 commit_model = "auto_commit"
 commit_category_hint = "knowledge"
 writes = [
@@ -1112,9 +1119,17 @@ owns_frontmatter = ["memory/knowledge/_unverified/**/{file}.md"]
 owns_summaries = ["memory/knowledge/_unverified/SUMMARY.md"]
 owns_access_logs = []
 owns_review_queue = []
-result_fields = ["version_token"]
+result_fields = [
+  "path",
+  "source",
+  "trust",
+  "session_id",
+  "summary_updated",
+  "version_token",
+]
 fallback_tools = ["memory_write", "memory_update_frontmatter", "memory_commit"]
 error_kinds = ["ValidationError", "StagingError"]
+notes = "Preview mode returns the governed write envelope without mutating the repo; apply mode auto-commits the file and optional unverified SUMMARY update."
 
 [operations.memory_promote_knowledge]
 group = "knowledge"

@@ -1,4 +1,4 @@
-"""Shared CLI helpers for read-oriented Engram commands."""
+"""Shared CLI helpers for Engram terminal commands."""
 
 from __future__ import annotations
 
@@ -416,3 +416,89 @@ def _item_value(item: object, key: str) -> Any:
     if isinstance(item, Mapping):
         return item.get(key)
     return getattr(item, key, None)
+
+
+def render_governed_preview(preview: Mapping[str, Any]) -> str:
+    lines = [
+        f"Mode: {preview.get('mode', 'preview')}",
+        f"Change class: {preview.get('change_class', 'automatic')}",
+        f"Summary: {preview.get('summary', '')}",
+    ]
+
+    reasoning = str(preview.get("reasoning") or "").strip()
+    if reasoning:
+        lines.extend(["", "Reasoning:", reasoning])
+
+    target_files = preview.get("target_files")
+    if isinstance(target_files, Sequence):
+        lines.extend(["", "Targets:"])
+        for item in target_files:
+            if not isinstance(item, Mapping):
+                continue
+            details = str(item.get("details") or "").strip()
+            prefix = f"  - {item.get('change', 'update')}: {item.get('path', '')}"
+            lines.append(prefix)
+            if details:
+                lines.append(f"    {details}")
+
+    effects = preview.get("invariant_effects")
+    if isinstance(effects, Sequence):
+        lines.extend(["", "Effects:"])
+        for effect in effects:
+            lines.append(f"  - {effect}")
+
+    commit_suggestion = preview.get("commit_suggestion")
+    if isinstance(commit_suggestion, Mapping) and commit_suggestion.get("message"):
+        lines.extend(["", f"Commit: {commit_suggestion['message']}"])
+
+    resulting_state = preview.get("resulting_state")
+    if isinstance(resulting_state, Mapping) and resulting_state:
+        lines.extend(["", "Resulting state:"])
+        for key, value in resulting_state.items():
+            lines.append(f"  - {key}: {value}")
+
+    warnings = preview.get("warnings")
+    if isinstance(warnings, Sequence) and warnings:
+        lines.extend(["", "Warnings:"])
+        for warning in warnings:
+            lines.append(f"  - {warning}")
+
+    content_preview = str(preview.get("content_preview") or "").rstrip()
+    if content_preview:
+        lines.extend(["", "Content preview:", content_preview])
+
+    return "\n".join(lines)
+
+
+def render_write_result(payload: Mapping[str, Any]) -> str:
+    new_state = payload.get("new_state") if isinstance(payload.get("new_state"), Mapping) else {}
+    lines: list[str] = []
+
+    path = new_state.get("path") if isinstance(new_state, Mapping) else None
+    if path:
+        lines.append(f"Added: {path}")
+
+    commit_sha = payload.get("commit_sha")
+    if commit_sha:
+        lines.append(f"Commit: {commit_sha}")
+
+    commit_message = payload.get("commit_message")
+    if commit_message:
+        lines.append(f"Message: {commit_message}")
+
+    if isinstance(new_state, Mapping):
+        if new_state.get("access_jsonl"):
+            lines.append(f"ACCESS log: {new_state['access_jsonl']}")
+        if new_state.get("version_token"):
+            lines.append(f"Version token: {new_state['version_token']}")
+
+    warnings = payload.get("warnings")
+    if isinstance(warnings, Sequence) and warnings:
+        lines.append("")
+        lines.append("Warnings:")
+        for warning in warnings:
+            lines.append(f"  - {warning}")
+
+    if not lines:
+        return json.dumps(dict(payload), indent=2, default=str)
+    return "\n".join(lines)

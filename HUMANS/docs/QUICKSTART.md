@@ -124,12 +124,13 @@ If you want a shell-friendly interface for quick inspection and maintenance, ins
 python -m pip install -e ".[core]"
 engram status
 engram search "periodic review" --keyword
+engram add knowledge/react ./notes/hooks.md --session-id memory/activity/2026/04/03/chat-001 --preview
 engram recall knowledge
 engram log --namespace knowledge --since 2026-04-01
 engram validate
 ```
 
-Add `.[search]` if you want semantic search instead of automatic keyword fallback. For the full command reference and JSON examples, read [CLI.md](CLI.md).
+Add `.[search]` if you want semantic search instead of automatic keyword fallback. The preview-first `engram add` flow writes only into `memory/knowledge/_unverified/` and expects a canonical session id either from `--session-id`, `MEMORY_SESSION_ID`, or `memory/activity/CURRENT_SESSION`. For the full command reference and JSON examples, read [CLI.md](CLI.md).
 
 ### 5. Start your first session
 
