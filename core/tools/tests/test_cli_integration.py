@@ -117,6 +117,74 @@ def _seed_add_fixture(repo_root: Path) -> None:
     )
 
 
+def _seed_plan_fixture(repo_root: Path) -> None:
+    plan_path = (
+        repo_root
+        / "core"
+        / "memory"
+        / "working"
+        / "projects"
+        / "example"
+        / "plans"
+        / "tracked-plan.yaml"
+    )
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    (repo_root / "core" / "context.md").write_text(
+        "CLI plan integration fixture\n", encoding="utf-8"
+    )
+    plan_path.write_text(
+        "id: tracked-plan\n"
+        "project: example\n"
+        "created: '2026-04-03'\n"
+        "origin_session: memory/activity/2026/04/03/chat-001\n"
+        "status: active\n"
+        "sessions_used: 1\n"
+        "purpose:\n"
+        "  summary: Track CLI plan work\n"
+        "  context: Exercise the plan CLI group.\n"
+        "  questions: []\n"
+        "work:\n"
+        "  phases:\n"
+        "    - id: phase-a\n"
+        "      title: Complete groundwork\n"
+        "      status: completed\n"
+        "      commit: abc1234\n"
+        "      blockers: []\n"
+        "      sources:\n"
+        "        - path: core/context.md\n"
+        "          type: internal\n"
+        "          intent: Review plan CLI context.\n"
+        "      postconditions:\n"
+        "        - description: Groundwork exists.\n"
+        "      requires_approval: false\n"
+        "      changes:\n"
+        "        - path: HUMANS/docs/CLI.md\n"
+        "          action: update\n"
+        "          description: Note groundwork.\n"
+        "      failures: []\n"
+        "    - id: phase-b\n"
+        "      title: Ship read surfaces\n"
+        "      status: pending\n"
+        "      blockers: []\n"
+        "      sources:\n"
+        "        - path: core/context.md\n"
+        "          type: internal\n"
+        "          intent: Reuse context.\n"
+        "      postconditions:\n"
+        "        - description: Read surfaces render terminal output.\n"
+        "          type: check\n"
+        "          target: memory/working/projects/example/plans/tracked-plan.yaml\n"
+        "      requires_approval: false\n"
+        "      changes:\n"
+        "        - path: core/tools/agent_memory_mcp/cli/cmd_plan.py\n"
+        "          action: create\n"
+        "          description: Add plan read surfaces.\n"
+        "      failures: []\n"
+        "review: null\n",
+        encoding="utf-8",
+    )
+
+
 def test_validate_status_and_search_integration(tmp_path: Path) -> None:
     repo_copy = _copy_repo_tree(tmp_path)
     _seed_warning_fixture(repo_copy)
@@ -229,3 +297,27 @@ def test_recall_and_log_human_output_integration(tmp_path: Path) -> None:
 
     assert add_run.returncode == 0
     assert "Added: memory/knowledge/_unverified/cli-integration/cli-add-stdin.md" in add_run.stdout
+
+
+def test_plan_list_and_show_integration(tmp_path: Path) -> None:
+    repo_copy = _copy_repo_tree(tmp_path)
+    _seed_plan_fixture(repo_copy)
+
+    list_run = _run_cli(
+        repo_copy,
+        "plan",
+        "list",
+        "--status",
+        "active",
+        "--project",
+        "example",
+        "--json",
+    )
+    show_run = _run_cli(repo_copy, "plan", "show", "tracked-plan", "--project", "example")
+
+    assert list_run.returncode == 0
+    assert json.loads(list_run.stdout)["results"][0]["plan_id"] == "tracked-plan"
+
+    assert show_run.returncode == 0
+    assert "Plan: tracked-plan [active]" in show_run.stdout
+    assert "Phase: phase-b [pending]" in show_run.stdout

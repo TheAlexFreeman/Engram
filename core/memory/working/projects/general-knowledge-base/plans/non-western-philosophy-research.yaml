@@ -49,7 +49,7 @@ work:
   phases:
     - id: orientation
       title: Orient to existing non-Western coverage and define non-western/ scope
-      status: complete
+      status: completed
       blockers: []
       sources:
         - path: core/memory/knowledge/philosophy/history/non-western/chinese-philosophy.md
@@ -95,7 +95,7 @@ work:
 
     - id: indian-philosophy-depth
       title: Write depth files on Indian philosophical traditions
-      status: complete
+      status: completed
       blockers:
         - orientation
       sources:
@@ -169,7 +169,7 @@ work:
 
     - id: chinese-philosophy-depth
       title: Write depth files on Chinese philosophical traditions
-      status: complete
+      status: completed
       blockers:
         - indian-philosophy-depth
       sources:
@@ -234,7 +234,7 @@ work:
 
     - id: cross-tradition-synthesis
       title: Write cross-tradition synthesis and non-western/ SUMMARY
-      status: complete
+      status: completed
       blockers:
         - chinese-philosophy-depth
       sources:

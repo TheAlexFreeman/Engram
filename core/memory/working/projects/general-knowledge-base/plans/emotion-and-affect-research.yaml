@@ -39,7 +39,7 @@ work:
   phases:
     - id: orientation
       title: Orient to existing cog-sci coverage and define affective scope
-      status: complete
+      status: completed
       blockers: []
       sources:
         - path: core/memory/knowledge/cognitive-science/cognitive-science-synthesis.md
@@ -83,7 +83,7 @@ work:
 
     - id: core-emotion-science
       title: Write files on foundational theories of emotion
-      status: complete
+      status: completed
       blockers:
         - orientation
       sources:
@@ -138,7 +138,7 @@ work:
 
     - id: cognitive-emotion-interface
       title: Write files on emotion-cognition integration
-      status: complete
+      status: completed
       blockers:
         - core-emotion-science
       sources:
@@ -194,7 +194,7 @@ work:
 
     - id: synthesis-and-ai-relevance
       title: Write emotion synthesis and AI-welfare implications file
-      status: complete
+      status: completed
       blockers:
         - cognitive-emotion-interface
       sources:

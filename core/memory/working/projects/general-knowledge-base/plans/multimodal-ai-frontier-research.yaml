@@ -38,7 +38,7 @@ work:
   phases:
     - id: orientation
       title: Orient to existing AI frontier coverage and define multimodal scope
-      status: complete
+      status: completed
       blockers: []
       sources:
         - path: core/memory/knowledge/ai/frontier/retrieval-memory/colpali-visual-document-retrieval.md
@@ -82,7 +82,7 @@ work:
 
     - id: vision-language-models
       title: Write files on vision-language models and generative vision
-      status: complete
+      status: completed
       blockers:
         - orientation
       sources:
@@ -136,7 +136,7 @@ work:
 
     - id: audio-and-embodied
       title: Write files on audio-language models and embodied AI
-      status: complete
+      status: completed
       blockers:
         - vision-language-models
       sources:
@@ -177,7 +177,7 @@ work:
 
     - id: synthesis-multimodal-rag
       title: Write multimodal synthesis and RAG extension file
-      status: complete
+      status: completed
       blockers:
         - audio-and-embodied
       sources:

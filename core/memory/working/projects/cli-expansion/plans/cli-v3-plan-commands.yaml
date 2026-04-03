@@ -2,8 +2,8 @@ id: cli-v3-plan-commands
 project: cli-expansion
 created: '2026-04-03'
 origin_session: memory/activity/2026/04/02/chat-001
-status: draft
-sessions_used: 0
+status: active
+sessions_used: 1
 budget:
   deadline: '2026-10-01'
   max_sessions: 8
@@ -28,7 +28,7 @@ work:
   phases:
     - id: plan-read-surfaces
       title: Implement read-only plan list and show terminal views
-      status: pending
+      status: completed
       commit: null
       blockers:
         - cli-v3-schema-foundations:foundation-verification
@@ -60,7 +60,7 @@ work:
           description: Tests for plan list and show rendering.
     - id: plan-create-flow
       title: Implement schema-backed plan create from file or stdin
-      status: pending
+      status: in-progress
       commit: null
       blockers:
         - plan-read-surfaces

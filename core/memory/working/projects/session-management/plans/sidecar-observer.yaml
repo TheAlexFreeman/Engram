@@ -49,7 +49,7 @@ work:
     # ── Phase 1: Transcript parser framework ────────────────────────────
     - id: transcript-parser-framework
       title: Build pluggable transcript parser framework
-      status: complete
+      status: completed
       blockers: []
       requires_approval: false
       sources:
@@ -105,7 +105,7 @@ work:
     # ── Phase 2: Claude Code parser ─────────────────────────────────────
     - id: claude-code-parser
       title: Implement Claude Code transcript parser
-      status: complete
+      status: completed
       blockers:
         - transcript-parser-framework
       requires_approval: false
@@ -138,7 +138,7 @@ work:
     # ── Phase 3: Helpfulness estimator ──────────────────────────────────
     - id: helpfulness-estimator
       title: Build helpfulness estimation from transcript analysis
-      status: complete
+      status: completed
       blockers:
         - transcript-parser-framework
       requires_approval: false
@@ -189,7 +189,7 @@ work:
     # ── Phase 4: ACCESS logger ──────────────────────────────────────────
     - id: access-logger
       title: Implement automatic ACCESS.jsonl logging via MCP
-      status: complete
+      status: completed
       blockers:
         - helpfulness-estimator
         - claude-code-parser
@@ -237,7 +237,7 @@ work:
     # ── Phase 5: Session lifecycle manager ──────────────────────────────
     - id: session-lifecycle
       title: Implement automatic session recording
-      status: complete
+      status: completed
       blockers:
         - access-logger
       requires_approval: false
@@ -268,7 +268,7 @@ work:
     # ── Phase 6: CLI entry point and config ─────────────────────────────
     - id: sidecar-cli
       title: Create engram-sidecar CLI entry point and configuration
-      status: complete
+      status: completed
       blockers:
         - session-lifecycle
       requires_approval: true
@@ -315,7 +315,7 @@ work:
     # ── Phase 7: Documentation ──────────────────────────────────────────
     - id: sidecar-docs
       title: Document sidecar setup and usage
-      status: complete
+      status: completed
       blockers:
         - sidecar-cli
       requires_approval: true

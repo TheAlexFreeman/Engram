@@ -39,7 +39,7 @@ work:
   phases:
     - id: orientation
       title: Orient to existing SE database coverage and define databases/ scope
-      status: complete
+      status: completed
       blockers: []
       sources:
         - path: core/memory/knowledge/ai/frontier/retrieval-memory/rag-architecture.md
@@ -83,7 +83,7 @@ work:
 
     - id: vector-databases
       title: Write files on vector database internals and the market landscape
-      status: complete
+      status: completed
       blockers:
         - orientation
       sources:
@@ -145,7 +145,7 @@ work:
 
     - id: graph-and-document-stores
       title: Write files on graph databases and document stores
-      status: complete
+      status: completed
       blockers:
         - vector-databases
       sources:
@@ -197,7 +197,7 @@ work:
 
     - id: synthesis-polyglot-persistence
       title: Write polyglot persistence synthesis and databases/ SUMMARY
-      status: complete
+      status: completed
       blockers:
         - graph-and-document-stores
       sources:

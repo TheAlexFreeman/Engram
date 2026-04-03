@@ -53,7 +53,7 @@ work:
     # ── Phase 1: Proxy core with API pass-through ───────────────────────
     - id: proxy-core
       title: Build HTTP proxy with API format detection and pass-through
-      status: complete
+      status: completed
       blockers: []
       requires_approval: false
       sources:
@@ -97,7 +97,7 @@ work:
     # ── Phase 2: Context injection ──────────────────────────────────────
     - id: proxy-context-injection
       title: Add pre-query context injection via context injectors
-      status: complete
+      status: completed
       blockers:
         - proxy-core
       requires_approval: true
@@ -129,7 +129,7 @@ work:
     # ── Phase 3: Token-aware compaction flush ───────────────────────────
     - id: proxy-compaction-flush
       title: Add token counting and compaction flush triggering
-      status: complete
+      status: completed
       blockers:
         - proxy-core
       requires_approval: true
@@ -168,7 +168,7 @@ work:
     # ── Phase 4: Transparent checkpointing ──────────────────────────────
     - id: proxy-checkpointing
       title: Add automatic checkpoint extraction from responses
-      status: complete
+      status: completed
       blockers:
         - proxy-core
       requires_approval: true
@@ -208,7 +208,7 @@ work:
     # ── Phase 5: CLI, config, and sidecar integration ───────────────────
     - id: proxy-cli
       title: Create engram-proxy CLI and integrate with sidecar
-      status: complete
+      status: completed
       blockers:
         - proxy-context-injection
         - proxy-compaction-flush
@@ -255,7 +255,7 @@ work:
     # ── Phase 6: Documentation ──────────────────────────────────────────
     - id: proxy-docs
       title: Document proxy setup per platform
-      status: complete
+      status: completed
       blockers:
         - proxy-cli
       requires_approval: true

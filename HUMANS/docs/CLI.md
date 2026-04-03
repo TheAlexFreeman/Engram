@@ -5,6 +5,7 @@ The `engram` CLI provides a terminal-oriented interface for searching, inspectin
 - `engram search` for querying memory content from a shell or script.
 - `engram status` for a compact health dashboard.
 - `engram add` for governed ingestion into `memory/knowledge/_unverified/`.
+- `engram plan` for plan list/show inspection from a shell or script.
 - `engram recall` for reading a file or namespace with frontmatter and ACCESS context.
 - `engram log` for recent ACCESS timeline inspection.
 - `engram validate` for repository integrity checks.
@@ -111,6 +112,24 @@ engram log --namespace knowledge --since 2026-04-01 --json
 
 JSON output includes the filtered result count plus structured ACCESS entries with namespace labels.
 
+### `engram plan`
+
+Inspects structured plans from the Active Plans system without requiring an MCP host. The current CLI surface ships the read-only plan views first:
+
+- `engram plan list` shows plan ids, status, progress, and next-action summaries.
+- `engram plan show <plan-id>` renders the current actionable phase, including sources, blockers, postconditions, and planned changes.
+
+Examples:
+
+```bash
+engram plan list
+engram plan list --status active --json
+engram plan show cli-v3-plan-commands --project cli-expansion
+engram plan show cli-v3-plan-commands --project cli-expansion --phase plan-read-surfaces
+```
+
+JSON output mirrors the underlying plan runtime: `list` returns structured plan summaries with `next_action` and `phase_progress`, while `show` returns the selected phase packet plus plan progress and optional budget status.
+
 ### `engram validate`
 
 Runs the repository validator and exits with stable status codes:
@@ -134,6 +153,8 @@ If the validator's core dependencies are missing, the command prints a friendly 
 - `engram status --json` emits a structured object suitable for dashboards or shell pipelines.
 - `engram search --json` emits a structured object with the search mode and result list.
 - `engram add --json` emits a governed write result with `preview` support for dry runs.
+- `engram plan list --json` emits structured plan summaries for scripts or terminal agents.
+- `engram plan show --json` emits the selected phase packet with blockers, postconditions, and changes.
 - `engram recall --json` emits a structured file or namespace inspection payload.
 - `engram log --json` emits a filtered ACCESS timeline payload.
 

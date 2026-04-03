@@ -44,7 +44,7 @@ work:
   phases:
     - id: orientation
       title: Orient to existing governance-adjacent coverage and map the regulatory landscape
-      status: complete
+      status: completed
       blockers: []
       sources:
         - path: core/memory/knowledge/ai/frontier/foundation-model-governance.md
@@ -86,7 +86,7 @@ work:
 
     - id: regulatory-landscape
       title: Write files on AI regulatory frameworks
-      status: complete
+      status: completed
       blockers:
         - orientation
       sources:
@@ -141,7 +141,7 @@ work:
 
     - id: technical-governance-mechanisms
       title: Write files on technical artefacts that governance relies on
-      status: complete
+      status: completed
       blockers:
         - regulatory-landscape
       sources:
@@ -201,7 +201,7 @@ work:
 
     - id: governance-theory-and-synthesis
       title: Write governance theory file and domain synthesis
-      status: complete
+      status: completed
       blockers:
         - technical-governance-mechanisms
       sources:
