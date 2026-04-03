@@ -147,7 +147,7 @@ These tools inspect, analyze, and report on the repo without changing it. Always
 | --- | --- |
 | `memory_get_capabilities` | Return the governed capability manifest as structured JSON. |
 | `memory_get_tool_profiles` | Return advisory tool-profile metadata for host-side narrowing. |
-| `memory_tool_schema` | Return the structured input contract for a supported MCP tool whose nested schema is not obvious from FastMCP type hints alone. |
+| `memory_tool_schema` | Return the structured input contract for a supported or optionally gated MCP tool whose nested schema is not obvious from FastMCP type hints alone. |
 | `memory_plan_schema` | Return the nested input contract for `memory_plan_create`, including canonical enums, aliases, and conditional requirements. |
 | `memory_get_policy_state` | Compile the current governed contract for an operation and optional path. |
 | `memory_route_intent` | Recommend the best governed operation for a natural-language intent. |
@@ -344,7 +344,7 @@ Canonical nested shapes:
 - `postconditions`: list of strings (shorthand for manual checks) or `{description, type?, target?}` where `type` is `check | grep | test | manual`; `check` validates file existence, `grep` validates `regex::path`, `test` runs an allowlisted command behind `ENGRAM_TIER2=1`, and `target` is required when `type != manual`.
 - `changes`: non-empty list of `{path, action, description}` where `action` is `create | rewrite | update | delete | rename`.
 
-Use `memory_plan_schema` for the plan-create compatibility path or `memory_tool_schema` for the broader schema lookup surface. `preview=true` still returns the normal governed preview for valid requests, but invalid preview requests now return structured validation feedback instead of forcing guess-and-retry loops.
+Use `memory_plan_schema` for the plan-create compatibility path or `memory_tool_schema` for the broader schema lookup surface. The shared registry currently covers plan create/execute, approval request/resolve, ACCESS batch/session payloads, review verdict tools, user and skill updates, and `memory_update_frontmatter_bulk`. `preview=true` still returns the normal governed preview for valid requests, but invalid preview requests now return structured validation feedback instead of forcing guess-and-retry loops.
 
 The `resulting_state` includes a `budget_status` block when a budget is set.
 

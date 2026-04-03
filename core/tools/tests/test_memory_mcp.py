@@ -185,6 +185,28 @@ class MemoryMCPTests(unittest.TestCase):
             ["create", "read", "update", "write"],
         )
 
+    def test_tool_schema_types_plan_execute_and_approval_inputs(self) -> None:
+        execute_raw = asyncio.run(self.module.memory_tool_schema(tool_name="memory_plan_execute"))
+        execute_payload = json.loads(execute_raw)
+        verification_item = execute_payload["properties"]["verification_results"]["oneOf"][0][
+            "items"
+        ]["anyOf"][0]
+
+        self.assertEqual(execute_payload["tool_name"], "memory_plan_execute")
+        self.assertEqual(
+            verification_item["properties"]["status"]["enum"],
+            ["error", "fail", "pass", "skip"],
+        )
+        self.assertIn("policy_result", verification_item["properties"])
+
+        approval_raw = asyncio.run(
+            self.module.memory_tool_schema(tool_name="memory_request_approval")
+        )
+        approval_payload = json.loads(approval_raw)
+
+        self.assertEqual(approval_payload["tool_name"], "memory_request_approval")
+        self.assertEqual(approval_payload["properties"]["expires_days"]["minimum"], 1)
+
     def test_read_only_profile_contains_only_runtime_read_only_tools(self) -> None:
         async def run_call() -> tuple[dict[str, Any], dict[str, object | None]]:
             raw = await self.module.memory_get_tool_profiles()

@@ -21,11 +21,13 @@ from .plan_utils import (
 )
 
 ACCESS_MODES = frozenset({"read", "write", "update", "create"})
+FRONTMATTER_BULK_MAX_UPDATES = 100
 KNOWLEDGE_BATCH_TRUST_LEVELS = frozenset({"medium", "high"})
 REVIEW_PRIORITIES = frozenset({"normal", "urgent"})
 REVIEW_VERDICTS = frozenset({"approve", "reject", "defer"})
 SKILL_CREATE_TRUST_LEVELS = frozenset({"high", "medium", "low"})
 UPDATE_MODES = frozenset({"upsert", "append", "replace"})
+VERIFICATION_RESULT_STATUSES = frozenset({"pass", "fail", "error", "skip"})
 
 ToolSchemaBuilder = Callable[[], dict[str, Any]]
 
@@ -95,11 +97,53 @@ def _session_id_string_schema(
 
 def _verification_results_item_schema() -> dict[str, Any]:
     return {
-        "type": "object",
-        "additionalProperties": True,
+        "anyOf": [
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["postcondition", "type", "status"],
+                "description": "Structured verification result returned by verify=true plan execution flows.",
+                "properties": {
+                    "postcondition": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Original postcondition description from the plan phase.",
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": sorted(POSTCONDITION_TYPES),
+                        "x-aliases": dict(POSTCONDITION_TYPE_ALIASES),
+                        "description": "Canonical postcondition type.",
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": sorted(VERIFICATION_RESULT_STATUSES),
+                        "description": "Verification outcome.",
+                    },
+                    "detail": {
+                        "oneOf": [
+                            {"type": "string"},
+                            {"type": "null"},
+                        ],
+                        "description": "Optional diagnostic detail; null on successful or manual-skip outcomes.",
+                    },
+                    "policy_result": {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "description": "Optional tool-policy payload when a test postcondition is denied by policy.",
+                    },
+                },
+            },
+            {
+                "type": "object",
+                "additionalProperties": True,
+                "description": "Legacy or caller-supplied verification context item stored verbatim on failure records.",
+            },
+        ],
         "description": (
-            "Tool-generated postcondition verification result. Entries typically carry "
-            "description, type, target, status, and implementation-specific diagnostics."
+            "Verification context item accepted by memory_plan_execute. Tool-generated "
+            "verify flows return the structured branch; record_failure also accepts "
+            "legacy caller-supplied objects."
         ),
     }
 
@@ -452,6 +496,50 @@ def mark_reviewed_input_schema() -> dict[str, Any]:
     )
 
 
+def request_approval_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_request_approval",
+        title="memory_request_approval input schema",
+        required=["plan_id", "phase_id"],
+        notes=[
+            "project_id may be omitted when plan ids are unique across projects.",
+            "expires_days is a positive review window in days; the runtime clamps legacy non-positive values up to 1.",
+        ],
+        properties={
+            "plan_id": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Plan id in kebab-case.",
+            },
+            "phase_id": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Phase id in kebab-case.",
+            },
+            "project_id": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional project id used to disambiguate plan lookup.",
+            },
+            "context": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional additional context recorded on the approval document.",
+            },
+            "expires_days": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 7,
+                "description": "Positive number of days before the pending approval expires.",
+            },
+        },
+    )
+
+
 def resolve_approval_input_schema() -> dict[str, Any]:
     return _base_schema(
         tool_name="memory_resolve_approval",
@@ -634,6 +722,56 @@ def update_skill_input_schema() -> dict[str, Any]:
     )
 
 
+def update_frontmatter_bulk_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_update_frontmatter_bulk",
+        title="memory_update_frontmatter_bulk input schema",
+        required=["updates"],
+        notes=[
+            "updates is validated as a full batch before any file is staged.",
+            f"updates accepts at most {FRONTMATTER_BULK_MAX_UPDATES} files per batch.",
+            "Protected directories remain blocked; use Tier 1 semantic tools for governed writes.",
+        ],
+        properties={
+            "updates": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": FRONTMATTER_BULK_MAX_UPDATES,
+                "description": "Batch of frontmatter update objects.",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": ["path", "fields"],
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Repo-relative path to the markdown file whose frontmatter should be updated.",
+                        },
+                        "fields": {
+                            "type": "object",
+                            "additionalProperties": True,
+                            "description": "Frontmatter key/value pairs to merge into the target file. Values must remain YAML-serializable.",
+                        },
+                        "version_token": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {"type": "null"},
+                            ],
+                            "description": "Optional optimistic-lock token returned by memory_read_file.",
+                        },
+                    },
+                },
+            },
+            "create_missing_keys": {
+                "type": "boolean",
+                "default": True,
+                "description": "When false, ignore fields that do not already exist in the target frontmatter.",
+            },
+        },
+    )
+
+
 TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_flag_for_review": flag_for_review_input_schema,
     "memory_log_access_batch": log_access_batch_input_schema,
@@ -642,7 +780,9 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_plan_execute": plan_execute_input_schema,
     "memory_promote_knowledge_batch": promote_knowledge_batch_input_schema,
     "memory_record_session": record_session_input_schema,
+    "memory_request_approval": request_approval_input_schema,
     "memory_resolve_approval": resolve_approval_input_schema,
+    "memory_update_frontmatter_bulk": update_frontmatter_bulk_input_schema,
     "memory_update_skill": update_skill_input_schema,
     "memory_update_user_trait": update_user_trait_input_schema,
 }
@@ -667,12 +807,14 @@ def get_tool_input_schema(tool_name: str) -> dict[str, Any]:
 
 __all__ = [
     "ACCESS_MODES",
+    "FRONTMATTER_BULK_MAX_UPDATES",
     "KNOWLEDGE_BATCH_TRUST_LEVELS",
     "REVIEW_PRIORITIES",
     "REVIEW_VERDICTS",
     "SKILL_CREATE_TRUST_LEVELS",
     "TOOL_INPUT_SCHEMAS",
     "UPDATE_MODES",
+    "VERIFICATION_RESULT_STATUSES",
     "access_entry_input_schema",
     "get_tool_input_schema",
     "list_tool_schema_names",
@@ -680,8 +822,10 @@ __all__ = [
     "mark_reviewed_input_schema",
     "plan_execute_input_schema",
     "promote_knowledge_batch_input_schema",
+    "request_approval_input_schema",
     "record_session_input_schema",
     "resolve_approval_input_schema",
+    "update_frontmatter_bulk_input_schema",
     "update_skill_input_schema",
     "update_user_trait_input_schema",
 ]

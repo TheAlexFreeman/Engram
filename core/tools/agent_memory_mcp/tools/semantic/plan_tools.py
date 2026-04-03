@@ -540,7 +540,13 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         - follow_up: optional kebab-case follow-up plan id
 
         verification_results is an optional list of verification result objects
-        attached to failure records or returned by verify flows.
+        attached to failure records or returned by verify flows. Tool-generated
+        items carry:
+        - postcondition: original postcondition description
+        - type: "check" | "grep" | "test" | "manual"
+        - status: "pass" | "fail" | "error" | "skip"
+        - detail: optional diagnostic string or null
+        - policy_result: optional policy block details for denied test commands
 
         When action="complete" and verify=True, postconditions are evaluated
         before completion. If any fail or error, the phase stays in-progress and
@@ -2164,6 +2170,11 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         transitions the plan status to ``paused``.  If an approval already exists for
         this phase and is still pending, returns the existing document without creating
         a duplicate.
+
+        project_id is optional and only needed when plan ids are ambiguous across
+        projects. context adds freeform reviewer context to the approval document.
+        expires_days is a positive number of days before the pending approval expires
+        (default 7). The phase must currently be pending or in-progress.
 
         Returns JSON with ``approval_file``, ``status``, ``expires``,
         and ``plan_status``.

@@ -18,6 +18,12 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-04-02] Schema coverage expansion for approvals and raw batch writes
+
+**Changed:** Extended the shared `memory_tool_schema` registry to cover `memory_request_approval` and `memory_update_frontmatter_bulk`, and replaced the opaque `memory_plan_execute.verification_results` item schema with a compatibility-preserving typed shape that documents the tool-generated result fields while still allowing legacy custom failure payloads.
+**Reasoning:** The first schema-discoverability pass still left approval requests, raw frontmatter batch updates, and plan verification payloads partly opaque to MCP hosts that rely on machine-readable contracts. Expanding the shared registry keeps cross-tool callers on one introspection path and makes verification results legible without changing runtime behavior.
+**Approved by:** user
+
 ## [2026-04-02] Cross-tool schema discoverability hardening
 
 **Changed:** Added `memory_tool_schema` as a generic Tier 0 schema lookup surface backed by a shared schema registry for the audit-targeted MCP tools. Extended the registry beyond plan creation to cover `memory_plan_execute`, ACCESS-entry batch/session logging, review and approval verdict tools, and user/skill update inputs; updated the capability manifest and MCP docs to advertise the new read tool. Hardened the affected semantic-tool docstrings so they enumerate canonical enum values and conditional requirements, and changed batch ACCESS validation to aggregate multiple entry errors for `memory_log_access_batch` and the ACCESS-entry path inside `memory_record_session`.

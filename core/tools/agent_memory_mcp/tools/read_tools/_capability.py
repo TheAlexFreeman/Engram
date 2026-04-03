@@ -103,9 +103,9 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         """Return the structured input schema for a supported MCP tool.
 
         Use this when a caller needs the nested input contract for a semantic
-        tool whose FastMCP type hints erase inner structure. Unsupported tool
-        names return a validation error listing the currently registered schema
-        surfaces.
+        or optionally gated raw tool whose FastMCP type hints erase inner
+        structure. Unsupported tool names return a validation error listing the
+        currently registered schema surfaces.
         """
 
         return json.dumps(get_tool_input_schema(tool_name), indent=2, default=str)
