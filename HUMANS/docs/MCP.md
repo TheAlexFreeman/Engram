@@ -68,7 +68,10 @@ engram-mcp plan create --json-schema
 Those commands are backed by the same nested contract as `memory_plan_schema` and `memory_tool_schema("memory_plan_create")`.
 Use them when a human or shell-based agent needs plan-create guidance locally
 without connecting an MCP client first; they also work outside a configured
-Engram repo checkout. `engram-mcp serve` starts the server explicitly; bare
+Engram repo checkout. Treat that read-only schema surface as the canonical
+contract for schema-heavy CLI help and guided authoring instead of maintaining
+hand-written copies of nested request shapes. `engram-mcp serve` starts the
+server explicitly; bare
 `engram-mcp` still starts the server for backward compatibility.
 
 ### How the repo root is resolved

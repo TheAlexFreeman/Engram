@@ -4,19 +4,21 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import socket
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Callable
 from urllib.parse import urlparse
 
 try:
-    import tomllib
+    tomllib: ModuleType = importlib.import_module("tomllib")
 except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
-    import tomli as tomllib
+    tomllib = importlib.import_module("tomli")
 
 
 MANIFEST_PATH = Path("HUMANS/tooling/agent-task-readiness.toml")
@@ -24,6 +26,7 @@ EXPECTED_PROFILES = (
     "workspace_general",
     "pull_request",
     "publish_branch",
+    "terminal_plan_authoring",
     "python_validation",
     "python_dependency_install",
     "node_validation",
@@ -351,6 +354,7 @@ def validate_manifest(repo_root: Path) -> tuple[dict[str, Any], list[str], list[
     if tuple(profile_order) != (
         "pull_request",
         "publish_branch",
+        "terminal_plan_authoring",
         "python_dependency_install",
         "node_dependency_install",
         "python_validation",

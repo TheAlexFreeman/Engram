@@ -2290,6 +2290,7 @@ declared_gaps = []
         self.assertEqual(payload["properties"]["trust"]["enum"], ["low"])
         self.assertEqual(payload["properties"]["trust"]["default"], "low")
         self.assertEqual(payload["properties"]["expires"]["oneOf"][0]["format"], "date")
+        self.assertFalse(payload["properties"]["preview"]["default"])
 
     def test_memory_tool_schema_returns_checkpoint_contract(self) -> None:
         repo_root = self._init_repo({"README.md": "# Test\n"})
@@ -4558,6 +4559,45 @@ Secondary body.
             summary_text,
         )
 
+    def test_memory_add_knowledge_file_preview_returns_governed_preview_without_mutation(
+        self,
+    ) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/_unverified/SUMMARY.md": """# Unverified Knowledge
+
+<!-- section: django -->
+### Django
+
+---
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = self._preview_tool(
+            tools,
+            "memory_add_knowledge_file",
+            path="memory/knowledge/_unverified/django/test.md",
+            content="# Test Note\n\nBody\n",
+            source="external-research",
+            session_id="memory/activity/2026/03/19/chat-001",
+        )
+
+        self.assertIsNone(payload["commit_sha"])
+        self.assertEqual(
+            payload["new_state"]["path"], "memory/knowledge/_unverified/django/test.md"
+        )
+        self.assertEqual(payload["preview"]["mode"], "preview")
+        self.assertEqual(
+            payload["preview"]["target_files"][0]["path"],
+            "memory/knowledge/_unverified/django/test.md",
+        )
+        self.assertIn("# Test Note", payload["preview"]["content_preview"])
+        self.assertFalse(
+            (repo_root / "memory" / "knowledge" / "_unverified" / "django" / "test.md").exists()
+        )
+
     def test_memory_plan_create_rejects_noncanonical_session_id(self) -> None:
         repo_root = self._init_repo(
             {
@@ -4811,6 +4851,63 @@ Secondary body.
                 / "invalid-preview-plan.yaml"
             ).exists()
         )
+
+    def test_memory_plan_create_preview_aggregates_top_level_and_nested_validation_feedback(
+        self,
+    ) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/SUMMARY.md": "---\ntype: projects-navigator\ngenerated: 2026-03-21\nproject_count: 1\n---\n\n# Projects\n\n_No active or ongoing projects._\n",
+                "memory/working/projects/example/SUMMARY.md": "---\nsource: agent-generated\norigin_session: manual\ncreated: 2026-03-21\ntrust: medium\ntype: project\nstatus: active\ncognitive_mode: exploration\nopen_questions: 0\nactive_plans: 0\nlast_activity: 2026-03-21\ncurrent_focus: Preview aggregated validation feedback.\n---\n\n# Project: Example\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        preview = json.loads(
+            asyncio.run(
+                tools["memory_plan_create"](
+                    plan_id="invalid-preview-plan",
+                    project_id="example",
+                    purpose_summary="   ",
+                    purpose_context="",
+                    phases=[
+                        {
+                            "id": "phase-a",
+                            "title": "Do the thing",
+                            "postconditions": [
+                                {"description": "Output exists", "type": "check"},
+                            ],
+                            "changes": [
+                                {
+                                    "path": "memory/working/projects/example/notes/output.md",
+                                    "action": "bogus",
+                                    "description": "Write output note.",
+                                }
+                            ],
+                        }
+                    ],
+                    session_id="chat-001",
+                    questions=cast(Any, "not-a-list"),
+                    budget={"deadline": "April 3, 2026", "max_sessions": "zero"},
+                    status="paused",
+                    preview=True,
+                )
+            )
+        )
+
+        errors = preview["new_state"]["errors"]
+
+        self.assertFalse(preview["new_state"]["valid"])
+        self.assertGreaterEqual(len(errors), 8)
+        self.assertTrue(any("session_id" in error for error in errors))
+        self.assertTrue(any("memory_plan_create status" in error for error in errors))
+        self.assertTrue(any("purpose.summary" in error for error in errors))
+        self.assertTrue(any("purpose.context" in error for error in errors))
+        self.assertTrue(any("purpose.questions must be a list" in error for error in errors))
+        self.assertTrue(any("budget.deadline" in error for error in errors))
+        self.assertTrue(any("budget.max_sessions" in error for error in errors))
+        self.assertTrue(any("work.phases[0].postconditions[0]" in error for error in errors))
+        self.assertTrue(any("work.phases[0].changes[0]" in error for error in errors))
 
     def test_memory_plan_create_invalid_input_still_raises_without_preview(self) -> None:
         repo_root = self._init_repo(
@@ -8308,6 +8405,10 @@ current_focus: Example project.
         self.assertEqual(entry["action_required"], "review")
 
     def test_memory_audit_trust_keeps_upcoming_items_out_of_approaching(self) -> None:
+        # last_verified 2025-10-05 + 180-day medium threshold → overdue 2026-04-03.
+        # medium_warn window starts at 150 days (2026-03-04).
+        # Freeze time to 2026-03-14 (160 days elapsed) so the file sits firmly
+        # in the upcoming_medium bucket regardless of when CI runs.
         repo_root = self._init_repo(
             {
                 "core/INIT.md": (
@@ -8322,9 +8423,10 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
-            asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
-        )
+        with time_machine.travel("2026-03-14T12:00:00Z", tick=False):
+            payload = json.loads(
+                asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
+            )
 
         self.assertEqual(payload["overdue_medium"], [])
         self.assertEqual(payload["approaching"], [])
@@ -11289,7 +11391,9 @@ trust: high
         ).stdout.strip()
 
         self.assertTrue(payload["has_run_state"])
-        self.assertEqual(payload["resumption"]["previous_session"], "memory/activity/2026/03/27/chat-111")
+        self.assertEqual(
+            payload["resumption"]["previous_session"], "memory/activity/2026/03/27/chat-111"
+        )
         self.assertEqual(payload["intermediate_outputs"][0]["key"], "notes")
         self.assertEqual(before, after)
         self.assertEqual(git_status, "")

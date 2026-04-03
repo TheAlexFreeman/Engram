@@ -15,7 +15,6 @@ from ...plan_utils import (
     TRACE_STATUSES,
     ApprovalDocument,
     PlanDocument,
-    PlanPurpose,
     RunState,
     ToolDefinition,
     _all_registry_tools,
@@ -24,10 +23,9 @@ from ...plan_utils import (
     approvals_summary_path,
     assemble_briefing,
     budget_status,
+    build_plan_document_from_create_input,
     build_review_from_input,
     check_run_state_staleness,
-    coerce_budget_input,
-    coerce_phase_inputs,
     estimate_cost,
     exportable_artifacts,
     load_approval,
@@ -43,6 +41,7 @@ from ...plan_utils import (
     plan_title,
     project_outbox_root,
     project_plan_path,
+    raise_collected_validation_errors,
     record_trace,
     regenerate_approvals_summary,
     regenerate_registry_summary,
@@ -226,6 +225,1080 @@ def _create_preview(
     )
 
 
+def _stage_trace_file_if_present(
+    root: Path,
+    repo,
+    session_id: str | None,
+    files_changed: list[str],
+) -> None:
+    if session_id is None:
+        return
+
+    trace_path = trace_file_path(session_id)
+    if (root / trace_path).exists():
+        repo.add(trace_path)
+        if trace_path not in files_changed:
+            files_changed.append(trace_path)
+
+
+def create_plan_write_result(
+    *,
+    repo: Any,
+    root: Path,
+    plan_id: str,
+    project_id: str,
+    purpose_summary: str,
+    purpose_context: str,
+    phases: list[dict[str, Any]],
+    session_id: str,
+    questions: list[str] | None = None,
+    budget: dict[str, Any] | None = None,
+    status: str = "active",
+    preview: bool = False,
+):
+    """Create a plan using the shared governed write path used by MCP and CLI flows."""
+    from ...errors import NotFoundError, ValidationError
+    from ...frontmatter_utils import today_str
+    from ...models import MemoryWriteResult
+
+    warnings: list[str] = []
+
+    try:
+        validation_errors: list[str] = []
+        path_resolution_error: NotFoundError | None = None
+
+        resolved_project_id = project_id
+        plan_path = ""
+        try:
+            plan_path, resolved_project_id = _resolve_new_plan_path(root, plan_id, project_id)
+        except ValidationError as exc:
+            validation_errors.extend(validation_error_messages(exc))
+        except NotFoundError as exc:
+            path_resolution_error = exc
+
+        plan = None
+        try:
+            plan = build_plan_document_from_create_input(
+                plan_id=plan_id,
+                project_id=resolved_project_id,
+                created=today_str(),
+                session_id=session_id,
+                status=status,
+                purpose_summary=purpose_summary,
+                purpose_context=purpose_context,
+                questions=questions,
+                phases=phases,
+                budget=budget,
+            )
+        except ValidationError as exc:
+            validation_errors.extend(validation_error_messages(exc))
+
+        if path_resolution_error is not None and validation_errors:
+            validation_errors.append(str(path_resolution_error))
+            path_resolution_error = None
+
+        raise_collected_validation_errors(validation_errors)
+        if path_resolution_error is not None:
+            raise path_resolution_error
+
+        assert plan is not None
+        assert plan_path
+    except ValidationError as exc:
+        if not preview:
+            raise
+        validation_errors = validation_error_messages(exc)
+        invalid_warnings = list(warnings) + [
+            "Plan input is invalid; call memory_plan_schema for the nested contract."
+        ]
+        invalid_state = {
+            "valid": False,
+            "errors": validation_errors,
+            "schema_tool": "memory_plan_schema",
+        }
+        preview_payload = _create_preview(
+            mode="preview",
+            change_class="proposed",
+            summary="Plan creation request is invalid; no files would be written.",
+            reasoning=(
+                "preview=True downgrades plan-input validation failures into structured feedback "
+                "so callers can fix all surfaced issues before retrying."
+            ),
+            target_files=[],
+            invariant_effects=[
+                "No files would be created or updated until validation errors are fixed."
+            ],
+            commit_message=None,
+            resulting_state=invalid_state,
+            warnings=invalid_warnings,
+        )
+        return MemoryWriteResult(
+            files_changed=[],
+            commit_sha=None,
+            commit_message=None,
+            new_state=invalid_state,
+            warnings=invalid_warnings,
+            preview=preview_payload,
+        )
+
+    files_changed = [
+        plan_path,
+        _project_summary_path(resolved_project_id),
+        "memory/working/projects/SUMMARY.md",
+        f"memory/working/projects/{resolved_project_id}/operations.jsonl",
+    ]
+    new_state: dict[str, Any] = {
+        "plan_path": plan_path,
+        "project_id": resolved_project_id,
+        "status": plan.status,
+        "phase_count": len(plan.phases),
+        "next_action": next_action(plan),
+    }
+    bs = budget_status(plan)
+    if bs is not None:
+        new_state["budget_status"] = bs
+    commit_msg = f"[plan] Create {plan_id}"
+    preview_payload = _create_preview(
+        mode="preview" if preview else "apply",
+        change_class="proposed",
+        summary=f"Create YAML plan {plan_id} in project {resolved_project_id}.",
+        reasoning=(
+            "Structured YAML plans are the governed execution surface for multi-phase work, "
+            "so creation also refreshes project routing metadata and initializes operations logging."
+        ),
+        target_files=[
+            (plan_path, "create"),
+            (_project_summary_path(resolved_project_id), "update"),
+            ("memory/working/projects/SUMMARY.md", "update"),
+            (f"memory/working/projects/{resolved_project_id}/operations.jsonl", "append"),
+        ],
+        invariant_effects=[
+            "Creates a machine-validated YAML plan with structured purpose, phases, and change specs.",
+            "Refreshes project routing counters so active plan navigation stays accurate.",
+            "Initializes a project-scoped operations log entry for plan creation.",
+        ],
+        commit_message=commit_msg,
+        resulting_state=new_state,
+        warnings=warnings,
+    )
+    if preview:
+        return MemoryWriteResult(
+            files_changed=files_changed,
+            commit_sha=None,
+            commit_message=None,
+            new_state=new_state,
+            warnings=warnings,
+            preview=preview_payload,
+        )
+
+    abs_plan = repo.abs_path(plan_path)
+    save_plan(abs_plan, plan, root)
+    repo.add(plan_path)
+    _append_plan_log(
+        root,
+        repo,
+        resolved_project_id,
+        files_changed,
+        session_id=session_id,
+        action="plan-created",
+        plan_id=plan.id,
+        detail=plan_title(plan),
+    )
+    _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+    record_trace(
+        root,
+        session_id,
+        span_type="plan_action",
+        name="create",
+        status="ok",
+        metadata={"plan_id": plan.id, "project_id": resolved_project_id, "action": "create"},
+    )
+    _stage_trace_file_if_present(root, repo, session_id, files_changed)
+    commit_result = repo.commit(commit_msg)
+    return MemoryWriteResult.from_commit(
+        files_changed=files_changed,
+        commit_result=commit_result,
+        commit_message=commit_msg,
+        new_state=new_state,
+        warnings=warnings,
+        preview=preview_payload,
+    )
+
+
+def execute_plan_action_result(
+    *,
+    repo: Any,
+    root: Path,
+    plan_id: str,
+    project_id: str | None = None,
+    phase_id: str | None = None,
+    action: str = "inspect",
+    session_id: str | None = None,
+    commit_sha: str | None = None,
+    review: dict[str, Any] | None = None,
+    verify: bool = False,
+    reason: str | None = None,
+    verification_results: list[dict[str, Any]] | None = None,
+    preview: bool = False,
+) -> dict[str, Any]:
+    """Inspect, start, complete, or record failure on a plan phase."""
+    from ...errors import AlreadyDoneError, ValidationError
+    from ...frontmatter_utils import today_str
+    from ...models import MemoryWriteResult
+
+    warnings: list[str] = []
+
+    plan_path, resolved_project_id = _resolve_existing_plan_path(root, plan_id, project_id)
+    abs_plan = repo.abs_path(plan_path)
+    plan = load_plan(abs_plan, root)
+    phase = resolve_phase(plan, phase_id)
+    blockers = unresolved_blockers(plan, phase, root)
+    payload = phase_payload(plan, phase, root)
+    payload["unresolved_blockers"] = blockers
+
+    if action == "inspect":
+        return payload
+
+    if action not in {"start", "complete", "record_failure"}:
+        raise ValidationError("action must be one of: inspect, start, complete, record_failure")
+    if session_id is None:
+        raise ValidationError(
+            "session_id is required for start, complete, and record_failure actions"
+        )
+    validate_session_id(session_id)
+
+    change_class = phase_change_class(phase)
+    files_changed = [
+        plan_path,
+        _project_summary_path(resolved_project_id),
+        "memory/working/projects/SUMMARY.md",
+        f"memory/working/projects/{resolved_project_id}/operations.jsonl",
+    ]
+
+    if plan.status == "paused" and action in {"start", "complete"}:
+        paused_msg = (
+            f"Plan is paused, awaiting approval for phase '{phase.id}'. "
+            "Use `memory_resolve_approval` to approve or reject."
+        )
+        return {"plan_status": "paused", "phase_id": phase.id, "message": paused_msg}
+
+    if action == "start" and blockers:
+        plan.status = "blocked"
+        if phase.status == "pending":
+            phase.status = "blocked"
+        commit_msg = f"[plan] Block {plan.id}:{phase.id}"
+        blocked_state: dict[str, Any] = {
+            "plan_status": plan.status,
+            "phase_status": phase.status,
+            "phase_id": phase.id,
+            "blocked_by": blockers,
+            "next_action": next_action(plan),
+        }
+        bs = budget_status(plan)
+        if bs is not None:
+            blocked_state["budget_status"] = bs
+        preview_payload = _create_preview(
+            mode="preview" if preview else "apply",
+            change_class=change_class,
+            summary=f"Mark plan {plan.id} blocked on phase {phase.id} until blockers resolve.",
+            reasoning=(
+                "The execute flow records blocker state inside the plan so future sessions and "
+                "summaries can see why work paused."
+            ),
+            target_files=[
+                (plan_path, "update"),
+                (_project_summary_path(resolved_project_id), "update"),
+                ("memory/working/projects/SUMMARY.md", "update"),
+                (f"memory/working/projects/{resolved_project_id}/operations.jsonl", "append"),
+            ],
+            invariant_effects=[
+                "Transitions the plan into blocked status when a phase cannot legally start.",
+                "Records the blocker event in the project operations log.",
+            ],
+            commit_message=commit_msg,
+            resulting_state=blocked_state,
+            warnings=warnings,
+        )
+        if preview:
+            return MemoryWriteResult(
+                files_changed=files_changed,
+                commit_sha=None,
+                commit_message=None,
+                new_state=blocked_state,
+                warnings=warnings,
+                preview=preview_payload,
+            ).to_dict()
+
+        save_plan(abs_plan, plan, root)
+        repo.add(plan_path)
+        _append_plan_log(
+            root,
+            repo,
+            resolved_project_id,
+            files_changed,
+            session_id=session_id,
+            action="phase-blocked",
+            plan_id=plan.id,
+            phase_id=phase.id,
+            detail=f"Blocked by {len(blockers)} dependency references",
+        )
+        _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+        commit_result = repo.commit(commit_msg)
+        return MemoryWriteResult.from_commit(
+            files_changed=files_changed,
+            commit_result=commit_result,
+            commit_message=commit_msg,
+            new_state=blocked_state,
+            warnings=warnings,
+            preview=preview_payload,
+        ).to_dict()
+
+    if action == "start":
+        if phase.status == "completed":
+            raise AlreadyDoneError(f"Phase '{phase.id}' is already complete")
+        if phase.status == "in-progress":
+            raise AlreadyDoneError(f"Phase '{phase.id}' is already in progress")
+
+        if phase.requires_approval:
+            from datetime import datetime, timedelta, timezone
+
+            existing_approval = load_approval(root, plan.id, phase.id)
+
+            if existing_approval is not None and existing_approval.status == "approved":
+                pass
+
+            elif existing_approval is not None and existing_approval.status == "pending":
+                return {
+                    "plan_status": "paused",
+                    "phase_id": phase.id,
+                    "message": (
+                        f"Awaiting approval for phase '{phase.id}'. "
+                        "Use `memory_resolve_approval` to approve or reject."
+                    ),
+                    "approval": existing_approval.to_dict(),
+                }
+
+            elif existing_approval is not None and existing_approval.status in {
+                "rejected",
+                "expired",
+            }:
+                plan.status = "blocked"
+                approval_transition_files = list(files_changed)
+                approval_filename_rel = approval_filename(plan.id, phase.id)
+                approval_pending_file = f"memory/working/approvals/pending/{approval_filename_rel}"
+                approval_resolved_file = (
+                    f"memory/working/approvals/resolved/{approval_filename_rel}"
+                )
+                if existing_approval.status == "expired":
+                    approval_transition_files.extend(
+                        [
+                            approval_pending_file,
+                            approval_resolved_file,
+                            approvals_summary_path(),
+                        ]
+                    )
+                commit_msg_rejected = (
+                    f"[plan] Block {plan.id}:{phase.id} (approval {existing_approval.status})"
+                )
+                rejected_state: dict[str, Any] = {
+                    "plan_status": plan.status,
+                    "phase_id": phase.id,
+                    "approval_status": existing_approval.status,
+                    "message": (
+                        f"Approval for phase '{phase.id}' was {existing_approval.status}. "
+                        "Call `memory_request_approval` to re-request or abandon the plan."
+                    ),
+                    "approval": existing_approval.to_dict(),
+                }
+                if preview:
+                    return rejected_state
+
+                if existing_approval.status == "expired":
+                    materialize_expired_approval(root, existing_approval)
+                    regenerate_approvals_summary(root)
+                    if repo.is_tracked(approval_pending_file):
+                        repo.add(approval_pending_file)
+                    repo.add(approval_resolved_file)
+                    repo.add(approvals_summary_path())
+                save_plan(abs_plan, plan, root)
+                repo.add(plan_path)
+                _append_plan_log(
+                    root,
+                    repo,
+                    resolved_project_id,
+                    approval_transition_files,
+                    session_id=session_id,
+                    action="phase-blocked",
+                    plan_id=plan.id,
+                    phase_id=phase.id,
+                    detail=f"Approval {existing_approval.status}",
+                )
+                _sync_project_navigation(root, repo, resolved_project_id, approval_transition_files)
+                commit_result_rejected = repo.commit(commit_msg_rejected)
+                return MemoryWriteResult.from_commit(
+                    files_changed=approval_transition_files,
+                    commit_result=commit_result_rejected,
+                    commit_message=commit_msg_rejected,
+                    new_state=rejected_state,
+                    warnings=warnings,
+                ).to_dict()
+
+            else:
+                now_dt = datetime.now(timezone.utc)
+                now_str = now_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                expires_str = (now_dt + timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                bs_ctx = budget_status(plan)
+                approval_context: dict[str, Any] = {
+                    "phase_title": phase.title,
+                    "phase_summary": (
+                        f"Phase '{phase.id}' requires human approval before execution. "
+                        f"Sources: {len(phase.sources)}, Changes: {len(phase.changes)}"
+                    ),
+                    "sources": [source.path for source in phase.sources],
+                    "changes": [change.to_dict() for change in phase.changes],
+                    "change_class": change_class,
+                }
+                if bs_ctx is not None:
+                    approval_context["budget_status"] = bs_ctx
+                new_approval = ApprovalDocument(
+                    plan_id=plan.id,
+                    phase_id=phase.id,
+                    project_id=resolved_project_id,
+                    status="pending",
+                    requested=now_str,
+                    expires=expires_str,
+                    context=approval_context,
+                )
+                plan.status = "paused"
+                approval_file = (
+                    f"memory/working/approvals/pending/{approval_filename(plan.id, phase.id)}"
+                )
+                approval_files_changed = list(files_changed) + [
+                    approval_file,
+                    approvals_summary_path(),
+                ]
+                commit_msg_pause = f"[plan] Pause {plan.id}:{phase.id} pending approval"
+                paused_state: dict[str, Any] = {
+                    "plan_status": "paused",
+                    "phase_id": phase.id,
+                    "approval_file": approval_file,
+                    "expires": expires_str,
+                    "message": (
+                        f"Phase '{phase.id}' requires human approval. "
+                        "Approval request created. Use `memory_resolve_approval` "
+                        "to approve or reject."
+                    ),
+                }
+                if preview:
+                    return paused_state
+
+                save_approval(root, new_approval)
+                regenerate_approvals_summary(root)
+                save_plan(abs_plan, plan, root)
+                repo.add(plan_path)
+                repo.add(approval_file)
+                repo.add(approvals_summary_path())
+                _append_plan_log(
+                    root,
+                    repo,
+                    resolved_project_id,
+                    approval_files_changed,
+                    session_id=session_id,
+                    action="approval-requested",
+                    plan_id=plan.id,
+                    phase_id=phase.id,
+                    detail=f"Auto-paused: approval required for {phase.id}",
+                )
+                _sync_project_navigation(root, repo, resolved_project_id, approval_files_changed)
+                record_trace(
+                    root,
+                    session_id,
+                    span_type="plan_action",
+                    name="approval-requested",
+                    status="ok",
+                    metadata={
+                        "plan_id": plan.id,
+                        "phase_id": phase.id,
+                        "expires": expires_str,
+                    },
+                )
+                _stage_trace_file_if_present(root, repo, session_id, approval_files_changed)
+                commit_result_pause = repo.commit(commit_msg_pause)
+                return MemoryWriteResult.from_commit(
+                    files_changed=approval_files_changed,
+                    commit_result=commit_result_pause,
+                    commit_message=commit_msg_pause,
+                    new_state=paused_state,
+                    warnings=warnings,
+                ).to_dict()
+
+        plan.status = "active"
+        phase.status = "in-progress"
+        commit_msg = f"[plan] Start {plan.id}:{phase.id}"
+        start_state: dict[str, Any] = {
+            "plan_status": plan.status,
+            "phase_status": phase.status,
+            "phase_id": phase.id,
+            "next_action": phase.title,
+            "change_class": change_class,
+            "requires_approval": phase.requires_approval,
+            "approval_required": (
+                phase.requires_approval or change_class in {"proposed", "protected"}
+            ),
+        }
+        if phase.sources:
+            start_state["sources"] = [source.to_dict() for source in phase.sources]
+        if phase.postconditions:
+            start_state["postconditions"] = [pc.to_dict() for pc in phase.postconditions]
+        bs = budget_status(plan)
+        if bs is not None:
+            start_state["budget_status"] = bs
+        preview_payload = _create_preview(
+            mode="preview" if preview else "apply",
+            change_class=change_class,
+            summary=f"Start phase {phase.id} in plan {plan.id}.",
+            reasoning=(
+                "Starting a phase records the active execution context so later writes and summaries "
+                "can tie file mutations back to the plan that authorized them."
+            ),
+            target_files=[
+                (plan_path, "update"),
+                (_project_summary_path(resolved_project_id), "update"),
+                ("memory/working/projects/SUMMARY.md", "update"),
+                (f"memory/working/projects/{resolved_project_id}/operations.jsonl", "append"),
+            ],
+            invariant_effects=[
+                "Transitions the selected phase to in-progress after blocker validation succeeds.",
+                "Records the phase-start event in the project operations log.",
+            ],
+            commit_message=commit_msg,
+            resulting_state=start_state,
+            warnings=warnings,
+        )
+        if preview:
+            return MemoryWriteResult(
+                files_changed=files_changed,
+                commit_sha=None,
+                commit_message=None,
+                new_state=start_state,
+                warnings=warnings,
+                preview=preview_payload,
+            ).to_dict()
+
+        save_plan(abs_plan, plan, root)
+        repo.add(plan_path)
+        _persist_run_state(
+            root,
+            repo,
+            plan,
+            phase.id,
+            "start",
+            session_id,
+            files_changed,
+            next_action_hint=phase.title,
+        )
+        _append_plan_log(
+            root,
+            repo,
+            resolved_project_id,
+            files_changed,
+            session_id=session_id,
+            action="phase-started",
+            plan_id=plan.id,
+            phase_id=phase.id,
+            detail=phase.title,
+        )
+        _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+        record_trace(
+            root,
+            session_id,
+            span_type="plan_action",
+            name="start",
+            status="ok",
+            metadata={"plan_id": plan.id, "phase_id": phase.id, "action": "start"},
+            cost=estimate_cost(
+                input_chars=len(json.dumps(start_state)),
+                output_chars=len(json.dumps(start_state)),
+            ),
+        )
+        _stage_trace_file_if_present(root, repo, session_id, files_changed)
+        commit_result = repo.commit(commit_msg)
+        return MemoryWriteResult.from_commit(
+            files_changed=files_changed,
+            commit_result=commit_result,
+            commit_message=commit_msg,
+            new_state=start_state,
+            warnings=warnings,
+            preview=preview_payload,
+        ).to_dict()
+
+    if action == "record_failure":
+        from datetime import datetime, timezone
+
+        from ...plan_utils import PhaseFailure
+
+        if not reason or not reason.strip():
+            raise ValidationError("reason is required when recording a failure")
+        if phase.status not in {"in-progress", "pending"}:
+            raise ValidationError(
+                f"Cannot record failure on phase '{phase.id}' with status '{phase.status}'"
+            )
+        failure = PhaseFailure(
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            reason=reason.strip(),
+            verification_results=verification_results,
+            attempt=len(phase.failures) + 1,
+        )
+        phase.failures.append(failure)
+
+        commit_msg = f"[plan] Record failure {plan.id}:{phase.id} (attempt {failure.attempt})"
+        failure_state: dict[str, Any] = {
+            "plan_status": plan.status,
+            "phase_status": phase.status,
+            "phase_id": phase.id,
+            "failure_recorded": failure.to_dict(),
+            "total_failures": len(phase.failures),
+            "attempt_number": len(phase.failures) + 1,
+        }
+        preview_payload = _create_preview(
+            mode="preview" if preview else "apply",
+            change_class=change_class,
+            summary=f"Record failure on phase {phase.id} in plan {plan.id}.",
+            reasoning=(
+                "Recording failures provides structured context for retry "
+                "attempts and enables agents to learn from prior mistakes."
+            ),
+            target_files=[
+                (plan_path, "update"),
+                (_project_summary_path(resolved_project_id), "update"),
+                ("memory/working/projects/SUMMARY.md", "update"),
+                (f"memory/working/projects/{resolved_project_id}/operations.jsonl", "append"),
+            ],
+            invariant_effects=[
+                "Appends a PhaseFailure record to the phase.",
+                "Logs the failure event in the project operations log.",
+            ],
+            commit_message=commit_msg,
+            resulting_state=failure_state,
+            warnings=warnings,
+        )
+        if preview:
+            return MemoryWriteResult(
+                files_changed=files_changed,
+                commit_sha=None,
+                commit_message=None,
+                new_state=failure_state,
+                warnings=warnings,
+                preview=preview_payload,
+            ).to_dict()
+
+        save_plan(abs_plan, plan, root)
+        repo.add(plan_path)
+        _persist_run_state(
+            root,
+            repo,
+            plan,
+            phase.id,
+            "record_failure",
+            session_id,
+            files_changed,
+            commit_to_git=False,
+            error_message=reason.strip(),
+        )
+        _append_plan_log(
+            root,
+            repo,
+            resolved_project_id,
+            files_changed,
+            session_id=session_id,
+            action="phase-failure",
+            plan_id=plan.id,
+            phase_id=phase.id,
+            detail=reason.strip(),
+        )
+        _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+        record_trace(
+            root,
+            session_id,
+            span_type="plan_action",
+            name="record_failure",
+            status="ok",
+            metadata={
+                "plan_id": plan.id,
+                "phase_id": phase.id,
+                "action": "record_failure",
+                "attempt": failure.attempt,
+            },
+            cost=estimate_cost(
+                input_chars=len(reason.strip()),
+                output_chars=len(json.dumps(failure_state)),
+            ),
+        )
+        _stage_trace_file_if_present(root, repo, session_id, files_changed)
+        commit_result = repo.commit(commit_msg)
+        return MemoryWriteResult.from_commit(
+            files_changed=files_changed,
+            commit_result=commit_result,
+            commit_message=commit_msg,
+            new_state=failure_state,
+            warnings=warnings,
+            preview=preview_payload,
+        ).to_dict()
+
+    if not commit_sha or not commit_sha.strip():
+        raise ValidationError("commit_sha is required when completing a phase")
+    if blockers:
+        raise ValidationError(
+            f"Phase '{phase.id}' is blocked by unresolved dependencies: "
+            + ", ".join(entry["reference"] for entry in blockers)
+        )
+    if phase.status == "completed":
+        raise AlreadyDoneError(f"Phase '{phase.id}' is already complete")
+
+    if verify:
+        verification = verify_postconditions(plan, phase, root)
+        if not verification["all_passed"]:
+            verification_state: dict[str, Any] = {
+                "status": "verification_failed",
+                "plan_status": plan.status,
+                "phase_status": phase.status,
+                "phase_id": phase.id,
+                **verification,
+            }
+            return verification_state
+        warnings.append(
+            f"Verification passed: {verification['summary']['passed']} passed, "
+            f"{verification['summary']['skipped']} skipped"
+        )
+
+    phase.status = "completed"
+    phase.commit = commit_sha.strip()
+    plan.sessions_used += 1
+    done, total = plan_progress(plan)
+    all_done = done == total
+
+    bs = budget_status(plan)
+    if bs is not None:
+        if bs.get("past_deadline"):
+            warnings.append(
+                f"Budget warning: past deadline ({bs['deadline']})"
+                + (" [advisory]" if bs.get("advisory") else " [ENFORCED]")
+            )
+        if bs.get("over_session_budget"):
+            warnings.append(
+                f"Budget warning: session budget exhausted "
+                f"({bs['sessions_used']}/{bs['max_sessions']})"
+                + (" [advisory]" if bs.get("advisory") else " [ENFORCED]")
+            )
+    if all_done:
+        plan.status = "completed"
+        if review is not None:
+            plan.review = build_review_from_input(review, today_str(), session_id)
+        else:
+            warnings.append(
+                "Final phase completed without a supplied review; wrote a placeholder purpose assessment."
+            )
+            plan.review = build_review_from_input(
+                {
+                    "outcome": "completed",
+                    "purpose_assessment": (
+                        "Execution completed; a detailed purpose assessment still needs to be written."
+                    ),
+                    "unresolved": [],
+                    "follow_up": None,
+                },
+                today_str(),
+                session_id,
+            )
+    else:
+        plan.status = "active"
+
+    commit_msg = f"[plan] Complete {plan.id}:{phase.id}"
+    completion_state: dict[str, Any] = {
+        "plan_status": plan.status,
+        "phase_status": phase.status,
+        "phase_id": phase.id,
+        "phase_commit": phase.commit,
+        "plan_progress": [done, total],
+        "sessions_used": plan.sessions_used,
+        "next_action": next_action(plan),
+        "review_written": plan.review is not None,
+    }
+    if bs is not None:
+        completion_state["budget_status"] = bs
+    preview_payload = _create_preview(
+        mode="preview" if preview else "apply",
+        change_class=change_class,
+        summary=f"Complete phase {phase.id} in plan {plan.id} and record commit metadata.",
+        reasoning=(
+            "Phase completion seals the plan state machine by attaching the implementation commit, "
+            "advancing progress, and closing the plan when all phases are done."
+        ),
+        target_files=[
+            (plan_path, "update"),
+            (_project_summary_path(resolved_project_id), "update"),
+            ("memory/working/projects/SUMMARY.md", "update"),
+            (f"memory/working/projects/{resolved_project_id}/operations.jsonl", "append"),
+        ],
+        invariant_effects=[
+            "Marks the phase complete and stores the commit SHA that produced the work.",
+            "Transitions the plan to completed and populates review data when the last phase finishes.",
+            "Logs the phase-complete event and, when applicable, the plan-complete event.",
+        ],
+        commit_message=commit_msg,
+        resulting_state=completion_state,
+        warnings=warnings,
+    )
+    if preview:
+        return MemoryWriteResult(
+            files_changed=files_changed,
+            commit_sha=None,
+            commit_message=None,
+            new_state=completion_state,
+            warnings=warnings,
+            preview=preview_payload,
+        ).to_dict()
+
+    save_plan(abs_plan, plan, root)
+    repo.add(plan_path)
+    next_step = next_action(plan)
+    _persist_run_state(
+        root,
+        repo,
+        plan,
+        phase.id,
+        "complete",
+        session_id,
+        files_changed,
+        next_action_hint=next_step["title"] if next_step else None,
+    )
+    _append_plan_log(
+        root,
+        repo,
+        resolved_project_id,
+        files_changed,
+        session_id=session_id,
+        action="phase-completed",
+        plan_id=plan.id,
+        phase_id=phase.id,
+        commit=phase.commit,
+        detail=phase.title,
+    )
+    if all_done:
+        _append_plan_log(
+            root,
+            repo,
+            resolved_project_id,
+            files_changed,
+            session_id=session_id,
+            action="plan-completed",
+            plan_id=plan.id,
+            commit=phase.commit,
+            detail=plan_title(plan),
+        )
+    _sync_project_navigation(root, repo, resolved_project_id, files_changed)
+    record_trace(
+        root,
+        session_id,
+        span_type="plan_action",
+        name="complete",
+        status="ok",
+        metadata={
+            "plan_id": plan.id,
+            "phase_id": phase.id,
+            "action": "complete",
+            "commit": phase.commit,
+            "plan_done": all_done,
+        },
+        cost=estimate_cost(
+            input_chars=len(json.dumps(completion_state)),
+            output_chars=len(json.dumps(completion_state)),
+        ),
+    )
+    _stage_trace_file_if_present(root, repo, session_id, files_changed)
+    commit_result = repo.commit(commit_msg)
+    return MemoryWriteResult.from_commit(
+        files_changed=files_changed,
+        commit_result=commit_result,
+        commit_message=commit_msg,
+        new_state=completion_state,
+        warnings=warnings,
+        preview=preview_payload,
+    ).to_dict()
+
+
+def resolve_approval_action_result(
+    *,
+    repo: Any,
+    root: Path,
+    plan_id: str,
+    phase_id: str,
+    resolution: str,
+    comment: str | None = None,
+    preview: bool = False,
+) -> dict[str, Any]:
+    """Approve or reject a pending plan approval using the shared governed write path."""
+    from datetime import datetime, timezone
+
+    from ...errors import NotFoundError, ValidationError
+    from ...models import MemoryWriteResult
+
+    warnings: list[str] = []
+
+    if resolution not in APPROVAL_RESOLUTIONS:
+        raise ValidationError(
+            f"resolution must be one of {sorted(APPROVAL_RESOLUTIONS)}: {resolution!r}"
+        )
+
+    existing = load_approval(root, plan_id, phase_id)
+    if existing is None:
+        raise NotFoundError(f"No approval document found for plan '{plan_id}' phase '{phase_id}'")
+    if existing.status == "expired":
+        raise ValidationError(
+            f"Approval for phase '{phase_id}' has expired and can no longer be resolved"
+        )
+    if existing.status != "pending":
+        raise ValidationError(
+            f"Approval for phase '{phase_id}' is already resolved (status: {existing.status!r})"
+        )
+
+    plan_path_r, resolved_project_id = _resolve_existing_plan_path(
+        root, plan_id, existing.project_id
+    )
+    abs_plan = repo.abs_path(plan_path_r)
+    plan = load_plan(abs_plan, root)
+    phase = resolve_phase(plan, phase_id)
+    change_class = phase_change_class(phase)
+
+    filename_r = approval_filename(plan.id, phase.id)
+    approval_id = filename_r.removesuffix(".yaml")
+    approval_pending_file = f"memory/working/approvals/pending/{filename_r}"
+    approval_resolved_file = f"memory/working/approvals/resolved/{filename_r}"
+    operations_log_path = f"memory/working/projects/{resolved_project_id}/operations.jsonl"
+    files_res = [
+        plan_path_r,
+        approval_pending_file,
+        approval_resolved_file,
+        _project_summary_path(resolved_project_id),
+        "memory/working/projects/SUMMARY.md",
+        operations_log_path,
+        approvals_summary_path(),
+    ]
+
+    resolved_status = "approved" if resolution == "approve" else "rejected"
+    resulting_plan_status = "active" if resolution == "approve" else "blocked"
+    normalized_comment = comment.strip() if comment and comment.strip() else None
+    commit_msg_res = (
+        f"[plan] {'Approve' if resolution == 'approve' else 'Reject'} {plan.id}:{phase.id}"
+    )
+    result_res: dict[str, Any] = {
+        "approval_id": approval_id,
+        "approval_file": approval_resolved_file,
+        "plan_id": plan.id,
+        "project_id": resolved_project_id,
+        "phase_id": phase.id,
+        "status": resolved_status,
+        "plan_status": resulting_plan_status,
+        "resolution": resolution,
+        "comment": normalized_comment,
+        "message": (
+            "Approval recorded; the plan can resume."
+            if resolution == "approve"
+            else "Approval rejected; the plan remains blocked until work is revised or re-requested."
+        ),
+    }
+    preview_payload = _create_preview(
+        mode="preview" if preview else "apply",
+        change_class=change_class,
+        summary=f"Resolve approval {approval_id} with decision {resolution}.",
+        reasoning=(
+            "Approval resolution moves the queue entry into the resolved archive and updates the "
+            "plan status so subsequent execution respects the human decision."
+        ),
+        target_files=[
+            (plan_path_r, "update"),
+            (approval_pending_file, "delete"),
+            (approval_resolved_file, "create"),
+            (_project_summary_path(resolved_project_id), "update"),
+            ("memory/working/projects/SUMMARY.md", "update"),
+            (operations_log_path, "append"),
+            (approvals_summary_path(), "update"),
+        ],
+        invariant_effects=[
+            "Moves the approval request from pending to resolved with reviewer metadata.",
+            "Returns the plan to active status on approval or blocked status on rejection.",
+            "Records the decision in the project operations log and refreshes approval navigation.",
+        ],
+        commit_message=commit_msg_res,
+        resulting_state=result_res,
+        warnings=warnings,
+    )
+    if preview:
+        return MemoryWriteResult(
+            files_changed=files_res,
+            commit_sha=None,
+            commit_message=None,
+            new_state=result_res,
+            warnings=warnings,
+            preview=preview_payload,
+        ).to_dict()
+
+    existing.resolution = resolution
+    existing.reviewer = "user"
+    existing.resolved_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    existing.comment = normalized_comment
+    existing.status = resolved_status
+
+    from ...plan_utils import _find_approvals_root
+
+    approvals_root = _find_approvals_root(root)
+    pending_path_r = approvals_root / "pending" / filename_r
+    (approvals_root / "resolved").mkdir(parents=True, exist_ok=True)
+    save_approval(root, existing)
+    if pending_path_r.exists():
+        pending_path_r.unlink()
+
+    plan.status = resulting_plan_status
+
+    regenerate_approvals_summary(root)
+    save_plan(abs_plan, plan, root)
+    repo.add(plan_path_r)
+    if repo.is_tracked(approval_pending_file):
+        repo.add(approval_pending_file)
+    repo.add(approval_resolved_file)
+    repo.add(approvals_summary_path())
+
+    resolution_event = "approved" if resolution == "approve" else "rejected"
+    _append_plan_log(
+        root,
+        repo,
+        resolved_project_id,
+        files_res,
+        session_id=None,
+        action=f"approval-{resolution_event}",
+        plan_id=plan.id,
+        phase_id=phase.id,
+        detail=normalized_comment or "",
+    )
+    _sync_project_navigation(root, repo, resolved_project_id, files_res)
+    record_trace(
+        root,
+        None,
+        span_type="plan_action",
+        name=f"approval-{resolution_event}",
+        status="ok",
+        metadata={"plan_id": plan.id, "phase_id": phase.id, "resolution": resolution},
+    )
+    commit_result_res = repo.commit(commit_msg_res)
+    return MemoryWriteResult.from_commit(
+        files_changed=files_res,
+        commit_result=commit_result_res,
+        commit_message=commit_msg_res,
+        new_state=result_res,
+        warnings=warnings,
+        preview=preview_payload,
+    ).to_dict()
+
+
 def _append_plan_log(
     root: Path,
     repo,
@@ -352,154 +1425,23 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         calls return structured validation feedback without writing; use
         memory_plan_schema to inspect the nested contract programmatically.
         """
-        from ...errors import ValidationError
-        from ...frontmatter_utils import today_str
-        from ...models import MemoryWriteResult
-
         repo = get_repo()
         root = get_root()
-        warnings: list[str] = []
-
-        try:
-            validate_session_id(session_id)
-            if status not in {"draft", "active"}:
-                raise ValidationError("memory_plan_create status must be 'draft' or 'active'")
-
-            plan_path, resolved_project_id = _resolve_new_plan_path(root, plan_id, project_id)
-            coerced_budget = coerce_budget_input(budget)
-            plan = PlanDocument(
-                id=plan_id,
-                project=resolved_project_id,
-                created=today_str(),
-                origin_session=session_id,
-                status=status,
-                purpose=PlanPurpose(
-                    summary=purpose_summary,
-                    context=purpose_context,
-                    questions=list(questions or []),
-                ),
-                phases=coerce_phase_inputs(phases),
-                review=None,
-                budget=coerced_budget,
-            )
-        except ValidationError as exc:
-            if not preview:
-                raise
-            validation_errors = validation_error_messages(exc)
-            invalid_warnings = list(warnings) + [
-                "Plan input is invalid; call memory_plan_schema for the nested contract."
-            ]
-            invalid_state = {
-                "valid": False,
-                "errors": validation_errors,
-                "schema_tool": "memory_plan_schema",
-            }
-            preview_payload = _create_preview(
-                mode="preview",
-                change_class="proposed",
-                summary="Plan creation request is invalid; no files would be written.",
-                reasoning=(
-                    "preview=True downgrades plan-input validation failures into structured feedback "
-                    "so callers can fix all surfaced issues before retrying."
-                ),
-                target_files=[],
-                invariant_effects=[
-                    "No files would be created or updated until validation errors are fixed."
-                ],
-                commit_message=None,
-                resulting_state=invalid_state,
-                warnings=invalid_warnings,
-            )
-            return MemoryWriteResult(
-                files_changed=[],
-                commit_sha=None,
-                commit_message=None,
-                new_state=invalid_state,
-                warnings=invalid_warnings,
-                preview=preview_payload,
-            ).to_json()
-
-        files_changed = [
-            plan_path,
-            _project_summary_path(resolved_project_id),
-            "memory/working/projects/SUMMARY.md",
-            f"memory/working/projects/{resolved_project_id}/operations.jsonl",
-        ]
-        new_state: dict[str, Any] = {
-            "plan_path": plan_path,
-            "project_id": resolved_project_id,
-            "status": plan.status,
-            "phase_count": len(plan.phases),
-            "next_action": next_action(plan),
-        }
-        bs = budget_status(plan)
-        if bs is not None:
-            new_state["budget_status"] = bs
-        commit_msg = f"[plan] Create {plan_id}"
-        preview_payload = _create_preview(
-            mode="preview" if preview else "apply",
-            change_class="proposed",
-            summary=f"Create YAML plan {plan_id} in project {resolved_project_id}.",
-            reasoning=(
-                "Structured YAML plans are the governed execution surface for multi-phase work, "
-                "so creation also refreshes project routing metadata and initializes operations logging."
-            ),
-            target_files=[
-                (plan_path, "create"),
-                (_project_summary_path(resolved_project_id), "update"),
-                ("memory/working/projects/SUMMARY.md", "update"),
-                (f"memory/working/projects/{resolved_project_id}/operations.jsonl", "append"),
-            ],
-            invariant_effects=[
-                "Creates a machine-validated YAML plan with structured purpose, phases, and change specs.",
-                "Refreshes project routing counters so active plan navigation stays accurate.",
-                "Initializes a project-scoped operations log entry for plan creation.",
-            ],
-            commit_message=commit_msg,
-            resulting_state=new_state,
-            warnings=warnings,
-        )
-        if preview:
-            return MemoryWriteResult(
-                files_changed=files_changed,
-                commit_sha=None,
-                commit_message=None,
-                new_state=new_state,
-                warnings=warnings,
-                preview=preview_payload,
-            ).to_json()
-
-        abs_plan = repo.abs_path(plan_path)
-        save_plan(abs_plan, plan, root)
-        repo.add(plan_path)
-        _append_plan_log(
-            root,
-            repo,
-            resolved_project_id,
-            files_changed,
+        result = create_plan_write_result(
+            repo=repo,
+            root=root,
+            plan_id=plan_id,
+            project_id=project_id,
+            purpose_summary=purpose_summary,
+            purpose_context=purpose_context,
+            phases=phases,
             session_id=session_id,
-            action="plan-created",
-            plan_id=plan.id,
-            detail=plan_title(plan),
+            questions=questions,
+            budget=budget,
+            status=status,
+            preview=preview,
         )
-        _sync_project_navigation(root, repo, resolved_project_id, files_changed)
-        record_trace(
-            root,
-            session_id,
-            span_type="plan_action",
-            name="create",
-            status="ok",
-            metadata={"plan_id": plan.id, "project_id": resolved_project_id, "action": "create"},
-        )
-        commit_result = repo.commit(commit_msg)
-        return MemoryWriteResult.from_commit(
-            files_changed=files_changed,
-            commit_result=commit_result,
-            commit_message=commit_msg,
-            new_state=new_state,
-            warnings=warnings,
-            preview=preview_payload,
-        ).to_json()
+        return result.to_json()
 
     @mcp.tool(
         name="memory_plan_execute",
@@ -526,747 +1468,58 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     ) -> str:
         """Inspect, start, complete, or record failure on a plan phase.
 
-        action must be one of "inspect", "start", "complete", or
-        "record_failure".
+            action must be one of "inspect", "start", "complete", or
+                    "record_failure". "blocked" is a plan state set automatically when
+                    unresolved blockers or rejected approvals prevent progress; it is not a
+                    caller-selectable action.
 
-        session_id is required for start, complete, and record_failure.
-        commit_sha is required when action="complete".
-        reason is required when action="record_failure".
+                    Conditional requirements:
+                    - session_id is required for start, complete, and record_failure, but
+                        not inspect
+                    - commit_sha is required when action="complete"
+                    - reason is required when action="record_failure"
+                    - review is only consumed when the final phase completes
 
-        review is only consumed when the final phase completes. The caller-facing
-        review object supports:
-        - outcome: "completed" | "partial" | "abandoned" (default "completed")
-        - purpose_assessment: non-empty string
-        - unresolved: optional list of {question, note}
-        - follow_up: optional kebab-case follow-up plan id
+                    The caller-facing review object supports:
+            - outcome: "completed" | "partial" | "abandoned" (default "completed")
+            - purpose_assessment: non-empty string
+            - unresolved: optional list of {question, note}
+            - follow_up: optional kebab-case follow-up plan id
 
-        verification_results is an optional list of verification result objects
-        attached to failure records or returned by verify flows. Tool-generated
-        items carry:
-        - postcondition: original postcondition description
-        - type: "check" | "grep" | "test" | "manual"
-        - status: "pass" | "fail" | "error" | "skip"
-        - detail: optional diagnostic string or null
-        - policy_result: optional policy block details for denied test commands
+            verification_results is an optional list of verification result objects
+            attached to failure records or returned by verify flows. Tool-generated
+            items carry:
+            - postcondition: original postcondition description
+            - type: "check" | "grep" | "test" | "manual"
+            - status: "pass" | "fail" | "error" | "skip"
+            - detail: optional diagnostic string or null
+            - policy_result: optional policy block details for denied test commands
 
-        When action="complete" and verify=True, postconditions are evaluated
-        before completion. If any fail or error, the phase stays in-progress and
-        the verification payload is returned instead.
+            When action="complete" and verify=True, postconditions are evaluated
+            before completion. If any fail or error, the phase stays in-progress and
+        the verification payload is returned instead. preview=True returns the
+        governed preview envelope for the requested state transition without
+        mutating the plan or approval state.
 
-        Use memory_tool_schema or memory_plan_schema for the machine-readable
-        contract.
+            Use memory_tool_schema or memory_plan_schema for the machine-readable
+            contract.
         """
-        from ...errors import AlreadyDoneError, ValidationError
-        from ...frontmatter_utils import today_str
-        from ...models import MemoryWriteResult
-
-        repo = get_repo()
-        root = get_root()
-        warnings: list[str] = []
-
-        plan_path, resolved_project_id = _resolve_existing_plan_path(root, plan_id, project_id)
-        abs_plan = repo.abs_path(plan_path)
-        plan = load_plan(abs_plan, root)
-        phase = resolve_phase(plan, phase_id)
-        blockers = unresolved_blockers(plan, phase, root)
-        payload = phase_payload(plan, phase, root)
-        payload["unresolved_blockers"] = blockers
-
-        if action == "inspect":
-            return json.dumps(payload, indent=2)
-
-        if action not in {"start", "complete", "record_failure"}:
-            raise ValidationError("action must be one of: inspect, start, complete, record_failure")
-        if session_id is None:
-            raise ValidationError(
-                "session_id is required for start, complete, and record_failure actions"
-            )
-        validate_session_id(session_id)
-
-        change_class = phase_change_class(phase)
-        files_changed = [
-            plan_path,
-            _project_summary_path(resolved_project_id),
-            "memory/working/projects/SUMMARY.md",
-            f"memory/working/projects/{resolved_project_id}/operations.jsonl",
-        ]
-
-        # Guard: paused plans cannot be advanced (only inspect works)
-        if plan.status == "paused" and action in {"start", "complete"}:
-            paused_msg = (
-                f"Plan is paused, awaiting approval for phase '{phase.id}'. "
-                "Use `memory_resolve_approval` to approve or reject."
-            )
-            return json.dumps(
-                {"plan_status": "paused", "phase_id": phase.id, "message": paused_msg},
-                indent=2,
-            )
-
-        if action == "start" and blockers:
-            plan.status = "blocked"
-            if phase.status == "pending":
-                phase.status = "blocked"
-            commit_msg = f"[plan] Block {plan.id}:{phase.id}"
-            blocked_state: dict[str, Any] = {
-                "plan_status": plan.status,
-                "phase_status": phase.status,
-                "phase_id": phase.id,
-                "blocked_by": blockers,
-                "next_action": next_action(plan),
-            }
-            bs = budget_status(plan)
-            if bs is not None:
-                blocked_state["budget_status"] = bs
-            preview_payload = _create_preview(
-                mode="preview" if preview else "apply",
-                change_class=change_class,
-                summary=f"Mark plan {plan.id} blocked on phase {phase.id} until blockers resolve.",
-                reasoning=(
-                    "The execute flow records blocker state inside the plan so future sessions and "
-                    "summaries can see why work paused."
-                ),
-                target_files=[
-                    (plan_path, "update"),
-                    (_project_summary_path(resolved_project_id), "update"),
-                    ("memory/working/projects/SUMMARY.md", "update"),
-                    (f"memory/working/projects/{resolved_project_id}/operations.jsonl", "append"),
-                ],
-                invariant_effects=[
-                    "Transitions the plan into blocked status when a phase cannot legally start.",
-                    "Records the blocker event in the project operations log.",
-                ],
-                commit_message=commit_msg,
-                resulting_state=blocked_state,
-                warnings=warnings,
-            )
-            if preview:
-                return MemoryWriteResult(
-                    files_changed=files_changed,
-                    commit_sha=None,
-                    commit_message=None,
-                    new_state=blocked_state,
-                    warnings=warnings,
-                    preview=preview_payload,
-                ).to_json()
-
-            save_plan(abs_plan, plan, root)
-            repo.add(plan_path)
-            _append_plan_log(
-                root,
-                repo,
-                resolved_project_id,
-                files_changed,
-                session_id=session_id,
-                action="phase-blocked",
-                plan_id=plan.id,
-                phase_id=phase.id,
-                detail=f"Blocked by {len(blockers)} dependency references",
-            )
-            _sync_project_navigation(root, repo, resolved_project_id, files_changed)
-            commit_result = repo.commit(commit_msg)
-            return MemoryWriteResult.from_commit(
-                files_changed=files_changed,
-                commit_result=commit_result,
-                commit_message=commit_msg,
-                new_state=blocked_state,
-                warnings=warnings,
-                preview=preview_payload,
-            ).to_json()
-
-        if action == "start":
-            if phase.status == "completed":
-                raise AlreadyDoneError(f"Phase '{phase.id}' is already complete")
-            if phase.status == "in-progress":
-                raise AlreadyDoneError(f"Phase '{phase.id}' is already in progress")
-
-            # ── requires_approval: auto-create approval and pause ────────────
-            if phase.requires_approval:
-                from datetime import datetime, timezone
-
-                existing_approval = load_approval(root, plan.id, phase.id)
-
-                if existing_approval is not None and existing_approval.status == "approved":
-                    pass  # Approved — fall through to normal start
-
-                elif existing_approval is not None and existing_approval.status == "pending":
-                    # Already awaiting approval; plan should be paused
-                    return json.dumps(
-                        {
-                            "plan_status": "paused",
-                            "phase_id": phase.id,
-                            "message": (
-                                f"Awaiting approval for phase '{phase.id}'. "
-                                "Use `memory_resolve_approval` to approve or reject."
-                            ),
-                            "approval": existing_approval.to_dict(),
-                        },
-                        indent=2,
-                    )
-
-                elif existing_approval is not None and existing_approval.status in {
-                    "rejected",
-                    "expired",
-                }:
-                    # Rejected or expired → block the plan
-                    plan.status = "blocked"
-                    approval_transition_files = list(files_changed)
-                    approval_filename_rel = approval_filename(plan.id, phase.id)
-                    approval_pending_file = (
-                        f"memory/working/approvals/pending/{approval_filename_rel}"
-                    )
-                    approval_resolved_file = (
-                        f"memory/working/approvals/resolved/{approval_filename_rel}"
-                    )
-                    if existing_approval.status == "expired":
-                        approval_transition_files.extend(
-                            [
-                                approval_pending_file,
-                                approval_resolved_file,
-                                approvals_summary_path(),
-                            ]
-                        )
-                    commit_msg_rej = (
-                        f"[plan] Block {plan.id}:{phase.id} (approval {existing_approval.status})"
-                    )
-                    rej_state: dict[str, Any] = {
-                        "plan_status": plan.status,
-                        "phase_id": phase.id,
-                        "approval_status": existing_approval.status,
-                        "message": (
-                            f"Approval for phase '{phase.id}' was {existing_approval.status}. "
-                            "Call `memory_request_approval` to re-request or abandon the plan."
-                        ),
-                        "approval": existing_approval.to_dict(),
-                    }
-                    if not preview:
-                        if existing_approval.status == "expired":
-                            materialize_expired_approval(root, existing_approval)
-                            regenerate_approvals_summary(root)
-                            if repo.is_tracked(approval_pending_file):
-                                repo.add(approval_pending_file)
-                            repo.add(approval_resolved_file)
-                            repo.add(approvals_summary_path())
-                        save_plan(abs_plan, plan, root)
-                        repo.add(plan_path)
-                        _append_plan_log(
-                            root,
-                            repo,
-                            resolved_project_id,
-                            approval_transition_files,
-                            session_id=session_id,
-                            action="phase-blocked",
-                            plan_id=plan.id,
-                            phase_id=phase.id,
-                            detail=f"Approval {existing_approval.status}",
-                        )
-                        _sync_project_navigation(
-                            root, repo, resolved_project_id, approval_transition_files
-                        )
-                        commit_result_rej = repo.commit(commit_msg_rej)
-                        return MemoryWriteResult.from_commit(
-                            files_changed=approval_transition_files,
-                            commit_result=commit_result_rej,
-                            commit_message=commit_msg_rej,
-                            new_state=rej_state,
-                            warnings=warnings,
-                        ).to_json()
-                    return json.dumps(rej_state, indent=2)
-
-                else:
-                    # No approval document → auto-create and pause plan
-                    now_dt = datetime.now(timezone.utc)
-                    now_str = now_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-                    expires_str = now_dt.replace(
-                        day=min(now_dt.day + 7, 28) if now_dt.month == 2 else now_dt.day
-                    ).strftime("%Y-%m-%dT%H:%M:%SZ")
-                    # Use timedelta for correct 7-day calculation
-                    from datetime import timedelta
-
-                    expires_str = (now_dt + timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
-                    bs_ctx = budget_status(plan)
-                    approval_context: dict[str, Any] = {
-                        "phase_title": phase.title,
-                        "phase_summary": (
-                            f"Phase '{phase.id}' requires human approval before execution. "
-                            f"Sources: {len(phase.sources)}, "
-                            f"Changes: {len(phase.changes)}"
-                        ),
-                        "sources": [s.path for s in phase.sources],
-                        "changes": [c.to_dict() for c in phase.changes],
-                        "change_class": change_class,
-                    }
-                    if bs_ctx is not None:
-                        approval_context["budget_status"] = bs_ctx
-                    new_approval = ApprovalDocument(
-                        plan_id=plan.id,
-                        phase_id=phase.id,
-                        project_id=resolved_project_id,
-                        status="pending",
-                        requested=now_str,
-                        expires=expires_str,
-                        context=approval_context,
-                    )
-                    plan.status = "paused"
-                    approval_file = (
-                        f"memory/working/approvals/pending/{approval_filename(plan.id, phase.id)}"
-                    )
-                    approval_files_changed = list(files_changed) + [
-                        approval_file,
-                        approvals_summary_path(),
-                    ]
-                    commit_msg_pause = f"[plan] Pause {plan.id}:{phase.id} pending approval"
-                    paused_state: dict[str, Any] = {
-                        "plan_status": "paused",
-                        "phase_id": phase.id,
-                        "approval_file": approval_file,
-                        "expires": expires_str,
-                        "message": (
-                            f"Phase '{phase.id}' requires human approval. "
-                            "Approval request created. Use `memory_resolve_approval` "
-                            "to approve or reject."
-                        ),
-                    }
-                    if not preview:
-                        save_approval(root, new_approval)
-                        regenerate_approvals_summary(root)
-                        save_plan(abs_plan, plan, root)
-                        repo.add(plan_path)
-                        repo.add(approval_file)
-                        repo.add(approvals_summary_path())
-                        _append_plan_log(
-                            root,
-                            repo,
-                            resolved_project_id,
-                            approval_files_changed,
-                            session_id=session_id,
-                            action="approval-requested",
-                            plan_id=plan.id,
-                            phase_id=phase.id,
-                            detail=f"Auto-paused: approval required for {phase.id}",
-                        )
-                        _sync_project_navigation(
-                            root, repo, resolved_project_id, approval_files_changed
-                        )
-                        record_trace(
-                            root,
-                            session_id,
-                            span_type="plan_action",
-                            name="approval-requested",
-                            status="ok",
-                            metadata={
-                                "plan_id": plan.id,
-                                "phase_id": phase.id,
-                                "expires": expires_str,
-                            },
-                        )
-                        commit_result_pause = repo.commit(commit_msg_pause)
-                        return MemoryWriteResult.from_commit(
-                            files_changed=approval_files_changed,
-                            commit_result=commit_result_pause,
-                            commit_message=commit_msg_pause,
-                            new_state=paused_state,
-                            warnings=warnings,
-                        ).to_json()
-                    return json.dumps(paused_state, indent=2)
-            # ── end requires_approval block ──────────────────────────────────
-
-            plan.status = "active"
-            phase.status = "in-progress"
-            commit_msg = f"[plan] Start {plan.id}:{phase.id}"
-            start_state: dict[str, Any] = {
-                "plan_status": plan.status,
-                "phase_status": phase.status,
-                "phase_id": phase.id,
-                "next_action": phase.title,
-                "change_class": change_class,
-                "requires_approval": phase.requires_approval,
-                "approval_required": (
-                    phase.requires_approval or change_class in {"proposed", "protected"}
-                ),
-            }
-            if phase.sources:
-                start_state["sources"] = [s.to_dict() for s in phase.sources]
-            if phase.postconditions:
-                start_state["postconditions"] = [pc.to_dict() for pc in phase.postconditions]
-            bs = budget_status(plan)
-            if bs is not None:
-                start_state["budget_status"] = bs
-            preview_payload = _create_preview(
-                mode="preview" if preview else "apply",
-                change_class=change_class,
-                summary=f"Start phase {phase.id} in plan {plan.id}.",
-                reasoning=(
-                    "Starting a phase records the active execution context so later writes and summaries "
-                    "can tie file mutations back to the plan that authorized them."
-                ),
-                target_files=[
-                    (plan_path, "update"),
-                    (_project_summary_path(resolved_project_id), "update"),
-                    ("memory/working/projects/SUMMARY.md", "update"),
-                    (f"memory/working/projects/{resolved_project_id}/operations.jsonl", "append"),
-                ],
-                invariant_effects=[
-                    "Transitions the selected phase to in-progress after blocker validation succeeds.",
-                    "Records the phase-start event in the project operations log.",
-                ],
-                commit_message=commit_msg,
-                resulting_state=start_state,
-                warnings=warnings,
-            )
-            if preview:
-                return MemoryWriteResult(
-                    files_changed=files_changed,
-                    commit_sha=None,
-                    commit_message=None,
-                    new_state=start_state,
-                    warnings=warnings,
-                    preview=preview_payload,
-                ).to_json()
-
-            save_plan(abs_plan, plan, root)
-            repo.add(plan_path)
-            _persist_run_state(
-                root,
-                repo,
-                plan,
-                phase.id,
-                "start",
-                session_id,
-                files_changed,
-                next_action_hint=phase.title,
-            )
-            _append_plan_log(
-                root,
-                repo,
-                resolved_project_id,
-                files_changed,
-                session_id=session_id,
-                action="phase-started",
-                plan_id=plan.id,
-                phase_id=phase.id,
-                detail=phase.title,
-            )
-            _sync_project_navigation(root, repo, resolved_project_id, files_changed)
-            _start_span_id = record_trace(
-                root,
-                session_id,
-                span_type="plan_action",
-                name="start",
-                status="ok",
-                metadata={"plan_id": plan.id, "phase_id": phase.id, "action": "start"},
-                cost=estimate_cost(
-                    input_chars=len(json.dumps(start_state)),
-                    output_chars=len(json.dumps(start_state)),
-                ),
-            )
-            commit_result = repo.commit(commit_msg)
-            return MemoryWriteResult.from_commit(
-                files_changed=files_changed,
-                commit_result=commit_result,
-                commit_message=commit_msg,
-                new_state=start_state,
-                warnings=warnings,
-                preview=preview_payload,
-            ).to_json()
-
-        if action == "record_failure":
-            from datetime import datetime, timezone
-
-            from ...plan_utils import PhaseFailure
-
-            if not reason or not reason.strip():
-                raise ValidationError("reason is required when recording a failure")
-            if phase.status not in {"in-progress", "pending"}:
-                raise ValidationError(
-                    f"Cannot record failure on phase '{phase.id}' with status '{phase.status}'"
-                )
-            failure = PhaseFailure(
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                reason=reason.strip(),
-                verification_results=verification_results,
-                attempt=len(phase.failures) + 1,
-            )
-            phase.failures.append(failure)
-
-            commit_msg = f"[plan] Record failure {plan.id}:{phase.id} (attempt {failure.attempt})"
-            failure_state: dict[str, Any] = {
-                "plan_status": plan.status,
-                "phase_status": phase.status,
-                "phase_id": phase.id,
-                "failure_recorded": failure.to_dict(),
-                "total_failures": len(phase.failures),
-                "attempt_number": len(phase.failures) + 1,
-            }
-            preview_payload = _create_preview(
-                mode="preview" if preview else "apply",
-                change_class=change_class,
-                summary=f"Record failure on phase {phase.id} in plan {plan.id}.",
-                reasoning=(
-                    "Recording failures provides structured context for retry "
-                    "attempts and enables agents to learn from prior mistakes."
-                ),
-                target_files=[
-                    (plan_path, "update"),
-                    (
-                        _project_summary_path(resolved_project_id),
-                        "update",
-                    ),
-                    ("memory/working/projects/SUMMARY.md", "update"),
-                    (
-                        f"memory/working/projects/{resolved_project_id}/operations.jsonl",
-                        "append",
-                    ),
-                ],
-                invariant_effects=[
-                    "Appends a PhaseFailure record to the phase.",
-                    "Logs the failure event in the project operations log.",
-                ],
-                commit_message=commit_msg,
-                resulting_state=failure_state,
-                warnings=warnings,
-            )
-            if preview:
-                return MemoryWriteResult(
-                    files_changed=files_changed,
-                    commit_sha=None,
-                    commit_message=None,
-                    new_state=failure_state,
-                    warnings=warnings,
-                    preview=preview_payload,
-                ).to_json()
-
-            save_plan(abs_plan, plan, root)
-            repo.add(plan_path)
-            _persist_run_state(
-                root,
-                repo,
-                plan,
-                phase.id,
-                "record_failure",
-                session_id,
-                files_changed,
-                commit_to_git=False,
-                error_message=reason.strip(),
-            )
-            _append_plan_log(
-                root,
-                repo,
-                resolved_project_id,
-                files_changed,
-                session_id=session_id,
-                action="phase-failure",
-                plan_id=plan.id,
-                phase_id=phase.id,
-                detail=reason.strip(),
-            )
-            _sync_project_navigation(root, repo, resolved_project_id, files_changed)
-            record_trace(
-                root,
-                session_id,
-                span_type="plan_action",
-                name="record_failure",
-                status="ok",
-                metadata={
-                    "plan_id": plan.id,
-                    "phase_id": phase.id,
-                    "action": "record_failure",
-                    "attempt": failure.attempt,
-                },
-                cost=estimate_cost(
-                    input_chars=len(reason.strip()),
-                    output_chars=len(json.dumps(failure_state)),
-                ),
-            )
-            commit_result = repo.commit(commit_msg)
-            return MemoryWriteResult.from_commit(
-                files_changed=files_changed,
-                commit_result=commit_result,
-                commit_message=commit_msg,
-                new_state=failure_state,
-                warnings=warnings,
-                preview=preview_payload,
-            ).to_json()
-
-        if not commit_sha or not commit_sha.strip():
-            raise ValidationError("commit_sha is required when completing a phase")
-        if blockers:
-            raise ValidationError(
-                f"Phase '{phase.id}' is blocked by unresolved dependencies: "
-                + ", ".join(entry["reference"] for entry in blockers)
-            )
-        if phase.status == "completed":
-            raise AlreadyDoneError(f"Phase '{phase.id}' is already complete")
-
-        # Optional inline verification before completing
-        if verify:
-            verification = verify_postconditions(plan, phase, root)
-            if not verification["all_passed"]:
-                verification_state: dict[str, Any] = {
-                    "status": "verification_failed",
-                    "plan_status": plan.status,
-                    "phase_status": phase.status,
-                    "phase_id": phase.id,
-                    **verification,
-                }
-                return json.dumps(verification_state, indent=2)
-            # Verification passed — include results in completion response
-            warnings.append(
-                f"Verification passed: {verification['summary']['passed']} passed, "
-                f"{verification['summary']['skipped']} skipped"
-            )
-
-        phase.status = "completed"
-        phase.commit = commit_sha.strip()
-        plan.sessions_used += 1
-        done, total = plan_progress(plan)
-        all_done = done == total
-
-        # Budget warnings
-        bs = budget_status(plan)
-        if bs is not None:
-            if bs.get("past_deadline"):
-                warnings.append(
-                    f"Budget warning: past deadline ({bs['deadline']})"
-                    + (" [advisory]" if bs.get("advisory") else " [ENFORCED]")
-                )
-            if bs.get("over_session_budget"):
-                warnings.append(
-                    f"Budget warning: session budget exhausted "
-                    f"({bs['sessions_used']}/{bs['max_sessions']})"
-                    + (" [advisory]" if bs.get("advisory") else " [ENFORCED]")
-                )
-        if all_done:
-            plan.status = "completed"
-            if review is not None:
-                plan.review = build_review_from_input(review, today_str(), session_id)
-            else:
-                warnings.append(
-                    "Final phase completed without a supplied review; wrote a placeholder purpose assessment."
-                )
-                plan.review = build_review_from_input(
-                    {
-                        "outcome": "completed",
-                        "purpose_assessment": "Execution completed; a detailed purpose assessment still needs to be written.",
-                        "unresolved": [],
-                        "follow_up": None,
-                    },
-                    today_str(),
-                    session_id,
-                )
-        else:
-            plan.status = "active"
-
-        commit_msg = f"[plan] Complete {plan.id}:{phase.id}"
-        completion_state: dict[str, Any] = {
-            "plan_status": plan.status,
-            "phase_status": phase.status,
-            "phase_id": phase.id,
-            "phase_commit": phase.commit,
-            "plan_progress": [done, total],
-            "sessions_used": plan.sessions_used,
-            "next_action": next_action(plan),
-            "review_written": plan.review is not None,
-        }
-        if bs is not None:
-            completion_state["budget_status"] = bs
-        preview_payload = _create_preview(
-            mode="preview" if preview else "apply",
-            change_class=change_class,
-            summary=f"Complete phase {phase.id} in plan {plan.id} and record commit metadata.",
-            reasoning=(
-                "Phase completion seals the plan state machine by attaching the implementation commit, "
-                "advancing progress, and closing the plan when all phases are done."
-            ),
-            target_files=[
-                (plan_path, "update"),
-                (_project_summary_path(resolved_project_id), "update"),
-                ("memory/working/projects/SUMMARY.md", "update"),
-                (f"memory/working/projects/{resolved_project_id}/operations.jsonl", "append"),
-            ],
-            invariant_effects=[
-                "Marks the phase complete and stores the commit SHA that produced the work.",
-                "Transitions the plan to completed and populates review data when the last phase finishes.",
-                "Logs the phase-complete event and, when applicable, the plan-complete event.",
-            ],
-            commit_message=commit_msg,
-            resulting_state=completion_state,
-            warnings=warnings,
-        )
-        if preview:
-            return MemoryWriteResult(
-                files_changed=files_changed,
-                commit_sha=None,
-                commit_message=None,
-                new_state=completion_state,
-                warnings=warnings,
-                preview=preview_payload,
-            ).to_json()
-
-        save_plan(abs_plan, plan, root)
-        repo.add(plan_path)
-        _na = next_action(plan)
-        _persist_run_state(
-            root,
-            repo,
-            plan,
-            phase.id,
-            "complete",
-            session_id,
-            files_changed,
-            next_action_hint=_na["title"] if _na else None,
-        )
-        _append_plan_log(
-            root,
-            repo,
-            resolved_project_id,
-            files_changed,
+        payload = execute_plan_action_result(
+            repo=get_repo(),
+            root=get_root(),
+            plan_id=plan_id,
+            project_id=project_id,
+            phase_id=phase_id,
+            action=action,
             session_id=session_id,
-            action="phase-completed",
-            plan_id=plan.id,
-            phase_id=phase.id,
-            commit=phase.commit,
-            detail=phase.title,
+            commit_sha=commit_sha,
+            review=review,
+            verify=verify,
+            reason=reason,
+            verification_results=verification_results,
+            preview=preview,
         )
-        if all_done:
-            _append_plan_log(
-                root,
-                repo,
-                resolved_project_id,
-                files_changed,
-                session_id=session_id,
-                action="plan-completed",
-                plan_id=plan.id,
-                commit=phase.commit,
-                detail=plan_title(plan),
-            )
-        _sync_project_navigation(root, repo, resolved_project_id, files_changed)
-        record_trace(
-            root,
-            session_id,
-            span_type="plan_action",
-            name="complete",
-            status="ok",
-            metadata={
-                "plan_id": plan.id,
-                "phase_id": phase.id,
-                "action": "complete",
-                "commit": phase.commit,
-                "plan_done": all_done,
-            },
-            cost=estimate_cost(
-                input_chars=len(json.dumps(completion_state)),
-                output_chars=len(json.dumps(completion_state)),
-            ),
-        )
-        commit_result = repo.commit(commit_msg)
-        return MemoryWriteResult.from_commit(
-            files_changed=files_changed,
-            commit_result=commit_result,
-            commit_message=commit_msg,
-            new_state=completion_state,
-            warnings=warnings,
-            preview=preview_payload,
-        ).to_json()
+        return json.dumps(payload, indent=2)
 
     @mcp.tool(
         name="memory_plan_review",
@@ -1632,107 +1885,20 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         with tool_name="memory_query_traces" for the filter contract.
         """
         import json as _json
-        import re as _re
 
-        from ...errors import ValidationError
-
-        if span_type is not None and span_type not in TRACE_SPAN_TYPES:
-            raise ValidationError(
-                f"span_type must be one of {sorted(TRACE_SPAN_TYPES)}: {span_type!r}"
-            )
-        if status is not None and status not in TRACE_STATUSES:
-            raise ValidationError(f"status must be one of {sorted(TRACE_STATUSES)}: {status!r}")
-
-        _date_pat = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
-        if date_from is not None and not _date_pat.match(date_from):
-            raise ValidationError("date_from must be in YYYY-MM-DD format")
-        if date_to is not None and not _date_pat.match(date_to):
-            raise ValidationError("date_to must be in YYYY-MM-DD format")
+        from ...plan_trace import query_trace_spans
 
         root = get_root()
-        activity_root = root / "memory" / "activity"
-        trace_files: list[Any] = []
-
-        if session_id is not None:
-            validate_session_id(session_id)
-            candidate = root / trace_file_path(session_id)
-            if candidate.exists():
-                trace_files = [candidate]
-        else:
-            if activity_root.is_dir():
-                for tf in sorted(activity_root.rglob("*.traces.jsonl"), reverse=True):
-                    parts = tf.relative_to(activity_root).parts
-                    if len(parts) >= 4:
-                        year, month, day = parts[0], parts[1], parts[2]
-                        file_date = f"{year}-{month}-{day}"
-                        if date_from is not None and file_date < date_from:
-                            continue
-                        if date_to is not None and file_date > date_to:
-                            continue
-                    trace_files.append(tf)
-
-        all_spans: list[dict[str, Any]] = []
-        for tf in trace_files:
-            try:
-                for raw_line in tf.read_text(encoding="utf-8").splitlines():
-                    line = raw_line.strip()
-                    if not line:
-                        continue
-                    try:
-                        span = _json.loads(line)
-                        if not isinstance(span, dict):
-                            continue
-                        if span_type is not None and span.get("span_type") != span_type:
-                            continue
-                        if status is not None and span.get("status") != status:
-                            continue
-                        if plan_id is not None:
-                            meta = span.get("metadata") or {}
-                            if meta.get("plan_id") != plan_id:
-                                continue
-                        all_spans.append(span)
-                    except (_json.JSONDecodeError, KeyError):
-                        continue
-            except OSError:
-                continue
-
-        all_spans.sort(key=lambda s: s.get("timestamp", ""), reverse=True)
-        total_matched = len(all_spans)
-        limited_spans = all_spans[: max(1, limit)]
-
-        total_duration_ms = sum(s.get("duration_ms") or 0 for s in all_spans)
-        total_tokens_in = 0
-        total_tokens_out = 0
-        by_type: dict[str, int] = {}
-        by_status: dict[str, int] = {}
-        error_count = 0
-        for span in all_spans:
-            st = span.get("span_type", "unknown")
-            by_type[st] = by_type.get(st, 0) + 1
-            ss = span.get("status", "unknown")
-            by_status[ss] = by_status.get(ss, 0) + 1
-            if ss == "error":
-                error_count += 1
-            span_cost = span.get("cost")
-            if isinstance(span_cost, dict):
-                total_tokens_in += int(span_cost.get("tokens_in", 0))
-                total_tokens_out += int(span_cost.get("tokens_out", 0))
-
-        result: dict[str, Any] = {
-            "spans": limited_spans,
-            "total_matched": total_matched,
-            "aggregates": {
-                "total_duration_ms": total_duration_ms,
-                "total_cost": {
-                    "tokens_in": total_tokens_in,
-                    "tokens_out": total_tokens_out,
-                },
-                "by_type": by_type,
-                "by_status": by_status,
-                "error_rate": round(error_count / total_matched, 3) if total_matched > 0 else 0.0,
-            },
-        }
-
+        result = query_trace_spans(
+            root,
+            session_id=session_id,
+            date_from=date_from,
+            date_to=date_to,
+            span_type=span_type,
+            plan_id=plan_id,
+            status=status,
+            limit=limit,
+        )
         return _json.dumps(result, indent=2)
 
     @mcp.tool(
@@ -2338,118 +2504,23 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         the plan status: ``active`` on approval, ``blocked`` on rejection.
 
         ``resolution`` must be ``"approve"`` or ``"reject"``.
+        ``comment`` is an optional reviewer note stored on the resolved
+        approval document.
 
-        Returns JSON with ``approval_file``, ``status``, and ``plan_status``.
+        Returns JSON with ``approval_file``, ``status``, ``plan_status``, and
+        the resolved ``phase_id``.
         """
-        from datetime import datetime, timezone
-
-        from ...errors import NotFoundError
-        from ...errors import ValidationError as _VE
-        from ...models import MemoryWriteResult
-
         repo = get_repo()
         root = get_root()
-
-        if resolution not in APPROVAL_RESOLUTIONS:
-            raise _VE(f"resolution must be one of {sorted(APPROVAL_RESOLUTIONS)}: {resolution!r}")
-
-        plan_path_r, resolved_project_id = _resolve_existing_plan_path(root, plan_id, None)
-        abs_plan = repo.abs_path(plan_path_r)
-        plan = load_plan(abs_plan, root)
-        phase = resolve_phase(plan, phase_id)
-
-        existing = load_approval(root, plan.id, phase.id)
-        if existing is None:
-            raise NotFoundError(
-                f"No approval document found for plan '{plan.id}' phase '{phase.id}'"
-            )
-        if existing.status != "pending":
-            raise _VE(
-                f"Approval for phase '{phase.id}' is already resolved (status: {existing.status!r})"
-            )
-
-        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        existing.resolution = resolution
-        existing.reviewer = "user"
-        existing.resolved_at = now_str
-        existing.comment = comment.strip() if comment else None
-        existing.status = "approved" if resolution == "approve" else "rejected"
-
-        # Move from pending/ to resolved/
-        from ...plan_utils import _find_approvals_root
-
-        approvals_root = _find_approvals_root(root)
-        filename_r = approval_filename(plan.id, phase.id)
-        approval_pending_file = f"memory/working/approvals/pending/{filename_r}"
-        approval_resolved_file = f"memory/working/approvals/resolved/{filename_r}"
-        pending_path_r = approvals_root / "pending" / filename_r
-        resolved_dir_r = approvals_root / "resolved"
-        resolved_dir_r.mkdir(parents=True, exist_ok=True)
-        save_approval(root, existing)  # saves to resolved/ since status != pending
-        if pending_path_r.exists():
-            pending_path_r.unlink()
-
-        if resolution == "approve":
-            plan.status = "active"
-        else:
-            plan.status = "blocked"
-
-        regenerate_approvals_summary(root)
-        save_plan(abs_plan, plan, root)
-        repo.add(plan_path_r)
-        if repo.is_tracked(approval_pending_file):
-            repo.add(approval_pending_file)
-        repo.add(approval_resolved_file)
-        repo.add(approvals_summary_path())
-
-        files_res = [
-            plan_path_r,
-            approval_pending_file,
-            approval_resolved_file,
-            _project_summary_path(resolved_project_id),
-            "memory/working/projects/SUMMARY.md",
-            f"memory/working/projects/{resolved_project_id}/operations.jsonl",
-            approvals_summary_path(),
-        ]
-        resolution_event = "approved" if resolution == "approve" else "rejected"
-        _append_plan_log(
-            root,
-            repo,
-            resolved_project_id,
-            files_res,
-            session_id=None,
-            action=f"approval-{resolution_event}",
-            plan_id=plan.id,
-            phase_id=phase.id,
-            detail=comment or "",
+        payload = resolve_approval_action_result(
+            repo=repo,
+            root=root,
+            plan_id=plan_id,
+            phase_id=phase_id,
+            resolution=resolution,
+            comment=comment,
         )
-        _sync_project_navigation(root, repo, resolved_project_id, files_res)
-        record_trace(
-            root,
-            None,
-            span_type="plan_action",
-            name=f"approval-{resolution_event}",
-            status="ok",
-            metadata={"plan_id": plan.id, "phase_id": phase.id, "resolution": resolution},
-        )
-        commit_msg_res = (
-            f"[plan] {'Approve' if resolution == 'approve' else 'Reject'} {plan.id}:{phase.id}"
-        )
-        commit_result_res = repo.commit(commit_msg_res)
-        result_res: dict[str, Any] = {
-            "approval_file": (
-                f"memory/working/approvals/resolved/{approval_filename(plan.id, phase.id)}"
-            ),
-            "status": existing.status,
-            "plan_status": plan.status,
-        }
-        return MemoryWriteResult.from_commit(
-            files_changed=files_res,
-            commit_result=commit_result_res,
-            commit_message=commit_msg_res,
-            new_state=result_res,
-            warnings=[],
-        ).to_json()
+        return json.dumps(payload, indent=2)
 
     # ── Tool Registry MCP tools ──────────────────────────────────────────────
 
@@ -2689,4 +2760,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     }
 
 
-__all__ = ["register_tools"]
+__all__ = [
+    "register_tools",
+    "create_plan_write_result",
+    "execute_plan_action_result",
+    "resolve_approval_action_result",
+]

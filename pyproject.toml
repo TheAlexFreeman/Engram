@@ -14,6 +14,7 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.scripts]
+engram = "engram_mcp.agent_memory_mcp.cli.main:main"
 engram-mcp = "engram_mcp.agent_memory_mcp.server_main:main"
 engram-proxy = "engram_mcp.agent_memory_mcp.proxy.cli:main"
 engram-sidecar = "engram_mcp.agent_memory_mcp.sidecar.cli:main"

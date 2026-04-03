@@ -4,6 +4,7 @@ A persistent, version-controlled memory system that gives any AI model a durable
 
 - If you want the architectural rationale, read [CORE.md](CORE.md).
 - If you want the MCP tool surface explained, read [MCP.md](MCP.md).
+- If you want the terminal CLI explained, read [CLI.md](CLI.md).
 - If you want transcript-sidecar setup, read [SIDECAR.md](SIDECAR.md).
 - If you want live proxy setup, read [PROXY.md](PROXY.md).
 - If you want to attach Engram to an existing codebase, read [WORKTREE.md](WORKTREE.md).
@@ -114,6 +115,28 @@ engram-proxy --upstream https://api.anthropic.com --model-context-window 200000 
 
 Point the platform's provider base URL at `http://127.0.0.1:8400` and keep your normal provider API key configured. For per-platform setup, advanced headers, latency expectations, and limitations, read [PROXY.md](PROXY.md).
 This quickstart keeps the proxy path generic on purpose; [PROXY.md](PROXY.md) contains the detailed Claude Code and Cursor operator examples plus the current limitations around custom request headers.
+
+### 4c. Optional: use the terminal CLI
+
+If you want a shell-friendly interface for quick inspection and maintenance, install the CLI dependencies and use `engram` directly:
+
+```bash
+python -m pip install -e ".[core]"
+engram status
+engram search "periodic review" --keyword
+engram add knowledge/react ./notes/hooks.md --session-id memory/activity/2026/04/03/chat-001 --preview
+engram recall knowledge
+engram log --namespace knowledge --since 2026-04-01
+engram review --json
+engram aggregate --namespace knowledge
+engram promote memory/knowledge/_unverified/react/hooks.md --preview
+engram archive memory/knowledge/react/legacy-hooks.md --reason stale
+engram export --format json --output ./memory-bundle.json --json
+engram import ./memory-bundle.json
+engram validate
+```
+
+Add `.[search]` if you want semantic search instead of automatic keyword fallback. The preview-first `engram add` flow writes only into `memory/knowledge/_unverified/` and expects a canonical session id either from `--session-id`, `MEMORY_SESSION_ID`, or `memory/activity/CURRENT_SESSION`. After review, `engram promote` and `engram archive` expose the governed lifecycle writes for moving notes into verified knowledge or `_archive/`, while `engram export` and `engram import` provide backup and migration bundles for the current repo state. For the full command reference and JSON examples, read [CLI.md](CLI.md).
 
 ### 5. Start your first session
 

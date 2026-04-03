@@ -961,7 +961,9 @@ class GitRepo:
             report["warnings"].append("HEAD is not valid (empty repo?)")
 
         try:
-            index_result = self._run(["git", "diff-index", "--quiet", "--cached", "HEAD"], check=False)
+            index_result = self._run(
+                ["git", "diff-index", "--quiet", "--cached", "HEAD"], check=False
+            )
             if index_result.returncode in (0, 1):
                 report["index_valid"] = True
             else:

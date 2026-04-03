@@ -193,6 +193,7 @@ EXPECTED_TASK_READINESS_PROFILES = (
     "workspace_general",
     "pull_request",
     "publish_branch",
+    "terminal_plan_authoring",
     "python_validation",
     "python_dependency_install",
     "node_validation",
@@ -201,6 +202,7 @@ EXPECTED_TASK_READINESS_PROFILES = (
 EXPECTED_TASK_READINESS_PROFILE_ORDER = (
     "pull_request",
     "publish_branch",
+    "terminal_plan_authoring",
     "python_dependency_install",
     "node_dependency_install",
     "python_validation",

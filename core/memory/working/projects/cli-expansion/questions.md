@@ -9,11 +9,20 @@ next_question_id: 4
 
 # Open Questions
 
+_None currently._
+
+---
+
+# Resolved Questions
+
 ## q-001: Should the CLI framework be Click, Typer, or plain argparse?
-**Asked:** 2026-04-02 | **Last touched:** 2026-04-02 | **Context:** The existing CLIs (sidecar, proxy) use argparse. Click/Typer would give richer help text and shell completion out of the box, but add a dependency. argparse keeps deps minimal and matches existing code.
+**Asked:** 2026-04-02 | **Resolved:** 2026-04-03 | **Resolution:** Plain `argparse` shipped in the new CLI entry point.
+**Why:** It matches the existing proxy/sidecar CLIs, avoids a new dependency, and was sufficient for v0 help and subcommand routing.
 
 ## q-002: Should `engram search` default to semantic or keyword search?
-**Asked:** 2026-04-02 | **Last touched:** 2026-04-02 | **Context:** Semantic search requires `.[search]` (sentence-transformers, numpy). Keyword search (the existing `memory_search` grep-based tool) works with zero extra deps. The CLI could auto-detect and tell the user which mode it's using, or require an explicit `--semantic` flag.
+**Asked:** 2026-04-02 | **Resolved:** 2026-04-03 | **Resolution:** The shipped CLI auto-detects semantic search support and falls back to keyword mode when optional search dependencies are unavailable.
+**Why:** This preserves zero-extra-dependency behavior while still exposing semantic retrieval when `.[search]` is installed. An explicit `--semantic` flag remains optional follow-on UX polish, not a blocker to the landed foundation.
 
 ## q-003: How should the CLI discover the repo root?
-**Asked:** 2026-04-02 | **Last touched:** 2026-04-02 | **Context:** The MCP server already supports `MEMORY_REPO_ROOT`, `AGENT_MEMORY_ROOT`, and file-relative detection. The CLI should use the same resolution chain, plus possibly walk up from cwd looking for `agent-bootstrap.toml` (similar to how git finds `.git`).
+**Asked:** 2026-04-02 | **Resolved:** 2026-04-03 | **Resolution:** The CLI uses explicit `--repo-root`, then `MEMORY_REPO_ROOT` / `AGENT_MEMORY_ROOT`, then cwd-walk for `agent-bootstrap.toml`, then file-relative fallback.
+**Why:** That resolution chain matches the MCP server logic while also supporting installed terminal use from arbitrary working directories.

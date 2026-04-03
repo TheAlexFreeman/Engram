@@ -18,6 +18,30 @@ Each entry should explain not just what changed, but **why** — so that future 
 
 ## Records
 
+## [2026-04-03] Terminal portability commands for export and import
+
+**Changed:** Added `engram export` with markdown, JSON, and tar bundle formats over the stable portability roots (`core/INIT.md`, `core/governance/review-queue.md`, and `core/memory/`), plus `engram import` for previewing or applying those bundles with digest validation and explicit overwrite handling. Added focused unit coverage, subprocess integration tests, and updated the CLI guide and quickstart with backup and migration workflows.
+**Reasoning:** The final CLI roadmap gap was portability: there was no shell-native way to package an Engram instance for backup, migration, or seeding another repo without reverse-engineering repository state by hand. Shipping export/import closes that gap with a shared runtime contract instead of ad hoc scripts.
+**Approved by:** agent (pending review)
+
+## [2026-04-03] Terminal lifecycle commands for promote and archive
+
+**Changed:** Added `engram promote` and `engram archive` as governed lifecycle commands that wrap the existing semantic knowledge tools. The CLI now exposes preview and apply flows for promoting reviewed `_unverified` notes into verified knowledge and archiving stale knowledge into `memory/knowledge/_archive/`, with focused unit coverage, subprocess integration tests, and updated CLI/quickstart docs.
+**Reasoning:** After shipping maintenance previews, the main missing terminal lifecycle gap was the write-side handoff from review decisions into actual governed file movement. Exposing promotion and archival through the CLI closes that gap while still reusing the existing semantic write contracts rather than reimplementing lifecycle logic.
+**Approved by:** agent (pending review)
+
+## [2026-04-03] Terminal maintenance preview commands for review and aggregation
+
+**Changed:** Added `engram review` for shell-first maintenance candidate walkthroughs and `engram aggregate` for preview-only ACCESS aggregation reporting. Both commands reuse the existing review-queue, unverified-content, and aggregation heuristics, ship with focused unit and subprocess coverage, and are documented in the CLI guide and quickstart.
+**Reasoning:** After the earlier read, write, plan, approval, trace, and diff slices, the main missing terminal maintenance surface was a safe preview layer for governance and ACCESS cleanup work. Shipping review and aggregation previews closes that gap without exposing write-side lifecycle mutations prematurely.
+**Approved by:** agent (pending review)
+
+## [2026-04-03] Git-backed memory diff surface for the terminal CLI
+
+**Changed:** Added `engram diff` as a git-backed memory inspection command with namespace and inclusive date filters, human and JSON rendering, and annotations for frontmatter edits, trust transitions, and newly added files. Added focused unit and subprocess coverage and documented the new terminal surface in the CLI guide.
+**Reasoning:** The CLI expansion roadmap still lacked a read-only way to answer "what changed?" without manually composing git commands and then translating raw file diffs back into memory concepts. A memory-aware diff surface closes that inspection gap for humans, shell-based agents, and automation.
+**Approved by:** agent (pending review)
+
 ## [2026-04-02] Full Tier 1 semantic schema coverage
 
 **Changed:** Extended the shared `memory_tool_schema` registry to cover the remaining Tier 1 semantic helpers, including `memory_analyze_graph`, `memory_list_pending_reviews`, `memory_list_plans`, `memory_plan_verify`, `memory_query_traces`, `memory_plan_briefing`, `memory_scan_drop_zone`, `memory_get_tool_policy`, `memory_semantic_search`, and `memory_reindex`. Updated the corresponding semantic-tool docstrings, aligned the existing `memory_update_user_trait` and `memory_update_skill` docstrings with the schema-backed guidance pattern, and simplified the README and MCP guide wording to describe full Tier 1 semantic coverage.

@@ -643,7 +643,7 @@ class ValidateMemoryRepoTests(unittest.TestCase):
             write(
                 root / "HUMANS" / "tooling" / "agent-task-readiness.toml",
                 VALID_TASK_READINESS_MANIFEST.replace(
-                    'checks = ["git_cli", "git_remote", "git_push_dry_run", "gh_auth", "remote_network"]',
+                    'checks = [\n  "git_cli",\n  "git_remote",\n  "git_push_dry_run",\n  "gh_auth",\n  "remote_network",\n]',
                     'checks = ["git_cli", "missing_check"]',
                     1,
                 ),

@@ -1,7 +1,7 @@
 version = 1
 kind = "agent-memory-capabilities"
 mcp_entrypoint = "core/tools/memory_mcp.py"
-manifest_role = "Repo-side prototype for governed memory writes and capability discovery."
+manifest_role = "Repo-side prototype for governed memory writes, schema-backed authoring help, and capability discovery."
 shared_result_type = "MemoryWriteResult"
 
 [contract_versions]
@@ -211,7 +211,7 @@ tool_sets = ["read_support", "semantic_extensions", "raw_fallback"]
 
 [tool_profiles.guided_write]
 label = "Guided Writes"
-description = "Prefer governed read and semantic tools while excluding raw fallback writes from host discovery."
+description = "Prefer governed read and semantic tools, including schema-backed authoring help, while excluding raw fallback writes from host discovery."
 default = true
 tool_sets = ["read_support", "semantic_extensions"]
 
@@ -328,6 +328,7 @@ mode = "Update Mode"
 reset = "Reset"
 promoted_count = "Promoted Count"
 promoted_files = "Promoted Files"
+summary_updated = "Summary Updated"
 summary_updates = "Summary Updates"
 identity_updates_this_session = "Identity Updates This Session"
 session_id = "Chat Session"
@@ -623,6 +624,10 @@ tool = "memory_add_knowledge_file"
 tier = "semantic"
 operation_group = "knowledge"
 change_class = "automatic"
+notes = "Low-trust unverified knowledge ingestion. The MCP tool supports preview mode; the engram CLI layers file/stdin routing plus ACCESS logging on the same helper contract."
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
 
 [desktop_operations.promote_knowledge]
 status = "implemented"
@@ -630,6 +635,7 @@ tool = "memory_promote_knowledge"
 tier = "semantic"
 operation_group = "knowledge"
 change_class = "proposed"
+notes = "The engram CLI exposes this contract as `engram promote`, passing through preview, target-path, summary-entry, and trust controls without reimplementing the lifecycle logic."
 preview_support = true
 preview_mode = "preview"
 preview_argument = "preview"
@@ -667,6 +673,7 @@ tool = "memory_archive_knowledge"
 tier = "semantic"
 operation_group = "knowledge"
 change_class = "proposed"
+notes = "The engram CLI exposes this contract as `engram archive`, reusing the same preview/apply behavior for routing files into memory/knowledge/_archive/."
 preview_support = true
 preview_mode = "preview"
 preview_argument = "preview"
@@ -1102,6 +1109,9 @@ notes = "Bulk project-inbox write driven by configured watch folders; per-file e
 group = "knowledge"
 tier = "semantic"
 change_class = "automatic"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
 commit_model = "auto_commit"
 commit_category_hint = "knowledge"
 writes = [
@@ -1112,9 +1122,17 @@ owns_frontmatter = ["memory/knowledge/_unverified/**/{file}.md"]
 owns_summaries = ["memory/knowledge/_unverified/SUMMARY.md"]
 owns_access_logs = []
 owns_review_queue = []
-result_fields = ["version_token"]
+result_fields = [
+  "path",
+  "source",
+  "trust",
+  "session_id",
+  "summary_updated",
+  "version_token",
+]
 fallback_tools = ["memory_write", "memory_update_frontmatter", "memory_commit"]
 error_kinds = ["ValidationError", "StagingError"]
+notes = "Preview mode returns the governed write envelope without mutating the repo; apply mode auto-commits the file and optional unverified SUMMARY update."
 
 [operations.memory_promote_knowledge]
 group = "knowledge"

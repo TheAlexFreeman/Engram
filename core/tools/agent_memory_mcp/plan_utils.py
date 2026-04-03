@@ -800,17 +800,20 @@ class PlanPurpose:
     questions: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
+        errors: list[str] = []
         if not isinstance(self.summary, str) or not self.summary.strip():
-            raise ValidationError("purpose.summary must be a non-empty string")
+            errors.append("purpose.summary must be a non-empty string")
         if not isinstance(self.context, str) or not self.context.strip():
-            raise ValidationError("purpose.context must be a non-empty string")
+            errors.append("purpose.context must be a non-empty string")
+        normalized_questions: list[str] = []
+        for index, question in enumerate(self.questions):
+            if not isinstance(question, str) or not question.strip():
+                errors.append(f"purpose.questions[{index}] must be a non-empty string")
+                continue
+            normalized_questions.append(question.strip())
+        _raise_collected_validation_errors(errors)
         self.summary = self.summary.strip()
         self.context = self.context.strip("\n")
-        normalized_questions: list[str] = []
-        for question in self.questions:
-            if not isinstance(question, str) or not question.strip():
-                raise ValidationError("purpose.questions must contain non-empty strings")
-            normalized_questions.append(question.strip())
         self.questions = normalized_questions
 
     def to_dict(self) -> dict[str, Any]:
@@ -876,14 +879,14 @@ class PlanBudget:
     advisory: bool = True
 
     def __post_init__(self) -> None:
+        errors: list[str] = []
         if self.deadline is not None:
             if not isinstance(self.deadline, str) or not _DATE_RE.match(self.deadline):
-                raise ValidationError(
-                    f"budget.deadline must be YYYY-MM-DD format: {self.deadline!r}"
-                )
+                errors.append(f"budget.deadline must be YYYY-MM-DD format: {self.deadline!r}")
         if self.max_sessions is not None:
             if not isinstance(self.max_sessions, int) or self.max_sessions < 1:
-                raise ValidationError("budget.max_sessions must be an integer >= 1")
+                errors.append("budget.max_sessions must be an integer >= 1")
+        _raise_collected_validation_errors(errors)
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {}
@@ -2423,6 +2426,85 @@ def coerce_phase_inputs(phases: list[dict[str, Any]]) -> list[PlanPhase]:
 def coerce_budget_input(raw_budget: dict[str, Any] | None) -> PlanBudget | None:
     """Public wrapper for budget coercion from tool-layer dicts."""
     return _coerce_budget(raw_budget)
+
+
+def raise_collected_validation_errors(errors: list[str]) -> None:
+    """Raise a single ValidationError carrying every collected message."""
+    _raise_collected_validation_errors(errors)
+
+
+def build_plan_document_from_create_input(
+    *,
+    plan_id: str,
+    project_id: str,
+    created: str,
+    session_id: str,
+    status: str,
+    purpose_summary: str,
+    purpose_context: str,
+    questions: list[str] | None,
+    phases: list[dict[str, Any]],
+    budget: dict[str, Any] | None,
+) -> PlanDocument:
+    """Build a plan-create document while aggregating top-level validation errors."""
+    errors: list[str] = []
+
+    if status not in {"draft", "active"}:
+        errors.append("memory_plan_create status must be 'draft' or 'active'")
+
+    try:
+        validate_session_id(session_id)
+    except ValidationError as exc:
+        errors.extend(validation_error_messages(exc))
+
+    normalized_questions: list[str] = []
+    if questions is None:
+        normalized_questions = []
+    elif not isinstance(questions, list):
+        errors.append("purpose.questions must be a list when provided")
+    else:
+        normalized_questions = list(questions)
+
+    purpose: PlanPurpose | None = None
+    try:
+        purpose = PlanPurpose(
+            summary=purpose_summary,
+            context=purpose_context,
+            questions=normalized_questions,
+        )
+    except ValidationError as exc:
+        errors.extend(validation_error_messages(exc))
+
+    coerced_phases: list[PlanPhase] = []
+    try:
+        coerced_phases = coerce_phase_inputs(phases)
+    except ValidationError as exc:
+        errors.extend(validation_error_messages(exc))
+    else:
+        phase_ids = [phase.id for phase in coerced_phases]
+        if len(set(phase_ids)) != len(phase_ids):
+            errors.append("work.phases ids must be unique within a plan")
+
+    coerced_budget: PlanBudget | None = None
+    try:
+        coerced_budget = coerce_budget_input(budget)
+    except ValidationError as exc:
+        errors.extend(validation_error_messages(exc))
+
+    raise_collected_validation_errors(errors)
+
+    assert purpose is not None
+    return PlanDocument(
+        id=plan_id,
+        project=project_id,
+        created=created,
+        origin_session=session_id,
+        status=status,
+        purpose=purpose,
+        phases=coerced_phases,
+        review=None,
+        budget=coerced_budget,
+    )
 
 
 def exportable_artifacts(root: Path, plan: PlanDocument) -> list[str]:

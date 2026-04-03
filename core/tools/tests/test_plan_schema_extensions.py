@@ -3025,7 +3025,9 @@ class TestApprovalExpiry(unittest.TestCase):
 
             ap = _make_approval(expires=self._past_ts())
             save_approval(root, ap)
-            subprocess.run(["git", "add", "."], cwd=root, check=True, capture_output=True, text=True)
+            subprocess.run(
+                ["git", "add", "."], cwd=root, check=True, capture_output=True, text=True
+            )
             subprocess.run(
                 ["git", "commit", "-m", "seed approvals"],
                 cwd=root,
@@ -3204,7 +3206,7 @@ class TestApprovalLifecycleE2E(unittest.TestCase):
                 project_id=plan.project,
                 status="pending",
                 requested="2026-03-27T10:00:00Z",
-                expires="2026-04-03T10:00:00Z",
+                expires="2027-01-01T10:00:00Z",
                 context={"phase_title": phase.title},
             )
             plan.status = "paused"
@@ -3312,7 +3314,7 @@ class TestApprovalLifecycleE2E(unittest.TestCase):
                 project_id=plan.project,
                 status="pending",
                 requested="2026-03-27T12:00:00Z",
-                expires="2026-04-03T12:00:00Z",
+                expires="2027-01-01T12:00:00Z",
                 context={"phase_title": phase.title, "change_class": "proposed"},
             )
 

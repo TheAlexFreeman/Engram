@@ -1,0 +1,139 @@
+id: cli-v4-portability
+project: cli-expansion
+created: '2026-04-03'
+origin_session: memory/activity/2026/04/02/chat-001
+status: completed
+sessions_used: 1
+budget:
+  deadline: '2026-11-15'
+  max_sessions: 7
+purpose:
+  summary: Add export and import portability commands to the engram CLI.
+  context: >
+    The final roadmap stage turns the CLI into a portability layer for backup,
+    migration, and instance seeding. Export/import needs stable command
+    contracts from earlier plan, approval, and trace work so that bundles can
+    preserve the right artifacts without reverse-engineering ad hoc state.
+  questions: []
+work:
+  phases:
+    - id: bundle-contracts
+      title: Define portable bundle schema and format guarantees
+      status: completed
+      commit: null
+      blockers:
+        - cli-v3-plan-commands:plan-command-verification
+        - cli-v3-approval-trace:approval-trace-verification
+      sources:
+        - path: core/memory/working/projects/cli-expansion/notes/cli-roadmap.md
+          type: internal
+          intent: Keep export/import formats aligned with the roadmap promise.
+        - path: HUMANS/tooling/onboard-export-template.md
+          type: internal
+          intent: Reuse existing thinking about what portable onboarding artifacts should include.
+        - path: README.md
+          type: internal
+          intent: Keep portability expectations consistent with repository layout and installation assumptions.
+      postconditions:
+        - description: Export bundle formats and minimum preserved artifacts are documented for md, json, and tar modes.
+        - description: Import validation rules specify what can be restored into a target instance.
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_export.py
+          action: create
+          description: Export command contract and shared bundle-schema helpers.
+        - path: core/tools/agent_memory_mcp/cli/cmd_import.py
+          action: create
+          description: Import command contract and validation scaffolding.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document the planned portability formats and guarantees.
+    - id: export-command
+      title: Implement export in markdown, json, and tar formats
+      status: completed
+      commit: null
+      blockers:
+        - bundle-contracts
+      sources:
+        - path: HUMANS/tooling/onboard-export-template.md
+          type: internal
+          intent: Reuse the existing export template thinking for human-readable bundles.
+        - path: core/tools/agent_memory_mcp/tools/write_tools.py
+          type: internal
+          intent: Reuse safe serialization and frontmatter-preserving write patterns where applicable.
+      postconditions:
+        - description: engram export emits markdown, json, and tar bundles with the documented artifact set.
+        - description: Export output supports both human-readable review and machine import.
+        - description: Tests cover each format and representative bundle contents.
+          type: test
+          target: core/tools/tests/test_cli_export.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_export.py
+          action: update
+          description: Implement export format generation and manifest handling.
+        - path: core/tools/tests/test_cli_export.py
+          action: create
+          description: Tests for markdown, json, and tar export modes.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document export usage and format tradeoffs.
+    - id: import-command
+      title: Implement import validation and restore flow
+      status: completed
+      commit: null
+      blockers:
+        - bundle-contracts
+      sources:
+        - path: README.md
+          type: internal
+          intent: Preserve installation and repo-layout expectations when importing into a fresh instance.
+        - path: core/tools/agent_memory_mcp/tools/semantic/knowledge_tools.py
+          type: internal
+          intent: Reuse governed write patterns when restoring imported content.
+      postconditions:
+        - description: engram import validates bundle structure before writing anything.
+        - description: Imports restore supported artifact types with clear conflict and overwrite behavior.
+        - description: Tests cover valid import, invalid bundle rejection, and dry-run-style validation output.
+          type: test
+          target: core/tools/tests/test_cli_import.py
+      requires_approval: true
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_import.py
+          action: update
+          description: Implement bundle validation, restore flow, and conflict handling.
+        - path: core/tools/tests/test_cli_import.py
+          action: create
+          description: Tests for bundle validation, restore behavior, and error handling.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document import safety expectations and supported bundle types.
+    - id: portability-verification
+      title: Verify portability docs, integration coverage, and onboarding fit
+      status: completed
+      commit: null
+      blockers:
+        - export-command
+        - import-command
+      sources:
+        - path: HUMANS/docs/QUICKSTART.md
+          type: internal
+          intent: Ensure portability fits the onboarding and migration story.
+        - path: core/tools/tests/test_cli_integration.py
+          type: internal
+          intent: Extend subprocess coverage to export and import flows.
+      postconditions:
+        - description: Export and import tests and subprocess coverage pass.
+          type: test
+          target: core/tools/tests/
+        - description: Quick-start and CLI docs explain migration, backup, and onboarding use cases.
+      requires_approval: true
+      changes:
+        - path: core/tools/tests/test_cli_integration.py
+          action: update
+          description: Add subprocess coverage for export and import commands.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document portability workflows end-to-end.
+        - path: HUMANS/docs/QUICKSTART.md
+          action: update
+          description: Add backup and migration examples.
+review: null

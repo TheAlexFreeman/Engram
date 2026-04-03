@@ -39,7 +39,7 @@ work:
   phases:
     - id: orientation
       title: Orient to existing learning theory coverage and define learning-theory/ scope
-      status: complete
+      status: completed
       blockers: []
       sources:
         - path: core/memory/knowledge/mathematics/information-theory/pac-learning-sample-complexity.md
@@ -86,7 +86,7 @@ work:
 
     - id: modern-generalization-theory
       title: Write files on post-classical generalization theory
-      status: complete
+      status: completed
       blockers:
         - orientation
       sources:
@@ -154,7 +154,7 @@ work:
 
     - id: scale-and-synthesis
       title: Write files on scale, in-context learning theory, and synthesis
-      status: complete
+      status: completed
       blockers:
         - modern-generalization-theory
       sources:

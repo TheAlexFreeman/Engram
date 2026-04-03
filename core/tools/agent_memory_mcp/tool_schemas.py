@@ -8,19 +8,13 @@ from typing import Any
 from .errors import ValidationError
 from .plan_approvals import APPROVAL_RESOLUTIONS
 from .plan_utils import (
-    CHANGE_ACTION_ALIASES,
-    CHANGE_ACTIONS,
+    _PLAN_SLUG_PATTERN,
+    _SESSION_ID_PATTERN,
     COST_TIERS,
     PLAN_OUTCOMES,
-    POSTCONDITION_TYPE_ALIASES,
-    POSTCONDITION_TYPES,
-    SOURCE_TYPE_ALIASES,
-    SOURCE_TYPES,
     TRACE_SPAN_TYPES,
     TRACE_STATUSES,
     VERIFICATION_RESULT_STATUSES,
-    _PLAN_SLUG_PATTERN,
-    _SESSION_ID_PATTERN,
     plan_create_input_schema,
     verification_results_item_schema,
 )
@@ -1325,6 +1319,7 @@ def add_knowledge_file_input_schema() -> dict[str, Any]:
             "trust is fixed to low for new unverified knowledge files.",
             "summary_entry defaults to the first H1 heading or the filename stem when omitted.",
             "expires, when provided, must be an ISO date in YYYY-MM-DD format.",
+            "preview=true returns the governed preview envelope without writing or committing.",
         ],
         properties={
             "path": {
@@ -1364,6 +1359,11 @@ def add_knowledge_file_input_schema() -> dict[str, Any]:
                     {"type": "null"},
                 ],
                 "description": "Optional ISO date (YYYY-MM-DD) recorded in frontmatter for time-bound knowledge.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "Return the governed preview envelope without writing or committing.",
             },
         },
     )

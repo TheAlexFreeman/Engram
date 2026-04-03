@@ -5,6 +5,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -28,8 +29,8 @@ def fail(stderr: str, returncode: int = 1) -> dict[str, object]:
 
 def make_command_runner(
     responses: dict[tuple[str, ...], dict[str, object] | str],
-) -> resolver.CommandRunner:
-    def runner(repo_root: Path, command: list[str], timeout: int) -> resolver.CommandProbeResult:
+) -> Callable[[Path, list[str], int], object]:
+    def runner(repo_root: Path, command: list[str], timeout: int) -> object:
         del repo_root, timeout
         key = tuple(command)
         if key not in responses:
@@ -43,9 +44,9 @@ def make_command_runner(
 
 
 def make_network_runner(
-    responses: dict[tuple[str, int], resolver.NetworkProbeResult],
-) -> resolver.NetworkRunner:
-    def runner(host: str, port: int, timeout: int) -> resolver.NetworkProbeResult:
+    responses: dict[tuple[str, int], object],
+) -> Callable[[str, int, int], object]:
+    def runner(host: str, port: int, timeout: int) -> object:
         del timeout
         key = (host, port)
         if key not in responses:
@@ -113,6 +114,39 @@ class TaskReadinessTests(unittest.TestCase):
 
         self.assertEqual(profile, "node_validation")
         self.assertEqual(source, "repo_inferred")
+
+    def test_terminal_plan_authoring_task_infers_terminal_plan_profile(self) -> None:
+        manifest = resolver.load_manifest(REPO_ROOT)
+        profile, source = resolver.infer_profile(
+            manifest,
+            {"python": True, "node": False},
+            task_text="Use engram plan create with preview before applying the plan",
+        )
+
+        self.assertEqual(profile, "terminal_plan_authoring")
+        self.assertEqual(source, "keyword_match")
+
+    def test_terminal_approval_resolution_task_infers_terminal_plan_profile(self) -> None:
+        manifest = resolver.load_manifest(REPO_ROOT)
+        profile, source = resolver.infer_profile(
+            manifest,
+            {"python": True, "node": False},
+            task_text="Use engram approval resolve to approve the pending phase",
+        )
+
+        self.assertEqual(profile, "terminal_plan_authoring")
+        self.assertEqual(source, "keyword_match")
+
+    def test_trace_inspection_defaults_to_workspace_general(self) -> None:
+        manifest = resolver.load_manifest(REPO_ROOT)
+        profile, source = resolver.infer_profile(
+            manifest,
+            {"python": True, "node": False},
+            task_text="Inspect engram trace output for one session",
+        )
+
+        self.assertEqual(profile, "workspace_general")
+        self.assertEqual(source, "default")
 
     def test_pull_request_profile_reports_ready_when_all_checks_pass(self) -> None:
         command_runner = make_command_runner(
@@ -264,6 +298,29 @@ class TaskReadinessTests(unittest.TestCase):
             resolution["ui_feedback"]["fallback_message"],
             "Validation skipped because the Python runtime or validation tools are missing.",
         )
+
+    def test_terminal_plan_authoring_profile_reports_ready_when_python_and_git_exist(self) -> None:
+        python_command = resolver.detect_python_command(REPO_ROOT)
+        resolution = resolver.resolve_task_readiness(
+            REPO_ROOT,
+            requested_profile="terminal_plan_authoring",
+            command_runner=make_command_runner(
+                {
+                    ("git", "remote", "get-url", "origin"): ok(
+                        "https://github.com/example/repo.git"
+                    ),
+                    ("git", "branch", "--show-current"): ok("alex"),
+                    (python_command, "--version"): ok("Python 3.14.2"),
+                    ("git", "--version"): ok("git version 2.47.0"),
+                }
+            ),
+        )
+
+        self.assertEqual(resolution["errors"], [], "\n".join(resolution["errors"]))
+        self.assertEqual(resolution["profile"], "terminal_plan_authoring")
+        self.assertEqual(resolution["ui_feedback"]["status"], "ready")
+        self.assertEqual(resolution["required_checks"], ["python_runtime", "git_cli"])
+        self.assertEqual(resolution["blockers"], [])
 
     def test_reachable_remote_but_unauthenticated_push_is_classified_as_auth(self) -> None:
         command_runner = make_command_runner(
