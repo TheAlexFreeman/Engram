@@ -10,15 +10,14 @@ from pathlib import Path
 from typing import Any
 
 from ..git_repo import GitRepo
-
-_IGNORED_NAMES = frozenset(
-    {
-        ".git",
-        ".pytest_cache",
-        ".ruff_cache",
-        "__pycache__",
-    }
+from .formatting import (
+    format_snippet,
+    iter_markdown_files,
+    parse_scalar_frontmatter,
+    read_text,
+    render_ranked_results,
 )
+
 _DEFAULT_SCOPES = (
     "memory/knowledge",
     "memory/skills",
@@ -80,30 +79,6 @@ def register_search(
     return parser
 
 
-def _read_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return ""
-
-
-def _parse_scalar_frontmatter(path: Path) -> dict[str, str]:
-    text = _read_text(path)
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return {}
-
-    metadata: dict[str, str] = {}
-    for line in lines[1:]:
-        if line.strip() == "---":
-            break
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        metadata[key.strip()] = value.strip().strip('"').strip("'")
-    return metadata
-
-
 def _content_prefix(repo_root: Path, content_root: Path) -> str:
     try:
         return content_root.relative_to(repo_root).as_posix()
@@ -141,28 +116,6 @@ def _resolve_scope(
     return normalized, (content_root / normalized).resolve()
 
 
-def _iter_markdown_files(scope_path: Path) -> list[Path]:
-    if scope_path.is_file():
-        return [scope_path] if scope_path.suffix == ".md" else []
-
-    if not scope_path.exists():
-        return []
-
-    files: list[Path] = []
-    for path in sorted(scope_path.rglob("*.md")):
-        if any(part in _IGNORED_NAMES for part in path.parts):
-            continue
-        files.append(path)
-    return files
-
-
-def _format_snippet(text: str, *, limit: int = 200) -> str:
-    snippet = " ".join(text.strip().split())
-    if len(snippet) <= limit:
-        return snippet
-    return snippet[: limit - 1].rstrip() + "…"
-
-
 def _keyword_search(
     repo_root: Path,
     content_root: Path,
@@ -196,18 +149,18 @@ def _keyword_search(
                 if len(results) >= limit or file_rel in seen_files:
                     continue
                 seen_files.add(file_rel)
-                metadata = _parse_scalar_frontmatter(content_root / file_rel)
+                metadata = parse_scalar_frontmatter(content_root / file_rel)
                 results.append(
                     SearchResult(
                         path=file_rel,
                         trust=metadata.get("trust"),
-                        snippet=_format_snippet(line_text),
+                        snippet=format_snippet(line_text),
                     )
                 )
         except Exception:
             pass
 
-    for path in _iter_markdown_files(scope_path):
+    for path in iter_markdown_files(scope_path):
         if len(results) >= limit:
             break
         try:
@@ -216,17 +169,17 @@ def _keyword_search(
             rel_path = path.relative_to(repo_root).as_posix()
         if rel_path in seen_files:
             continue
-        text = _read_text(path)
+        text = read_text(path)
         first_match = next((line for line in text.splitlines() if pattern.search(line)), None)
         if first_match is None:
             continue
         seen_files.add(rel_path)
-        metadata = _parse_scalar_frontmatter(path)
+        metadata = parse_scalar_frontmatter(path)
         results.append(
             SearchResult(
                 path=rel_path,
                 trust=metadata.get("trust"),
-                snippet=_format_snippet(first_match),
+                snippet=format_snippet(first_match),
             )
         )
 
@@ -274,12 +227,12 @@ def _semantic_search(
         if file_path in seen_files:
             continue
         seen_files.add(file_path)
-        metadata = _parse_scalar_frontmatter(content_root / file_path)
+        metadata = parse_scalar_frontmatter(content_root / file_path)
         deduped.append(
             SearchResult(
                 path=file_path,
                 trust=metadata.get("trust"),
-                snippet=_format_snippet(str(item["content"])),
+                snippet=format_snippet(str(item["content"])),
                 score=float(item["similarity"]),
             )
         )
@@ -287,25 +240,6 @@ def _semantic_search(
             break
 
     return deduped
-
-
-def _render_human(mode: str, results: list[SearchResult], fallback_note: str | None) -> str:
-    banner = f"Mode: {mode}"
-    if fallback_note:
-        banner = f"{banner} ({fallback_note})"
-
-    if not results:
-        return banner + "\n\nNo results found."
-
-    lines = [banner, ""]
-    for index, item in enumerate(results, start=1):
-        trust_suffix = f" [{item.trust}]" if item.trust else ""
-        header = f"{index}. {item.path}{trust_suffix}"
-        if item.score is not None:
-            header = f"{header} ({item.score:.3f})"
-        lines.append(header)
-        lines.append(f"   {item.snippet}")
-    return "\n".join(lines)
 
 
 def run_search(args: argparse.Namespace, *, repo_root: Path, content_root: Path) -> int:
@@ -357,5 +291,5 @@ def run_search(args: argparse.Namespace, *, repo_root: Path, content_root: Path)
     if args.json:
         print(json.dumps(payload, indent=2))
     else:
-        print(_render_human(mode, results, fallback_note))
+        print(render_ranked_results(mode, results, fallback_note))
     return 0

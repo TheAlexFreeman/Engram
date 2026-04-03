@@ -131,10 +131,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     from .cmd_search import register_search
     from .cmd_status import register_status
+    from .cmd_recall import register_recall
+    from .cmd_log import register_log
     from .cmd_validate import register_validate
 
     register_search(subparsers, parents=[common_parser])
     register_status(subparsers, parents=[common_parser])
+    register_recall(subparsers, parents=[common_parser])
+    register_log(subparsers, parents=[common_parser])
     register_validate(subparsers, parents=[common_parser])
     return parser
 

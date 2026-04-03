@@ -73,6 +73,35 @@ def _seed_warning_fixture(repo_root: Path) -> None:
     warning_file.write_text("# Missing frontmatter warning fixture\n", encoding="utf-8")
 
 
+def _seed_read_surface_fixture(repo_root: Path) -> None:
+    knowledge_dir = repo_root / "core" / "memory" / "knowledge"
+    feature_dir = knowledge_dir / "cli-integration"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "SUMMARY.md").write_text(
+        "---\ntrust: medium\nsource: manual\ncreated: 2026-04-03\n---\n\n"
+        "CLI integration fixtures for recall and log.\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "sentinel.md").write_text(
+        "---\ntrust: high\nsource: manual\ncreated: 2026-04-03\n---\n\n"
+        "Sentinel recall integration phrase for the CLI expansion tests.\n",
+        encoding="utf-8",
+    )
+    access_path = knowledge_dir / "ACCESS.jsonl"
+    existing = access_path.read_text(encoding="utf-8") if access_path.exists() else ""
+    extra_entry = json.dumps(
+        {
+            "file": "memory/knowledge/cli-integration/sentinel.md",
+            "date": "2099-01-01",
+            "task": "integration",
+            "mode": "read",
+            "helpfulness": 0.9,
+            "note": "Seeded for CLI recall/log integration coverage.",
+        }
+    )
+    access_path.write_text(existing + extra_entry + "\n", encoding="utf-8")
+
+
 def test_validate_status_and_search_integration(tmp_path: Path) -> None:
     repo_copy = _copy_repo_tree(tmp_path)
     _seed_warning_fixture(repo_copy)
@@ -100,6 +129,7 @@ def test_validate_status_and_search_integration(tmp_path: Path) -> None:
 def test_json_subcommands_emit_parseable_output(tmp_path: Path) -> None:
     repo_copy = _copy_repo_tree(tmp_path)
     _seed_warning_fixture(repo_copy)
+    _seed_read_surface_fixture(repo_copy)
 
     validate_run = _run_cli(repo_copy, "validate", "--json")
     status_run = _run_cli(repo_copy, "status", "--json")
@@ -112,7 +142,43 @@ def test_json_subcommands_emit_parseable_output(tmp_path: Path) -> None:
         "memory/knowledge",
         "--json",
     )
+    recall_run = _run_cli(
+        repo_copy,
+        "recall",
+        "memory/knowledge/cli-integration/sentinel.md",
+        "--json",
+    )
+    log_run = _run_cli(
+        repo_copy,
+        "log",
+        "--namespace",
+        "knowledge",
+        "--since",
+        "2099-01-01",
+        "--json",
+    )
 
     assert isinstance(json.loads(validate_run.stdout), list)
     assert "stage" in json.loads(status_run.stdout)
     assert "results" in json.loads(search_run.stdout)
+    assert json.loads(recall_run.stdout)["kind"] == "file"
+    assert (
+        json.loads(log_run.stdout)["results"][0]["file"]
+        == "memory/knowledge/cli-integration/sentinel.md"
+    )
+
+
+def test_recall_and_log_human_output_integration(tmp_path: Path) -> None:
+    repo_copy = _copy_repo_tree(tmp_path)
+    _seed_read_surface_fixture(repo_copy)
+
+    recall_run = _run_cli(repo_copy, "recall", "knowledge/cli-integration")
+    log_run = _run_cli(repo_copy, "log", "--namespace", "knowledge", "--since", "2099-01-01")
+
+    assert recall_run.returncode == 0
+    assert "Namespace: memory/knowledge/cli-integration" in recall_run.stdout
+    assert "sentinel.md" in recall_run.stdout
+
+    assert log_run.returncode == 0
+    assert "memory/knowledge/cli-integration/sentinel.md" in log_run.stdout
+    assert "2099-01-01" in log_run.stdout

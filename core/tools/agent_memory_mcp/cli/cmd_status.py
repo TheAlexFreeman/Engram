@@ -5,9 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Any
+
+from .formatting import parse_iso_date, parse_scalar_frontmatter, read_text
 
 _DEFAULT_STAGE = "Exploration"
 _DEFAULT_AGGREGATION_TRIGGER = 15
@@ -26,37 +28,6 @@ def register_status(
     )
     parser.set_defaults(handler=run_status)
     return parser
-
-
-def _read_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8")
-    except OSError:
-        return ""
-
-
-def _parse_iso_date(raw_value: str) -> date | None:
-    try:
-        return datetime.strptime(raw_value, "%Y-%m-%d").date()
-    except ValueError:
-        return None
-
-
-def _parse_scalar_frontmatter(path: Path) -> dict[str, str]:
-    text = _read_text(path)
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return {}
-
-    metadata: dict[str, str] = {}
-    for line in lines[1:]:
-        if line.strip() == "---":
-            break
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        metadata[key.strip()] = value.strip().strip('"').strip("'")
-    return metadata
 
 
 def _parse_stage(init_text: str) -> str:
@@ -96,7 +67,7 @@ def _parse_low_trust_threshold(init_text: str) -> int:
 
 
 def _count_nonempty_lines(path: Path) -> int:
-    return sum(1 for line in _read_text(path).splitlines() if line.strip())
+    return sum(1 for line in read_text(path).splitlines() if line.strip())
 
 
 def _access_counts(content_root: Path, trigger: int) -> list[dict[str, Any]]:
@@ -131,7 +102,7 @@ def _review_queue_entries(content_root: Path) -> list[dict[str, str]]:
     entries: list[dict[str, str]] = []
     current: dict[str, str] | None = None
     in_code_block = False
-    for raw_line in _read_text(path).splitlines():
+    for raw_line in read_text(path).splitlines():
         line = raw_line.strip()
         if line.startswith("```"):
             in_code_block = not in_code_block
@@ -186,8 +157,8 @@ def _summarize_unverified(content_root: Path, low_threshold: int) -> dict[str, A
     for path in sorted(folder.rglob("*.md")):
         if path.name == "SUMMARY.md":
             continue
-        metadata = _parse_scalar_frontmatter(path)
-        effective = _parse_iso_date(metadata.get("last_verified") or metadata.get("created") or "")
+        metadata = parse_scalar_frontmatter(path)
+        effective = parse_iso_date(metadata.get("last_verified") or metadata.get("created") or "")
         age_days = (today - effective).days if effective is not None else None
         item = {
             "path": path.relative_to(content_root).as_posix(),
@@ -209,7 +180,7 @@ def _summarize_unverified(content_root: Path, low_threshold: int) -> dict[str, A
 
 
 def _parse_plan_payload(path: Path) -> dict[str, str]:
-    text = _read_text(path)
+    text = read_text(path)
 
     try:
         import yaml  # type: ignore[import-untyped]
@@ -267,7 +238,7 @@ def _active_plans(content_root: Path) -> list[dict[str, str]]:
 
 
 def _build_payload(content_root: Path) -> dict[str, Any]:
-    init_text = _read_text(content_root / "INIT.md")
+    init_text = read_text(content_root / "INIT.md")
     trigger = _parse_aggregation_trigger(init_text)
     low_threshold = _parse_low_trust_threshold(init_text)
     access_counts = _access_counts(content_root, trigger)
