@@ -3510,6 +3510,9 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         return _json.dumps(result, indent=2)
 
     return {
+        "memory_project_create": memory_project_create,
+        "memory_project_add_questions": memory_project_add_questions,
+        "memory_project_resolve_question": memory_project_resolve_question,
         "memory_plan_create": memory_plan_create,
         "memory_plan_execute": memory_plan_execute,
         "memory_plan_briefing": memory_plan_briefing,

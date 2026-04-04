@@ -384,6 +384,12 @@ error_count = "Error Count"
 errors = "Errors"
 plan_id = "Plan Id"
 project_id = "Project Id"
+open_questions = "Open Questions"
+question_ids = "Question Ids"
+resolved_question = "Resolved Question Id"
+resolved_questions = "Resolved Questions"
+cognitive_mode = "Cognitive Mode"
+project_path = "Project Path"
 summary = "Summary"
 all_passed = "All Passed"
 context_budget = "Context Budget"
@@ -940,6 +946,83 @@ result_fields = [
 fallback_tools = []
 error_kinds = ["NotFoundError", "ValidationError"]
 notes = "Load run state and assemble restart context without rewriting run-state session metadata or emitting traces."
+
+[operations.memory_project_create]
+group = "plan"
+tier = "semantic"
+change_class = "proposed"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "plan"
+writes = [
+  "memory/working/projects/{project_id}/SUMMARY.md",
+  "memory/working/projects/SUMMARY.md",
+  "memory/working/projects/{project_id}/questions.md",
+  "memory/working/projects/{project_id}/plans/{plan_id}.yaml",
+  "memory/working/projects/{project_id}/operations.jsonl",
+]
+owns_frontmatter = [
+  "memory/working/projects/{project_id}/SUMMARY.md",
+  "memory/working/projects/{project_id}/questions.md",
+  "memory/working/projects/{project_id}/plans/{plan_id}.yaml",
+]
+owns_summaries = ["memory/working/projects/SUMMARY.md"]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["project_id", "status", "open_questions", "cognitive_mode"]
+fallback_tools = ["memory_write", "memory_update_frontmatter", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
+notes = "Scaffolds a project (SUMMARY, navigator) with optional questions.md and optional first plan in one commit."
+
+[operations.memory_project_add_questions]
+group = "plan"
+tier = "semantic"
+change_class = "automatic"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "plan"
+writes = [
+  "memory/working/projects/{project_id}/questions.md",
+  "memory/working/projects/{project_id}/SUMMARY.md",
+]
+owns_frontmatter = [
+  "memory/working/projects/{project_id}/questions.md",
+  "memory/working/projects/{project_id}/SUMMARY.md",
+]
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["project_id", "question_ids", "open_questions"]
+fallback_tools = ["memory_write", "memory_update_frontmatter", "memory_commit"]
+error_kinds = ["ValidationError", "StagingError"]
+
+[operations.memory_project_resolve_question]
+group = "plan"
+tier = "semantic"
+change_class = "automatic"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "plan"
+writes = [
+  "memory/working/projects/{project_id}/questions.md",
+  "memory/working/projects/{project_id}/SUMMARY.md",
+]
+owns_frontmatter = [
+  "memory/working/projects/{project_id}/questions.md",
+  "memory/working/projects/{project_id}/SUMMARY.md",
+]
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["project_id", "resolved_question", "open_questions", "resolved_questions"]
+fallback_tools = ["memory_write", "memory_update_frontmatter", "memory_commit"]
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
 
 [operations.memory_record_trace]
 group = "plan"
