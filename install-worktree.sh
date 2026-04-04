@@ -18,18 +18,22 @@
 
 set -euo pipefail
 
-ENGRAM_REPO="${ENGRAM_REPO:-https://github.com/TheAlexFreeman/Engram.git}"
-ENGRAM_BRANCH="${ENGRAM_BRANCH:-main}"
+main() {
+    ENGRAM_REPO="${ENGRAM_REPO:-https://github.com/TheAlexFreeman/Engram.git}"
+    ENGRAM_BRANCH="${ENGRAM_BRANCH:-main}"
 
-# Create a temp dir and register cleanup.
-SEED_DIR="$(mktemp -d)"
-cleanup() {
-    rm -rf "$SEED_DIR"
+    # Create a temp dir and register cleanup.
+    SEED_DIR="$(mktemp -d)"
+    cleanup() {
+        rm -rf "$SEED_DIR"
+    }
+    trap cleanup EXIT
+
+    echo "[install-worktree] Fetching Engram seed from ${ENGRAM_REPO} (branch: ${ENGRAM_BRANCH}) ..."
+    git clone --depth 1 --branch "$ENGRAM_BRANCH" --quiet "$ENGRAM_REPO" "$SEED_DIR" </dev/null
+
+    echo "[install-worktree] Running init-worktree.sh ..."
+    bash "$SEED_DIR/HUMANS/setup/init-worktree.sh" "$@"
 }
-trap cleanup EXIT
 
-echo "[install-worktree] Fetching Engram seed from ${ENGRAM_REPO} (branch: ${ENGRAM_BRANCH}) ..."
-git clone --depth 1 --branch "$ENGRAM_BRANCH" --quiet "$ENGRAM_REPO" "$SEED_DIR"
-
-echo "[install-worktree] Running init-worktree.sh ..."
-bash "$SEED_DIR/HUMANS/setup/init-worktree.sh" "$@"
+main "$@"
