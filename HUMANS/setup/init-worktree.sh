@@ -905,7 +905,7 @@ if [[ "$DRY_RUN" == true ]]; then
     print_cmd git -C "$TEMP_WORKTREE" checkout --orphan "$BRANCH_NAME"
     print_cmd git -C "$TEMP_WORKTREE" rm -rf --ignore-unmatch .
     print_cmd git -C "$TEMP_WORKTREE" add --all
-    print_cmd git -C "$TEMP_WORKTREE" commit -m "[system] Initialize Engram worktree" -m "Seeded from Engram on $TODAY."
+    print_cmd git -C "$TEMP_WORKTREE" commit --no-verify -m "[system] Initialize Engram worktree" -m "Seeded from Engram on $TODAY."
     print_cmd git worktree remove "$TEMP_WORKTREE"
     print_cmd git worktree add "$WORKTREE_ABS" "$BRANCH_NAME"
     echo "[dry-run] Worktree initialization commands printed only; no files or git state changed."
@@ -941,7 +941,7 @@ write_worktree_hygiene_files "$TEMP_WORKTREE"
 write_codebase_starters "$TEMP_WORKTREE" "$HOST_ROOT_NATIVE" "$WORKTREE_NATIVE" "$BRANCH_NAME" "$PROJECT_NAME"
 
 run_cmd git -C "$TEMP_WORKTREE" add --all
-run_cmd git -C "$TEMP_WORKTREE" commit -m "[system] Initialize Engram worktree" -m "Seeded from Engram on $TODAY."
+run_cmd git -C "$TEMP_WORKTREE" commit --no-verify -m "[system] Initialize Engram worktree" -m "Seeded from Engram on $TODAY."
 run_cmd git worktree remove "$TEMP_WORKTREE"
 run_cmd git worktree add "$WORKTREE_ABS" "$BRANCH_NAME"
 

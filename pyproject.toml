@@ -59,6 +59,14 @@ packages = [
 [tool.setuptools.package-dir]
 engram_mcp = "core/tools"
 
+# Include seed content needed by `engram init` for worktree bootstrapping.
+# Paths are relative to the repository root.
+[tool.setuptools.package-data]
+"*" = [
+    "../../HUMANS/setup/init-worktree-paths.txt",
+    "../../HUMANS/setup/templates/**/*",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

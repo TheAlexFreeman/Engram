@@ -140,6 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
     from .cmd_diff import register_diff
     from .cmd_export import register_export
     from .cmd_import import register_import
+    from .cmd_init import register_init
     from .cmd_log import register_log
     from .cmd_plan import register_plan
     from .cmd_project import register_project
@@ -152,6 +153,7 @@ def build_parser() -> argparse.ArgumentParser:
     from .cmd_trace import register_trace
     from .cmd_validate import register_validate
 
+    register_init(subparsers, parents=[common_parser])
     register_search(subparsers, parents=[common_parser])
     register_status(subparsers, parents=[common_parser])
     register_add(subparsers, parents=[common_parser])
@@ -173,20 +175,33 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# Subcommands that run from a host repo rather than an Engram checkout.
+_HOST_REPO_COMMANDS = frozenset({"init"})
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    repo_root = resolve_repo_root(getattr(args, "repo_root", None))
+
+    command = getattr(args, "command", None)
+
+    # 'init' operates on the host repo, not an Engram checkout — skip normal
+    # repo-root resolution and pass cwd as a placeholder.
+    if command in _HOST_REPO_COMMANDS:
+        repo_root = Path.cwd()
+        content_root = repo_root
+    else:
+        repo_root = resolve_repo_root(getattr(args, "repo_root", None))
+        content_root = resolve_content_root(repo_root)
 
     if args.version:
         print(_package_version(repo_root))
         return 0
 
-    if not getattr(args, "command", None):
+    if not command:
         parser.print_help()
         return 0
 
-    content_root = resolve_content_root(repo_root)
     handler = getattr(args, "handler", None)
     if not callable(handler):
         parser.print_help()
