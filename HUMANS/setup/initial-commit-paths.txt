@@ -752,6 +752,13 @@ core/memory/working/projects/general-knowledge-base/plans/non-western-philosophy
 core/memory/working/projects/general-knowledge-base/questions.md
 core/memory/working/projects/getting-to-know-you/SUMMARY.md
 core/memory/working/projects/getting-to-know-you/questions.md
+core/memory/working/projects/multi-user-support/SUMMARY.md
+core/memory/working/projects/multi-user-support/operations.jsonl
+core/memory/working/projects/multi-user-support/plans/concurrent-session-writes.yaml
+core/memory/working/projects/multi-user-support/plans/frontmatter-visibility.yaml
+core/memory/working/projects/multi-user-support/plans/role-based-governance.yaml
+core/memory/working/projects/multi-user-support/plans/team-activity-feed.yaml
+core/memory/working/projects/multi-user-support/plans/user-identity-and-namespacing.yaml
 core/memory/working/projects/session-management/IN/claude-research--openclaw-memory.md
 core/memory/working/projects/session-management/IN/deep-research--openclaw-memory.md
 core/memory/working/projects/session-management/SUMMARY.md
@@ -774,6 +781,7 @@ core/tools/agent_memory_mcp/cli/cmd_export.py
 core/tools/agent_memory_mcp/cli/cmd_import.py
 core/tools/agent_memory_mcp/cli/cmd_log.py
 core/tools/agent_memory_mcp/cli/cmd_plan.py
+core/tools/agent_memory_mcp/cli/cmd_project.py
 core/tools/agent_memory_mcp/cli/cmd_promote.py
 core/tools/agent_memory_mcp/cli/cmd_recall.py
 core/tools/agent_memory_mcp/cli/cmd_review.py
