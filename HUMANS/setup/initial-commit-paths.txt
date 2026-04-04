@@ -778,6 +778,7 @@ core/tools/agent_memory_mcp/cli/cmd_promote.py
 core/tools/agent_memory_mcp/cli/cmd_recall.py
 core/tools/agent_memory_mcp/cli/cmd_review.py
 core/tools/agent_memory_mcp/cli/cmd_search.py
+core/tools/agent_memory_mcp/cli/cmd_setup_venv.py
 core/tools/agent_memory_mcp/cli/cmd_status.py
 core/tools/agent_memory_mcp/cli/cmd_trace.py
 core/tools/agent_memory_mcp/cli/cmd_validate.py
@@ -876,6 +877,7 @@ core/tools/tests/test_cli_promote.py
 core/tools/tests/test_cli_recall.py
 core/tools/tests/test_cli_review.py
 core/tools/tests/test_cli_search.py
+core/tools/tests/test_cli_setup_venv.py
 core/tools/tests/test_cli_status.py
 core/tools/tests/test_cli_trace.py
 core/tools/tests/test_cli_validate.py
