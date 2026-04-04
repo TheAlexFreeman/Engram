@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
-import json
 import re
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
+from ...response_envelope import dump_tool_result
 from ..name_index import generate_names_index
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
 
+    from ...session_state import SessionState
 
-def register_generation(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
+
+def register_generation(
+    mcp: "FastMCP",
+    get_repo,
+    get_root,
+    H,
+    *,
+    session_state: "SessionState | None" = None,
+) -> dict[str, object]:
     """Register generation read tools and return their callables."""
     _CURATION_FALSE_POSITIVE_MAX = H._CURATION_FALSE_POSITIVE_MAX
     _CURATION_HIGH_ACCESS_THRESHOLD = H._CURATION_HIGH_ACCESS_THRESHOLD
@@ -142,6 +151,8 @@ def register_generation(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         draft = "\n".join(lines).rstrip() + "\n"
         word_count = _word_count(draft)
         draft += f"\n<!-- Word count: {word_count} (target: 200-800 words) -->\n"
+        if session_state is not None:
+            session_state.record_tool_call()
         return draft
 
     # ------------------------------------------------------------------
@@ -193,7 +204,9 @@ def register_generation(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
-        return json.dumps(payload, indent=2)
+        if session_state is not None:
+            session_state.record_tool_call()
+        return dump_tool_result(payload, session_state)
 
     # ------------------------------------------------------------------
     # memory_access_analytics
@@ -411,7 +424,9 @@ def register_generation(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
             "least_accessed": least_accessed,
             "suggested_actions": suggested_actions,
         }
-        return json.dumps(payload, indent=2)
+        if session_state is not None:
+            session_state.record_tool_call()
+        return dump_tool_result(payload, session_state)
 
     # ------------------------------------------------------------------
     # memory_diff_branch

@@ -155,7 +155,13 @@ class AgentMemoryWriteToolTests(unittest.TestCase):
     ) -> dict[str, Any]:
         preview_kwargs = dict(kwargs)
         preview_kwargs[preview_argument] = True
-        return json.loads(asyncio.run(tools[tool_name](**preview_kwargs)))
+        return self._load_tool_payload(asyncio.run(tools[tool_name](**preview_kwargs)))
+
+    def _load_tool_payload(self, raw: str) -> Any:
+        payload = cast(dict[str, Any], json.loads(raw))
+        if "_session" in payload and "result" in payload:
+            return payload["result"]
+        return payload
 
     def _approval_token_for(
         self,
@@ -301,7 +307,7 @@ preview_argument = "preview"
 
         self._assert_same_path(resolved_root, repo_root.parent)
         self._assert_same_path(repo.root, repo_root.parent)
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_read_file"](path="memory/knowledge/topic/note.md"))
         )
         self.assertTrue(payload["inline"])
@@ -316,7 +322,7 @@ preview_argument = "preview"
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_read_file"](path="memory/knowledge/topic/large.md"))
         )
 
@@ -344,7 +350,7 @@ This is the preview body for the markdown note.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_list_folder"](path="memory/knowledge/topic", preview_chars=20)
             )
@@ -395,7 +401,7 @@ Philosophy of mind studies consciousness intentionality and representation.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_review_unverified"](
                     folder_path="memory/knowledge/_unverified",
@@ -592,7 +598,7 @@ current_focus: Ship the first project milestone.
                 commit_sha="abc1234",
             )
         )
-        payload = json.loads(raw)
+        payload = self._load_tool_payload(raw)
         plan_body = yaml.safe_load(
             (
                 repo_root
@@ -660,7 +666,7 @@ origin_session: manual
                 trust_level="high",
             )
         )
-        payload = json.loads(raw)
+        payload = self._load_tool_payload(raw)
         target_path = repo_root / "memory" / "knowledge" / "literature" / "test-note.md"
         old_path = (
             repo_root / "memory" / "knowledge" / "_unverified" / "literature" / "test-note.md"
@@ -1609,7 +1615,7 @@ last_verified: 2026-03-17
         )
         tools = self._create_tools(repo_root, enable_raw_write_tools=True)
 
-        read_payload = json.loads(
+        read_payload = self._load_tool_payload(
             asyncio.run(tools["memory_read_file"](path="memory/working/projects/test-plan.md"))
         )
         payload = json.loads(
@@ -2119,7 +2125,7 @@ declared_gaps = []
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_get_capabilities"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_get_capabilities"]()))
 
         self.assertEqual(payload["kind"], "agent-memory-capabilities")
         self.assertEqual(payload["contract_versions"]["capabilities"], 1)
@@ -2135,7 +2141,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_plan_schema"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_plan_schema"]()))
         failure_result_item = payload["properties"]["phases"]["items"]["properties"]["failures"][
             "items"
         ]["properties"]["verification_results"]["items"]["anyOf"][0]
@@ -2163,13 +2169,13 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        plan_payload = json.loads(
+        plan_payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_plan_create"))
         )
-        access_payload = json.loads(
+        access_payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_log_access_batch"))
         )
-        legacy_payload = json.loads(asyncio.run(tools["memory_plan_schema"]()))
+        legacy_payload = self._load_tool_payload(asyncio.run(tools["memory_plan_schema"]()))
 
         self.assertEqual(plan_payload, legacy_payload)
         self.assertEqual(access_payload["tool_name"], "memory_log_access_batch")
@@ -2183,7 +2189,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root, enable_raw_write_tools=True)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_update_frontmatter_bulk"))
         )
 
@@ -2196,7 +2202,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root, enable_raw_write_tools=True)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_update_frontmatter"))
         )
 
@@ -2208,7 +2214,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_record_trace"))
         )
         recommended_cost = payload["properties"]["cost"]["anyOf"][0]
@@ -2233,7 +2239,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_register_tool"))
         )
 
@@ -2252,7 +2258,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_record_periodic_review"))
         )
         apply_guard = payload["allOf"][0]
@@ -2275,7 +2281,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_revert_commit"))
         )
 
@@ -2290,7 +2296,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_promote_knowledge"))
         )
 
@@ -2305,7 +2311,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_promote_knowledge_subtree"))
         )
 
@@ -2321,7 +2327,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_reorganize_path"))
         )
 
@@ -2333,7 +2339,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_update_names_index"))
         )
 
@@ -2346,7 +2352,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_demote_knowledge"))
         )
 
@@ -2360,7 +2366,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_archive_knowledge"))
         )
 
@@ -2374,7 +2380,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_add_knowledge_file"))
         )
 
@@ -2389,7 +2395,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_checkpoint"))
         )
 
@@ -2402,7 +2408,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_append_scratchpad"))
         )
 
@@ -2415,7 +2421,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_record_chat_summary"))
         )
 
@@ -2427,7 +2433,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_record_reflection"))
         )
 
@@ -2448,7 +2454,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_resolve_review_item"))
         )
 
@@ -2461,7 +2467,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_plan_resume"))
         )
 
@@ -2474,7 +2480,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_plan_review"))
         )
 
@@ -2487,7 +2493,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_stage_external"))
         )
 
@@ -2503,7 +2509,9 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_tool_schema"](tool_name="memory_run_eval")))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_run_eval"))
+        )
 
         self.assertEqual(payload["tool_name"], "memory_run_eval")
         self.assertEqual(payload["required"], ["session_id"])
@@ -2514,7 +2522,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_eval_report"))
         )
 
@@ -2526,7 +2534,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_log_access"))
         )
 
@@ -2540,7 +2548,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_run_aggregation"))
         )
 
@@ -2562,7 +2570,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_session_flush"))
         )
 
@@ -2576,7 +2584,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_reset_session_state"))
         )
 
@@ -2588,7 +2596,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_prune_redundant_links"))
         )
 
@@ -2600,7 +2608,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_audit_link_density"))
         )
 
@@ -2613,7 +2621,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_prune_weak_links"))
         )
 
@@ -2629,7 +2637,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_analyze_graph"))
         )
 
@@ -2641,7 +2649,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_list_pending_reviews"))
         )
 
@@ -2655,7 +2663,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_update_user_trait"))
         )
 
@@ -2670,7 +2678,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_update_skill"))
         )
 
@@ -2686,7 +2694,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_list_plans"))
         )
 
@@ -2698,7 +2706,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_plan_verify"))
         )
 
@@ -2710,7 +2718,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_query_traces"))
         )
 
@@ -2723,7 +2731,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_plan_briefing"))
         )
 
@@ -2738,7 +2746,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_scan_drop_zone"))
         )
 
@@ -2749,7 +2757,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_get_tool_policy"))
         )
 
@@ -2765,7 +2773,7 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_tool_schema"](tool_name="memory_semantic_search"))
         )
 
@@ -2780,7 +2788,9 @@ declared_gaps = []
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_tool_schema"](tool_name="memory_reindex")))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_reindex"))
+        )
 
         self.assertEqual(payload["tool_name"], "memory_reindex")
         self.assertFalse(payload["properties"]["force"]["default"])
@@ -2802,7 +2812,7 @@ declared_gaps = []
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_get_capabilities"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_get_capabilities"]()))
 
         self.assertIn("error", payload)
         self.assertIn("Could not parse capability manifest", payload["error"])
@@ -2813,7 +2823,9 @@ declared_gaps = []
         repo_root = self._init_repo(self._policy_contract_seed_files())
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_get_policy_state"](operation="create_plan")))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_get_policy_state"](operation="create_plan"))
+        )
 
         self.assertEqual(payload["operation"], "create_plan")
         self.assertEqual(payload["tool"], "memory_plan_create")
@@ -2829,7 +2841,9 @@ declared_gaps = []
         repo_root = self._init_repo(seed)
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_get_policy_state"](path="INIT.md")))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_get_policy_state"](path="INIT.md"))
+        )
 
         self.assertEqual(payload["change_class"], "protected")
         self.assertTrue(payload["path_policy"]["protected_surface"])
@@ -2844,7 +2858,7 @@ declared_gaps = []
         repo_root = self._init_repo(seed)
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_route_intent"](
                     intent="promote this unverified knowledge file to verified knowledge",
@@ -2864,7 +2878,7 @@ declared_gaps = []
         repo_root = self._init_repo(seed)
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_route_intent"](
                     intent="promote this unverified knowledge subtree",
@@ -2880,7 +2894,7 @@ declared_gaps = []
         repo_root = self._init_repo(self._policy_contract_seed_files())
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_route_intent"](
                     intent="create a new implementation plan for MCP ergonomics",
@@ -2911,7 +2925,7 @@ See [target](../knowledge/topic/target.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_find_references"]("memory/knowledge/topic/target.md"))
         )
 
@@ -2941,7 +2955,7 @@ See [target](../knowledge/topic/target.md).
         )
         tools = self._create_tools(repo_root)
 
-        ok_payload = json.loads(
+        ok_payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_resolve_link"](
                     path="memory/knowledge/topic/note.md",
@@ -2949,7 +2963,7 @@ See [target](../knowledge/topic/target.md).
                 )
             )
         )
-        broken_payload = json.loads(
+        broken_payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_resolve_link"](
                     path="memory/knowledge/topic/note.md",
@@ -2973,7 +2987,7 @@ See [target](../knowledge/topic/target.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_scan_frontmatter_health"]("memory/knowledge/topic"))
         )
 
@@ -2991,7 +3005,7 @@ See [target](../knowledge/topic/target.md).
         )
         tools = self._create_tools(repo_root)
 
-        without_body = json.loads(
+        without_body = self._load_tool_payload(
             asyncio.run(
                 tools["memory_find_references"](
                     "memory/knowledge/topic/target.md",
@@ -2999,7 +3013,7 @@ See [target](../knowledge/topic/target.md).
                 )
             )
         )
-        with_body = json.loads(
+        with_body = self._load_tool_payload(
             asyncio.run(
                 tools["memory_find_references"](
                     "memory/knowledge/topic/target.md",
@@ -3032,7 +3046,9 @@ See [missing](missing.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_validate_links"]("memory/knowledge/topic")))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_validate_links"]("memory/knowledge/topic"))
+        )
 
         self.assertEqual(payload["scope"], "memory/knowledge/topic")
         self.assertEqual(payload["checked"], 4)
@@ -3078,7 +3094,7 @@ See [topic](../knowledge/topic/target.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_validate_links"]("plans")))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_validate_links"]("plans")))
 
         self.assertEqual(payload["scope"], "plans")
         self.assertEqual(payload["checked"], 2)
@@ -3095,7 +3111,7 @@ See [topic](../knowledge/topic/target.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_suggest_links"](
                     path="memory/knowledge/philosophy/compression.md",
@@ -3119,7 +3135,7 @@ See [topic](../knowledge/topic/target.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_suggest_links"](
                     path="memory/knowledge/philosophy/compression.md",
@@ -3147,7 +3163,7 @@ See [topic](../knowledge/topic/target.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_suggest_links"](
                     path="memory/knowledge/philosophy/compression.md",
@@ -3179,7 +3195,9 @@ See [topic](../knowledge/topic/target.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_cross_domain_links"]("memory/knowledge")))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_cross_domain_links"]("memory/knowledge"))
+        )
 
         self.assertGreaterEqual(payload["domain_count"], 3)
         self.assertGreaterEqual(len(payload["directional_pairs"]), 1)
@@ -3196,7 +3214,7 @@ See [topic](../knowledge/topic/target.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_cross_domain_links"](
                     "memory/knowledge",
@@ -3229,7 +3247,9 @@ See [topic](../knowledge/topic/target.md).
             encoding="utf-8",
         )
 
-        payload = json.loads(asyncio.run(tools["memory_link_delta"]("memory/knowledge", "HEAD")))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_link_delta"]("memory/knowledge", "HEAD"))
+        )
 
         self.assertEqual(payload["base_ref"], "HEAD")
         self.assertGreaterEqual(len(payload["added_edges"]), 1)
@@ -3253,7 +3273,7 @@ See [topic](../knowledge/topic/target.md).
             encoding="utf-8",
         )
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_link_delta"](
                     "memory/knowledge",
@@ -3282,7 +3302,7 @@ See [topic](../knowledge/topic/target.md).
             encoding="utf-8",
         )
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_link_delta"](
                     "memory/knowledge",
@@ -3322,7 +3342,7 @@ See [alpha](../knowledge/ai-frontier/alpha.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_reorganize_preview"](
                     "memory/knowledge/ai-frontier",
@@ -3368,7 +3388,7 @@ See [alpha](../knowledge/ai-frontier/alpha.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_reorganize_preview"](
                     "memory/knowledge/ai-frontier",
@@ -3569,7 +3589,9 @@ Primary body.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_suggest_structure"]("memory/knowledge/ai")))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_suggest_structure"]("memory/knowledge/ai"))
+        )
 
         self.assertEqual(payload["scope"], "memory/knowledge/ai")
         self.assertTrue(
@@ -3589,7 +3611,7 @@ Primary body.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_suggest_structure"](
                     "knowledge",
@@ -3615,7 +3637,7 @@ Primary body.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_suggest_structure"](
                     "memory/knowledge/ai",
@@ -3631,7 +3653,7 @@ Primary body.
         repo_root = self._init_repo(self._policy_contract_seed_files())
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_route_intent"](
                     intent="log access for this retrieval",
@@ -3649,7 +3671,7 @@ Primary body.
         repo_root = self._init_repo(seed)
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_route_intent"](
                     intent="edit this random file",
@@ -3703,7 +3725,7 @@ Primary body.
         repo_root = self._init_repo(seed)
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_session_bootstrap"](max_active_plans=1, max_review_items=1))
         )
 
@@ -3772,7 +3794,7 @@ delta epsilon zeta
         repo_root = self._init_repo(seed)
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_prepare_unverified_review"](
                     folder_path="memory/knowledge/_unverified",
@@ -3818,7 +3840,7 @@ trust: low
         repo_root = self._init_repo(seed)
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_prepare_unverified_review"](
                     folder_path="memory/knowledge/_unverified/topic",
@@ -3871,7 +3893,7 @@ trust: low
         repo_root = self._init_repo(seed)
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_prepare_promotion_batch"](
                     folder_path="memory/knowledge/_unverified/topic",
@@ -3917,7 +3939,7 @@ trust: low
         repo_root = self._init_repo(seed)
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_prepare_promotion_batch"](
                     folder_path="memory/knowledge/_unverified/topic",
@@ -3981,7 +4003,7 @@ trust: low
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_prepare_periodic_review"](
                     max_queue_items=1,
@@ -4102,7 +4124,7 @@ See [missing](missing.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_check_cross_references"](path="memory/knowledge/topic"))
         )
 
@@ -4144,7 +4166,7 @@ See [missing](missing.md).
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_check_cross_references"](
                     path="plans",
@@ -4272,7 +4294,7 @@ Secondary body.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_generate_names_index"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_generate_names_index"]()))
 
         self.assertEqual(payload["knowledge_path"], "memory/knowledge")
         self.assertEqual(payload["output_path"], "memory/knowledge/NAMES.md")
@@ -4344,7 +4366,9 @@ Secondary body.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_access_analytics"](folders="knowledge")))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_access_analytics"](folders="knowledge"))
+        )
 
         self.assertEqual(payload["total_entries"], 11)
         self.assertEqual(payload["unique_files"], 3)
@@ -4377,7 +4401,7 @@ Secondary body.
         repo_root = self._init_repo({"memory/knowledge/ACCESS.jsonl": ""})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_access_analytics"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_access_analytics"]()))
 
         self.assertEqual(payload["total_entries"], 0)
         self.assertEqual(payload["unique_files"], 0)
@@ -4416,7 +4440,7 @@ Secondary body.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_diff_branch"](base="core")))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_diff_branch"](base="core")))
 
         self.assertEqual(payload["base_branch"], "core")
         self.assertEqual(payload["current_branch"], "feature/curation")
@@ -4431,7 +4455,9 @@ Secondary body.
         repo_root = self._init_repo({"memory/knowledge/base.md": "# Base\n"})
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_diff_branch"](base="missing-base")))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_diff_branch"](base="missing-base"))
+        )
 
         self.assertIn("error", payload)
         self.assertEqual(payload["base_branch"], "missing-base")
@@ -5356,7 +5382,7 @@ Direct and concise.
             (repo_root / "memory" / "users" / "profile.md").read_text(encoding="utf-8"),
         )
 
-        applied = json.loads(
+        applied = self._load_tool_payload(
             asyncio.run(
                 tools["memory_update_user_trait"](
                     file="profile",
@@ -5453,7 +5479,7 @@ Direct and concise.
             key="tone",
             value="Even more direct.",
         )
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_update_user_trait"](
                     file="profile",
@@ -5577,7 +5603,7 @@ Direct and concise.
                 system_observations="No tooling surprises.",
             )
         )
-        payload = json.loads(raw)
+        payload = self._load_tool_payload(raw)
 
         reflection = (
             repo_root / "memory" / "activity" / "2026" / "03" / "20" / "chat-004" / "reflection.md"
@@ -5626,7 +5652,7 @@ Direct and concise.
                 ],
             )
         )
-        payload = json.loads(raw)
+        payload = self._load_tool_payload(raw)
 
         session_summary = (
             repo_root / "memory" / "activity" / "2026" / "03" / "20" / "chat-002" / "SUMMARY.md"
@@ -5848,7 +5874,7 @@ Direct and concise.
                     label="Decision",
                 )
             )
-        payload = json.loads(raw)
+        payload = self._load_tool_payload(raw)
 
         current = (repo_root / "memory" / "working" / "CURRENT.md").read_text(encoding="utf-8")
         head_after = subprocess.run(
@@ -5897,7 +5923,7 @@ Direct and concise.
                     session_id="memory/activity/2026/03/29/chat-001",
                 )
             )
-        payload = json.loads(raw)
+        payload = self._load_tool_payload(raw)
         current = (repo_root / "memory" / "working" / "CURRENT.md").read_text(encoding="utf-8")
 
         self.assertEqual(
@@ -5925,7 +5951,7 @@ Direct and concise.
             asyncio.run(tools["memory_checkpoint"](content="First note.", label="One"))
         with time_machine.travel("2026-03-29T09:15:00Z", tick=False):
             raw = asyncio.run(tools["memory_checkpoint"](content="Second note.", label="Two"))
-        payload = json.loads(raw)
+        payload = self._load_tool_payload(raw)
 
         current = (repo_root / "memory" / "working" / "CURRENT.md").read_text(encoding="utf-8")
         staged = subprocess.run(
@@ -5982,7 +6008,7 @@ Direct and concise.
                     label="Proxy compaction",
                 )
             )
-        payload = json.loads(raw)
+        payload = self._load_tool_payload(raw)
 
         checkpoint = (
             repo_root / "memory" / "activity" / "2026" / "03" / "29" / "chat-002" / "checkpoint.md"
@@ -6039,7 +6065,7 @@ Direct and concise.
                         summary="Recovered the current session via sentinel.",
                     )
                 )
-        payload = json.loads(raw)
+        payload = self._load_tool_payload(raw)
 
         checkpoint = (
             repo_root / "memory" / "activity" / "2026" / "03" / "29" / "chat-003" / "checkpoint.md"
@@ -6944,7 +6970,7 @@ Load compact context.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_get_maturity_signals"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_get_maturity_signals"]()))
 
         self.assertEqual(payload["access_scope"], "hot_only")
         self.assertEqual(payload["access_density"], 1)
@@ -7552,7 +7578,7 @@ current_focus: Example project.
         repo_root = self._init_repo({"memory/knowledge/test.md": "# Note\n"})
         tools = self._create_tools(repo_root, enable_raw_write_tools=True)
 
-        read_payload = json.loads(
+        read_payload = self._load_tool_payload(
             asyncio.run(tools["memory_read_file"](path="memory/knowledge/test.md"))
         )
         payload = json.loads(
@@ -7580,7 +7606,7 @@ current_focus: Example project.
         repo_root = self._init_repo({"memory/knowledge/test.md": "# Hello\n\nSome text.\n"})
         tools = self._create_tools(repo_root, enable_raw_write_tools=True)
 
-        read_payload = json.loads(
+        read_payload = self._load_tool_payload(
             asyncio.run(tools["memory_read_file"](path="memory/knowledge/test.md"))
         )
         payload = json.loads(
@@ -8231,7 +8257,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_get_maturity_signals"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_get_maturity_signals"]()))
 
         self.assertEqual(payload["total_sessions"], 3)
         self.assertEqual(payload["session_id_coverage_pct"], 100.0)
@@ -8287,7 +8313,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_get_maturity_signals"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_get_maturity_signals"]()))
 
         self.assertEqual(
             payload["access_density_by_task_id"],
@@ -8355,7 +8381,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_get_maturity_signals"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_get_maturity_signals"]()))
 
         self.assertEqual(payload["total_sessions"], 1)
         self.assertEqual(payload["session_id_coverage_pct"], 25.0)
@@ -8597,7 +8623,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
         )
 
@@ -8619,7 +8645,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
         )
 
@@ -8646,7 +8672,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
         )
 
@@ -8670,7 +8696,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
         )
 
@@ -8700,7 +8726,7 @@ current_focus: Example project.
         tools = self._create_tools(repo_root)
 
         with time_machine.travel("2026-03-20T12:00:00Z", tick=False):
-            payload = json.loads(
+            payload = self._load_tool_payload(
                 asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
             )
 
@@ -8732,7 +8758,7 @@ current_focus: Example project.
         tools = self._create_tools(repo_root)
 
         with time_machine.travel("2026-03-14T12:00:00Z", tick=False):
-            payload = json.loads(
+            payload = self._load_tool_payload(
                 asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
             )
 
@@ -8770,7 +8796,7 @@ current_focus: Example project.
         (repo_root / "memory" / "knowledge" / "draft.md").write_text("# Draft\n", encoding="utf-8")
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
         )
 
@@ -8799,7 +8825,9 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_git_log"](n=1, use_host_repo=True)))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_git_log"](n=1, use_host_repo=True))
+        )
 
         self.assertEqual(len(payload), 1)
         self.assertEqual(payload[0]["message"], "host update")
@@ -8828,7 +8856,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_git_log"](n=2)))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_git_log"](n=2)))
 
         self.assertEqual(
             [entry["message"] for entry in payload], ["update plan", "update identity"]
@@ -8858,7 +8886,9 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_git_log"](n=1, since="2026-03-01")))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_git_log"](n=1, since="2026-03-01"))
+        )
 
         self.assertEqual(len(payload), 1)
         self.assertEqual(payload[0]["message"], "update plan")
@@ -8887,7 +8917,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_git_log"](
                     n=5,
@@ -8952,7 +8982,7 @@ current_focus: Example project.
         repo_root.mkdir(parents=True, exist_ok=True)
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_git_health"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_git_health"]()))
 
         self.assertTrue(payload["repo_valid"])
         self.assertFalse(payload["head_valid"])
@@ -9004,7 +9034,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_check_knowledge_freshness"](paths="memory/knowledge/app.md"))
         )
 
@@ -9034,7 +9064,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_check_knowledge_freshness"](paths="memory/knowledge/app.md"))
         )
 
@@ -9090,7 +9120,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
         )
 
@@ -9143,7 +9173,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_audit_trust"](include_categories="knowledge"))
         )
 
@@ -9201,7 +9231,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_check_aggregation_triggers"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_check_aggregation_triggers"]()))
 
         self.assertEqual(payload["aggregation_trigger"], 15)
         self.assertEqual(payload["near_trigger_window"], 3)
@@ -9236,7 +9266,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_check_aggregation_triggers"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_check_aggregation_triggers"]()))
 
         self.assertEqual(payload["files_checked"], 1)
         self.assertEqual(payload["reports"][0]["entries"], 1)
@@ -9274,7 +9304,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_check_aggregation_triggers"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_check_aggregation_triggers"]()))
 
         self.assertEqual(payload["files_checked"], 1)
         self.assertEqual(
@@ -9310,7 +9340,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_session_health_check"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_session_health_check"]()))
 
         self.assertEqual(payload["aggregation_threshold"], 15)
         self.assertEqual(
@@ -9340,7 +9370,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_session_health_check"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_session_health_check"]()))
 
         self.assertEqual(payload["last_periodic_review"], "2026-01-01")
         self.assertTrue(payload["periodic_review_due"])
@@ -9377,7 +9407,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_session_health_check"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_session_health_check"]()))
 
         self.assertEqual(payload["review_queue_pending"], 1)
         self.assertEqual(payload["aggregation_due"], [])
@@ -9434,7 +9464,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_aggregate_access"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_aggregate_access"]()))
 
         self.assertEqual(payload["entries_considered"], 11)
         self.assertEqual(payload["files_considered"], 3)
@@ -9493,7 +9523,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_aggregate_access"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_aggregate_access"]()))
 
         self.assertEqual(payload["entries_considered"], 1)
         self.assertEqual(payload["files_considered"], 1)
@@ -9545,7 +9575,7 @@ current_focus: Example project.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_aggregate_access"](
                     folder="plans",
@@ -9704,7 +9734,7 @@ Skill sync.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_run_periodic_review"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_run_periodic_review"]()))
 
         self.assertTrue(payload["review_due"]["due"])
         maturity = payload["ordered_checks"]["maturity_assessment"]
@@ -9832,7 +9862,7 @@ Topic A.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_run_periodic_review"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_run_periodic_review"]()))
 
         ordered = payload["ordered_checks"]
         self.assertEqual(ordered["security_flags"]["pending_count"], 1)
@@ -9907,7 +9937,7 @@ Topic.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_run_periodic_review"]()))
+        payload = self._load_tool_payload(asyncio.run(tools["memory_run_periodic_review"]()))
 
         self.assertEqual(payload["review_due"]["last_periodic_review"], "2026-03-19")
         self.assertEqual(payload["ordered_checks"]["security_flags"]["pending_count"], 0)
@@ -9958,7 +9988,7 @@ Updated note.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_get_file_provenance"](path="memory/knowledge/topic.md"))
         )
 
@@ -9999,7 +10029,7 @@ Structured provenance note.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(tools["memory_get_file_provenance"](path="memory/knowledge/topic.md"))
         )
 
@@ -10045,7 +10075,7 @@ Closing notes.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_extract_file"](
                     path="memory/knowledge/topic.md",
@@ -10072,7 +10102,7 @@ Closing notes.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(
+        payload = self._load_tool_payload(
             asyncio.run(
                 tools["memory_extract_file"](
                     path="memory/knowledge/plain.md",
@@ -10109,7 +10139,9 @@ Initial note.
         )
         tools = self._create_tools(repo_root)
 
-        payload = json.loads(asyncio.run(tools["memory_inspect_commit"](sha=commit_sha[:8])))
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_inspect_commit"](sha=commit_sha[:8]))
+        )
 
         self.assertEqual(payload["requested_sha"], commit_sha[:8])
         self.assertEqual(payload["sha"], commit_sha)
@@ -10471,7 +10503,7 @@ trust: high
             )
 
         # Reset
-        reset_payload = json.loads(asyncio.run(tools["memory_reset_session_state"]()))
+        reset_payload = self._load_tool_payload(asyncio.run(tools["memory_reset_session_state"]()))
         self.assertTrue(reset_payload["reset"])
         self.assertEqual(reset_payload["identity_updates_this_session"], 0)
 
@@ -10556,7 +10588,7 @@ trust: high
         tools = self._create_tools(repo_root, enable_raw_write_tools=True)
 
         # Get the current token
-        read_payload = json.loads(
+        read_payload = self._load_tool_payload(
             asyncio.run(tools["memory_read_file"](path="memory/knowledge/test.md"))
         )
         old_token = read_payload["version_token"]
@@ -10581,7 +10613,7 @@ trust: high
         repo_root = self._init_repo({"memory/knowledge/test.md": "# Hello\n\nSome text.\n"})
         tools = self._create_tools(repo_root, enable_raw_write_tools=True)
 
-        read_payload = json.loads(
+        read_payload = self._load_tool_payload(
             asyncio.run(tools["memory_read_file"](path="memory/knowledge/test.md"))
         )
         old_token = read_payload["version_token"]

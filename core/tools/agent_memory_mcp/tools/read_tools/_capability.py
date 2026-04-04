@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING, Any, cast
 
 from ...errors import ValidationError
+from ...response_envelope import dump_tool_result
 from ...tool_schemas import get_tool_input_schema
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
 
+    from ...session_state import SessionState
 
-def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
+
+def register_capability(
+    mcp: "FastMCP",
+    get_repo,
+    get_root,
+    H,
+    session_state: "SessionState | None" = None,
+) -> dict[str, object]:
     """Register capability read tools and return their callables."""
     _build_capabilities_summary = H._build_capabilities_summary
     _build_policy_state_payload = H._build_policy_state_payload
@@ -23,6 +31,11 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
     _route_intent_candidates = H._route_intent_candidates
     _route_workflow_hint = H._route_workflow_hint
     _tool_annotations = H._tool_annotations
+
+    def _dump_payload(payload: Any, *, default: Any | None = str) -> str:
+        if session_state is not None:
+            session_state.record_tool_call()
+        return dump_tool_result(payload, session_state, indent=2, default=default)
 
     # ------------------------------------------------------------------
     @mcp.tool(
@@ -46,7 +59,7 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         root = get_root()
         manifest, error_payload = _load_capabilities_manifest(root)
         if error_payload is not None:
-            return json.dumps(error_payload, indent=2)
+            return _dump_payload(error_payload)
 
         payload = dict(cast(dict[str, Any], manifest))
         runtime_tool_names = await _list_registered_tool_names(mcp)
@@ -54,7 +67,7 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
             payload,
             runtime_tool_names=runtime_tool_names,
         )
-        return json.dumps(payload, indent=2, default=str)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_get_tool_profiles
@@ -80,10 +93,10 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         root = get_root()
         manifest, error_payload = _load_capabilities_manifest(root)
         if error_payload is not None:
-            return json.dumps(error_payload, indent=2)
+            return _dump_payload(error_payload)
 
         payload = _build_tool_profile_payload(cast(dict[str, Any], manifest))
-        return json.dumps(payload, indent=2, default=str)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_tool_schema
@@ -114,7 +127,7 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         without naming the tool, or pass ``tool_name="memory_plan_create"`` here.
         """
 
-        return json.dumps(get_tool_input_schema(tool_name), indent=2, default=str)
+        return _dump_payload(get_tool_input_schema(tool_name))
 
     # ------------------------------------------------------------------
     # memory_plan_schema
@@ -138,7 +151,7 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         the small alias set normalized by the plan coercion layer.
         """
 
-        return json.dumps(get_tool_input_schema("memory_plan_create"), indent=2, default=str)
+        return _dump_payload(get_tool_input_schema("memory_plan_create"))
 
     # ------------------------------------------------------------------
     # memory_get_policy_state
@@ -171,7 +184,7 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         root = get_root()
         manifest, error_payload = _load_capabilities_manifest(root)
         if error_payload is not None:
-            return json.dumps(error_payload, indent=2)
+            return _dump_payload(error_payload)
 
         try:
             normalized_path = _normalize_repo_relative_path(path) if path.strip() else None
@@ -184,7 +197,7 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
             operation.strip() or None,
             normalized_path,
         )
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_route_intent
@@ -215,7 +228,7 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
         root = get_root()
         manifest, error_payload = _load_capabilities_manifest(root)
         if error_payload is not None:
-            return json.dumps(error_payload, indent=2)
+            return _dump_payload(error_payload)
 
         try:
             normalized_path = _normalize_repo_relative_path(path) if path.strip() else None
@@ -254,7 +267,7 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
                 "No confident governed operation match was found for this intent."
             ]
 
-        return json.dumps(
+        return _dump_payload(
             {
                 "intent": intent,
                 "path": normalized_path,
@@ -264,7 +277,6 @@ def register_capability(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, obje
                 "workflow_hint": workflow_hint,
                 "policy_state": policy_state,
             },
-            indent=2,
         )
 
     # ------------------------------------------------------------------

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypedDict, cast
+from typing import TYPE_CHECKING, Any, cast
+
+from ...response_envelope import dump_tool_result
+from ...session_state import SessionState, create_session_state
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -11,33 +14,21 @@ if TYPE_CHECKING:
 _IDENTITY_CHURN_LIMIT = 5
 
 
-class SessionState(TypedDict):
-    identity_updates: int
-
-
-def create_session_state() -> SessionState:
-    return {"identity_updates": 0}
-
-
 def get_identity_churn_limit() -> int:
     return _IDENTITY_CHURN_LIMIT
 
 
 def get_identity_updates(session_state: SessionState) -> int:
-    return session_state["identity_updates"]
+    return session_state.identity_updates
 
 
 def increment_identity_updates(session_state: SessionState) -> int:
-    session_state["identity_updates"] += 1
-    return session_state["identity_updates"]
+    session_state.identity_updates += 1
+    return session_state.identity_updates
 
 
-def reset_session_state(session_state: SessionState) -> dict[str, int | bool]:
-    session_state["identity_updates"] = 0
-    return {
-        "reset": True,
-        "identity_updates_this_session": 0,
-    }
+def reset_session_state(session_state: SessionState) -> dict[str, object]:
+    return session_state.reset()
 
 
 def _tool_annotations(**kwargs: object) -> Any:
@@ -58,7 +49,7 @@ def register_tools(mcp: "FastMCP", session_state: SessionState) -> dict[str, obj
         ),
     )
     async def memory_reset_session_state() -> str:
-        """Reset per-session counters (identity churn alarm) to their initial values.
+        """Reset per-session counters and advisory state to their initial values.
 
         Call this at the start of each new session to ensure a clean slate,
         particularly in long-running MCP server processes where the server is
@@ -68,11 +59,10 @@ def register_tools(mcp: "FastMCP", session_state: SessionState) -> dict[str, obj
         the explicit no-argument contract.
 
         Returns:
-            JSON object with the reset state values.
+            JSON envelope with the reset state in result and compact
+            session metadata in _session.
         """
-        import json as _json
-
-        return _json.dumps(reset_session_state(session_state))
+        return dump_tool_result(reset_session_state(session_state), session_state)
 
     return {"memory_reset_session_state": memory_reset_session_state}
 

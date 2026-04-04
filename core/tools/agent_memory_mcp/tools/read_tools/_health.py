@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-import json
 import re
 import subprocess
 import sys
 from datetime import date
 from typing import TYPE_CHECKING, Any, cast
 
+from ...response_envelope import dump_tool_result
+
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
+
+    from ...session_state import SessionState
 
 
 def register_health(
@@ -20,9 +23,10 @@ def register_health(
     H,
     *,
     tools: dict[str, object],
+    session_state: "SessionState | None" = None,
 ) -> dict[str, object]:
     """Register health read tools and return their callables."""
-    memory_review_unverified = tools["memory_review_unverified"]
+    _build_review_unverified_payload = cast(Any, tools["_build_review_unverified_payload"])
 
     _NEAR_TRIGGER_WINDOW = H._NEAR_TRIGGER_WINDOW
     _assess_maturity_stage = H._assess_maturity_stage
@@ -61,28 +65,12 @@ def register_health(
     _tool_annotations = H._tool_annotations
     _truncate_items = H._truncate_items
 
-    # ------------------------------------------------------------------
-    @mcp.tool(
-        name="memory_session_health_check",
-        annotations=_tool_annotations(
-            title="Session Health Check",
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=False,
-        ),
-    )
-    async def memory_session_health_check() -> str:
-        """Return session-start maintenance status for ACCESS, review queue, and review cadence.
+    def _dump_payload(payload: Any, *, default: Any | None = None) -> str:
+        if session_state is not None:
+            session_state.record_tool_call()
+        return dump_tool_result(payload, session_state, indent=2, default=default)
 
-        Reads the active aggregation trigger and last periodic review date from
-        the live router file, counts hot ACCESS.jsonl entries, and summarizes
-        pending review-queue items.
-
-        Returns:
-            JSON with aggregation_due, aggregation_threshold, review_queue_pending,
-            periodic_review_due, days_since_review, last_periodic_review, checked_at.
-        """
+    def _build_session_health_payload() -> dict[str, Any]:
         root = get_root()
         trigger = _parse_aggregation_trigger(root)
         review_window_days = _parse_periodic_review_window(root)
@@ -120,7 +108,7 @@ def register_health(
             )
         ]
 
-        payload = {
+        return {
             "aggregation_due": aggregation_due,
             "aggregation_threshold": trigger,
             "review_queue_pending": len(pending_review_queue),
@@ -130,7 +118,31 @@ def register_health(
             "last_periodic_review": str(last_review) if last_review is not None else None,
             "checked_at": str(today),
         }
-        return json.dumps(payload, indent=2)
+
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_session_health_check",
+        annotations=_tool_annotations(
+            title="Session Health Check",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_session_health_check() -> str:
+        """Return session-start maintenance status for ACCESS, review queue, and review cadence.
+
+        Reads the active aggregation trigger and last periodic review date from
+        the live router file, counts hot ACCESS.jsonl entries, and summarizes
+        pending review-queue items.
+
+        Returns:
+            JSON envelope with result and _session metadata. result contains
+            aggregation_due, aggregation_threshold, review_queue_pending,
+            periodic_review_due, days_since_review, last_periodic_review, checked_at.
+        """
+        return _dump_payload(_build_session_health_payload())
 
     # ------------------------------------------------------------------
     # memory_check_aggregation_triggers
@@ -193,7 +205,7 @@ def register_health(
             "near_trigger": near_trigger,
             "reports": report,
         }
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_aggregate_access
@@ -326,29 +338,12 @@ def register_health(
                 "task_group_candidates": task_group_candidates,
             },
         }
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_run_periodic_review
 
-    # ------------------------------------------------------------------
-    @mcp.tool(
-        name="memory_run_periodic_review",
-        annotations=_tool_annotations(
-            title="Periodic Review Report",
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=False,
-        ),
-    )
-    async def memory_run_periodic_review() -> str:
-        """Run the ordered periodic-review checklist as a read-only report.
-
-        The tool mirrors the checklist in governance/update-guidelines.md and returns
-        structured findings plus deferred write targets rather than mutating any
-        protected files directly.
-        """
+    def _build_periodic_review_payload() -> dict[str, Any]:
         root = get_root()
         repo = get_repo()
         low_threshold, _ = _parse_trust_thresholds(root)
@@ -555,7 +550,27 @@ def register_health(
                 ],
             },
         }
-        return json.dumps(payload, indent=2)
+        return payload
+
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_run_periodic_review",
+        annotations=_tool_annotations(
+            title="Periodic Review Report",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_run_periodic_review() -> str:
+        """Run the ordered periodic-review checklist as a read-only report.
+
+        The tool mirrors the checklist in governance/update-guidelines.md and returns
+        structured findings plus deferred write targets rather than mutating any
+        protected files directly.
+        """
+        return _dump_payload(_build_periodic_review_payload())
 
     # ------------------------------------------------------------------
     # memory_session_bootstrap
@@ -586,7 +601,7 @@ def register_health(
         capabilities_summary = manifest_error or {
             "summary": _build_capabilities_summary(cast(dict[str, Any], manifest))
         }
-        session_health = json.loads(await memory_session_health_check())
+        session_health = _build_session_health_payload()
         active_plans, active_plan_budget = _truncate_items(
             _collect_plan_entries(root, status="active"),
             max_active_plans,
@@ -645,7 +660,7 @@ def register_health(
                 "review_items": review_budget,
             },
         }
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_prepare_unverified_review
@@ -673,12 +688,8 @@ def register_health(
         if max_files < 1 and not paths_only:
             raise ValidationError("max_files must be >= 1")
 
-        review_payload = json.loads(
-            await memory_review_unverified(
-                folder_path=folder_path,
-                max_extract_words=max_extract_words,
-                include_expired=True,
-            )
+        review_payload = _build_review_unverified_payload(
+            get_root(), folder_path, max_extract_words, True
         )
         candidates: list[dict[str, Any]] = []
         for group_name, entries in cast(
@@ -724,7 +735,7 @@ def register_health(
                     },
                 },
             }
-            return json.dumps(payload, indent=2)
+            return _dump_payload(payload)
         selected_files, file_budget = _truncate_items(candidates, max_files)
         payload = {
             "folder_path": folder_path,
@@ -741,7 +752,7 @@ def register_health(
                 "files": file_budget,
             },
         }
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_prepare_promotion_batch
@@ -823,7 +834,7 @@ def register_health(
                 "candidates": candidate_budget,
             },
         }
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_prepare_periodic_review
@@ -849,8 +860,8 @@ def register_health(
         if max_queue_items < 1 or max_deferred_targets < 1:
             raise ValidationError("max_queue_items and max_deferred_targets must be >= 1")
 
-        session_health = json.loads(await memory_session_health_check())
-        review_payload = json.loads(await memory_run_periodic_review())
+        session_health = _build_session_health_payload()
+        review_payload = _build_periodic_review_payload()
         security_candidates, security_budget = _truncate_items(
             cast(
                 list[dict[str, Any]],
@@ -893,7 +904,7 @@ def register_health(
                 "deferred_targets": target_budget,
             },
         }
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_extract_file
@@ -1130,7 +1141,7 @@ def register_health(
                 "warn_pct": warn_pct,
             },
         }
-        return json.dumps(result, indent=2)
+        return _dump_payload(result)
 
     # ------------------------------------------------------------------
     # memory_validate
@@ -1248,7 +1259,7 @@ def register_health(
         root = get_root()
         repo = get_repo()
         signals = _compute_maturity_signals(root, repo)
-        return json.dumps(signals, indent=2)
+        return _dump_payload(signals)
 
     # ------------------------------------------------------------------
     # MCP-native resources
@@ -1265,4 +1276,5 @@ def register_health(
         "memory_audit_trust": memory_audit_trust,
         "memory_validate": memory_validate,
         "memory_get_maturity_signals": memory_get_maturity_signals,
+        "_build_session_health_payload": _build_session_health_payload,
     }

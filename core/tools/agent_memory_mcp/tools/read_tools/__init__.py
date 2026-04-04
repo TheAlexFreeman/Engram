@@ -12,11 +12,18 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
 
+    from ...session_state import SessionState
+
 # Re-export for callers that import KNOWN_COMMIT_PREFIXES from read_tools
 from ._helpers import KNOWN_COMMIT_PREFIXES  # noqa: F401
 
 
-def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
+def register(
+    mcp: "FastMCP",
+    get_repo,
+    get_root,
+    session_state: "SessionState | None" = None,
+) -> dict[str, object]:
     """Register all Tier 0 read tools and return their callables."""
     from . import _helpers as H
     from ._capability import register_capability
@@ -30,13 +37,19 @@ def register(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     from ._search import register_search
 
     result: dict[str, object] = {}
-    result.update(register_capability(mcp, get_repo, get_root, H))
-    result.update(register_inspection(mcp, get_repo, get_root, H))
+    result.update(register_capability(mcp, get_repo, get_root, H, session_state=session_state))
+    result.update(register_inspection(mcp, get_repo, get_root, H, session_state=session_state))
     result.update(register_search(mcp, get_repo, get_root, H))
-    result.update(register_links(mcp, get_repo, get_root, H))
-    result.update(register_generation(mcp, get_repo, get_root, H))
-    result.update(register_git(mcp, get_repo, get_root, H))
-    result.update(register_health(mcp, get_repo, get_root, H, tools=result))
+    result.update(register_links(mcp, get_repo, get_root, H, session_state=session_state))
+    result.update(register_generation(mcp, get_repo, get_root, H, session_state=session_state))
+    result.update(register_git(mcp, get_repo, get_root, H, session_state=session_state))
+    result.update(
+        register_health(mcp, get_repo, get_root, H, tools=result, session_state=session_state)
+    )
     result.update(register_context(mcp, get_repo, get_root, H))
     register_resources(mcp, get_repo, get_root, H, tools=result)
+    # Strip private cross-module helpers that were shared via the tools dict but
+    # should not be visible as public MCP tool exports.
+    result.pop("_build_review_unverified_payload", None)
+    result.pop("_build_session_health_payload", None)
     return result

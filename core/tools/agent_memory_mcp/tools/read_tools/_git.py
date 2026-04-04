@@ -2,17 +2,27 @@
 
 from __future__ import annotations
 
-import json
 import re
 import subprocess
 from datetime import date
 from typing import TYPE_CHECKING, Any, cast
 
+from ...response_envelope import dump_tool_result
+
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
 
+    from ...session_state import SessionState
 
-def register_git(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
+
+def register_git(
+    mcp: "FastMCP",
+    get_repo,
+    get_root,
+    H,
+    *,
+    session_state: "SessionState | None" = None,
+) -> dict[str, object]:
     """Register git read tools and return their callables."""
     _build_access_summary_for_file = H._build_access_summary_for_file
     _build_knowledge_freshness_report = H._build_knowledge_freshness_report
@@ -31,6 +41,11 @@ def register_git(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
     _resolve_requested_knowledge_paths = H._resolve_requested_knowledge_paths
     _tool_annotations = H._tool_annotations
     _visible_top_level_category = H._visible_top_level_category
+
+    def _dump_payload(payload: Any, *, default: Any | None = None) -> str:
+        if session_state is not None:
+            session_state.record_tool_call()
+        return dump_tool_result(payload, session_state, indent=2, default=default)
 
     # ------------------------------------------------------------------
     @mcp.tool(
@@ -91,15 +106,14 @@ def register_git(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
 
         base_ref = _resolve_base_ref()
         if base_ref is None:
-            return json.dumps(
+            return _dump_payload(
                 {
                     "error": (
                         f"Base branch '{resolved_base}' is not available locally and could not be fetched from origin."
                     ),
                     "base_branch": resolved_base,
                     "current_branch": current_branch,
-                },
-                indent=2,
+                }
             )
 
         ahead_result = _git(["rev-list", "--count", f"{base_ref}..HEAD"], check=True)
@@ -210,7 +224,7 @@ def register_git(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
             "by_category": by_category,
             "recent_commits": recent_commits,
         }
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_git_log
@@ -268,7 +282,7 @@ def register_git(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
 
         for commit in commits:
             commit["truncated"] = truncated
-        return json.dumps(commits, indent=2)
+        return _dump_payload(commits)
 
     # ------------------------------------------------------------------
     # memory_git_health
@@ -293,7 +307,7 @@ def register_git(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
         """
         repo = get_repo()
         report = repo.health_check()
-        return json.dumps(report, indent=2)
+        return _dump_payload(report)
 
     # ------------------------------------------------------------------
     # memory_check_knowledge_freshness
@@ -320,16 +334,20 @@ def register_git(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
         """
         root = get_root()
         repo = get_repo()
+        requested_paths = _resolve_requested_knowledge_paths(root, paths)
         reports = [
             _build_knowledge_freshness_report(root, repo, rel_path, abs_path)
-            for rel_path, abs_path in _resolve_requested_knowledge_paths(root, paths)
+            for rel_path, abs_path in requested_paths
         ]
+        if session_state is not None:
+            for rel_path, _ in requested_paths:
+                session_state.record_read(rel_path)
         payload = {
             "checked_at": str(date.today()),
             "files_checked": len(reports),
             "reports": reports,
         }
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_session_health_check
@@ -383,7 +401,9 @@ def register_git(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
             "latest_commit": latest_commit,
             "commit_history": commit_history,
         }
-        return json.dumps(payload, indent=2, default=str)
+        if session_state is not None:
+            session_state.record_read(path)
+        return _dump_payload(payload, default=str)
 
     # ------------------------------------------------------------------
     # memory_inspect_commit
@@ -417,7 +437,7 @@ def register_git(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
             "top_level_paths": top_levels,
             "is_head": str(commit["sha"]) == repo.current_head(),
         }
-        return json.dumps(payload, indent=2)
+        return _dump_payload(payload)
 
     # ------------------------------------------------------------------
     # memory_diff
@@ -443,7 +463,7 @@ def register_git(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
         """
         repo = get_repo()
         status = repo.diff_status()
-        return json.dumps(status, indent=2)
+        return _dump_payload(status)
 
     # ------------------------------------------------------------------
     # memory_audit_trust
