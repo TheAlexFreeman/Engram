@@ -226,9 +226,7 @@ def _parse_create_input(
     }
 
 
-def run_project_create(
-    args: argparse.Namespace, *, repo_root: Path, content_root: Path
-) -> int:
+def run_project_create(args: argparse.Namespace, *, repo_root: Path, content_root: Path) -> int:
     try:
         request = _parse_create_input(args)
         repo = GitRepo(repo_root, content_prefix=_content_prefix(repo_root, content_root))
@@ -345,9 +343,7 @@ def run_project_resolve_question(
     return 0
 
 
-def run_project_list(
-    args: argparse.Namespace, *, repo_root: Path, content_root: Path
-) -> int:
+def run_project_list(args: argparse.Namespace, *, repo_root: Path, content_root: Path) -> int:
     from ..frontmatter_utils import collect_project_entries
 
     entries = collect_project_entries(content_root)

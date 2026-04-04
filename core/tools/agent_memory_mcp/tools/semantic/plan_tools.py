@@ -258,7 +258,7 @@ def create_project_write_result(
 
     Shared governed write path used by both MCP and CLI flows.
     """
-    from ...errors import NotFoundError, ValidationError
+    from ...errors import ValidationError
     from ...frontmatter_utils import (
         collect_project_entries,
         render_projects_navigator,
@@ -286,9 +286,7 @@ def create_project_write_result(
 
     valid_statuses = {"active", "draft", "paused"}
     if status not in valid_statuses:
-        validation_errors.append(
-            f"status must be one of {sorted(valid_statuses)}, got {status!r}"
-        )
+        validation_errors.append(f"status must be one of {sorted(valid_statuses)}, got {status!r}")
 
     if not description or not description.strip():
         validation_errors.append("description must be non-empty")
@@ -296,12 +294,9 @@ def create_project_write_result(
     project_summary_path = _project_summary_path(project_slug)
     abs_project_summary = root / project_summary_path
     if abs_project_summary.exists():
-        validation_errors.append(
-            f"Project already exists: memory/working/projects/{project_slug}"
-        )
+        validation_errors.append(f"Project already exists: memory/working/projects/{project_slug}")
 
     # --- validate optional first plan early ---
-    first_plan_result = None
     if first_plan is not None and not validation_errors:
         first_plan.setdefault("project_id", project_slug)
         if first_plan.get("project_id") != project_slug:
@@ -360,9 +355,7 @@ def create_project_write_result(
     if questions:
         files_changed.append(questions_path)
         target_files_list.append((questions_path, "create"))
-        invariant_list.append(
-            f"Creates questions.md with {len(questions)} open question(s)."
-        )
+        invariant_list.append(f"Creates questions.md with {len(questions)} open question(s).")
 
     commit_msg = f"[plan] Create project {project_slug}"
     preview_payload = _create_preview(
@@ -486,7 +479,9 @@ def create_project_write_result(
     )
 
 
-def _parse_questions_md(text: str) -> tuple[dict[str, Any], list[dict[str, str]], list[dict[str, str]]]:
+def _parse_questions_md(
+    text: str,
+) -> tuple[dict[str, Any], list[dict[str, str]], list[dict[str, str]]]:
     """Parse a questions.md file into frontmatter, open questions, and resolved questions.
 
     Returns (frontmatter_dict, open_questions_list, resolved_questions_list).
@@ -508,19 +503,18 @@ def _parse_questions_md(text: str) -> tuple[dict[str, Any], list[dict[str, str]]
             start = match.end()
             end = matches[i + 1].start() if i + 1 < len(matches) else len(section_text)
             body_text = section_text[start:end].strip()
-            questions.append({
-                "id": match.group(1),
-                "title": match.group(2),
-                "body": body_text,
-            })
+            questions.append(
+                {
+                    "id": match.group(1),
+                    "title": match.group(2),
+                    "body": body_text,
+                }
+            )
         return questions
 
     # Split on "# Resolved Questions" heading
     open_qs: list[dict[str, str]] = []
     resolved_qs: list[dict[str, str]] = []
-    parts = re.split(r"^---\s*$", body, flags=re.MULTILINE)
-    # Typical structure: open section, ---, resolved section
-    # Or split on # headings directly
     open_match = re.search(r"^# Open Questions\s*$", body, re.MULTILINE)
     resolved_match = re.search(r"^# Resolved Questions\s*$", body, re.MULTILINE)
 
@@ -530,7 +524,7 @@ def _parse_questions_md(text: str) -> tuple[dict[str, Any], list[dict[str, str]]
         open_qs = _extract_questions(body[open_start:open_end])
 
     if resolved_match:
-        resolved_text = body[resolved_match.end():]
+        resolved_text = body[resolved_match.end() :]
         resolved_qs = _extract_questions(resolved_text)
 
     return fm_dict, open_qs, resolved_qs
@@ -604,9 +598,7 @@ def add_project_questions_result(
     project_summary_path = _project_summary_path(project_slug)
     abs_project_summary = root / project_summary_path
     if not abs_project_summary.exists():
-        validation_errors.append(
-            f"Project not found: memory/working/projects/{project_slug}"
-        )
+        validation_errors.append(f"Project not found: memory/working/projects/{project_slug}")
 
     raise_collected_validation_errors(validation_errors)
 
@@ -637,11 +629,13 @@ def add_project_questions_result(
     new_q_ids = []
     for question_text in questions:
         q_id = f"q-{next_id:03d}"
-        open_qs.append({
-            "id": q_id,
-            "title": question_text.strip(),
-            "body": f"**Asked:** {today} | **Last touched:** {today}",
-        })
+        open_qs.append(
+            {
+                "id": q_id,
+                "title": question_text.strip(),
+                "body": f"**Asked:** {today} | **Last touched:** {today}",
+            }
+        )
         new_q_ids.append(q_id)
         next_id += 1
 
@@ -695,8 +689,11 @@ def add_project_questions_result(
     repo.add(project_summary_path)
 
     record_trace(
-        root, session_id,
-        span_type="plan_action", name="add_questions", status="ok",
+        root,
+        session_id,
+        span_type="plan_action",
+        name="add_questions",
+        status="ok",
         metadata={"project_id": project_slug, "question_ids": new_q_ids},
     )
     _stage_trace_file_if_present(root, repo, session_id, files_changed)
@@ -743,16 +740,12 @@ def resolve_project_question_result(
     questions_path = f"memory/working/projects/{project_slug}/questions.md"
     abs_questions = root / questions_path
     if not abs_questions.exists():
-        validation_errors.append(
-            f"No questions.md found for project {project_slug}"
-        )
+        validation_errors.append(f"No questions.md found for project {project_slug}")
 
     raise_collected_validation_errors(validation_errors)
 
     today = today_str()
-    fm_dict, open_qs, resolved_qs = _parse_questions_md(
-        abs_questions.read_text(encoding="utf-8")
-    )
+    fm_dict, open_qs, resolved_qs = _parse_questions_md(abs_questions.read_text(encoding="utf-8"))
 
     # Find the question in open list
     target_q = None
@@ -770,9 +763,7 @@ def resolve_project_question_result(
                 raise NotFoundError(
                     f"Question {question_id} is already resolved in project {project_slug}"
                 )
-        raise NotFoundError(
-            f"Question {question_id} not found in project {project_slug}"
-        )
+        raise NotFoundError(f"Question {question_id} not found in project {project_slug}")
 
     # Move from open to resolved
     open_qs.pop(target_idx)
@@ -782,6 +773,7 @@ def resolve_project_question_result(
     if target_q.get("body"):
         # Update "Last touched" in existing body
         import re
+
         updated_body = re.sub(
             r"\*\*Last touched:\*\* \S+",
             f"**Last touched:** {today}",
@@ -790,11 +782,13 @@ def resolve_project_question_result(
         body_lines.append(updated_body)
     body_lines.append(f"**Resolved:** {today} | **Resolution:** {resolution.strip()}")
 
-    resolved_qs.append({
-        "id": target_q["id"],
-        "title": target_q["title"],
-        "body": "\n".join(body_lines),
-    })
+    resolved_qs.append(
+        {
+            "id": target_q["id"],
+            "title": target_q["title"],
+            "body": "\n".join(body_lines),
+        }
+    )
 
     project_summary_path = _project_summary_path(project_slug)
     abs_project_summary = root / project_summary_path
@@ -848,8 +842,11 @@ def resolve_project_question_result(
         repo.add(project_summary_path)
 
     record_trace(
-        root, session_id,
-        span_type="plan_action", name="resolve_question", status="ok",
+        root,
+        session_id,
+        span_type="plan_action",
+        name="resolve_question",
+        status="ok",
         metadata={"project_id": project_slug, "question_id": question_id},
     )
     _stage_trace_file_if_present(root, repo, session_id, files_changed)
