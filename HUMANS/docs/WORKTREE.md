@@ -46,7 +46,24 @@ If you already have an agent runtime, prefer MCP over direct file access wheneve
 
 ## Quick start
 
-**Option A — curl one-liner** (recommended, no manual clone needed):
+**Option A — `engram init`** (recommended, requires pip-installed Engram):
+
+Run from the **host repository root**:
+
+```bash
+pip install -e path/to/Engram    # or pip install agent-memory-mcp
+engram init
+```
+
+That single command creates an `.engram/` worktree on an orphan `worktree--<repo-name>` branch with the `cursor` platform config and `software-developer` profile. Customize with flags:
+
+```bash
+engram init --platform codex --profile researcher --worktree-path .agent-memory
+```
+
+See [CLI.md](CLI.md) for the full `engram init` option reference.
+
+**Option B — curl one-liner** (no pip install needed):
 
 Run from the **host repository root**:
 
@@ -56,13 +73,13 @@ curl -fsSL https://raw.githubusercontent.com/TheAlexFreeman/Engram/main/install-
         --non-interactive \
         --platform codex \
         --profile software-developer \
-        --worktree-path .agent-memory \
+        --worktree-path .engram \
         --branch-name agent-memory
 ```
 
 `install-worktree.sh` shallow-clones Engram into a temp directory, delegates to `HUMANS/setup/init-worktree.sh`, and removes the clone on exit. The `ENGRAM_REPO` and `ENGRAM_BRANCH` environment variables override the source if you maintain a fork.
 
-**Option B — manual clone** (if you prefer not to pipe to bash):
+**Option C — manual clone** (if you prefer not to pipe to bash):
 
 ```bash
 git clone --depth 1 https://github.com/TheAlexFreeman/Engram.git /tmp/engram-seed
@@ -70,12 +87,12 @@ bash /tmp/engram-seed/HUMANS/setup/init-worktree.sh \
     --non-interactive \
     --platform codex \
     --profile software-developer \
-    --worktree-path .agent-memory \
+    --worktree-path .engram \
     --branch-name agent-memory
 rm -rf /tmp/engram-seed
 ```
 
-Both options produce identical results. The script will:
+All options produce identical results. The init process will:
 
 1. create an orphan memory branch
 2. materialize the memory worktree at the configured path

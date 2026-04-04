@@ -2,6 +2,7 @@
 
 The `engram` CLI provides a terminal-oriented interface for searching, inspecting, and validating an Engram repository:
 
+- `engram init` for bootstrapping an Engram memory worktree inside an existing host repository.
 - `engram search` for querying memory content from a shell or script.
 - `engram status` for a compact health dashboard.
 - `engram add` for governed ingestion into `memory/knowledge/_unverified/`.
@@ -46,6 +47,50 @@ python -m pip install -e ".[core,search]"
 Every subcommand also supports `--json` for script-friendly output.
 
 ## Command Reference
+
+### `engram init`
+
+Initializes an Engram memory worktree inside the current host git repository. Creates an orphan branch, seeds the memory directory structure, installs a starter profile, writes MCP config and host adapter files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`), and scaffolds a codebase-survey project.
+
+Run from the host repository root. Does not require an existing Engram checkout — it uses the seed content bundled with the installed package.
+
+**Defaults:**
+
+| Option | Default |
+|---|---|
+| `--platform` | `cursor` |
+| `--profile` | `software-developer` |
+| `--worktree-path` | `.engram` |
+| `--branch-name` | `worktree--<host-repo-name>` |
+
+Examples:
+
+```bash
+# Quick start with defaults (cursor, software-developer, .engram)
+engram init
+
+# Specify platform and profile
+engram init --platform codex --profile researcher
+
+# Custom worktree path and branch name
+engram init --worktree-path .agent-memory --branch-name agent-memory
+
+# Preview without executing
+engram init --dry-run
+
+# Include optional user context
+engram init --user-name "Alice" --user-context "Full-stack web development"
+```
+
+Options:
+
+- `--platform <name>` — AI platform for MCP config: `codex`, `claude-code`, `cursor`, `chatgpt`, `generic`.
+- `--profile <name>` — Starter profile template: `software-developer`, `researcher`, `project-manager`, `designer`, `educator`, `student`, `writer`.
+- `--worktree-path <path>` — Worktree path relative to the host repo root.
+- `--branch-name <name>` — Orphan branch name for the memory store.
+- `--user-name <name>` — Optional name for template-backed starter summaries.
+- `--user-context <text>` — Optional AI-use context for template-backed starter summaries.
+- `--dry-run` — Print planned git commands without executing them.
 
 ### `engram status`
 
