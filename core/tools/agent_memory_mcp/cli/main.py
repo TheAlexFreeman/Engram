@@ -146,6 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
     from .cmd_recall import register_recall
     from .cmd_review import register_review
     from .cmd_search import register_search
+    from .cmd_setup_venv import register_setup_venv
     from .cmd_status import register_status
     from .cmd_trace import register_trace
     from .cmd_validate import register_validate
@@ -166,6 +167,7 @@ def build_parser() -> argparse.ArgumentParser:
     register_plan(subparsers, parents=[common_parser])
     register_trace(subparsers, parents=[common_parser])
     register_validate(subparsers, parents=[common_parser])
+    register_setup_venv(subparsers, parents=[common_parser])
     return parser
 
 
