@@ -13,7 +13,11 @@ import yaml  # type: ignore[import-untyped]
 from ..errors import NotFoundError, ValidationError
 from ..git_repo import GitRepo
 from ..plan_utils import validation_error_messages
-from ..tools.semantic.plan_tools import create_project_write_result
+from ..tools.semantic.plan_tools import (
+    add_project_questions_result,
+    create_project_write_result,
+    resolve_project_question_result,
+)
 from .formatting import render_governed_preview
 
 
@@ -72,11 +76,66 @@ def register_project(
         help="Project status (default: active).",
     )
     create_parser.add_argument(
+        "--question",
+        action="append",
+        dest="questions",
+        help="Open question to seed in questions.md (repeatable).",
+    )
+    create_parser.add_argument(
         "--preview",
         action="store_true",
         help="Validate and render the governed preview without writing.",
     )
     create_parser.set_defaults(handler=run_project_create)
+
+    add_q_parser = project_subparsers.add_parser(
+        "add-question",
+        help="Add open questions to a project.",
+        parents=parents or [],
+    )
+    add_q_parser.add_argument("project_id", help="Project slug.")
+    add_q_parser.add_argument(
+        "--question",
+        action="append",
+        dest="questions",
+        required=True,
+        help="Question text (repeatable).",
+    )
+    add_q_parser.add_argument(
+        "--session-id",
+        required=True,
+        help="Canonical session id.",
+    )
+    add_q_parser.add_argument(
+        "--preview",
+        action="store_true",
+        help="Preview without writing.",
+    )
+    add_q_parser.set_defaults(handler=run_project_add_question)
+
+    resolve_q_parser = project_subparsers.add_parser(
+        "resolve-question",
+        help="Resolve an open question in a project.",
+        parents=parents or [],
+    )
+    resolve_q_parser.add_argument("project_id", help="Project slug.")
+    resolve_q_parser.add_argument("question_id", help="Question id (e.g. q-001).")
+    resolve_q_parser.add_argument(
+        "--resolution",
+        required=True,
+        help="Resolution summary.",
+    )
+    resolve_q_parser.add_argument(
+        "--session-id",
+        required=True,
+        help="Canonical session id.",
+    )
+    resolve_q_parser.add_argument(
+        "--preview",
+        action="store_true",
+        help="Preview without writing.",
+    )
+    resolve_q_parser.set_defaults(handler=run_project_resolve_question)
 
     list_parser = project_subparsers.add_parser(
         "list",
@@ -135,6 +194,7 @@ def _parse_create_input(
             "session_id": str(data.get("session_id", "")),
             "cognitive_mode": str(data.get("cognitive_mode", "planning")),
             "status": str(data.get("status", "active")),
+            "questions": data.get("questions"),
             "first_plan": data.get("first_plan"),
             "preview": bool(data.get("preview", getattr(args, "preview", False))),
         }
@@ -160,6 +220,7 @@ def _parse_create_input(
         "session_id": session_id,
         "cognitive_mode": getattr(args, "cognitive_mode", "planning"),
         "status": getattr(args, "status", "active"),
+        "questions": getattr(args, "questions", None),
         "first_plan": None,
         "preview": bool(getattr(args, "preview", False)),
     }
@@ -179,6 +240,7 @@ def run_project_create(
             session_id=request["session_id"],
             cognitive_mode=request["cognitive_mode"],
             status=request["status"],
+            questions=request["questions"],
             first_plan=request["first_plan"],
             preview=request["preview"],
         )
@@ -205,6 +267,81 @@ def run_project_create(
             first_plan = payload.get("new_state", {}).get("first_plan")
             if first_plan:
                 print(f"  First plan: {first_plan.get('plan_path', '?')}")
+    return 0
+
+
+def run_project_add_question(
+    args: argparse.Namespace, *, repo_root: Path, content_root: Path
+) -> int:
+    try:
+        repo = GitRepo(repo_root, content_prefix=_content_prefix(repo_root, content_root))
+        result = add_project_questions_result(
+            repo=repo,
+            root=content_root,
+            project_id=args.project_id,
+            questions=args.questions,
+            session_id=args.session_id,
+            preview=bool(getattr(args, "preview", False)),
+        )
+    except (NotFoundError, ValidationError, ValueError) as exc:
+        errors = validation_error_messages(exc) if isinstance(exc, ValidationError) else [str(exc)]
+        if args.json:
+            print(json.dumps({"valid": False, "errors": errors}, indent=2))
+        else:
+            for error in errors:
+                print(f"  error: {error}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(result.to_json())
+    else:
+        payload = result.to_dict()
+        if getattr(args, "preview", False):
+            print(render_governed_preview(payload.get("preview", {})))
+        else:
+            q_ids = payload.get("new_state", {}).get("question_ids", [])
+            print(f"  Added {len(q_ids)} question(s): {', '.join(q_ids)}")
+            if payload.get("commit_sha"):
+                print(f"  Commit: {payload['commit_sha'][:12]}")
+    return 0
+
+
+def run_project_resolve_question(
+    args: argparse.Namespace, *, repo_root: Path, content_root: Path
+) -> int:
+    try:
+        repo = GitRepo(repo_root, content_prefix=_content_prefix(repo_root, content_root))
+        result = resolve_project_question_result(
+            repo=repo,
+            root=content_root,
+            project_id=args.project_id,
+            question_id=args.question_id,
+            resolution=args.resolution,
+            session_id=args.session_id,
+            preview=bool(getattr(args, "preview", False)),
+        )
+    except (NotFoundError, ValidationError, ValueError) as exc:
+        errors = validation_error_messages(exc) if isinstance(exc, ValidationError) else [str(exc)]
+        if args.json:
+            print(json.dumps({"valid": False, "errors": errors}, indent=2))
+        else:
+            for error in errors:
+                print(f"  error: {error}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(result.to_json())
+    else:
+        payload = result.to_dict()
+        if getattr(args, "preview", False):
+            print(render_governed_preview(payload.get("preview", {})))
+        else:
+            q_id = payload.get("new_state", {}).get("resolved_question", "?")
+            remaining = payload.get("new_state", {}).get("open_questions", 0)
+            print(f"  Resolved: {q_id}")
+            print(f"  Open questions remaining: {remaining}")
+            if payload.get("commit_sha"):
+                print(f"  Commit: {payload['commit_sha'][:12]}")
     return 0
 
 

@@ -250,6 +250,7 @@ def create_project_write_result(
     session_id: str,
     cognitive_mode: str = "planning",
     status: str = "active",
+    questions: list[str] | None = None,
     first_plan: dict[str, Any] | None = None,
     preview: bool = False,
 ):
@@ -318,7 +319,7 @@ def create_project_write_result(
         "created": today,
         "current_focus": description.strip().split("\n")[0][:120],
         "last_activity": today,
-        "open_questions": 0,
+        "open_questions": len(questions) if questions else 0,
         "origin_session": session_id,
         "plans": 0,
         "source": "agent-generated",
@@ -339,12 +340,29 @@ def create_project_write_result(
         project_summary_path,
         "memory/working/projects/SUMMARY.md",
     ]
+    questions_path = f"memory/working/projects/{project_slug}/questions.md"
     new_state: dict[str, Any] = {
         "project_id": project_slug,
         "project_path": f"memory/working/projects/{project_slug}/",
         "status": status,
         "cognitive_mode": cognitive_mode,
+        "open_questions": len(questions) if questions else 0,
     }
+
+    target_files_list: list[tuple[str, str]] = [
+        (project_summary_path, "create"),
+        ("memory/working/projects/SUMMARY.md", "update"),
+    ]
+    invariant_list = [
+        "Creates a project SUMMARY.md with frontmatter and description.",
+        "Refreshes the projects navigator index.",
+    ]
+    if questions:
+        files_changed.append(questions_path)
+        target_files_list.append((questions_path, "create"))
+        invariant_list.append(
+            f"Creates questions.md with {len(questions)} open question(s)."
+        )
 
     commit_msg = f"[plan] Create project {project_slug}"
     preview_payload = _create_preview(
@@ -355,14 +373,8 @@ def create_project_write_result(
             "Projects require a SUMMARY.md before plans can be created. "
             "This scaffolds the project directory and refreshes the navigator index."
         ),
-        target_files=[
-            (project_summary_path, "create"),
-            ("memory/working/projects/SUMMARY.md", "update"),
-        ],
-        invariant_effects=[
-            "Creates a project SUMMARY.md with frontmatter and description.",
-            "Refreshes the projects navigator index.",
-        ],
+        target_files=target_files_list,
+        invariant_effects=invariant_list,
         commit_message=commit_msg,
         resulting_state=new_state,
         warnings=warnings,
@@ -383,6 +395,30 @@ def create_project_write_result(
     abs_project_dir.mkdir(parents=True, exist_ok=True)
     write_with_frontmatter(abs_project_summary, frontmatter, body)
     repo.add(project_summary_path)
+
+    # Write questions.md if questions were provided
+    if questions:
+        q_lines = [
+            "---",
+            "source: agent-generated",
+            f"origin_session: {session_id}",
+            f"created: {today}",
+            "trust: medium",
+            "type: questions",
+            f"next_question_id: {len(questions) + 1}",
+            "---",
+            "",
+            "# Open Questions",
+            "",
+        ]
+        for i, question_text in enumerate(questions, start=1):
+            q_lines.append(f"## q-{i:03d}: {question_text}")
+            q_lines.append(f"**Asked:** {today} | **Last touched:** {today}")
+            q_lines.append("")
+        q_lines.extend(["---", "", "# Resolved Questions", "", "_None yet._", ""])
+        abs_questions = root / questions_path
+        abs_questions.write_text("\n".join(q_lines), encoding="utf-8")
+        repo.add(questions_path)
 
     # Refresh navigator
     navigator_path = "memory/working/projects/SUMMARY.md"
@@ -437,6 +473,384 @@ def create_project_write_result(
         name="project_create",
         status="ok",
         metadata={"project_id": project_slug, "action": "create"},
+    )
+    _stage_trace_file_if_present(root, repo, session_id, files_changed)
+    commit_result = repo.commit(commit_msg)
+    return MemoryWriteResult.from_commit(
+        files_changed=files_changed,
+        commit_result=commit_result,
+        commit_message=commit_msg,
+        new_state=new_state,
+        warnings=warnings,
+        preview=preview_payload,
+    )
+
+
+def _parse_questions_md(text: str) -> tuple[dict[str, Any], list[dict[str, str]], list[dict[str, str]]]:
+    """Parse a questions.md file into frontmatter, open questions, and resolved questions.
+
+    Returns (frontmatter_dict, open_questions_list, resolved_questions_list).
+    Each question is a dict with keys: id, title, body (the full lines after the heading).
+    """
+    import re
+
+    import frontmatter as fm  # type: ignore[import-untyped]
+
+    post = fm.loads(text)
+    fm_dict = dict(post.metadata)
+    body = post.content
+
+    def _extract_questions(section_text: str) -> list[dict[str, str]]:
+        questions: list[dict[str, str]] = []
+        pattern = re.compile(r"^## (q-\d+): (.+)$", re.MULTILINE)
+        matches = list(pattern.finditer(section_text))
+        for i, match in enumerate(matches):
+            start = match.end()
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(section_text)
+            body_text = section_text[start:end].strip()
+            questions.append({
+                "id": match.group(1),
+                "title": match.group(2),
+                "body": body_text,
+            })
+        return questions
+
+    # Split on "# Resolved Questions" heading
+    open_qs: list[dict[str, str]] = []
+    resolved_qs: list[dict[str, str]] = []
+    parts = re.split(r"^---\s*$", body, flags=re.MULTILINE)
+    # Typical structure: open section, ---, resolved section
+    # Or split on # headings directly
+    open_match = re.search(r"^# Open Questions\s*$", body, re.MULTILINE)
+    resolved_match = re.search(r"^# Resolved Questions\s*$", body, re.MULTILINE)
+
+    if open_match:
+        open_start = open_match.end()
+        open_end = resolved_match.start() if resolved_match else len(body)
+        open_qs = _extract_questions(body[open_start:open_end])
+
+    if resolved_match:
+        resolved_text = body[resolved_match.end():]
+        resolved_qs = _extract_questions(resolved_text)
+
+    return fm_dict, open_qs, resolved_qs
+
+
+def _render_questions_md(
+    fm_dict: dict[str, Any],
+    open_qs: list[dict[str, str]],
+    resolved_qs: list[dict[str, str]],
+) -> str:
+    """Render a questions.md file from parsed components."""
+    from ...frontmatter_utils import render_with_frontmatter
+
+    lines = ["# Open Questions", ""]
+
+    if open_qs:
+        for q in open_qs:
+            lines.append(f"## {q['id']}: {q['title']}")
+            if q.get("body"):
+                lines.append(q["body"])
+            lines.append("")
+    else:
+        lines.extend(["_None._", ""])
+
+    lines.extend(["---", "", "# Resolved Questions", ""])
+
+    if resolved_qs:
+        for q in resolved_qs:
+            lines.append(f"## {q['id']}: {q['title']}")
+            if q.get("body"):
+                lines.append(q["body"])
+            lines.append("")
+    else:
+        lines.extend(["_None yet._", ""])
+
+    body = "\n".join(lines)
+    return render_with_frontmatter(fm_dict, body)
+
+
+def add_project_questions_result(
+    *,
+    repo: Any,
+    root: Path,
+    project_id: str,
+    questions: list[str],
+    session_id: str,
+    preview: bool = False,
+):
+    """Add open questions to an existing project's questions.md.
+
+    Creates questions.md if it doesn't exist yet.
+    """
+    from ...errors import ValidationError
+    from ...frontmatter_utils import read_with_frontmatter, today_str, write_with_frontmatter
+    from ...models import MemoryWriteResult
+
+    warnings: list[str] = []
+    validation_errors: list[str] = []
+
+    try:
+        project_slug = validate_slug(project_id, field_name="project_id")
+    except ValidationError as exc:
+        validation_errors.extend(validation_error_messages(exc))
+        project_slug = project_id
+
+    validate_session_id(session_id)
+
+    if not questions:
+        validation_errors.append("questions must be a non-empty list of strings")
+
+    project_summary_path = _project_summary_path(project_slug)
+    abs_project_summary = root / project_summary_path
+    if not abs_project_summary.exists():
+        validation_errors.append(
+            f"Project not found: memory/working/projects/{project_slug}"
+        )
+
+    raise_collected_validation_errors(validation_errors)
+
+    today = today_str()
+    questions_path = f"memory/working/projects/{project_slug}/questions.md"
+    abs_questions = root / questions_path
+
+    # Parse existing or create fresh
+    if abs_questions.exists():
+        fm_dict, open_qs, resolved_qs = _parse_questions_md(
+            abs_questions.read_text(encoding="utf-8")
+        )
+        next_id = int(fm_dict.get("next_question_id", len(open_qs) + len(resolved_qs) + 1))
+    else:
+        fm_dict = {
+            "source": "agent-generated",
+            "origin_session": session_id,
+            "created": today,
+            "trust": "medium",
+            "type": "questions",
+            "next_question_id": 1,
+        }
+        open_qs = []
+        resolved_qs = []
+        next_id = 1
+
+    # Append new questions
+    new_q_ids = []
+    for question_text in questions:
+        q_id = f"q-{next_id:03d}"
+        open_qs.append({
+            "id": q_id,
+            "title": question_text.strip(),
+            "body": f"**Asked:** {today} | **Last touched:** {today}",
+        })
+        new_q_ids.append(q_id)
+        next_id += 1
+
+    fm_dict["next_question_id"] = next_id
+
+    files_changed = [questions_path, project_summary_path]
+    new_state = {
+        "project_id": project_slug,
+        "question_ids": new_q_ids,
+        "open_questions": len(open_qs),
+    }
+
+    commit_msg = f"[plan] Add {len(questions)} question(s) to {project_slug}"
+    preview_payload = _create_preview(
+        mode="preview" if preview else "apply",
+        change_class="automatic",
+        summary=f"Add {len(questions)} open question(s) to project {project_slug}.",
+        reasoning="Questions track open design decisions and unknowns within a project.",
+        target_files=[
+            (questions_path, "update" if abs_questions.exists() else "create"),
+            (project_summary_path, "update"),
+        ],
+        invariant_effects=[
+            f"Appends {len(questions)} question(s) as {', '.join(new_q_ids)}.",
+            "Updates open_questions count in project SUMMARY.md.",
+        ],
+        commit_message=commit_msg,
+        resulting_state=new_state,
+        warnings=warnings,
+    )
+    if preview:
+        return MemoryWriteResult(
+            files_changed=files_changed,
+            commit_sha=None,
+            commit_message=None,
+            new_state=new_state,
+            warnings=warnings,
+            preview=preview_payload,
+        )
+
+    # Write questions.md
+    rendered = _render_questions_md(fm_dict, open_qs, resolved_qs)
+    abs_questions.write_text(rendered, encoding="utf-8")
+    repo.add(questions_path)
+
+    # Update open_questions in project SUMMARY.md
+    project_fm, project_body = read_with_frontmatter(abs_project_summary)
+    project_fm["open_questions"] = len(open_qs)
+    project_fm["last_activity"] = today
+    write_with_frontmatter(abs_project_summary, project_fm, project_body)
+    repo.add(project_summary_path)
+
+    record_trace(
+        root, session_id,
+        span_type="plan_action", name="add_questions", status="ok",
+        metadata={"project_id": project_slug, "question_ids": new_q_ids},
+    )
+    _stage_trace_file_if_present(root, repo, session_id, files_changed)
+    commit_result = repo.commit(commit_msg)
+    return MemoryWriteResult.from_commit(
+        files_changed=files_changed,
+        commit_result=commit_result,
+        commit_message=commit_msg,
+        new_state=new_state,
+        warnings=warnings,
+        preview=preview_payload,
+    )
+
+
+def resolve_project_question_result(
+    *,
+    repo: Any,
+    root: Path,
+    project_id: str,
+    question_id: str,
+    resolution: str,
+    session_id: str,
+    preview: bool = False,
+):
+    """Move a question from Open to Resolved with a resolution summary."""
+    from ...errors import NotFoundError, ValidationError
+    from ...frontmatter_utils import read_with_frontmatter, today_str, write_with_frontmatter
+    from ...models import MemoryWriteResult
+
+    warnings: list[str] = []
+    validation_errors: list[str] = []
+
+    try:
+        project_slug = validate_slug(project_id, field_name="project_id")
+    except ValidationError as exc:
+        validation_errors.extend(validation_error_messages(exc))
+        project_slug = project_id
+
+    validate_session_id(session_id)
+
+    if not resolution or not resolution.strip():
+        validation_errors.append("resolution must be non-empty")
+
+    questions_path = f"memory/working/projects/{project_slug}/questions.md"
+    abs_questions = root / questions_path
+    if not abs_questions.exists():
+        validation_errors.append(
+            f"No questions.md found for project {project_slug}"
+        )
+
+    raise_collected_validation_errors(validation_errors)
+
+    today = today_str()
+    fm_dict, open_qs, resolved_qs = _parse_questions_md(
+        abs_questions.read_text(encoding="utf-8")
+    )
+
+    # Find the question in open list
+    target_q = None
+    target_idx = None
+    for i, q in enumerate(open_qs):
+        if q["id"] == question_id:
+            target_q = q
+            target_idx = i
+            break
+
+    if target_q is None:
+        # Check if already resolved
+        for q in resolved_qs:
+            if q["id"] == question_id:
+                raise NotFoundError(
+                    f"Question {question_id} is already resolved in project {project_slug}"
+                )
+        raise NotFoundError(
+            f"Question {question_id} not found in project {project_slug}"
+        )
+
+    # Move from open to resolved
+    open_qs.pop(target_idx)
+
+    # Build resolved body: preserve existing metadata, add resolution
+    body_lines = []
+    if target_q.get("body"):
+        # Update "Last touched" in existing body
+        import re
+        updated_body = re.sub(
+            r"\*\*Last touched:\*\* \S+",
+            f"**Last touched:** {today}",
+            target_q["body"],
+        )
+        body_lines.append(updated_body)
+    body_lines.append(f"**Resolved:** {today} | **Resolution:** {resolution.strip()}")
+
+    resolved_qs.append({
+        "id": target_q["id"],
+        "title": target_q["title"],
+        "body": "\n".join(body_lines),
+    })
+
+    project_summary_path = _project_summary_path(project_slug)
+    abs_project_summary = root / project_summary_path
+    files_changed = [questions_path, project_summary_path]
+    new_state = {
+        "project_id": project_slug,
+        "resolved_question": question_id,
+        "open_questions": len(open_qs),
+        "resolved_questions": len(resolved_qs),
+    }
+
+    commit_msg = f"[plan] Resolve {question_id} in {project_slug}"
+    preview_payload = _create_preview(
+        mode="preview" if preview else "apply",
+        change_class="automatic",
+        summary=f"Resolve question {question_id} in project {project_slug}.",
+        reasoning="Resolved questions move to a separate section to keep the open list focused.",
+        target_files=[
+            (questions_path, "update"),
+            (project_summary_path, "update"),
+        ],
+        invariant_effects=[
+            f"Moves {question_id} from Open to Resolved with resolution text.",
+            "Updates open_questions count in project SUMMARY.md.",
+        ],
+        commit_message=commit_msg,
+        resulting_state=new_state,
+        warnings=warnings,
+    )
+    if preview:
+        return MemoryWriteResult(
+            files_changed=files_changed,
+            commit_sha=None,
+            commit_message=None,
+            new_state=new_state,
+            warnings=warnings,
+            preview=preview_payload,
+        )
+
+    # Write questions.md
+    rendered = _render_questions_md(fm_dict, open_qs, resolved_qs)
+    abs_questions.write_text(rendered, encoding="utf-8")
+    repo.add(questions_path)
+
+    # Update open_questions in project SUMMARY.md
+    if abs_project_summary.exists():
+        project_fm, project_body = read_with_frontmatter(abs_project_summary)
+        project_fm["open_questions"] = len(open_qs)
+        project_fm["last_activity"] = today
+        write_with_frontmatter(abs_project_summary, project_fm, project_body)
+        repo.add(project_summary_path)
+
+    record_trace(
+        root, session_id,
+        span_type="plan_action", name="resolve_question", status="ok",
+        metadata={"project_id": project_slug, "question_id": question_id},
     )
     _stage_trace_file_if_present(root, repo, session_id, files_changed)
     commit_result = repo.commit(commit_msg)
@@ -1604,6 +2018,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         session_id: str,
         cognitive_mode: str = "planning",
         status: str = "active",
+        questions: list[str] | None = None,
         first_plan: dict[str, Any] | None = None,
         preview: bool = False,
     ) -> str:
@@ -1617,6 +2032,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         Optional fields:
         - cognitive_mode: "planning" | "exploration" | "execution" (default "planning")
         - status: "active" | "draft" | "paused" (default "active")
+        - questions: list of open question strings to seed a questions.md file.
+          Each string becomes a numbered question entry (q-001, q-002, etc.)
+          in the project's questions.md file. The open_questions count in
+          the project SUMMARY.md frontmatter is set accordingly.
         - first_plan: optional plan-create payload to atomically create the
           project and its first plan in one commit. Accepts the same fields as
           memory_plan_create (plan_id, purpose_summary, purpose_context, phases,
@@ -1635,7 +2054,89 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             session_id=session_id,
             cognitive_mode=cognitive_mode,
             status=status,
+            questions=questions,
             first_plan=first_plan,
+            preview=preview,
+        )
+        return result.to_json()
+
+    @mcp.tool(
+        name="memory_project_add_questions",
+        annotations=_tool_annotations(
+            title="Add Project Questions",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_project_add_questions(
+        project_id: str,
+        questions: list[str],
+        session_id: str,
+        preview: bool = False,
+    ) -> str:
+        """Add open questions to an existing project.
+
+        Appends new numbered question entries to the project's questions.md,
+        creating the file if it doesn't exist. Updates the open_questions
+        count in the project SUMMARY.md frontmatter.
+
+        Required fields:
+        - project_id: kebab-case project slug
+        - questions: non-empty list of question strings
+        - session_id: canonical memory/activity/YYYY/MM/DD/chat-NNN id
+        """
+        repo = get_repo()
+        root = get_root()
+        result = add_project_questions_result(
+            repo=repo,
+            root=root,
+            project_id=project_id,
+            questions=questions,
+            session_id=session_id,
+            preview=preview,
+        )
+        return result.to_json()
+
+    @mcp.tool(
+        name="memory_project_resolve_question",
+        annotations=_tool_annotations(
+            title="Resolve Project Question",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_project_resolve_question(
+        project_id: str,
+        question_id: str,
+        resolution: str,
+        session_id: str,
+        preview: bool = False,
+    ) -> str:
+        """Resolve an open question in a project.
+
+        Moves the question from the Open section to the Resolved section in
+        questions.md, adding the resolution text and timestamp. Updates the
+        open_questions count in the project SUMMARY.md frontmatter.
+
+        Required fields:
+        - project_id: kebab-case project slug
+        - question_id: question identifier (e.g. "q-001")
+        - resolution: non-empty resolution summary
+        - session_id: canonical memory/activity/YYYY/MM/DD/chat-NNN id
+        """
+        repo = get_repo()
+        root = get_root()
+        result = resolve_project_question_result(
+            repo=repo,
+            root=root,
+            project_id=project_id,
+            question_id=question_id,
+            resolution=resolution,
+            session_id=session_id,
             preview=preview,
         )
         return result.to_json()
