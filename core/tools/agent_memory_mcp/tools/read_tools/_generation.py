@@ -6,8 +6,8 @@ import re
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
-from ..name_index import generate_names_index
 from ...response_envelope import dump_tool_result
+from ..name_index import generate_names_index
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP

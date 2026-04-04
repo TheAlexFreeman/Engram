@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ...response_envelope import dump_tool_result
-
 from ..reference_extractor import (
     build_connectivity_graph,
     diff_connectivity_graphs,
