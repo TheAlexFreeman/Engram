@@ -69,7 +69,5 @@ def test_setup_venv_dry_run_calls_expected_commands(
 def test_setup_venv_missing_pyproject_returns_two(tmp_path: Path) -> None:
     empty = tmp_path / "empty"
     empty.mkdir()
-    exit_code = cmd_setup_venv.run_setup_venv(
-        _args(), repo_root=empty, content_root=empty / "core"
-    )
+    exit_code = cmd_setup_venv.run_setup_venv(_args(), repo_root=empty, content_root=empty / "core")
     assert exit_code == 2
