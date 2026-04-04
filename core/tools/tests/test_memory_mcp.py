@@ -361,7 +361,7 @@ class MemoryMCPTests(unittest.TestCase):
                         {"path": "INIT.md"},
                     )
                     text_block = cast(Any, result.content[0])
-                    return cast(dict[str, object], json.loads(text_block.text))
+                    return cast(dict[str, object], self._load_tool_payload(text_block.text))
 
         payload = anyio.run(run_call)
 

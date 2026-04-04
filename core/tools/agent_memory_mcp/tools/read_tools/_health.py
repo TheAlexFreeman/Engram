@@ -27,7 +27,7 @@ def register_health(
     session_state: "SessionState | None" = None,
 ) -> dict[str, object]:
     """Register health read tools and return their callables."""
-    memory_review_unverified = cast(Any, tools["memory_review_unverified"])
+    _build_review_unverified_payload = cast(Any, tools["_build_review_unverified_payload"])
 
     _NEAR_TRIGGER_WINDOW = H._NEAR_TRIGGER_WINDOW
     _assess_maturity_stage = H._assess_maturity_stage
@@ -119,13 +119,6 @@ def register_health(
             "last_periodic_review": str(last_review) if last_review is not None else None,
             "checked_at": str(today),
         }
-
-    def _load_tool_payload(raw: str) -> dict[str, Any]:
-        payload = cast(dict[str, Any], json.loads(raw))
-        result = payload.get("result")
-        if isinstance(result, dict) and "_session" in payload:
-            return cast(dict[str, Any], result)
-        return payload
 
     # ------------------------------------------------------------------
     @mcp.tool(
@@ -351,24 +344,7 @@ def register_health(
     # ------------------------------------------------------------------
     # memory_run_periodic_review
 
-    # ------------------------------------------------------------------
-    @mcp.tool(
-        name="memory_run_periodic_review",
-        annotations=_tool_annotations(
-            title="Periodic Review Report",
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=False,
-        ),
-    )
-    async def memory_run_periodic_review() -> str:
-        """Run the ordered periodic-review checklist as a read-only report.
-
-        The tool mirrors the checklist in governance/update-guidelines.md and returns
-        structured findings plus deferred write targets rather than mutating any
-        protected files directly.
-        """
+    def _build_periodic_review_payload() -> dict[str, Any]:
         root = get_root()
         repo = get_repo()
         low_threshold, _ = _parse_trust_thresholds(root)
@@ -575,7 +551,27 @@ def register_health(
                 ],
             },
         }
-        return _dump_payload(payload)
+        return payload
+
+    # ------------------------------------------------------------------
+    @mcp.tool(
+        name="memory_run_periodic_review",
+        annotations=_tool_annotations(
+            title="Periodic Review Report",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_run_periodic_review() -> str:
+        """Run the ordered periodic-review checklist as a read-only report.
+
+        The tool mirrors the checklist in governance/update-guidelines.md and returns
+        structured findings plus deferred write targets rather than mutating any
+        protected files directly.
+        """
+        return _dump_payload(_build_periodic_review_payload())
 
     # ------------------------------------------------------------------
     # memory_session_bootstrap
@@ -693,12 +689,8 @@ def register_health(
         if max_files < 1 and not paths_only:
             raise ValidationError("max_files must be >= 1")
 
-        review_payload = _load_tool_payload(
-            await memory_review_unverified(
-                folder_path=folder_path,
-                max_extract_words=max_extract_words,
-                include_expired=True,
-            )
+        review_payload = _build_review_unverified_payload(
+            get_root(), folder_path, max_extract_words, True
         )
         candidates: list[dict[str, Any]] = []
         for group_name, entries in cast(
@@ -870,7 +862,7 @@ def register_health(
             raise ValidationError("max_queue_items and max_deferred_targets must be >= 1")
 
         session_health = _build_session_health_payload()
-        review_payload = _load_tool_payload(await memory_run_periodic_review())
+        review_payload = _build_periodic_review_payload()
         security_candidates, security_budget = _truncate_items(
             cast(
                 list[dict[str, Any]],
@@ -1285,4 +1277,5 @@ def register_health(
         "memory_audit_trust": memory_audit_trust,
         "memory_validate": memory_validate,
         "memory_get_maturity_signals": memory_get_maturity_signals,
+        "_build_session_health_payload": _build_session_health_payload,
     }

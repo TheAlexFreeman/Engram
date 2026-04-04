@@ -18,10 +18,10 @@ def register_resources(
     tools: dict[str, object],
 ) -> None:
     """Register MCP-native resources and prompts."""
-    memory_session_health_check = cast(Any, tools["memory_session_health_check"])
     memory_prepare_unverified_review = cast(Any, tools["memory_prepare_unverified_review"])
     memory_prepare_promotion_batch = cast(Any, tools["memory_prepare_promotion_batch"])
     memory_prepare_periodic_review = cast(Any, tools["memory_prepare_periodic_review"])
+    _build_session_health_payload = cast(Any, tools["_build_session_health_payload"])
 
     def _dump_resource_payload(payload: Any) -> str:
         return json.dumps(payload, indent=2)
@@ -96,7 +96,7 @@ def register_resources(
         mime_type="application/json",
     )
     async def memory_session_health_resource() -> str:
-        return _dump_resource_payload(_load_tool_payload(await memory_session_health_check()))
+        return _dump_resource_payload(_build_session_health_payload())
 
     @mcp.resource(
         "memory://plans/active",

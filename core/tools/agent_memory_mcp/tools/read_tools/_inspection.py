@@ -231,34 +231,16 @@ def register_inspection(
             session_state.record_tool_call()
         return "\n".join(lines)
 
-    @mcp.tool(
-        name="memory_review_unverified",
-        annotations=_tool_annotations(
-            title="Review Unverified Knowledge",
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=False,
-        ),
-    )
-    async def memory_review_unverified(
-        folder_path: str = "memory/knowledge/_unverified",
-        max_extract_words: int = 150,
-        include_expired: bool = True,
-    ) -> str:
-        """Return a grouped digest of unverified knowledge files.
-
-        Each file entry includes provenance metadata, age, expiry status, and a
-        truncated body extract to support review workflows without per-file reads.
-        """
-
-        if max_extract_words < 0:
-            raise ValidationError("max_extract_words must be >= 0")
-
-        root = get_root()
+    def _build_review_unverified_payload(
+        root: Any,
+        folder_path: str,
+        max_extract_words: int,
+        include_expired: bool,
+    ) -> dict[str, Any]:
+        """Build the unverified-review payload dict without recording a tool call."""
         folder = _resolve_memory_subpath(root, folder_path, "knowledge/_unverified")
         if not folder.exists():
-            result = {
+            return {
                 "folder_path": folder_path,
                 "max_extract_words": max_extract_words,
                 "include_expired": include_expired,
@@ -267,9 +249,6 @@ def register_inspection(
                 "trust_counts": {"low": 0, "medium": 0, "high": 0, "unknown": 0},
                 "groups": {},
             }
-            if session_state is not None:
-                session_state.record_tool_call()
-            return dump_tool_result(result, session_state, default=str)
         if not folder.is_dir():
             raise ValidationError(f"Not a directory: {folder_path}")
 
@@ -322,7 +301,7 @@ def register_inspection(
                 }
             )
 
-        result = {
+        return {
             "folder_path": folder_path,
             "max_extract_words": max_extract_words,
             "include_expired": include_expired,
@@ -331,6 +310,35 @@ def register_inspection(
             "trust_counts": trust_counts,
             "groups": grouped,
         }
+
+    @mcp.tool(
+        name="memory_review_unverified",
+        annotations=_tool_annotations(
+            title="Review Unverified Knowledge",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_review_unverified(
+        folder_path: str = "memory/knowledge/_unverified",
+        max_extract_words: int = 150,
+        include_expired: bool = True,
+    ) -> str:
+        """Return a grouped digest of unverified knowledge files.
+
+        Each file entry includes provenance metadata, age, expiry status, and a
+        truncated body extract to support review workflows without per-file reads.
+        """
+
+        if max_extract_words < 0:
+            raise ValidationError("max_extract_words must be >= 0")
+
+        root = get_root()
+        result = _build_review_unverified_payload(
+            root, folder_path, max_extract_words, include_expired
+        )
         if session_state is not None:
             session_state.record_tool_call()
         return dump_tool_result(result, session_state, default=str)
@@ -476,4 +484,5 @@ def register_inspection(
         "memory_review_unverified": memory_review_unverified,
         "memory_scan_frontmatter_health": memory_scan_frontmatter_health,
         "memory_extract_file": memory_extract_file,
+        "_build_review_unverified_payload": _build_review_unverified_payload,
     }
