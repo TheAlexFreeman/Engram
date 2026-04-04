@@ -1,0 +1,125 @@
+id: user-identity-and-namespacing
+project: multi-user-support
+created: 2026-04-03
+origin_session: memory/activity/2026/04/03/chat-001
+status: active
+purpose:
+  summary: Add per-user identity resolution and namespace isolation to the memory repo.
+  context: |
+    Engram is currently single-user-per-repo. To support teams sharing a memory
+    repo, the system needs a way to identify which user is connected, scope
+    personal state (sessions, working memory, ACCESS logs) per-user, and keep
+    shared knowledge accessible to all. This plan covers the foundational
+    identity layer that all other multi-user plans depend on.
+  questions:
+    - "Should MEMORY_USER_ID be a simple slug (e.g. 'alex') or a structured identifier (e.g. 'alex@team-slug')? Team-scoping might matter if the same repo is used across orgs."
+    - "How should identity work for MCP clients that don't support env vars (e.g. some Cursor configurations)? Fallback to a session_start parameter?"
+    - "Should we support anonymous/default users for backward compatibility with single-user repos, or require explicit identity from day one?"
+work:
+  phases:
+    - id: env-identity
+      title: Add MEMORY_USER_ID env var and resolve identity at MCP startup.
+      status: pending
+      commit: null
+      blockers: []
+      sources:
+        - path: core/tools/agent_memory_mcp/server.py
+          type: internal
+          intent: Understand current server init to add identity resolution
+        - path: core/tools/agent_memory_mcp/session_state.py
+          type: internal
+          intent: Thread user_id into session state
+      changes:
+        - path: core/tools/agent_memory_mcp/server.py
+          action: update
+          description: Read MEMORY_USER_ID env var at startup; store in server context alongside repo root.
+        - path: core/tools/agent_memory_mcp/session_state.py
+          action: update
+          description: Add user_id field to SessionState; include in all ACCESS log entries and session recordings.
+        - path: agent-bootstrap.toml
+          action: update
+          description: Document MEMORY_USER_ID in the config reference.
+      postconditions:
+        - description: SessionState.user_id is populated from MEMORY_USER_ID
+          type: grep
+          target: "user_id::core/tools/agent_memory_mcp/session_state.py"
+        - MCP server starts successfully with and without MEMORY_USER_ID set
+
+    - id: session-namespace
+      title: Namespace session activity paths per user.
+      status: pending
+      commit: null
+      blockers:
+        - env-identity
+      sources:
+        - path: core/memory/activity/
+          type: internal
+          intent: Understand current session storage layout
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: Route session recordings to memory/activity/{user_id}/YYYY/MM/DD/chat-NNN when user_id is set.
+        - path: core/memory/activity/SUMMARY.md
+          action: update
+          description: Add user attribution to activity index entries.
+      postconditions:
+        - Sessions recorded with MEMORY_USER_ID=alex land under memory/activity/alex/
+        - Sessions recorded without MEMORY_USER_ID use the existing flat path for backward compat
+
+    - id: working-namespace
+      title: Scope working memory per user.
+      status: pending
+      commit: null
+      blockers:
+        - env-identity
+      sources:
+        - path: core/memory/working/
+          type: internal
+          intent: Understand current working memory layout (USER.md, CURRENT.md, projects/)
+      changes:
+        - path: core/memory/working/
+          action: update
+          description: Restructure to memory/working/{user_id}/CURRENT.md and memory/working/{user_id}/projects/ when multi-user is active.
+        - path: core/tools/agent_memory_mcp/tools/read_tools.py
+          action: update
+          description: Update context loaders (memory_context_home, memory_context_project) to resolve user-scoped working paths.
+      postconditions:
+        - memory_context_home loads the correct user's CURRENT.md based on identity
+        - Shared project plans remain accessible regardless of user identity
+
+    - id: access-log-scoping
+      title: Tag ACCESS.jsonl entries with user_id.
+      status: pending
+      commit: null
+      blockers:
+        - env-identity
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/search_tools.py
+          action: update
+          description: Include user_id field in all ACCESS.jsonl entries.
+        - path: core/tools/agent_memory_mcp/tools/read_tools.py
+          action: update
+          description: Update access analytics to support filtering by user_id.
+      postconditions:
+        - description: ACCESS.jsonl entries contain user_id field
+          type: grep
+          target: "user_id::core/tools/agent_memory_mcp"
+
+    - id: backward-compat-tests
+      title: Verify single-user repos work unchanged.
+      status: pending
+      commit: null
+      blockers:
+        - session-namespace
+        - working-namespace
+        - access-log-scoping
+      changes:
+        - path: tests/test_multi_user_compat.py
+          action: create
+          description: Test suite verifying that repos without MEMORY_USER_ID continue to work with the existing flat layout.
+      postconditions:
+        - description: All existing tests pass
+          type: test
+          target: "pytest tests/"
+        - New compat tests pass with MEMORY_USER_ID unset
+review: null

@@ -1,0 +1,117 @@
+id: role-based-governance
+project: multi-user-support
+created: 2026-04-03
+origin_session: memory/activity/2026/04/03/chat-001
+status: active
+purpose:
+  summary: Add lightweight role-based permissions to the governance system.
+  context: |
+    The current change-control system (Automatic / Proposed / Protected) applies
+    uniformly. In a team context, some users should have broader write access
+    than others -- e.g., a maintainer can directly update skills, while a new
+    member's skill changes require approval. This plan adds a minimal role system
+    layered on top of the existing governance tiers, without building a full RBAC
+    framework.
+  questions:
+    - "Is two roles (maintainer/member) sufficient, or do we need a third 'viewer' role for read-only team members?"
+    - "Should role assignments live in governance/ (centralized, protected) or in each user's profile (distributed, easier to manage)?"
+    - "How should role enforcement interact with the existing approval workflow? Should maintainer approval auto-resolve, or should it still require an explicit approval step?"
+    - "What happens when a single-user repo is converted to multi-user? Does the existing user automatically become a maintainer?"
+work:
+  phases:
+    - id: roles-config
+      title: Define roles.yaml schema and initial role definitions.
+      status: pending
+      commit: null
+      blockers: []
+      requires_approval: true
+      sources:
+        - path: core/governance/update-guidelines.md
+          type: internal
+          intent: Understand existing change-control tiers to layer roles on top
+        - path: core/governance/content-boundaries.md
+          type: internal
+          intent: Understand content boundaries that roles might scope
+      changes:
+        - path: core/governance/roles.yaml
+          action: create
+          description: Define role schema with maintainer and member roles, mapping each to change-control tier permissions.
+        - path: core/governance/update-guidelines.md
+          action: update
+          description: Reference roles.yaml and explain how roles interact with change-control tiers.
+      postconditions:
+        - description: roles.yaml exists with valid schema
+          type: check
+          target: core/governance/roles.yaml
+        - Roles map clearly to existing change-control tiers (Automatic/Proposed/Protected)
+
+    - id: role-resolution
+      title: Resolve active user's role at session start.
+      status: pending
+      commit: null
+      blockers:
+        - roles-config
+      changes:
+        - path: core/tools/agent_memory_mcp/session_state.py
+          action: update
+          description: Add role field to SessionState, resolved from roles.yaml using user_id at session init.
+        - path: core/tools/agent_memory_mcp/server.py
+          action: update
+          description: Load roles.yaml at startup and resolve role for the active user.
+      postconditions:
+        - SessionState includes resolved role for the active user
+        - "Unknown users default to 'member' role"
+
+    - id: approval-gating
+      title: Gate protected writes by role.
+      status: pending
+      commit: null
+      blockers:
+        - role-resolution
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/write_tools.py
+          action: update
+          description: Check user role against required change-control tier before executing writes. Members require approval for Protected-class changes; maintainers can proceed directly.
+        - path: core/tools/agent_memory_mcp/tools/semantic/skill_tools.py
+          action: update
+          description: Apply role-based gating to skill creation and updates.
+      postconditions:
+        - Member-role users get approval prompts for Protected-class writes
+        - Maintainer-role users can execute Protected-class writes directly
+
+    - id: role-management-tool
+      title: Add tool for managing role assignments.
+      status: pending
+      commit: null
+      blockers:
+        - role-resolution
+      requires_approval: true
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/write_tools.py
+          action: update
+          description: Add memory_manage_roles tool for maintainers to assign/revoke roles.
+        - path: core/governance/roles.yaml
+          action: update
+          description: Support user-to-role mapping entries.
+      postconditions:
+        - Maintainers can assign roles via memory_manage_roles
+        - Role changes are committed with [governance] prefix and require existing maintainer approval
+
+    - id: single-to-multi-migration
+      title: Auto-migration path for existing single-user repos.
+      status: pending
+      commit: null
+      blockers:
+        - roles-config
+        - role-resolution
+      changes:
+        - path: core/tools/agent_memory_mcp/server.py
+          action: update
+          description: On first multi-user startup (MEMORY_USER_ID set but no roles.yaml), auto-generate roles.yaml with the detected user as maintainer.
+        - path: core/tools/agent_memory_mcp/tools/read_tools.py
+          action: update
+          description: Add migration status to memory_git_health and memory_session_health_check output.
+      postconditions:
+        - Existing single-user repo auto-migrates to multi-user with current user as maintainer
+        - Migration is idempotent and safe to run multiple times
+review: null

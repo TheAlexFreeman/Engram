@@ -1,0 +1,115 @@
+id: frontmatter-visibility
+project: multi-user-support
+created: 2026-04-03
+origin_session: memory/activity/2026/04/03/chat-001
+status: active
+purpose:
+  summary: Add visibility and authorship fields to frontmatter for shared vs private memory.
+  context: |
+    In a team repo, some memories are personal (session reflections, user
+    preferences) and some are shared (verified knowledge, team decisions). The
+    existing frontmatter schema needs author and visibility fields, and the
+    retrieval pipeline needs to filter based on the active user's identity. This
+    plan also defines the promotion path from private notes to shared team
+    knowledge.
+  questions:
+    - "Should visibility default to 'team' (open by default) or 'private' (closed by default)? Open-by-default encourages knowledge sharing but may expose unfinished thoughts."
+    - "How should visibility interact with the existing trust system? E.g., should trust:low + visibility:team be allowed, or should team-visible content require at least trust:medium?"
+work:
+  phases:
+    - id: schema-extension
+      title: Extend frontmatter schema with author and visibility fields.
+      status: pending
+      commit: null
+      blockers: []
+      requires_approval: true
+      sources:
+        - path: core/governance/update-guidelines.md
+          type: internal
+          intent: Understand existing frontmatter field contract
+        - path: core/governance/content-boundaries.md
+          type: internal
+          intent: Understand content boundary rules that visibility must respect
+      changes:
+        - path: core/governance/update-guidelines.md
+          action: update
+          description: "Add 'author' (string, optional) and 'visibility' (team|private, default team) to the canonical frontmatter schema."
+        - path: core/tools/agent_memory_mcp/frontmatter_utils.py
+          action: update
+          description: Add validation and defaults for new author/visibility fields in frontmatter utilities.
+      postconditions:
+        - description: Frontmatter parser accepts and validates author/visibility fields
+          type: grep
+          target: "visibility::core/tools/agent_memory_mcp/frontmatter_utils.py"
+        - Existing files without author/visibility parse without error (defaulting to team visibility)
+
+    - id: retrieval-filter
+      title: Add visibility filtering to the retrieval pipeline.
+      status: pending
+      commit: null
+      blockers:
+        - schema-extension
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/read_tools.py
+          action: update
+          description: Filter out visibility:private files that don't match the active user_id in context loaders and file readers.
+        - path: core/tools/agent_memory_mcp/tools/semantic/search_tools.py
+          action: update
+          description: Apply visibility filter in memory_search and memory_semantic_search results.
+      postconditions:
+        - Search results exclude other users' private memories
+        - "User's own private memories appear normally in their session"
+
+    - id: write-tool-tagging
+      title: Auto-tag author and visibility on new content creation.
+      status: pending
+      commit: null
+      blockers:
+        - schema-extension
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/knowledge_tools.py
+          action: update
+          description: Auto-populate author from SessionState.user_id on knowledge file creation.
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: "Set visibility:private on session reflections, visibility:team on session summaries by default."
+      postconditions:
+        - Newly created knowledge files include author field matching active user
+        - Session reflections default to visibility:private
+
+    - id: personal-notes-namespace
+      title: Add personal notes area for private unshared knowledge.
+      status: pending
+      commit: null
+      blockers:
+        - schema-extension
+      changes:
+        - path: core/memory/users/
+          action: update
+          description: "Create convention: memory/users/{name}/notes/ for personal knowledge files with visibility:private."
+        - path: core/memory/HOME.md
+          action: update
+          description: Document the personal notes convention and its relationship to shared knowledge.
+      postconditions:
+        - Personal notes directory convention is documented
+        - Files in users/{name}/notes/ default to visibility:private
+
+    - id: promotion-path
+      title: Define promotion workflow from private to team-visible knowledge.
+      status: pending
+      commit: null
+      blockers:
+        - retrieval-filter
+        - personal-notes-namespace
+      requires_approval: true
+      changes:
+        - path: core/governance/content-boundaries.md
+          action: update
+          description: Add rules for promoting private knowledge to team visibility, leveraging existing quarantine/review pattern.
+        - path: core/tools/agent_memory_mcp/tools/semantic/knowledge_tools.py
+          action: update
+          description: Add visibility parameter to memory_promote_knowledge to support private-to-team promotion.
+      postconditions:
+        - memory_promote_knowledge can change visibility from private to team
+        - Promotion to team visibility requires the same review gate as unverified-to-verified promotion
+review: null

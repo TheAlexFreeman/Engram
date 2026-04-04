@@ -1,0 +1,94 @@
+id: team-activity-feed
+project: multi-user-support
+created: 2026-04-03
+origin_session: memory/activity/2026/04/03/chat-001
+status: active
+purpose:
+  summary: Surface cross-user activity and enable team context awareness.
+  context: |
+    One of the highest-value features for teams is knowing what others have been
+    working on. This plan adds tools for aggregating activity across users,
+    surfacing cross-user knowledge connections, and providing team-aware context
+    in session bootstraps. The goal is to make the agent say things like "Sarah
+    was working on the auth refactor yesterday" without anyone having to manually
+    share that context.
+  questions:
+    - "How much cross-user context should be injected by default in session bootstrap? Too much creates noise; too little defeats the purpose."
+    - "Should team activity respect visibility:private boundaries, or is activity metadata (topic, timestamp) always team-visible even if the underlying content is private?"
+    - "Is there a privacy concern with surfacing 'Alex was working on X at 11pm last night'? Should activity timestamps be coarsened to date-level?"
+work:
+  phases:
+    - id: team-activity-tool
+      title: Add memory_team_activity tool for cross-user session summaries.
+      status: pending
+      commit: null
+      blockers: []
+      sources:
+        - path: core/memory/activity/SUMMARY.md
+          type: internal
+          intent: Understand current activity aggregation format
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: Understand session recording for multi-user extension
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/read_tools.py
+          action: update
+          description: Add memory_team_activity tool that aggregates recent session summaries across all user namespaces, respecting visibility.
+        - path: core/tools/agent_memory_mcp/server.py
+          action: update
+          description: Register the new team activity tool.
+      postconditions:
+        - memory_team_activity returns recent sessions from all users with author attribution
+        - "Private session content is excluded from other users' team activity views"
+
+    - id: bootstrap-team-context
+      title: Include team activity summary in session bootstrap.
+      status: pending
+      commit: null
+      blockers:
+        - team-activity-tool
+      changes:
+        - path: core/tools/agent_memory_mcp/prompts/
+          action: update
+          description: "Update session_start prompt to include a brief 'team activity since your last session' section when multi-user is active."
+        - path: core/tools/agent_memory_mcp/tools/read_tools.py
+          action: update
+          description: Update memory_context_home to optionally include team activity digest.
+      postconditions:
+        - Session bootstrap in multi-user mode includes recent team activity summary
+        - Summary is concise (max 5 most recent sessions from other users)
+
+    - id: cross-user-knowledge-links
+      title: Surface knowledge connections across users.
+      status: pending
+      commit: null
+      blockers:
+        - team-activity-tool
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/graph_tools.py
+          action: update
+          description: "Extend memory_suggest_links and memory_cross_domain_links to identify connections between different users' knowledge contributions."
+        - path: core/tools/agent_memory_mcp/tools/read_tools.py
+          action: update
+          description: Add optional cross-user flag to memory_search results showing who else has written about matching topics.
+      postconditions:
+        - "memory_suggest_links can surface connections between User A's and User B's knowledge files"
+        - Search results can optionally show related contributions from other team members
+
+    - id: activity-privacy-controls
+      title: Add granular controls for activity visibility.
+      status: pending
+      commit: null
+      blockers:
+        - team-activity-tool
+      changes:
+        - path: core/memory/users/
+          action: update
+          description: "Add activity_visibility preference to user profiles (full|summary-only|hidden)."
+        - path: core/tools/agent_memory_mcp/tools/read_tools.py
+          action: update
+          description: Respect user activity_visibility preferences in team activity aggregation.
+      postconditions:
+        - "Users with activity_visibility:hidden do not appear in other users' team feeds"
+        - "Users with activity_visibility:summary-only show topic and date but not session details"
+review: null

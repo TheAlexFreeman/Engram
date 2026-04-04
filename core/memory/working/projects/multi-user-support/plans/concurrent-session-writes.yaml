@@ -1,0 +1,114 @@
+id: concurrent-session-writes
+project: multi-user-support
+created: 2026-04-03
+origin_session: memory/activity/2026/04/03/chat-001
+status: active
+purpose:
+  summary: Enable safe concurrent writes from multiple MCP sessions via branch-per-user strategy.
+  context: |
+    When multiple users connect MCP sessions to the same repo simultaneously,
+    direct writes to main will conflict. This plan implements a branch-per-session
+    write strategy that leverages git's native merge capabilities, plus a merge
+    queue for conflict resolution. The goal is to make concurrent team use safe
+    without requiring external coordination.
+  questions:
+    - "Should branches be per-user (engram/alex) or per-session (engram/alex/2026-04-03-001)? Per-user is simpler but prevents the same user from running two sessions."
+    - "What merge strategy for ACCESS.jsonl? Append-only files could use a custom merge driver that concatenates both sides. Worth the git config complexity?"
+    - "Should the merge queue be a git-native mechanism (PR-like) or an in-repo queue file? Git-native is more robust but assumes GitHub/GitLab hosting."
+    - "How should the system handle merge conflicts in knowledge files? Auto-resolve by keeping both versions in separate sections, or block and require human review?"
+work:
+  phases:
+    - id: branch-strategy
+      title: Implement branch-per-session write isolation.
+      status: pending
+      commit: null
+      blockers: []
+      sources:
+        - path: core/tools/agent_memory_mcp/git_repo.py
+          type: internal
+          intent: Understand GitRepo wrapper to add branch management
+        - path: core/tools/agent_memory_mcp/server.py
+          type: internal
+          intent: Understand server lifecycle for branch creation/cleanup
+      changes:
+        - path: core/tools/agent_memory_mcp/git_repo.py
+          action: update
+          description: Add branch creation, checkout, and merge methods to GitRepo. Create engram/{user_id}/{session_slug} branches on session start.
+        - path: core/tools/agent_memory_mcp/server.py
+          action: update
+          description: Create session branch on MCP connection init when multi-user mode is detected; all writes go to this branch.
+      postconditions:
+        - MCP session creates an isolated branch on startup in multi-user mode
+        - All file writes during the session commit to the session branch, not main
+
+    - id: auto-merge
+      title: Auto-merge session branches on flush/checkpoint.
+      status: pending
+      commit: null
+      blockers:
+        - branch-strategy
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: On session flush or checkpoint, attempt fast-forward merge to main. If clean, merge and delete branch.
+        - path: core/tools/agent_memory_mcp/git_repo.py
+          action: update
+          description: Add merge conflict detection and reporting methods.
+      postconditions:
+        - Clean session flushes auto-merge to main
+        - Conflicting merges are detected and reported, not silently corrupted
+
+    - id: conflict-resolution
+      title: Build conflict queue for non-trivial merge failures.
+      status: pending
+      commit: null
+      blockers:
+        - auto-merge
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: When merge conflicts occur, park the branch and create a conflict record in memory/working/merge-queue/.
+        - path: core/memory/working/merge-queue/
+          action: create
+          description: Directory for pending merge conflict records with metadata about conflicting files and users.
+        - path: core/tools/agent_memory_mcp/tools/write_tools.py
+          action: update
+          description: Add memory_resolve_merge tool for reviewing and resolving queued conflicts.
+      postconditions:
+        - Merge conflicts create structured records rather than blocking the session
+        - memory_resolve_merge can accept one side or a manual resolution
+
+    - id: jsonl-merge-driver
+      title: Custom git merge driver for append-only JSONL files.
+      status: pending
+      commit: null
+      blockers:
+        - branch-strategy
+      changes:
+        - path: .gitattributes
+          action: update
+          description: Register custom merge driver for *.jsonl files.
+        - path: core/tools/agent_memory_mcp/jsonl_merge.py
+          action: create
+          description: Git merge driver script that concatenates both sides of JSONL conflicts and deduplicates by timestamp+file key.
+      postconditions:
+        - ACCESS.jsonl merges from concurrent sessions produce valid JSONL with all entries preserved
+        - No data loss on concurrent ACCESS log writes
+
+    - id: stale-branch-cleanup
+      title: Periodic cleanup of abandoned session branches.
+      status: pending
+      commit: null
+      blockers:
+        - auto-merge
+      changes:
+        - path: core/tools/agent_memory_mcp/git_repo.py
+          action: update
+          description: Add method to list and prune engram/* branches older than a configurable threshold (default 7 days).
+        - path: core/tools/agent_memory_mcp/tools/read_tools.py
+          action: update
+          description: Surface stale branches in memory_git_health output.
+      postconditions:
+        - memory_git_health reports stale session branches
+        - Branches older than threshold can be pruned via maintenance tool
+review: null
