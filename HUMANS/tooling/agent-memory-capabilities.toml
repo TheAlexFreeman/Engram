@@ -91,6 +91,10 @@ semantic_extensions = [
   "memory_plan_verify",
   "memory_plan_briefing",
   "memory_plan_resume",
+  # Project scaffolding and questions.md workflows (governed writes).
+  "memory_project_create",
+  "memory_project_add_questions",
+  "memory_project_resolve_question",
   "memory_stage_external",
   "memory_scan_drop_zone",
   "memory_run_eval",
