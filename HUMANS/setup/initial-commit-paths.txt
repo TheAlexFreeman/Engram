@@ -817,8 +817,10 @@ core/tools/agent_memory_mcp/proxy/compaction.py
 core/tools/agent_memory_mcp/proxy/formats.py
 core/tools/agent_memory_mcp/proxy/injection.py
 core/tools/agent_memory_mcp/proxy/server.py
+core/tools/agent_memory_mcp/response_envelope.py
 core/tools/agent_memory_mcp/server.py
 core/tools/agent_memory_mcp/server_main.py
+core/tools/agent_memory_mcp/session_state.py
 core/tools/agent_memory_mcp/sidecar/__init__.py
 core/tools/agent_memory_mcp/sidecar/access_logger.py
 core/tools/agent_memory_mcp/sidecar/cli.py
@@ -901,6 +903,7 @@ core/tools/tests/test_search_freshness.py
 core/tools/tests/test_semantic_search.py
 core/tools/tests/test_server_main.py
 core/tools/tests/test_session_lifecycle.py
+core/tools/tests/test_session_state.py
 core/tools/tests/test_sidecar_cli.py
 core/tools/tests/test_surface_unlinked.py
 core/tools/tests/test_transcript_parser.py
