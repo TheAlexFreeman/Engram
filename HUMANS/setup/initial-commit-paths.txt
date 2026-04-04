@@ -692,6 +692,7 @@ core/memory/skills/eval-scenarios/run-state-failure-recovery.yaml
 core/memory/skills/eval-scenarios/tool-policy-integration.yaml
 core/memory/skills/eval-scenarios/trace-recording-validation.yaml
 core/memory/skills/eval-scenarios/verification-failure-retry.yaml
+core/memory/skills/flow-trace.md
 core/memory/skills/onboarding.md
 core/memory/skills/session-start.md
 core/memory/skills/session-sync.md
@@ -779,6 +780,7 @@ core/tools/agent_memory_mcp/cli/cmd_archive.py
 core/tools/agent_memory_mcp/cli/cmd_diff.py
 core/tools/agent_memory_mcp/cli/cmd_export.py
 core/tools/agent_memory_mcp/cli/cmd_import.py
+core/tools/agent_memory_mcp/cli/cmd_init.py
 core/tools/agent_memory_mcp/cli/cmd_log.py
 core/tools/agent_memory_mcp/cli/cmd_plan.py
 core/tools/agent_memory_mcp/cli/cmd_project.py
