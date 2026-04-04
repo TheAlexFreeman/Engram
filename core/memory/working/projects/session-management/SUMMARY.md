@@ -50,9 +50,9 @@ Each phase builds on the previous rather than replacing it. See [notes/integrate
 | [checkpoint-tool](plans/checkpoint-tool.yaml) | complete | 3 | `memory_checkpoint` tool, session skill updates, docs |
 | [sidecar-observer](plans/sidecar-observer.yaml) | complete | 7 | Transcript parser framework, Claude Code parser, helpfulness estimator, ACCESS logger, session lifecycle, CLI, docs |
 | [optional-proxy](plans/optional-proxy.yaml) | complete | 6 | API proxy core, context injection, compaction flush, auto-checkpointing, CLI, docs |
-| [enriched-mcp-server](plans/enriched-mcp-server.yaml) | draft | 6 | Session state model, advisory responses, auto-ACCESS from reads, `memory_context_query`, health enrichment, docs |
+| [enriched-mcp-server](plans/enriched-mcp-server.yaml) | active | 6 | Session state (done), `_session` advisories (in progress), auto-ACCESS, deferred `memory_context_query`, health/docs |
 
-**Parallelism:** Phase 2 is now fully landed. The next roadmap slice is enriched-mcp-server whenever session-state-model work becomes the priority.
+**Parallelism:** Enriched MCP server is in flight: session state landed; advisory envelope and health/docs work remain; auto-ACCESS and `memory_context_query` are still open (context query deferred per MCP.md).
 
 ## Deferred
 
