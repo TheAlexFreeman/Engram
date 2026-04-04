@@ -142,6 +142,7 @@ def build_parser() -> argparse.ArgumentParser:
     from .cmd_import import register_import
     from .cmd_log import register_log
     from .cmd_plan import register_plan
+    from .cmd_project import register_project
     from .cmd_promote import register_promote
     from .cmd_recall import register_recall
     from .cmd_review import register_review
@@ -165,6 +166,7 @@ def build_parser() -> argparse.ArgumentParser:
     register_recall(subparsers, parents=[common_parser])
     register_log(subparsers, parents=[common_parser])
     register_plan(subparsers, parents=[common_parser])
+    register_project(subparsers, parents=[common_parser])
     register_trace(subparsers, parents=[common_parser])
     register_validate(subparsers, parents=[common_parser])
     register_setup_venv(subparsers, parents=[common_parser])

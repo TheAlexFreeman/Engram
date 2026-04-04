@@ -241,6 +241,215 @@ def _stage_trace_file_if_present(
             files_changed.append(trace_path)
 
 
+def create_project_write_result(
+    *,
+    repo: Any,
+    root: Path,
+    project_id: str,
+    description: str,
+    session_id: str,
+    cognitive_mode: str = "planning",
+    status: str = "active",
+    first_plan: dict[str, Any] | None = None,
+    preview: bool = False,
+):
+    """Create a project scaffold and optionally its first plan in one commit.
+
+    Shared governed write path used by both MCP and CLI flows.
+    """
+    from ...errors import NotFoundError, ValidationError
+    from ...frontmatter_utils import (
+        collect_project_entries,
+        render_projects_navigator,
+        today_str,
+        write_with_frontmatter,
+    )
+    from ...models import MemoryWriteResult
+
+    warnings: list[str] = []
+    validation_errors: list[str] = []
+
+    try:
+        project_slug = validate_slug(project_id, field_name="project_id")
+    except ValidationError as exc:
+        validation_errors.extend(validation_error_messages(exc))
+        project_slug = project_id
+
+    validate_session_id(session_id)
+
+    valid_modes = {"planning", "exploration", "execution"}
+    if cognitive_mode not in valid_modes:
+        validation_errors.append(
+            f"cognitive_mode must be one of {sorted(valid_modes)}, got {cognitive_mode!r}"
+        )
+
+    valid_statuses = {"active", "draft", "paused"}
+    if status not in valid_statuses:
+        validation_errors.append(
+            f"status must be one of {sorted(valid_statuses)}, got {status!r}"
+        )
+
+    if not description or not description.strip():
+        validation_errors.append("description must be non-empty")
+
+    project_summary_path = _project_summary_path(project_slug)
+    abs_project_summary = root / project_summary_path
+    if abs_project_summary.exists():
+        validation_errors.append(
+            f"Project already exists: memory/working/projects/{project_slug}"
+        )
+
+    # --- validate optional first plan early ---
+    first_plan_result = None
+    if first_plan is not None and not validation_errors:
+        first_plan.setdefault("project_id", project_slug)
+        if first_plan.get("project_id") != project_slug:
+            validation_errors.append(
+                f"first_plan.project_id ({first_plan.get('project_id')!r}) "
+                f"must match project_id ({project_slug!r})"
+            )
+
+    raise_collected_validation_errors(validation_errors)
+
+    today = today_str()
+    frontmatter: dict[str, Any] = {
+        "active_plans": 0,
+        "cognitive_mode": cognitive_mode,
+        "created": today,
+        "current_focus": description.strip().split("\n")[0][:120],
+        "last_activity": today,
+        "open_questions": 0,
+        "origin_session": session_id,
+        "plans": 0,
+        "source": "agent-generated",
+        "status": status,
+        "trust": "medium",
+        "type": "project",
+    }
+
+    body_lines = [
+        f"# Project: {project_slug.replace('-', ' ').title()}",
+        "",
+        "## Description",
+        description.strip(),
+    ]
+    body = "\n".join(body_lines) + "\n"
+
+    files_changed = [
+        project_summary_path,
+        "memory/working/projects/SUMMARY.md",
+    ]
+    new_state: dict[str, Any] = {
+        "project_id": project_slug,
+        "project_path": f"memory/working/projects/{project_slug}/",
+        "status": status,
+        "cognitive_mode": cognitive_mode,
+    }
+
+    commit_msg = f"[plan] Create project {project_slug}"
+    preview_payload = _create_preview(
+        mode="preview" if preview else "apply",
+        change_class="proposed",
+        summary=f"Create project scaffold for {project_slug}.",
+        reasoning=(
+            "Projects require a SUMMARY.md before plans can be created. "
+            "This scaffolds the project directory and refreshes the navigator index."
+        ),
+        target_files=[
+            (project_summary_path, "create"),
+            ("memory/working/projects/SUMMARY.md", "update"),
+        ],
+        invariant_effects=[
+            "Creates a project SUMMARY.md with frontmatter and description.",
+            "Refreshes the projects navigator index.",
+        ],
+        commit_message=commit_msg,
+        resulting_state=new_state,
+        warnings=warnings,
+    )
+
+    if preview and first_plan is None:
+        return MemoryWriteResult(
+            files_changed=files_changed,
+            commit_sha=None,
+            commit_message=None,
+            new_state=new_state,
+            warnings=warnings,
+            preview=preview_payload,
+        )
+
+    # --- write project scaffold ---
+    abs_project_dir = abs_project_summary.parent
+    abs_project_dir.mkdir(parents=True, exist_ok=True)
+    write_with_frontmatter(abs_project_summary, frontmatter, body)
+    repo.add(project_summary_path)
+
+    # Refresh navigator
+    navigator_path = "memory/working/projects/SUMMARY.md"
+    abs_navigator = root / navigator_path
+    if abs_navigator.exists():
+        navigator_content = render_projects_navigator(collect_project_entries(root))
+        abs_navigator.write_text(navigator_content, encoding="utf-8")
+        repo.add(navigator_path)
+
+    # --- optional first plan (atomic) ---
+    if first_plan is not None:
+        plan_result = create_plan_write_result(
+            repo=repo,
+            root=root,
+            plan_id=first_plan["plan_id"],
+            project_id=project_slug,
+            purpose_summary=first_plan["purpose_summary"],
+            purpose_context=first_plan["purpose_context"],
+            phases=first_plan["phases"],
+            session_id=first_plan.get("session_id", session_id),
+            questions=first_plan.get("questions"),
+            budget=first_plan.get("budget"),
+            status=first_plan.get("status", "active"),
+            preview=preview,
+        )
+        if preview:
+            new_state["first_plan"] = plan_result.new_state
+            return MemoryWriteResult(
+                files_changed=files_changed + plan_result.files_changed,
+                commit_sha=None,
+                commit_message=None,
+                new_state=new_state,
+                warnings=warnings + plan_result.warnings,
+                preview=preview_payload,
+            )
+        # plan_result already committed; just merge metadata
+        new_state["first_plan"] = plan_result.new_state
+        return MemoryWriteResult.from_commit(
+            files_changed=list(dict.fromkeys(files_changed + plan_result.files_changed)),
+            commit_result={"sha": plan_result.commit_sha, "message": plan_result.commit_message},
+            commit_message=plan_result.commit_message or commit_msg,
+            new_state=new_state,
+            warnings=warnings + plan_result.warnings,
+            preview=preview_payload,
+        )
+
+    # --- commit (project-only, no inline plan) ---
+    record_trace(
+        root,
+        session_id,
+        span_type="plan_action",
+        name="project_create",
+        status="ok",
+        metadata={"project_id": project_slug, "action": "create"},
+    )
+    _stage_trace_file_if_present(root, repo, session_id, files_changed)
+    commit_result = repo.commit(commit_msg)
+    return MemoryWriteResult.from_commit(
+        files_changed=files_changed,
+        commit_result=commit_result,
+        commit_message=commit_msg,
+        new_state=new_state,
+        warnings=warnings,
+        preview=preview_payload,
+    )
+
+
 def create_plan_write_result(
     *,
     repo: Any,
@@ -1378,6 +1587,58 @@ def _render_outbox_summary(
 
 def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     """Register plan-oriented semantic tools."""
+
+    @mcp.tool(
+        name="memory_project_create",
+        annotations=_tool_annotations(
+            title="Create Project",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_project_create(
+        project_id: str,
+        description: str,
+        session_id: str,
+        cognitive_mode: str = "planning",
+        status: str = "active",
+        first_plan: dict[str, Any] | None = None,
+        preview: bool = False,
+    ) -> str:
+        """Create a new project scaffold with SUMMARY.md and navigator index.
+
+        Required fields:
+        - project_id: kebab-case slug (e.g. "multi-user-support")
+        - description: non-empty project description (used in SUMMARY.md body)
+        - session_id: canonical memory/activity/YYYY/MM/DD/chat-NNN id
+
+        Optional fields:
+        - cognitive_mode: "planning" | "exploration" | "execution" (default "planning")
+        - status: "active" | "draft" | "paused" (default "active")
+        - first_plan: optional plan-create payload to atomically create the
+          project and its first plan in one commit. Accepts the same fields as
+          memory_plan_create (plan_id, purpose_summary, purpose_context, phases,
+          and optionally questions, budget, status, session_id). The project_id
+          is inherited from the outer project_id.
+        - preview: when true, validate and return the governed preview without
+          writing or committing.
+        """
+        repo = get_repo()
+        root = get_root()
+        result = create_project_write_result(
+            repo=repo,
+            root=root,
+            project_id=project_id,
+            description=description,
+            session_id=session_id,
+            cognitive_mode=cognitive_mode,
+            status=status,
+            first_plan=first_plan,
+            preview=preview,
+        )
+        return result.to_json()
 
     @mcp.tool(
         name="memory_plan_create",
