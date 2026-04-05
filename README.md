@@ -4,6 +4,9 @@
 
 Engram is a model-portable, human-legible, version-controlled, adaptively self-organizing memory layer for AI agents. It is more than a memory store — it is an ecology of protocols designed to learn from its own usage patterns in a transparent and robust way.
 
+**Browsable Public Repos:**
+- [Alex Freeman (`origin/main`)](http://thealexfreeman.github.io/Engram/)
+
 **Setting up for the first time?** → [HUMANS/docs/QUICKSTART.md](HUMANS/docs/QUICKSTART.md)
 **Need the fundamentals first?** → [HUMANS/docs/CORE.md](HUMANS/docs/CORE.md)
 **Exploring the design deeply?** → [HUMANS/docs/DESIGN.md](HUMANS/docs/DESIGN.md)

@@ -270,7 +270,7 @@ button:active { transform: scale(0.97); }
 <header class="dashboard-header">
   <div style="max-width:1020px;margin:0 auto;">
     <h1>Engram</h1>
-    <p class="subtitle">Read-only view of your memory repository.</p>
+    <p class="subtitle" id="header-subtitle">Read-only view of your memory repository.</p>
     <nav class="toolbar" aria-label="Dashboard navigation and repository actions">
       <a href="setup.html" class="nav-link" style="margin-left: 0.5rem">&#8592; Setup Wizard</a>
       <a href="docs.html" class="nav-link" style="margin-left: 0.5rem">&#128203; Docs</a>
@@ -1144,6 +1144,19 @@ button:active { transform: scale(0.97); }
   };
 
   (async function init() {
+    // Update subtitle when hosted on GitHub Pages
+    if (E.detectGitHubRepo()) {
+      var subtitleEl = document.getElementById('header-subtitle');
+      if (subtitleEl) {
+        var a = document.createElement('a');
+        a.href = 'https://github.com/TheAlexFreeman/Engram';
+        a.textContent = 'Alex Freeman\u2019s memory repository';
+        a.style.color = 'inherit';
+        subtitleEl.textContent = '';
+        subtitleEl.appendChild(a);
+      }
+    }
+
     // Disable local folder button if API unavailable
     if (!window.showDirectoryPicker) {
       document.getElementById('open-btn').disabled = true;
