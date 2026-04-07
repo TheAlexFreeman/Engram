@@ -1,4 +1,12 @@
 ---
+name: flow-trace
+description: >-
+  Trace how operations execute through a codebase — following requests, commands,
+  jobs, or events from entry point through every architectural layer, recording
+  boundary crossings, data transformations, and implicit couplings. Complements
+  the codebase-survey by mapping what happens rather than what exists.
+compatibility: Requires host repo access for code reading; uses agent-memory MCP for knowledge persistence
+
 source: agent-generated
 origin_session: manual
 created: 2026-04-04
@@ -29,7 +37,7 @@ If `knowledge/codebase/architecture.md` already has entry points mapped, start t
 
 The central idea is to trace execution across *architectural boundaries* rather than through every function call. This keeps traces compact and structurally informative.
 
-At each step, ask: **"Am I still in the same architectural layer?"** If the answer is yes, keep scanning but don't record every function — you're looking for the exit. When execution crosses a boundary (API layer → business logic, business logic → persistence, synchronous → async), record:
+At each step, ask: **"Am I still in the same architectural layer?"** If the answer is yes, keep scanning but don't record every function — you're looking for the exit. When execution crosses a boundary (API layer -> business logic, business logic -> persistence, synchronous -> async), record:
 
 1. **The crossing point**: which function/method/message hands off to which
 2. **What crosses the boundary**: the data or message shape, not the full payload
@@ -93,7 +101,7 @@ Document the standard lifecycle once, in detail. Then for subsequent flows, docu
 
 **Example format:**
 
-> **Standard API lifecycle:** Request → auth middleware → DRF serializer validation → viewset action → service method → ORM → response serializer → response.
+> **Standard API lifecycle:** Request -> auth middleware -> DRF serializer validation -> viewset action -> service method -> ORM -> response serializer -> response.
 
 > **POST /orders (deviation):** After OrderService.create(), enqueues `send_confirmation` celery task. Also bypasses standard pagination. (Reason: order creation is the only endpoint with async side effects.)
 

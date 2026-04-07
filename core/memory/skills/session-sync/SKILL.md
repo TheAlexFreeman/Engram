@@ -1,4 +1,11 @@
 ---
+name: session-sync
+description: >-
+  Mid-session checkpoint. Captures decisions, open threads, and key artifacts
+  without ending the session. Activate when the user says "sync" or "checkpoint",
+  or when context pressure makes a save worthwhile.
+compatibility: Requires agent-memory MCP server with memory_checkpoint
+
 source: user-stated
 origin_session: manual
 created: 2026-03-16
