@@ -25,15 +25,25 @@ This folder contains procedural knowledge — instructions for how the agent sho
 - **Tool-specific procedures.** How to interact with particular tools, APIs, or platforms the user works with regularly.
 - **Templates.** Reusable structures for common outputs (emails, reports, code patterns).
 
-## Skill file format
+## Skill format (Agent Skills standard)
 
-Each skill file should include:
+Skills follow the [Agent Skills standard](https://agentskills.io/specification) — each skill is a **directory** containing a `SKILL.md` file with YAML frontmatter and Markdown instructions:
 
-1. **When to use this skill.** Trigger conditions — what kind of user request activates this procedure.
-2. **Steps.** The actual procedure, written as clear instructions the agent should follow.
-3. **Quality criteria.** How to evaluate whether the output meets the user's standards.
-4. **Examples.** At least one concrete example of good output, ideally drawn from an actual past interaction.
-5. **Anti-patterns.** Common mistakes to avoid, especially ones the user has previously corrected.
+```
+skill-name/
+├── SKILL.md          # Required: metadata + instructions
+├── scripts/          # Optional: executable code
+├── references/       # Optional: supplementary docs
+└── assets/           # Optional: templates, resources
+```
+
+**Required frontmatter fields:** `name` (kebab-case, matches directory), `description` (routing surface for catalog-based activation), plus Engram governance fields (`source`, `origin_session`, `created`, `trust`).
+
+**Progressive disclosure:** At session start, only `name` + `description` are loaded (~50–100 tokens per skill). Full SKILL.md body is loaded on activation. Files in `references/`, `scripts/`, `assets/` are loaded on demand.
+
+**Body sections:** (1) When to use this skill, (2) Steps / Flow, (3) Quality criteria, (4) Examples, (5) Anti-patterns. Keep SKILL.md under 500 lines; move supplementary material to `references/`.
+
+See `HUMANS/docs/skill-format-spec.md` for the complete specification, including all frontmatter fields, naming rules, and the migration guide from flat files.
 
 ## Skill discovery
 
