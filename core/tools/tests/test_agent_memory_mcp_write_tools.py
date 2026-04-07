@@ -6245,7 +6245,7 @@ Direct and concise.
     def test_memory_update_skill_upserts_existing_section(self) -> None:
         repo_root = self._init_repo(
             {
-                "memory/skills/session-start.md": """---
+                "memory/skills/session-start/SKILL.md": """---
 source: user-stated
 origin_session: manual
 created: 2026-03-16
@@ -6279,7 +6279,7 @@ Load compact context.
             )
         )
         payload = json.loads(raw)
-        skill = (repo_root / "memory" / "skills" / "session-start.md").read_text(encoding="utf-8")
+        skill = (repo_root / "memory" / "skills" / "session-start" / "SKILL.md").read_text(encoding="utf-8")
 
         self.assertEqual(payload["new_state"]["section"], "Steps")
         self.assertIn("## Steps\n\nLoad compact context and active plans.", skill)
@@ -6288,7 +6288,7 @@ Load compact context.
     def test_memory_update_skill_appends_existing_section(self) -> None:
         repo_root = self._init_repo(
             {
-                "memory/skills/session-sync.md": """---
+                "memory/skills/session-sync/SKILL.md": """---
 source: user-stated
 origin_session: manual
 created: 2026-03-16
@@ -6323,14 +6323,14 @@ Capture a short checkpoint.
                 approval_token=approval_token,
             )
         )
-        skill = (repo_root / "memory" / "skills" / "session-sync.md").read_text(encoding="utf-8")
+        skill = (repo_root / "memory" / "skills" / "session-sync" / "SKILL.md").read_text(encoding="utf-8")
 
         self.assertIn("Capture a short checkpoint.\nRecord any open questions.", skill)
 
     def test_memory_update_skill_replaces_existing_section(self) -> None:
         repo_root = self._init_repo(
             {
-                "memory/skills/session-wrapup.md": """---
+                "memory/skills/session-wrapup/SKILL.md": """---
 source: user-stated
 origin_session: manual
 created: 2026-03-16
@@ -6365,7 +6365,7 @@ Old guidance.
                 approval_token=approval_token,
             )
         )
-        skill = (repo_root / "memory" / "skills" / "session-wrapup.md").read_text(encoding="utf-8")
+        skill = (repo_root / "memory" / "skills" / "session-wrapup" / "SKILL.md").read_text(encoding="utf-8")
 
         self.assertIn("Use the governed session recorder when available.", skill)
         self.assertNotIn("Old guidance.", skill)
@@ -6424,7 +6424,7 @@ Old guidance.
     def test_memory_update_skill_preview_does_not_write_and_matches_apply(self) -> None:
         repo_root = self._init_repo(
             {
-                "memory/skills/session-start.md": """---
+                "memory/skills/session-start/SKILL.md": """---
 source: user-stated
 origin_session: manual
 created: 2026-03-16
@@ -6453,7 +6453,7 @@ Load compact context.
             )
         )
 
-        original = (repo_root / "memory" / "skills" / "session-start.md").read_text(
+        original = (repo_root / "memory" / "skills" / "session-start" / "SKILL.md").read_text(
             encoding="utf-8"
         )
         self.assertIn("Load compact context.", original)
@@ -6471,7 +6471,7 @@ Load compact context.
             )
         )
 
-        updated = (repo_root / "memory" / "skills" / "session-start.md").read_text(encoding="utf-8")
+        updated = (repo_root / "memory" / "skills" / "session-start" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("Load compact context and active plans.", updated)
         self.assertEqual(preview["preview"]["target_files"], applied["preview"]["target_files"])
         self.assertEqual(
@@ -6482,7 +6482,7 @@ Load compact context.
     def test_memory_update_skill_requires_approval_token_for_apply(self) -> None:
         repo_root = self._init_repo(
             {
-                "memory/skills/session-start.md": """---
+                "memory/skills/session-start/SKILL.md": """---
 source: user-stated
 origin_session: manual
 created: 2026-03-16
@@ -6512,7 +6512,7 @@ Load compact context.
     def test_memory_update_skill_rejects_forged_approval_token(self) -> None:
         repo_root = self._init_repo(
             {
-                "memory/skills/session-start.md": """---
+                "memory/skills/session-start/SKILL.md": """---
 source: user-stated
 origin_session: manual
 created: 2026-03-16
@@ -6636,7 +6636,7 @@ Load compact context.
             {
                 "memory/knowledge/topic.md": "# Topic\n",
                 "memory/working/projects/demo.md": "# Demo\n",
-                "memory/skills/session-start.md": "# Session Start\n",
+                "memory/skills/session-start/SKILL.md": "# Session Start\n",
                 "memory/knowledge/SUMMARY.md": "# Knowledge\n\n## Usage patterns\n\n_No access data yet._\n",
                 "memory/working/projects/SUMMARY.md": "# Plans\n\n## Usage patterns\n\n_No access data yet._\n",
                 "memory/skills/SUMMARY.md": "# Skills\n\n## Usage patterns\n\n_No access data yet._\n",
@@ -6704,7 +6704,7 @@ Load compact context.
                             {
                                 "date": "2026-03-18",
                                 "session_id": "memory/activity/2026/03/18/chat-001",
-                                "file": "memory/skills/session-start.md",
+                                "file": "memory/skills/session-start/SKILL.md",
                                 "helpfulness": 0.9,
                             }
                         ),
@@ -6712,7 +6712,7 @@ Load compact context.
                             {
                                 "date": "2026-03-19",
                                 "session_id": "memory/activity/2026/03/19/chat-001",
-                                "file": "memory/skills/session-start.md",
+                                "file": "memory/skills/session-start/SKILL.md",
                                 "helpfulness": 0.9,
                             }
                         ),
@@ -6720,7 +6720,7 @@ Load compact context.
                             {
                                 "date": "2026-03-20",
                                 "session_id": "memory/activity/2026/03/20/chat-001",
-                                "file": "memory/skills/session-start.md",
+                                "file": "memory/skills/session-start/SKILL.md",
                                 "helpfulness": 0.9,
                             }
                         ),
@@ -6765,7 +6765,7 @@ Load compact context.
             payload["new_state"]["clusters"][0]["files"],
             [
                 "memory/knowledge/topic.md",
-                "memory/skills/session-start.md",
+                "memory/skills/session-start/SKILL.md",
                 "memory/working/projects/demo.md",
             ],
         )
@@ -6783,7 +6783,7 @@ Load compact context.
             {
                 "memory/knowledge/topic.md": "# Topic\n",
                 "memory/working/projects/demo.md": "# Demo\n",
-                "memory/skills/session-start.md": "# Session Start\n",
+                "memory/skills/session-start/SKILL.md": "# Session Start\n",
                 "memory/knowledge/SUMMARY.md": "# Knowledge\n\n## Usage patterns\n\n_No access data yet._\n",
                 "memory/working/projects/SUMMARY.md": "# Plans\n\n## Usage patterns\n\n_No access data yet._\n",
                 "memory/skills/SUMMARY.md": "# Skills\n\n## Usage patterns\n\n_No access data yet._\n",
@@ -6849,14 +6849,14 @@ Load compact context.
                             {
                                 "date": "2026-03-18",
                                 "session_id": "memory/activity/2026/03/18/chat-001",
-                                "file": "memory/skills/session-start.md",
+                                "file": "memory/skills/session-start/SKILL.md",
                                 "helpfulness": 0.9,
                             }
                         ),
                         json.dumps(
                             {
                                 "date": "2026-03-19",
-                                "file": "memory/skills/session-start.md",
+                                "file": "memory/skills/session-start/SKILL.md",
                                 "helpfulness": 0.9,
                             }
                         ),
@@ -6864,7 +6864,7 @@ Load compact context.
                             {
                                 "date": "2026-03-20",
                                 "session_id": "memory/activity/2026/03/20/chat-001",
-                                "file": "memory/skills/session-start.md",
+                                "file": "memory/skills/session-start/SKILL.md",
                                 "helpfulness": 0.9,
                             }
                         ),
@@ -6917,7 +6917,7 @@ Load compact context.
         )
         self.assertIn(f"- Last aggregation: {date.today()}", knowledge_summary)
         self.assertIn(
-            "memory/knowledge/topic.md + memory/skills/session-start.md + memory/working/projects/demo.md",
+            "memory/knowledge/topic.md + memory/skills/session-start/SKILL.md + memory/working/projects/demo.md",
             knowledge_summary,
         )
         self.assertIn(f"- Last aggregation: {date.today()}", plans_summary)
@@ -6992,12 +6992,12 @@ Load compact context.
         )
 
     def test_memory_write_blocks_protected_skills_path(self) -> None:
-        repo_root = self._init_repo({"memory/skills/session-start.md": "# Skill\n"})
+        repo_root = self._init_repo({"memory/skills/session-start/SKILL.md": "# Skill\n"})
         tools = self._create_tools(repo_root, enable_raw_write_tools=True)
 
         with self.assertRaises(self.errors.MemoryPermissionError):
             asyncio.run(
-                tools["memory_write"](path="memory/skills/session-start.md", content="injected\n")
+                tools["memory_write"](path="memory/skills/session-start/SKILL.md", content="injected\n")
             )
 
     def test_memory_write_blocks_protected_meta_path(self) -> None:
@@ -9677,7 +9677,7 @@ trust: medium
 
 Topic D.
 """,
-                "memory/skills/session-start.md": """---
+                "memory/skills/session-start/SKILL.md": """---
 source: skill-discovery
 origin_session: memory/activity/2026/03/01/chat-007
 created: 2026-03-01
@@ -9687,7 +9687,7 @@ trust: medium
 
 Skill start.
 """,
-                "memory/skills/session-sync.md": """---
+                "memory/skills/session-sync/SKILL.md": """---
 source: skill-discovery
 origin_session: memory/activity/2026/03/01/chat-008
 created: 2026-03-01

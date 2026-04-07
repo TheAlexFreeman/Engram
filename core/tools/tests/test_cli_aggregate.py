@@ -50,7 +50,7 @@ def _seed_aggregate_repo(tmp_path: Path) -> tuple[Path, Path]:
     )
     _write(content_root / "memory" / "knowledge" / "topic.md", "# Topic\n")
     _write(content_root / "memory" / "working" / "projects" / "demo.md", "# Demo\n")
-    _write(content_root / "memory" / "skills" / "session-start.md", "# Session Start\n")
+    _write(content_root / "memory" / "skills" / "session-start" / "SKILL.md", "# Session Start\n")
     _write(
         content_root / "memory" / "knowledge" / "SUMMARY.md",
         "# Knowledge\n\n## Usage patterns\n\n_No access data yet._\n",
@@ -135,7 +135,7 @@ def _seed_aggregate_repo(tmp_path: Path) -> tuple[Path, Path]:
                     {
                         "date": "2026-03-18",
                         "session_id": "memory/activity/2026/03/18/chat-001",
-                        "file": "memory/skills/session-start.md",
+                        "file": "memory/skills/session-start/SKILL.md",
                         "helpfulness": 0.9,
                     }
                 ),
@@ -143,7 +143,7 @@ def _seed_aggregate_repo(tmp_path: Path) -> tuple[Path, Path]:
                     {
                         "date": "2026-03-19",
                         "session_id": "memory/activity/2026/03/19/chat-001",
-                        "file": "memory/skills/session-start.md",
+                        "file": "memory/skills/session-start/SKILL.md",
                         "helpfulness": 0.9,
                     }
                 ),
@@ -151,7 +151,7 @@ def _seed_aggregate_repo(tmp_path: Path) -> tuple[Path, Path]:
                     {
                         "date": "2026-03-20",
                         "session_id": "memory/activity/2026/03/20/chat-001",
-                        "file": "memory/skills/session-start.md",
+                        "file": "memory/skills/session-start/SKILL.md",
                         "helpfulness": 0.9,
                     }
                 ),
@@ -180,7 +180,7 @@ def test_aggregate_human_output_reports_preview(
     assert "Entries processed: 9" in output
     assert "- memory/knowledge/SUMMARY.md" in output
     assert (
-        "1. memory/knowledge/topic.md + memory/skills/session-start.md + memory/working/projects/demo.md (3 session groups)"
+        "1. memory/knowledge/topic.md + memory/skills/session-start/SKILL.md + memory/working/projects/demo.md (3 session groups)"
         in output
     )
 

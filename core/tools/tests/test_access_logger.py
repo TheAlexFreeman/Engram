@@ -118,7 +118,7 @@ class AccessLoggerTests(unittest.TestCase):
                     result=(
                         "**memory/knowledge/software-engineering/parser.md**\n"
                         "  3: parser match\n"
-                        "**memory/skills/session-start.md**\n"
+                        "**memory/skills/session-start/SKILL.md**\n"
                         "  2: another match"
                     ),
                 ),
@@ -140,7 +140,7 @@ class AccessLoggerTests(unittest.TestCase):
             ],
             files_referenced=[
                 "memory/knowledge/software-engineering/parser.md",
-                "memory/skills/session-start.md",
+                "memory/skills/session-start/SKILL.md",
             ],
         )
 

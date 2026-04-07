@@ -317,7 +317,7 @@ SESSION_WRAPUP_SKILL_MCP_PHRASE = "When local agent-memory MCP tools are availab
 SESSION_CHECKLISTS_ON_DEMAND_PHRASE = "Load on demand"
 SETUP_GUIDANCE_REQUIRED_PATTERNS = (r"live routing (?:in|from)\s+`?core/INIT\.md`?",)
 SETUP_GUIDANCE_FORBIDDEN_PATTERNS = (r"follow the bootstrap sequence",)
-SESSION_START_SKILL_PATH = Path("core/memory/skills/session-start.md")
+SESSION_START_SKILL_PATH = Path("core/memory/skills/session-start/SKILL.md")
 SESSION_START_REQUIRED_PHRASES = (
     "compact returning manifest in `core/INIT.md`",
     "`core/memory/HOME.md` as the session entry point",
@@ -330,7 +330,7 @@ SESSION_START_FORBIDDEN_PATTERNS = (
     r"^- Read `core/governance/review-queue\.md`\.",
     r"compact checklist in `core/governance/session-checklists\.md` is sufficient",
 )
-SESSION_WRAPUP_SKILL_PATH = Path("core/memory/skills/session-wrapup.md")
+SESSION_WRAPUP_SKILL_PATH = Path("core/memory/skills/session-wrapup/SKILL.md")
 SESSION_WRAPUP_REQUIRED_PHRASES = (
     "Load `core/governance/session-checklists.md` only when you want",
     "session-end runbook",
@@ -339,8 +339,8 @@ SESSION_WRAPUP_FORBIDDEN_PATTERNS = (
     r"compact checklist in `core/governance/session-checklists\.md` is sufficient",
 )
 SKILLS_SUMMARY_PATH = Path("core/memory/skills/SUMMARY.md")
-ONBOARDING_SKILL_PATH = Path("core/memory/skills/onboarding.md")
-SESSION_SYNC_SKILL_PATH = Path("core/memory/skills/session-sync.md")
+ONBOARDING_SKILL_PATH = Path("core/memory/skills/onboarding/SKILL.md")
+SESSION_SYNC_SKILL_PATH = Path("core/memory/skills/session-sync/SKILL.md")
 
 FORBIDDEN_RUNTIME_PATTERNS = (
     r"Check the current maturity stage in `core/governance/system-maturity\.md`",

@@ -337,7 +337,7 @@ def build_minimal_repo(root: Path) -> None:
         "# Skills summary\n",
     )
     write(
-        root / "core" / "memory" / "skills" / "onboarding.md",
+        root / "core" / "memory" / "skills" / "onboarding" / "SKILL.md",
         textwrap.dedent(
             """\
             ---
@@ -353,7 +353,7 @@ def build_minimal_repo(root: Path) -> None:
         ),
     )
     write(
-        root / "core" / "memory" / "skills" / "session-sync.md",
+        root / "core" / "memory" / "skills" / "session-sync" / "SKILL.md",
         textwrap.dedent(
             """\
             ---
@@ -969,7 +969,7 @@ class ValidateMemoryRepoTests(unittest.TestCase):
                 root / "core" / "memory" / "skills" / "ACCESS.jsonl",
                 json.dumps(
                     {
-                        "file": "core/memory/skills/onboarding.md",
+                        "file": "core/memory/skills/onboarding/SKILL.md",
                         "date": date.today().isoformat(),
                         "task": "validator coverage",
                         "helpfulness": 0.8,
@@ -1292,7 +1292,7 @@ class ValidateMemoryRepoTests(unittest.TestCase):
             root = Path(tempdir)
             build_minimal_repo(root)
             write(
-                root / "core" / "memory" / "skills" / "session-start.md",
+                root / "core" / "memory" / "skills" / "session-start" / "SKILL.md",
                 textwrap.dedent(
                     """\
                     ---
@@ -1320,7 +1320,7 @@ class ValidateMemoryRepoTests(unittest.TestCase):
             root = Path(tempdir)
             build_minimal_repo(root)
             write(
-                root / "core" / "memory" / "skills" / "session-start.md",
+                root / "core" / "memory" / "skills" / "session-start" / "SKILL.md",
                 textwrap.dedent(
                     """\
                     ---
@@ -1348,7 +1348,7 @@ class ValidateMemoryRepoTests(unittest.TestCase):
             root = Path(tempdir)
             build_minimal_repo(root)
             write(
-                root / "core" / "memory" / "skills" / "session-wrapup.md",
+                root / "core" / "memory" / "skills" / "session-wrapup" / "SKILL.md",
                 textwrap.dedent(
                     """\
                     ---
@@ -1374,7 +1374,7 @@ class ValidateMemoryRepoTests(unittest.TestCase):
             root = Path(tempdir)
             build_minimal_repo(root)
             write(
-                root / "core" / "memory" / "skills" / "session-wrapup.md",
+                root / "core" / "memory" / "skills" / "session-wrapup" / "SKILL.md",
                 textwrap.dedent(
                     """\
                     ---
@@ -1831,7 +1831,7 @@ class ValidateMemoryRepoTests(unittest.TestCase):
     def test_session_start_skill_defaults_to_quick_reference_and_uses_checklists_on_demand(
         self,
     ) -> None:
-        text = (REPO_ROOT / "core" / "memory" / "skills" / "session-start.md").read_text(
+        text = (REPO_ROOT / "core" / "memory" / "skills" / "session-start" / "SKILL.md").read_text(
             encoding="utf-8"
         )
 
@@ -1852,7 +1852,7 @@ class ValidateMemoryRepoTests(unittest.TestCase):
     def test_session_wrapup_skill_uses_on_demand_session_checklists_language(
         self,
     ) -> None:
-        text = (REPO_ROOT / "core" / "memory" / "skills" / "session-wrapup.md").read_text(
+        text = (REPO_ROOT / "core" / "memory" / "skills" / "session-wrapup" / "SKILL.md").read_text(
             encoding="utf-8"
         )
 

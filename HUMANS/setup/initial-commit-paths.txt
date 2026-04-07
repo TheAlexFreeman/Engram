@@ -681,7 +681,7 @@ core/memory/knowledge/software-engineering/web-fundamentals/web-storage-and-stat
 core/memory/skills/ACCESS.jsonl
 core/memory/skills/SUMMARY.md
 core/memory/skills/_archive/onboarding-v1.md
-core/memory/skills/codebase-survey.md
+core/memory/skills/codebase-survey/SKILL.md
 core/memory/skills/eval-scenarios/SUMMARY.md
 core/memory/skills/eval-scenarios/approval-pause-resume.yaml
 core/memory/skills/eval-scenarios/basic-plan-lifecycle.yaml
@@ -692,11 +692,11 @@ core/memory/skills/eval-scenarios/run-state-failure-recovery.yaml
 core/memory/skills/eval-scenarios/tool-policy-integration.yaml
 core/memory/skills/eval-scenarios/trace-recording-validation.yaml
 core/memory/skills/eval-scenarios/verification-failure-retry.yaml
-core/memory/skills/flow-trace.md
-core/memory/skills/onboarding.md
-core/memory/skills/session-start.md
-core/memory/skills/session-sync.md
-core/memory/skills/session-wrapup.md
+core/memory/skills/flow-trace/SKILL.md
+core/memory/skills/onboarding/SKILL.md
+core/memory/skills/session-start/SKILL.md
+core/memory/skills/session-sync/SKILL.md
+core/memory/skills/session-wrapup/SKILL.md
 core/memory/skills/tool-registry/SUMMARY.md
 core/memory/skills/tool-registry/shell.yaml
 core/memory/users/ACCESS.jsonl

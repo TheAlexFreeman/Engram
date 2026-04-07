@@ -205,7 +205,7 @@ class ClaudeCodeTranscriptParserTests(unittest.TestCase):
                                 "id": "toolu_search_1",
                                 "name": "mcp__engram__memory_read_file",
                                 "input": {
-                                    "filePath": "C:\\repos\\Engram\\memory\\skills\\session-start.md"
+                                    "filePath": "C:\\repos\\Engram\\memory\\skills\\session-start\\SKILL.md"
                                 },
                             }
                         ],
@@ -222,7 +222,7 @@ class ClaudeCodeTranscriptParserTests(unittest.TestCase):
             )
         )
 
-        self.assertEqual(session.files_referenced, ["memory/skills/session-start.md"])
+        self.assertEqual(session.files_referenced, ["memory/skills/session-start/SKILL.md"])
 
     def test_detect_platform_requires_claude_projects_jsonl_path(self) -> None:
         TranscriptFile = self.model_module.TranscriptFile

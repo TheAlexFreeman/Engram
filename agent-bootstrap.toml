@@ -34,7 +34,7 @@ retrieval_discipline = "When asked about prior conversations, decisions, or stor
 trigger = "context_pressure"
 threshold_pct = 75
 action = "auto_checkpoint"
-skill_ref = "core/memory/skills/session-sync.md"
+skill_ref = "core/memory/skills/session-sync/SKILL.md"
 
 [mode_detection]
 automation = "scheduled_or_recurring_run"
