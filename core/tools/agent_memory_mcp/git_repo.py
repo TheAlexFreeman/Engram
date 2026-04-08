@@ -246,6 +246,7 @@ class GitRepo:
         """Stage one or more content-relative files."""
         if not rel_paths:
             return
+        self._try_cleanup_stale_index_lock()
         git_paths = [self._to_git_path(p) for p in rel_paths]
         self._run(["git", "add", "-A", "--"] + git_paths)
 
@@ -257,6 +258,7 @@ class GitRepo:
 
     def add_all(self) -> None:
         """Stage all changes (git add -A)."""
+        self._try_cleanup_stale_index_lock()
         self._run(["git", "add", "-A"])
 
     def restore_paths(
@@ -422,19 +424,24 @@ class GitRepo:
             return True
 
     def _try_cleanup_stale_lock(self, lock_path: Path) -> bool:
-        """Remove a stale lock file if it's old and its owner PID is dead."""
+        """Remove a stale lock file if it's old and its owner PID is dead.
+
+        Git's own HEAD.lock and index.lock are typically empty (0 bytes)
+        and contain no PID.  When a lock file is older than the staleness
+        threshold and either (a) contains no PID or (b) the PID is dead,
+        it is safe to remove.
+        """
         if not lock_path.exists():
             return False
         if not self._is_lock_older_than(lock_path, _STALE_HEAD_LOCK_MAX_AGE_SECONDS):
             return False
 
         pid = self._extract_pid_from_lock(lock_path)
-        if pid is None:
-            # Cannot identify owner — conservative, do not remove.
-            return False
-        if self._is_pid_alive(pid):
+        if pid is not None and self._is_pid_alive(pid):
             return False
 
+        # Lock is old enough and either has no PID (empty/git-native) or
+        # its owner process is dead — safe to remove.
         try:
             lock_path.unlink()
         except FileNotFoundError:
@@ -617,6 +624,9 @@ class GitRepo:
         git_paths = [self._to_git_path(p) for p in paths] if paths else None
 
         with self.write_lock("commit"):
+            # 0. Proactively clean stale git locks before attempting commit.
+            self._try_cleanup_all_stale_locks()
+
             # 1. Try porcelain commit.
             try:
                 return self._commit_porcelain(message, paths=git_paths, allow_empty=allow_empty)
