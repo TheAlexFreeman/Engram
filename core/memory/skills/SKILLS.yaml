@@ -1,0 +1,58 @@
+# Skill Manifest — Engram vault skill dependencies
+# See core/governance/skill-manifest-spec.md for the full schema specification.
+# Schema version tracks breaking changes to this format.
+schema_version: 1
+
+# Default settings applied to all skills unless overridden per-entry.
+defaults:
+  deployment_mode: checked        # checked | gitignored
+  targets: [engram]               # distribution targets
+
+# Skill declarations. Each key is the skill slug (kebab-case, matches directory name).
+skills:
+
+  # --- Session lifecycle skills (trust: high) ---
+
+  onboarding:
+    source: local
+    trust: high
+    description: >-
+      First-session user onboarding. Runs a collaborative seed-task session
+      that surfaces the user's role, preferences, and working style.
+
+  session-start:
+    source: local
+    trust: high
+    description: >-
+      Session opener for returning users. Loads recent context, checks pending
+      review items and maintenance triggers, greets the user with continuity.
+
+  session-sync:
+    source: local
+    trust: high
+    description: >-
+      Mid-session checkpoint. Captures decisions, open threads, and key
+      artifacts without ending the session.
+
+  session-wrapup:
+    source: local
+    trust: high
+    description: >-
+      Session closer. Writes chat summary, reflection note, ACCESS entries,
+      and flags pending system maintenance.
+
+  # --- Exploration skills (trust: medium/low) ---
+
+  codebase-survey:
+    source: local
+    trust: medium
+    description: >-
+      Systematic host-repo exploration for worktree-backed memory stores.
+      Supports both initial survey and ongoing deepening rounds.
+
+  flow-trace:
+    source: local
+    trust: low
+    description: >-
+      Trace how operations execute through a codebase, recording boundary
+      crossings, data transformations, and implicit couplings.
