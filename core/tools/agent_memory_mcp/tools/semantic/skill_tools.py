@@ -247,13 +247,13 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         - skill (optional): Filter to a single skill entry by slug
         """
         import hashlib
+        import json
         import os
         from pathlib import Path
 
         import yaml
 
         from ...errors import NotFoundError, ValidationError
-        from ...models import MemoryReadResult
 
         repo = get_repo()
         manifest_path = Path(repo) / "core" / "memory" / "skills" / "SKILLS.yaml"
@@ -330,8 +330,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 raise NotFoundError(f"Skill not found in manifest: {skill}")
             result_data["skills"] = {skill: enriched_skills[skill]}
 
-        result = MemoryReadResult(content=result_data, preview=None)
-        return result.to_json()
+        return json.dumps({"result": result_data})
 
     @mcp.tool(
         name="memory_skill_manifest_write",
