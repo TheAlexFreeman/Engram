@@ -17,6 +17,12 @@ ultimate_authority_policy = "on_demand_only"
 # so startup tooling can surface host-repo git state alongside the memory worktree.
 # host_repo_root = "C:/path/to/host/repo"
 
+# Optional repo identity string. Set MEMORY_REPO_IDENTITY env var to this value
+# in your MCP config. On startup, the server checks that the resolved repo matches
+# this identity (by remote URL or directory name). Catches stale worktrees and
+# wrong-repo misconfigurations before they corrupt plan state.
+repo_identity = "Engram"
+
 # Optional external-ingestion scan config. Each watch folder is scanned by
 # memory_scan_drop_zone and staged into memory/working/projects/{target_project}/IN/
 # with source=external-research and trust=low.
