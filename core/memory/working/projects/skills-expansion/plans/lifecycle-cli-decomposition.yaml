@@ -5,6 +5,7 @@ origin_session: memory/activity/2026/04/08/chat-001
 status: active
 budget:
   max_sessions: 2
+sessions_used: 1
 purpose:
   summary: Decompose the monolithic memory_update_skill into discrete lifecycle operations
   context: 'Engram''s memory_update_skill handles creation, section edits, frontmatter updates,
@@ -18,8 +19,8 @@ work:
   phases:
   - id: tool-surface-design
     title: Design the decomposed tool surface and interaction patterns
-    status: in-progress
-    commit: null
+    status: completed
+    commit: 13271b9
     blockers: []
     postconditions:
     - description: Each new tool has a clear single responsibility that doesn't overlap with
