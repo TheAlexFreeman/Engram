@@ -5,6 +5,7 @@ origin_session: memory/activity/2026/04/08/chat-001
 status: active
 budget:
   max_sessions: 2
+sessions_used: 1
 purpose:
   summary: Add explicit lifecycle hook triggers to skill frontmatter for deterministic activation
   context: "Engram skills like session-start and session-wrapup are implicitly lifecycle hooks\
@@ -19,8 +20,8 @@ work:
   phases:
   - id: trigger-taxonomy
     title: Define the trigger event taxonomy and frontmatter schema extension
-    status: in-progress
-    commit: null
+    status: completed
+    commit: 13271b9
     blockers: []
     sources:
     - path: dotagents hook system

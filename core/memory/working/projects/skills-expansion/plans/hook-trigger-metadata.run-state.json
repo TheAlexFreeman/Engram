@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "plan_id": "hook-trigger-metadata",
+  "project_id": "skills-expansion",
+  "current_phase_id": null,
+  "current_task": null,
+  "next_action_hint": "Extend skill frontmatter parser to support trigger field",
+  "last_checkpoint": "2026-04-08T23:36:06Z",
+  "session_id": "memory/activity/2026/04/08/chat-001",
+  "sessions_consumed": 1,
+  "error_context": null,
+  "phase_states": {
+    "trigger-taxonomy": {
+      "started_at": null,
+      "completed_at": "2026-04-08T23:36:06Z",
+      "task_position": null,
+      "intermediate_outputs": []
+    }
+  },
+  "created_at": "2026-04-08T23:36:06Z",
+  "updated_at": "2026-04-08T23:36:06Z"
+}
