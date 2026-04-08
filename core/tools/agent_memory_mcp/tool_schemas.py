@@ -2519,6 +2519,40 @@ def skill_manifest_write_input_schema() -> dict[str, Any]:
     )
 
 
+def skill_list_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_list",
+        title="memory_skill_list input schema",
+        notes=[
+            "Scans core/memory/skills/ for SKILL.md files with YAML frontmatter.",
+            "Also reads SKILLS.yaml manifest and SKILLS.lock to enrich results with source and lock_status.",
+            "Returns a JSON array of skill objects with metadata for filtering and inspection.",
+            "All parameters are optional and can be combined to filter results.",
+        ],
+        properties={
+            "trust": {
+                "oneOf": [
+                    {"type": "string", "enum": sorted(SKILL_CREATE_TRUST_LEVELS)},
+                    {"type": "null"},
+                ],
+                "description": "Optional filter by trust level (high, medium, or low).",
+            },
+            "source_type": {
+                "oneOf": [
+                    {"type": "string", "enum": ["local", "remote"]},
+                    {"type": "null"},
+                ],
+                "description": "Optional filter by source type. 'local' for source: local, 'remote' for other sources.",
+            },
+            "include_archived": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, include skills from the _archive/ directory in results.",
+            },
+        },
+    )
+
+
 def reindex_input_schema() -> dict[str, Any]:
     return _base_schema(
         tool_name="memory_reindex",
@@ -2930,6 +2964,7 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_search": grep_search_input_schema,
     "memory_semantic_search": semantic_search_input_schema,
     "memory_session_flush": session_flush_input_schema,
+    "memory_skill_list": skill_list_input_schema,
     "memory_skill_manifest_read": skill_manifest_read_input_schema,
     "memory_skill_manifest_write": skill_manifest_write_input_schema,
     "memory_stage_external": stage_external_input_schema,
@@ -3025,6 +3060,7 @@ __all__ = [
     "scan_drop_zone_input_schema",
     "semantic_search_input_schema",
     "session_flush_input_schema",
+    "skill_list_input_schema",
     "skill_manifest_read_input_schema",
     "skill_manifest_write_input_schema",
     "stage_external_input_schema",

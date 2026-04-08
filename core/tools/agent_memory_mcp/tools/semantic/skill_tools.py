@@ -51,6 +51,63 @@ def _append_markdown_section(body: str, section_name: str, value: str) -> str | 
     return _replace_markdown_section(body, section_name, appended)
 
 
+def _validate_trigger_field(trigger_value: object) -> None:
+    """Validate trigger field in skill frontmatter.
+
+    Accepts:
+    - A string matching one of: session-start, session-end, session-checkpoint,
+      pre-tool-use, post-tool-use, on-demand, periodic, project-active
+    - A dict with required 'event' key (same enum) and optional 'matcher' (dict)
+      and 'priority' (int)
+    - A list of the above
+    """
+    from ...errors import ValidationError
+
+    VALID_EVENTS = {
+        "session-start",
+        "session-end",
+        "session-checkpoint",
+        "pre-tool-use",
+        "post-tool-use",
+        "on-demand",
+        "periodic",
+        "project-active",
+    }
+
+    def validate_single_trigger(item: object) -> None:
+        if isinstance(item, str):
+            if item not in VALID_EVENTS:
+                raise ValidationError(
+                    f"trigger string must be one of {sorted(VALID_EVENTS)}: {item!r}"
+                )
+        elif isinstance(item, dict):
+            if "event" not in item:
+                raise ValidationError("trigger dict must have required 'event' key")
+            event = item["event"]
+            if not isinstance(event, str) or event not in VALID_EVENTS:
+                raise ValidationError(
+                    f"trigger event must be one of {sorted(VALID_EVENTS)}: {event!r}"
+                )
+            if "matcher" in item and not isinstance(item["matcher"], dict):
+                raise ValidationError(
+                    f"trigger matcher must be a dict if present: {type(item['matcher']).__name__}"
+                )
+            if "priority" in item and not isinstance(item["priority"], int):
+                raise ValidationError(
+                    f"trigger priority must be an int if present: {type(item['priority']).__name__}"
+                )
+        else:
+            raise ValidationError(
+                f"trigger must be a string, dict, or list: {type(item).__name__}"
+            )
+
+    if isinstance(trigger_value, list):
+        for item in trigger_value:
+            validate_single_trigger(item)
+    else:
+        validate_single_trigger(trigger_value)
+
+
 def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
     """Register skill-oriented semantic tools."""
 
@@ -152,6 +209,14 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             body = body.rstrip() + f"\n\n{section_heading}\n\n{content.strip()}\n"
 
         fm_dict["last_verified"] = today
+
+        # Validate trigger field if it's a frontmatter key being updated
+        if section in fm_dict and section == "trigger":
+            _validate_trigger_field(fm_dict[section])
+        elif section == "trigger" and section_heading in body:
+            # trigger as markdown section is not typical, skip validation for body sections
+            pass
+
         validate_frontmatter_metadata(fm_dict, context=f"skill frontmatter for {rel_path}")
         commit_msg = f"[skill] Update {section} in memory/skills/{file}.md"
         new_state = {"section": section, "mode": mode}
@@ -532,10 +597,227 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         )
         return result.to_json()
 
+    @mcp.tool(
+        name="memory_skill_list",
+        annotations=_tool_annotations(
+            title="List Skills",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_skill_list(
+        trust: str | None = None,
+        source_type: str | None = None,
+        include_archived: bool = False,
+    ) -> str:
+        """Scan skill directories for SKILL.md files and list with metadata.
+
+        Scans core/memory/skills/ directories for SKILL.md files with YAML frontmatter.
+        Also reads SKILLS.yaml manifest and SKILLS.lock if they exist.
+
+        Returns a JSON array of skill objects, each with:
+        - slug: directory name
+        - name: from frontmatter
+        - description: from frontmatter
+        - trust: from frontmatter
+        - source: from manifest if available, else "local"
+        - lock_status: "locked"|"stale"|"unlocked" (from manifest/lock comparison)
+        - last_verified: from frontmatter (or null)
+        - enabled: from manifest (default true)
+        - archived: boolean (true if in _archive/)
+
+        Parameters (all optional):
+        - trust: filter by trust level (string)
+        - source_type: filter by source type ("local"|"remote")
+        - include_archived: boolean (default false)
+        """
+        import hashlib
+        import json
+        from pathlib import Path
+
+        import yaml
+
+        from ...errors import ValidationError
+        from ...frontmatter_utils import read_with_frontmatter
+
+        repo = get_repo()
+        skills_dir = Path(repo) / "core" / "memory" / "skills"
+
+        if not skills_dir.exists():
+            raise ValidationError(f"Skills directory not found: {skills_dir}")
+
+        # Load manifest and lock data
+        manifest_path = skills_dir / "SKILLS.yaml"
+        lockfile_path = skills_dir / "SKILLS.lock"
+
+        manifest_data = {}
+        if manifest_path.exists():
+            with open(manifest_path, "r") as f:
+                manifest_data = yaml.safe_load(f) or {}
+
+        lock_data = {}
+        if lockfile_path.exists():
+            with open(lockfile_path, "r") as f:
+                lock_data = yaml.safe_load(f) or {}
+
+        lock_entries = lock_data.get("entries", {})
+        manifest_skills = manifest_data.get("skills", {})
+
+        def compute_content_hash(skill_dir: Path) -> str:
+            """Compute deterministic content hash for a skill directory."""
+            if not skill_dir.exists():
+                return ""
+
+            file_hashes = []
+            for file_path in sorted(skill_dir.rglob("*")):
+                if file_path.is_file():
+                    rel_path = file_path.relative_to(skill_dir)
+                    rel_path_str = rel_path.as_posix()
+                    with open(file_path, "rb") as f:
+                        content = f.read()
+                    file_hash = hashlib.sha256(
+                        rel_path_str.encode() + b"\0" + content
+                    ).hexdigest()
+                    file_hashes.append(file_hash)
+
+            if not file_hashes:
+                return ""
+
+            concatenated = "".join(file_hashes)
+            final_hash = hashlib.sha256(concatenated.encode()).hexdigest()
+            return f"sha256:{final_hash}"
+
+        # Scan for SKILL.md files
+        skills_list = []
+
+        # Scan active skills
+        for skill_dir in sorted(skills_dir.iterdir()):
+            if skill_dir.is_dir() and skill_dir.name.startswith("_"):
+                continue  # Skip special directories
+            if not skill_dir.is_dir():
+                continue
+
+            skill_md = skill_dir / "SKILL.md"
+            if not skill_md.exists():
+                continue
+
+            slug = skill_dir.name
+            archived = False
+
+            # Read frontmatter
+            try:
+                fm_dict, _ = read_with_frontmatter(skill_md)
+            except Exception:
+                continue  # Skip files with parse errors
+
+            # Get manifest entry
+            manifest_entry = manifest_skills.get(slug, {})
+            lock_entry = lock_entries.get(slug, {})
+
+            # Determine lock status
+            lock_status = "unlocked"
+            if lock_entry:
+                current_hash = compute_content_hash(skill_dir)
+                locked_hash = lock_entry.get("content_hash", "")
+                if current_hash and current_hash == locked_hash:
+                    lock_status = "locked"
+                elif locked_hash:
+                    lock_status = "stale"
+
+            skill_obj = {
+                "slug": slug,
+                "name": fm_dict.get("name"),
+                "description": fm_dict.get("description"),
+                "trust": fm_dict.get("trust"),
+                "source": manifest_entry.get("source", "local"),
+                "lock_status": lock_status,
+                "last_verified": fm_dict.get("last_verified"),
+                "enabled": manifest_entry.get("enabled", True),
+                "archived": archived,
+            }
+            skills_list.append(skill_obj)
+
+        # Scan archived skills if requested
+        if include_archived:
+            archive_dir = skills_dir / "_archive"
+            if archive_dir.exists():
+                for skill_dir in sorted(archive_dir.iterdir()):
+                    if not skill_dir.is_dir():
+                        continue
+
+                    skill_md = skill_dir / "SKILL.md"
+                    if not skill_md.exists():
+                        continue
+
+                    slug = skill_dir.name
+                    archived = True
+
+                    # Read frontmatter
+                    try:
+                        fm_dict, _ = read_with_frontmatter(skill_md)
+                    except Exception:
+                        continue
+
+                    # Get manifest entry
+                    manifest_entry = manifest_skills.get(slug, {})
+                    lock_entry = lock_entries.get(slug, {})
+
+                    # Determine lock status
+                    lock_status = "unlocked"
+                    if lock_entry:
+                        current_hash = compute_content_hash(skill_dir)
+                        locked_hash = lock_entry.get("content_hash", "")
+                        if current_hash and current_hash == locked_hash:
+                            lock_status = "locked"
+                        elif locked_hash:
+                            lock_status = "stale"
+
+                    skill_obj = {
+                        "slug": slug,
+                        "name": fm_dict.get("name"),
+                        "description": fm_dict.get("description"),
+                        "trust": fm_dict.get("trust"),
+                        "source": manifest_entry.get("source", "local"),
+                        "lock_status": lock_status,
+                        "last_verified": fm_dict.get("last_verified"),
+                        "enabled": manifest_entry.get("enabled", True),
+                        "archived": archived,
+                    }
+                    skills_list.append(skill_obj)
+
+        # Apply filters
+        filtered = skills_list
+
+        if trust:
+            if trust not in {"high", "medium", "low"}:
+                raise ValidationError(f"trust must be one of high, medium, low: {trust}")
+            filtered = [s for s in filtered if s.get("trust") == trust]
+
+        if source_type:
+            if source_type not in {"local", "remote"}:
+                raise ValidationError(f"source_type must be local or remote: {source_type}")
+            if source_type == "local":
+                filtered = [s for s in filtered if s.get("source") == "local"]
+            else:  # remote
+                filtered = [s for s in filtered if s.get("source") != "local"]
+
+        return json.dumps(
+            {
+                "result": {
+                    "skills": filtered,
+                    "total": len(skills_list),
+                    "filtered": len(filtered),
+                }
+            }
+        )
+
     return {
         "memory_update_skill": memory_update_skill,
         "memory_skill_manifest_read": memory_skill_manifest_read,
         "memory_skill_manifest_write": memory_skill_manifest_write,
+        "memory_skill_list": memory_skill_list,
     }
 
 

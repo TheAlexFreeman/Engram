@@ -11,48 +11,65 @@ defaults:
 # Skill declarations. Each key is the skill slug (kebab-case, matches directory name).
 skills:
 
-  # --- Session lifecycle skills (trust: high) ---
+
+  # --- Skills (trust: high) ---
 
   onboarding:
     source: local
     trust: high
     description: >-
       First-session user onboarding. Runs a collaborative seed-task session
-      that surfaces the user's role, preferences, and working style.
+      that surfaces the user's role, preferences, and working style while
+      demonstrating memory and trust behavior in context.
 
   session-start:
     source: local
     trust: high
     description: >-
-      Session opener for returning users. Loads recent context, checks pending
-      review items and maintenance triggers, greets the user with continuity.
+      Session opener for returning users. Loads recent context, checks
+      pending review items and maintenance triggers, greets the user with
+      continuity. Use at the beginning of any returning session after
+      initial routing.
 
   session-sync:
     source: local
     trust: high
     description: >-
       Mid-session checkpoint. Captures decisions, open threads, and key
-      artifacts without ending the session.
+      artifacts without ending the session. Activate when the user says
+      "sync" or "checkpoint", or when context pressure makes a save
+      worthwhile.
 
   session-wrapup:
     source: local
     trust: high
     description: >-
       Session closer. Writes chat summary, reflection note, ACCESS entries,
-      and flags pending system maintenance.
+      and flags pending system maintenance. Produces deferred actions on
+      read-only platforms. Activate when the user ends the session or
+      context is running low.
 
-  # --- Exploration skills (trust: medium/low) ---
+
+  # --- Skills (trust: medium) ---
 
   codebase-survey:
     source: local
     trust: medium
     description: >-
-      Systematic host-repo exploration for worktree-backed memory stores.
-      Supports both initial survey and ongoing deepening rounds.
+      Systematic host-repo exploration for a new worktree-backed memory
+      store. Use when projects/codebase-survey/SUMMARY.md is active or when
+      codebase knowledge files still contain template stubs. Supports both
+      initial survey and ongoing deepening rounds.
+
+
+  # --- Skills (trust: low) ---
 
   flow-trace:
     source: local
     trust: low
     description: >-
-      Trace how operations execute through a codebase, recording boundary
-      crossings, data transformations, and implicit couplings.
+      Trace how operations execute through a codebase — following requests,
+      commands, jobs, or events from entry point through every architectural
+      layer, recording boundary crossings, data transformations, and
+      implicit couplings. Complements the codebase-survey by mapping what
+      happens rather than what exists.
