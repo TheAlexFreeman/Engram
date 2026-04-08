@@ -1,0 +1,1 @@
+{"action": "plan-created", "actor": "agent", "commit": null, "detail": "Introduce a declarative skill manifest with version pinning and integrity lockfile", "phase": null, "plan": "skill-manifest-and-versioning", "project": "skills-expansion", "session": "memory/activity/2026/04/08/chat-001"}
