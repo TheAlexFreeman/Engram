@@ -2,12 +2,12 @@
   "schema_version": 1,
   "plan_id": "skill-manifest-and-versioning",
   "project_id": "skills-expansion",
-  "current_phase_id": "lockfile-design",
+  "current_phase_id": null,
   "current_task": null,
-  "next_action_hint": "Design the SKILLS.lock integrity lockfile",
-  "last_checkpoint": "2026-04-08T20:58:02Z",
+  "next_action_hint": "Generate initial manifest from existing installed skills",
+  "last_checkpoint": "2026-04-08T23:36:05Z",
   "session_id": "memory/activity/2026/04/08/chat-001",
-  "sessions_consumed": 1,
+  "sessions_consumed": 2,
   "error_context": null,
   "phase_states": {
     "manifest-schema": {
@@ -21,8 +21,14 @@
       "completed_at": null,
       "task_position": null,
       "intermediate_outputs": []
+    },
+    "manifest-tooling": {
+      "started_at": null,
+      "completed_at": "2026-04-08T23:36:05Z",
+      "task_position": null,
+      "intermediate_outputs": []
     }
   },
   "created_at": "2026-04-08T20:56:13Z",
-  "updated_at": "2026-04-08T20:58:02Z"
+  "updated_at": "2026-04-08T23:36:05Z"
 }

@@ -5,7 +5,7 @@ origin_session: memory/activity/2026/04/08/chat-001
 status: active
 budget:
   max_sessions: 3
-sessions_used: 2
+sessions_used: 3
 purpose:
   summary: Introduce a declarative skill manifest with version pinning and integrity lockfile
   context: Engram skills today are directories discovered by convention with no dependency
@@ -58,8 +58,8 @@ work:
       description: Add lockfile format specification to the manifest spec
   - id: manifest-tooling
     title: Build MCP tools for manifest read/write operations
-    status: in-progress
-    commit: null
+    status: completed
+    commit: 13271b9
     blockers:
     - lockfile-design
     postconditions:
