@@ -19,7 +19,7 @@ work:
   phases:
   - id: manifest-schema
     title: Design and document the SKILLS.yaml manifest schema
-    status: pending
+    status: in-progress
     commit: null
     blockers: []
     postconditions:
