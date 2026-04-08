@@ -19,7 +19,7 @@ work:
   phases:
   - id: trigger-taxonomy
     title: Define the trigger event taxonomy and frontmatter schema extension
-    status: pending
+    status: in-progress
     commit: null
     blockers: []
     sources:

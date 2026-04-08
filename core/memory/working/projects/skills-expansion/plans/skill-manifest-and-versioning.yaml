@@ -5,6 +5,7 @@ origin_session: memory/activity/2026/04/08/chat-001
 status: active
 budget:
   max_sessions: 3
+sessions_used: 2
 purpose:
   summary: Introduce a declarative skill manifest with version pinning and integrity lockfile
   context: Engram skills today are directories discovered by convention with no dependency
@@ -19,8 +20,8 @@ work:
   phases:
   - id: manifest-schema
     title: Design and document the SKILLS.yaml manifest schema
-    status: in-progress
-    commit: null
+    status: completed
+    commit: aa26d8f
     blockers: []
     postconditions:
     - description: 'SKILLS.yaml schema supports source types: github shorthand, pinned git
@@ -39,8 +40,8 @@ work:
         constraints'
   - id: lockfile-design
     title: Design the SKILLS.lock integrity lockfile
-    status: pending
-    commit: null
+    status: completed
+    commit: aa26d8f
     blockers:
     - manifest-schema
     postconditions:
@@ -57,7 +58,7 @@ work:
       description: Add lockfile format specification to the manifest spec
   - id: manifest-tooling
     title: Build MCP tools for manifest read/write operations
-    status: pending
+    status: in-progress
     commit: null
     blockers:
     - lockfile-design

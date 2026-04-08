@@ -2414,6 +2414,111 @@ def semantic_search_input_schema() -> dict[str, Any]:
     )
 
 
+def skill_manifest_read_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_manifest_read",
+        title="memory_skill_manifest_read input schema",
+        notes=[
+            "Reads and parses SKILLS.yaml, checking lock status for each skill.",
+            "For each skill, lock_status is: 'locked' (hash matches), 'stale' (hash mismatch), or 'unlocked' (no lock entry).",
+            "Returns schema_version, defaults, and enriched skills dict with lock_status added to each entry.",
+        ],
+        properties={
+            "skill": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional skill slug to filter to a single entry. If omitted, returns all skills.",
+            },
+        },
+    )
+
+
+def skill_manifest_write_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_manifest_write",
+        title="memory_skill_manifest_write input schema",
+        required=["slug", "source", "trust", "description"],
+        all_of=[
+            {
+                "if": {
+                    "anyOf": [
+                        {
+                            "required": ["preview"],
+                            "properties": {"preview": {"const": False}},
+                        },
+                        {"not": {"required": ["preview"]}},
+                    ]
+                },
+                "then": {"required": ["approval_token"]},
+            },
+        ],
+        notes=[
+            "Protected apply mode requires the opaque approval_token returned by preview mode.",
+            "slug must be kebab-case: /^[a-z0-9]+(?:-[a-z0-9]+)*$/",
+            "source must match one of: 'local', 'github:owner/repo', 'git:url', or 'path:./relative'",
+            "trust must be one of: high, medium, low",
+            "ref is only valid with github: or git: sources and is ignored for source: local",
+        ],
+        properties={
+            "slug": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Skill identifier in kebab-case. Must match skill directory name.",
+            },
+            "source": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Source location: 'local', 'github:owner/repo', 'git:url', or 'path:./relative'.",
+            },
+            "trust": {
+                "type": "string",
+                "enum": sorted(SKILL_CREATE_TRUST_LEVELS),
+                "description": "Trust level: must match SKILL.md frontmatter trust field.",
+            },
+            "description": {
+                "type": "string",
+                "minLength": 1,
+                "description": "One-line description for catalog display. Should match SKILL.md frontmatter.",
+            },
+            "ref": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional version pin (git tag, branch, or commit SHA) for remote sources only.",
+            },
+            "deployment_mode": {
+                "oneOf": [
+                    {"type": "string", "enum": ["checked", "gitignored"]},
+                    {"type": "null"},
+                ],
+                "description": "Optional override for deployment mode. Inherits from defaults if omitted.",
+            },
+            "enabled": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    {"type": "null"},
+                ],
+                "description": "Optional enabled flag. Default: true. When false, skill is excluded from catalog.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope instead of writing.",
+            },
+            "approval_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Fresh preview-issued approval receipt required for protected apply mode.",
+            },
+        },
+    )
+
+
 def reindex_input_schema() -> dict[str, Any]:
     return _base_schema(
         tool_name="memory_reindex",
@@ -2825,6 +2930,8 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_search": grep_search_input_schema,
     "memory_semantic_search": semantic_search_input_schema,
     "memory_session_flush": session_flush_input_schema,
+    "memory_skill_manifest_read": skill_manifest_read_input_schema,
+    "memory_skill_manifest_write": skill_manifest_write_input_schema,
     "memory_stage_external": stage_external_input_schema,
     "memory_update_frontmatter": update_frontmatter_input_schema,
     "memory_update_frontmatter_bulk": update_frontmatter_bulk_input_schema,
@@ -2918,6 +3025,8 @@ __all__ = [
     "scan_drop_zone_input_schema",
     "semantic_search_input_schema",
     "session_flush_input_schema",
+    "skill_manifest_read_input_schema",
+    "skill_manifest_write_input_schema",
     "stage_external_input_schema",
     "update_frontmatter_input_schema",
     "update_frontmatter_bulk_input_schema",

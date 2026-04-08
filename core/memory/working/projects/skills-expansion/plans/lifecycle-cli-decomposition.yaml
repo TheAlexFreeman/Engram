@@ -18,7 +18,7 @@ work:
   phases:
   - id: tool-surface-design
     title: Design the decomposed tool surface and interaction patterns
-    status: pending
+    status: in-progress
     commit: null
     blockers: []
     postconditions:
