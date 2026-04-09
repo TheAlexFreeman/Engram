@@ -13,6 +13,7 @@ from ...preview_contract import (
     preview_target,
     require_approval_token,
 )
+from ...skill_hash import compute_content_hash, get_dir_stats
 from ...tool_schemas import SKILL_CREATE_TRUST_LEVELS, UPDATE_MODES
 
 if TYPE_CHECKING:
@@ -311,9 +312,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         Parameters:
         - skill (optional): Filter to a single skill entry by slug
         """
-        import hashlib
         import json
-        import os
         from pathlib import Path
 
         import yaml
@@ -321,8 +320,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         from ...errors import NotFoundError, ValidationError
 
         repo = get_repo()
-        manifest_path = Path(repo) / "core" / "memory" / "skills" / "SKILLS.yaml"
-        lockfile_path = Path(repo) / "core" / "memory" / "skills" / "SKILLS.lock"
+        manifest_path = repo.root / "core" / "memory" / "skills" / "SKILLS.yaml"
+        lockfile_path = repo.root / "core" / "memory" / "skills" / "SKILLS.lock"
 
         if not manifest_path.exists():
             raise NotFoundError(f"Skill manifest not found: core/memory/skills/SKILLS.yaml")
@@ -336,31 +335,6 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 lock_data = yaml.safe_load(f) or {}
 
         lock_entries = lock_data.get("entries", {})
-
-        def compute_content_hash(skill_dir: Path) -> str:
-            """Compute deterministic content hash for a skill directory."""
-            if not skill_dir.exists():
-                return ""
-
-            file_hashes = []
-            for file_path in sorted(skill_dir.rglob("*")):
-                if file_path.is_file():
-                    rel_path = file_path.relative_to(skill_dir)
-                    rel_path_str = rel_path.as_posix()
-                    with open(file_path, "rb") as f:
-                        content = f.read()
-                    file_hash = hashlib.sha256(
-                        rel_path_str.encode() + b"\0" + content
-                    ).hexdigest()
-                    file_hashes.append(file_hash)
-
-            if not file_hashes:
-                return ""
-
-            concatenated = "".join(file_hashes)
-            final_hash = hashlib.sha256(concatenated.encode()).hexdigest()
-            return f"sha256:{final_hash}"
-
         skills_list = manifest_data.get("skills", {})
         enriched_skills = {}
 
@@ -371,7 +345,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             # Determine lock status
             lock_status = "unlocked"
             if lock_entry:
-                skill_dir = Path(repo) / "core" / "memory" / "skills" / slug
+                skill_dir = repo.root / "core" / "memory" / "skills" / slug
                 current_hash = compute_content_hash(skill_dir)
                 locked_hash = lock_entry.get("content_hash", "")
 
@@ -487,7 +461,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         if not description or not description.strip():
             raise ValidationError("description must be non-empty")
 
-        manifest_path = Path(repo) / "core" / "memory" / "skills" / "SKILLS.yaml"
+        manifest_path = repo.root / "core" / "memory" / "skills" / "SKILLS.yaml"
 
         if not manifest_path.exists():
             raise ValidationError(
@@ -608,32 +582,28 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         ),
     )
     async def memory_skill_list(
-        trust: str | None = None,
+        trust_level: str | None = None,
         source_type: str | None = None,
-        include_archived: bool = False,
+        enabled: bool | None = None,
+        archived: bool = False,
+        include_lock_info: bool = True,
+        max_results: int = 100,
     ) -> str:
-        """Scan skill directories for SKILL.md files and list with metadata.
+        """Query installed skills with metadata, trust, lock status, and filtering.
 
-        Scans core/memory/skills/ directories for SKILL.md files with YAML frontmatter.
-        Also reads SKILLS.yaml manifest and SKILLS.lock if they exist.
-
-        Returns a JSON array of skill objects, each with:
-        - slug: directory name
-        - name: from frontmatter
-        - description: from frontmatter
-        - trust: from frontmatter
-        - source: from manifest if available, else "local"
-        - lock_status: "locked"|"stale"|"unlocked" (from manifest/lock comparison)
-        - last_verified: from frontmatter (or null)
-        - enabled: from manifest (default true)
-        - archived: boolean (true if in _archive/)
+        Read-only discovery interface per skill-lifecycle-spec.md.
+        Reads SKILLS.yaml manifest and SKILLS.lock to enrich results.
+        Falls back to SKILL.md frontmatter for orphan skills (on disk but
+        not in manifest).
 
         Parameters (all optional):
-        - trust: filter by trust level (string)
-        - source_type: filter by source type ("local"|"remote")
-        - include_archived: boolean (default false)
+        - trust_level: filter by trust (high, medium, low)
+        - source_type: filter by source (local, github, git, path)
+        - enabled: filter by enabled state (true/false), omit for all
+        - archived: include archived skills from _archive/ (default false)
+        - include_lock_info: include content hash and freshness (default true)
+        - max_results: limit results (default 100, 0 = unlimited)
         """
-        import hashlib
         import json
         from pathlib import Path
 
@@ -643,17 +613,28 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         from ...frontmatter_utils import read_with_frontmatter
 
         repo = get_repo()
-        skills_dir = Path(repo) / "core" / "memory" / "skills"
+        skills_dir = repo.root / "core" / "memory" / "skills"
 
         if not skills_dir.exists():
             raise ValidationError(f"Skills directory not found: {skills_dir}")
 
+        # Validate filter inputs
+        if trust_level and trust_level not in {"high", "medium", "low"}:
+            raise ValidationError(
+                f"trust_level must be one of high, medium, low: {trust_level}"
+            )
+        if source_type and source_type not in {"local", "github", "git", "path", "remote"}:
+            raise ValidationError(
+                f"source_type must be one of local, github, git, path, remote: {source_type}"
+            )
+
         # Load manifest and lock data
         manifest_path = skills_dir / "SKILLS.yaml"
         lockfile_path = skills_dir / "SKILLS.lock"
+        has_manifest = manifest_path.exists()
 
         manifest_data = {}
-        if manifest_path.exists():
+        if has_manifest:
             with open(manifest_path, "r") as f:
                 manifest_data = yaml.safe_load(f) or {}
 
@@ -665,150 +646,147 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         lock_entries = lock_data.get("entries", {})
         manifest_skills = manifest_data.get("skills", {})
 
-        def compute_content_hash(skill_dir: Path) -> str:
-            """Compute deterministic content hash for a skill directory."""
-            if not skill_dir.exists():
-                return ""
-
-            file_hashes = []
-            for file_path in sorted(skill_dir.rglob("*")):
-                if file_path.is_file():
-                    rel_path = file_path.relative_to(skill_dir)
-                    rel_path_str = rel_path.as_posix()
-                    with open(file_path, "rb") as f:
-                        content = f.read()
-                    file_hash = hashlib.sha256(
-                        rel_path_str.encode() + b"\0" + content
-                    ).hexdigest()
-                    file_hashes.append(file_hash)
-
-            if not file_hashes:
-                return ""
-
-            concatenated = "".join(file_hashes)
-            final_hash = hashlib.sha256(concatenated.encode()).hexdigest()
-            return f"sha256:{final_hash}"
-
-        # Scan for SKILL.md files
-        skills_list = []
-
-        # Scan active skills
-        for skill_dir in sorted(skills_dir.iterdir()):
-            if skill_dir.is_dir() and skill_dir.name.startswith("_"):
-                continue  # Skip special directories
-            if not skill_dir.is_dir():
-                continue
-
-            skill_md = skill_dir / "SKILL.md"
+        def _build_skill_entry(
+            skill_dir_path: Path, slug: str, is_archived: bool
+        ) -> dict | None:
+            """Build a skill entry dict from disk + manifest + lock data."""
+            skill_md = skill_dir_path / "SKILL.md"
             if not skill_md.exists():
-                continue
+                return None
 
-            slug = skill_dir.name
-            archived = False
-
-            # Read frontmatter
             try:
                 fm_dict, _ = read_with_frontmatter(skill_md)
             except Exception:
-                continue  # Skip files with parse errors
+                return None
 
-            # Get manifest entry
             manifest_entry = manifest_skills.get(slug, {})
             lock_entry = lock_entries.get(slug, {})
 
-            # Determine lock status
-            lock_status = "unlocked"
-            if lock_entry:
-                current_hash = compute_content_hash(skill_dir)
-                locked_hash = lock_entry.get("content_hash", "")
-                if current_hash and current_hash == locked_hash:
-                    lock_status = "locked"
-                elif locked_hash:
-                    lock_status = "stale"
-
-            skill_obj = {
+            # Core fields from frontmatter, enriched by manifest
+            entry: dict = {
                 "slug": slug,
-                "name": fm_dict.get("name"),
-                "description": fm_dict.get("description"),
-                "trust": fm_dict.get("trust"),
+                "title": fm_dict.get("name", slug),
+                "description": (
+                    manifest_entry.get("description")
+                    or fm_dict.get("description")
+                ),
                 "source": manifest_entry.get("source", "local"),
-                "lock_status": lock_status,
-                "last_verified": fm_dict.get("last_verified"),
+                "trust": fm_dict.get("trust", manifest_entry.get("trust")),
                 "enabled": manifest_entry.get("enabled", True),
-                "archived": archived,
+                "archived": is_archived,
+                "created": fm_dict.get("created"),
+                "last_verified": fm_dict.get("last_verified"),
             }
-            skills_list.append(skill_obj)
 
-        # Scan archived skills if requested
-        if include_archived:
+            # File stats
+            file_count, total_bytes = get_dir_stats(skill_dir_path)
+            entry["file_count"] = file_count
+            entry["total_bytes"] = total_bytes
+
+            # Lock info (potentially expensive — hash computation)
+            if include_lock_info and lock_entry:
+                locked_hash = lock_entry.get("content_hash", "")
+                current_hash = compute_content_hash(skill_dir_path)
+                hash_fresh = bool(current_hash and current_hash == locked_hash)
+                entry["lock_info"] = {
+                    "locked_at": lock_entry.get("locked_at"),
+                    "content_hash": locked_hash,
+                    "hash_fresh": hash_fresh,
+                    "resolved_ref": lock_entry.get("resolved_ref"),
+                }
+            elif include_lock_info:
+                # No lock entry — skill is unlocked
+                entry["lock_info"] = None
+            # When include_lock_info=False, omit lock_info entirely
+
+            return entry
+
+        # Collect all skills
+        all_skills: list[dict] = []
+
+        # Active skills from disk
+        for child in sorted(skills_dir.iterdir()):
+            if not child.is_dir() or child.name.startswith("_"):
+                continue
+            skill_md = child / "SKILL.md"
+            if not skill_md.exists():
+                continue
+            entry = _build_skill_entry(child, child.name, is_archived=False)
+            if entry:
+                all_skills.append(entry)
+
+        # Also check for manifest entries with missing directories
+        if has_manifest:
+            for slug in manifest_skills:
+                if not any(s["slug"] == slug for s in all_skills):
+                    # Manifest entry but no directory — report as missing
+                    manifest_entry = manifest_skills[slug]
+                    entry = {
+                        "slug": slug,
+                        "title": slug,
+                        "description": manifest_entry.get("description"),
+                        "source": manifest_entry.get("source", "local"),
+                        "trust": manifest_entry.get("trust"),
+                        "enabled": manifest_entry.get("enabled", True),
+                        "archived": False,
+                        "created": None,
+                        "last_verified": None,
+                        "file_count": 0,
+                        "total_bytes": 0,
+                        "_missing_directory": True,
+                    }
+                    if include_lock_info:
+                        entry["lock_info"] = None
+                    all_skills.append(entry)
+
+        # Archived skills
+        if archived:
             archive_dir = skills_dir / "_archive"
             if archive_dir.exists():
-                for skill_dir in sorted(archive_dir.iterdir()):
-                    if not skill_dir.is_dir():
+                for child in sorted(archive_dir.iterdir()):
+                    if not child.is_dir():
                         continue
-
-                    skill_md = skill_dir / "SKILL.md"
-                    if not skill_md.exists():
-                        continue
-
-                    slug = skill_dir.name
-                    archived = True
-
-                    # Read frontmatter
-                    try:
-                        fm_dict, _ = read_with_frontmatter(skill_md)
-                    except Exception:
-                        continue
-
-                    # Get manifest entry
-                    manifest_entry = manifest_skills.get(slug, {})
-                    lock_entry = lock_entries.get(slug, {})
-
-                    # Determine lock status
-                    lock_status = "unlocked"
-                    if lock_entry:
-                        current_hash = compute_content_hash(skill_dir)
-                        locked_hash = lock_entry.get("content_hash", "")
-                        if current_hash and current_hash == locked_hash:
-                            lock_status = "locked"
-                        elif locked_hash:
-                            lock_status = "stale"
-
-                    skill_obj = {
-                        "slug": slug,
-                        "name": fm_dict.get("name"),
-                        "description": fm_dict.get("description"),
-                        "trust": fm_dict.get("trust"),
-                        "source": manifest_entry.get("source", "local"),
-                        "lock_status": lock_status,
-                        "last_verified": fm_dict.get("last_verified"),
-                        "enabled": manifest_entry.get("enabled", True),
-                        "archived": archived,
-                    }
-                    skills_list.append(skill_obj)
+                    entry = _build_skill_entry(child, child.name, is_archived=True)
+                    if entry:
+                        all_skills.append(entry)
 
         # Apply filters
-        filtered = skills_list
+        filtered = all_skills
 
-        if trust:
-            if trust not in {"high", "medium", "low"}:
-                raise ValidationError(f"trust must be one of high, medium, low: {trust}")
-            filtered = [s for s in filtered if s.get("trust") == trust]
+        if trust_level:
+            filtered = [s for s in filtered if s.get("trust") == trust_level]
 
         if source_type:
-            if source_type not in {"local", "remote"}:
-                raise ValidationError(f"source_type must be local or remote: {source_type}")
-            if source_type == "local":
-                filtered = [s for s in filtered if s.get("source") == "local"]
-            else:  # remote
+            if source_type == "remote":
                 filtered = [s for s in filtered if s.get("source") != "local"]
+            elif source_type == "local":
+                filtered = [s for s in filtered if s.get("source") == "local"]
+            else:
+                # Match source prefix: github, git, path
+                filtered = [
+                    s for s in filtered
+                    if s.get("source", "").startswith(source_type)
+                ]
+
+        if enabled is not None:
+            filtered = [s for s in filtered if s.get("enabled") == enabled]
+
+        # Apply max_results
+        total_count = len(filtered)
+        if max_results > 0:
+            filtered = filtered[:max_results]
 
         return json.dumps(
             {
                 "result": {
                     "skills": filtered,
-                    "total": len(skills_list),
-                    "filtered": len(filtered),
+                    "total_count": total_count,
+                    "filters_applied": {
+                        "trust_level": trust_level,
+                        "source_type": source_type,
+                        "enabled": enabled,
+                        "archived": archived,
+                    },
                 }
             }
         )

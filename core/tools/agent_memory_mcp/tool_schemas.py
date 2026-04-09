@@ -2524,30 +2524,48 @@ def skill_list_input_schema() -> dict[str, Any]:
         tool_name="memory_skill_list",
         title="memory_skill_list input schema",
         notes=[
-            "Scans core/memory/skills/ for SKILL.md files with YAML frontmatter.",
-            "Also reads SKILLS.yaml manifest and SKILLS.lock to enrich results with source and lock_status.",
-            "Returns a JSON array of skill objects with metadata for filtering and inspection.",
+            "Read-only discovery interface per skill-lifecycle-spec.md.",
+            "Reads SKILLS.yaml manifest and SKILLS.lock to enrich results.",
+            "Falls back to SKILL.md frontmatter for orphan skills (on disk but not in manifest).",
+            "Returns structured JSON with skill metadata, trust, lock status, and file stats.",
             "All parameters are optional and can be combined to filter results.",
         ],
         properties={
-            "trust": {
+            "trust_level": {
                 "oneOf": [
                     {"type": "string", "enum": sorted(SKILL_CREATE_TRUST_LEVELS)},
                     {"type": "null"},
                 ],
-                "description": "Optional filter by trust level (high, medium, or low).",
+                "description": "Filter by trust level: high, medium, or low. Omit for all.",
             },
             "source_type": {
                 "oneOf": [
-                    {"type": "string", "enum": ["local", "remote"]},
+                    {"type": "string", "enum": ["local", "github", "git", "path", "remote"]},
                     {"type": "null"},
                 ],
-                "description": "Optional filter by source type. 'local' for source: local, 'remote' for other sources.",
+                "description": "Filter by source type. 'local' for local skills, 'remote' for any non-local, or specific types: github, git, path.",
             },
-            "include_archived": {
+            "enabled": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    {"type": "null"},
+                ],
+                "description": "Filter by enabled state (true/false). Omit to include all.",
+            },
+            "archived": {
                 "type": "boolean",
                 "default": False,
-                "description": "When true, include skills from the _archive/ directory in results.",
+                "description": "Include archived skills from _archive/ directory.",
+            },
+            "include_lock_info": {
+                "type": "boolean",
+                "default": True,
+                "description": "Include content hash, lock date, and freshness for each skill. Set false to skip hash computation.",
+            },
+            "max_results": {
+                "type": "integer",
+                "default": 100,
+                "description": "Maximum results to return. 0 for unlimited.",
             },
         },
     )
