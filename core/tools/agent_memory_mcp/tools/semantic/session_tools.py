@@ -678,6 +678,20 @@ def _append_access_entries(
     return changed_files, scan_entry_count
 
 
+def _aggregation_summary_folder_for_file(file_path: str) -> str:
+    """Map memory/skills/<slug>/SKILL.md to memory/skills for SUMMARY aggregation."""
+    path = PurePosixPath(str(file_path))
+    parts = path.parts
+    if (
+        len(parts) >= 4
+        and parts[0] == "memory"
+        and parts[1] == "skills"
+        and path.name == "SKILL.md"
+    ):
+        return "memory/skills"
+    return path.parent.as_posix()
+
+
 def _normalize_aggregation_folders(folders: list[str] | None) -> list[str] | None:
     from ...errors import ValidationError
 
@@ -2053,7 +2067,7 @@ def register_tools(
 
         entries_by_folder: dict[str, list[dict[str, Any]]] = {}
         for entry in filtered_entries:
-            folder = PurePosixPath(str(entry["file"])).parent.as_posix()
+            folder = _aggregation_summary_folder_for_file(str(entry["file"]))
             entries_by_folder.setdefault(folder, []).append(entry)
 
         summary_targets = [

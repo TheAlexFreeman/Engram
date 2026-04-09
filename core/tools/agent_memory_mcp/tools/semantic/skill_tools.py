@@ -56,6 +56,17 @@ def _append_markdown_section(body: str, section_name: str, value: str) -> str | 
     return _replace_markdown_section(body, section_name, appended)
 
 
+def _resolve_skill_markdown_path(repo: Any, slug: str) -> tuple[str, Path]:
+    """Resolve memory/skills/{slug}/SKILL.md when present, else legacy {slug}.md."""
+    nested_rel, nested_abs = resolve_repo_path(repo, f"memory/skills/{slug}/SKILL.md")
+    flat_rel, flat_abs = resolve_repo_path(repo, f"memory/skills/{slug}.md")
+    if nested_abs.exists():
+        return nested_rel, nested_abs
+    if flat_abs.exists():
+        return flat_rel, flat_abs
+    return nested_rel, nested_abs
+
+
 def _validate_trigger_field(trigger_value: object) -> None:
     """Validate trigger field in skill frontmatter.
 
@@ -276,7 +287,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             raise ValidationError(f"mode must be one of {sorted(UPDATE_MODES)}: {mode}")
 
         file = validate_slug(file, field_name="file")
-        rel_path, abs_path = resolve_repo_path(repo, f"memory/skills/{file}.md")
+        rel_path, abs_path = _resolve_skill_markdown_path(repo, file)
         today = today_str()
         file_exists = abs_path.exists()
 
@@ -285,7 +296,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             fm_dict, body = read_with_frontmatter(abs_path)
         else:
             if not create_if_missing:
-                raise NotFoundError(f"Skill file not found: {rel_path}")
+                flat_rel, _ = resolve_repo_path(repo, f"memory/skills/{file}.md")
+                raise NotFoundError(f"Skill file not found: {rel_path} (or legacy path {flat_rel})")
             if not source or not source.strip():
                 raise ValidationError("source is required when create_if_missing=True")
             if trust not in SKILL_CREATE_TRUST_LEVELS:
@@ -334,7 +346,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             pass
 
         validate_frontmatter_metadata(fm_dict, context=f"skill frontmatter for {rel_path}")
-        commit_msg = f"[skill] Update {section} in memory/skills/{file}.md"
+        commit_msg = f"[skill] Update {section} in {rel_path}"
         new_state = {"section": section, "mode": mode}
         operation_arguments = {
             "file": file,
@@ -350,7 +362,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         preview_payload = build_governed_preview(
             mode="preview" if preview else "apply",
             change_class="protected",
-            summary=f"Update skill section {section} in memory/skills/{file}.md.",
+            summary=f"Update skill section {section} in {rel_path}.",
             reasoning="Skill files are protected because they can directly shape agent procedure.",
             target_files=[preview_target(rel_path, "update" if file_exists else "create")],
             invariant_effects=[
@@ -390,6 +402,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             root=repo.root,
             content=rendered,
         )
+        abs_path.parent.mkdir(parents=True, exist_ok=True)
         write_with_frontmatter(abs_path, fm_dict, body)
         repo.add(rel_path)
         commit_result = repo.commit(commit_msg)
