@@ -2,10 +2,10 @@ id: skill-manifest-and-versioning
 project: skills-expansion
 created: '2026-04-08'
 origin_session: memory/activity/2026/04/08/chat-001
-status: active
+status: completed
 budget:
   max_sessions: 3
-sessions_used: 3
+sessions_used: 4
 purpose:
   summary: Introduce a declarative skill manifest with version pinning and integrity lockfile
   context: Engram skills today are directories discovered by convention with no dependency
@@ -78,8 +78,8 @@ work:
       description: Add input schemas for new manifest tools
   - id: migrate-existing
     title: Generate initial manifest from existing installed skills
-    status: pending
-    commit: null
+    status: completed
+    commit: 453e1d8
     blockers:
     - manifest-tooling
     postconditions:
@@ -94,4 +94,18 @@ work:
     - path: core/memory/skills/SKILLS.yaml
       action: update
       description: Populated with entries for all current skills
-review: null
+review:
+  completed: '2026-04-08'
+  completed_session: memory/activity/2026/04/08/chat-002
+  outcome: completed
+  purpose_assessment: 'Skill manifest system is now fully operational: SKILLS.yaml declares
+    all 6 active skills, SKILLS.lock provides verified integrity hashes, and generate_skill_manifest.py
+    supports generation, verification, and frozen CI mode. The existing generate_skill_catalog.py
+    continues to work alongside the manifest without conflicts.'
+  unresolved:
+  - question: Should SKILLS.yaml live at core/memory/skills/ or at the vault root?
+    note: "Kept at core/memory/skills/ \u2014 consistent with existing convention and SKILL_TREE.md\
+      \ location"
+  - question: Should the lockfile be human-readable YAML or a more compact format?
+    note: Chose YAML for consistency with the rest of the Engram ecosystem
+  follow_up: null

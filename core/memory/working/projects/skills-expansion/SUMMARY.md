@@ -1,5 +1,5 @@
 ---
-active_plans: 6
+active_plans: 5
 cognitive_mode: planning
 created: '2026-04-08'
 current_focus: 'Modernize Engram''s skill system by adopting lessons from the dotagents
