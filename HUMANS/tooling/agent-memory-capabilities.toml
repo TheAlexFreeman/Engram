@@ -125,6 +125,7 @@ semantic_extensions = [
   "memory_skill_list",
   "memory_skill_add",
   "memory_skill_remove",
+  "memory_skill_sync",
   "memory_update_user_trait",
   "memory_record_session",
   "memory_run_aggregation",
@@ -456,6 +457,7 @@ new_state = "New State"
 warnings = "Warnings"
 publication = "Publication"
 preview = "Preview"
+report = "Report"
 
 [shared_result]
 fields = [
@@ -1690,6 +1692,46 @@ result_fields = [
 fallback_tools = []
 error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
 notes = "git mv skill directory to _archive when present; always refreshes lockfile and SKILL_TREE; protected apply requires approval_token."
+
+[operations.memory_skill_sync]
+group = "skill"
+tier = "semantic"
+change_class = "protected"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "skill"
+writes = [
+  "memory/skills/{slug}/**/*",
+  "memory/skills/_archive/{slug}/**/*",
+  "memory/skills/SKILLS.yaml",
+  "memory/skills/SKILLS.lock",
+  "memory/skills/SKILL_TREE.md",
+  "memory/skills/SUMMARY.md",
+  "memory/skills/_archive/ARCHIVE_INDEX.md",
+]
+owns_frontmatter = [
+  "memory/skills/{slug}/SKILL.md",
+  "memory/skills/_archive/{slug}/SKILL.md",
+]
+owns_summaries = ["memory/skills/SUMMARY.md"]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "result",
+  "report",
+  "files_changed",
+  "commit_sha",
+  "commit_message",
+  "new_state",
+  "warnings",
+  "publication",
+  "preview",
+]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+notes = "check_only is read-only JSON. Destructive flags (orphan archive, missing-entry removal) require approval_token on apply; lock/index refresh alone does not."
 
 [operations.memory_register_tool]
 group = "skill"

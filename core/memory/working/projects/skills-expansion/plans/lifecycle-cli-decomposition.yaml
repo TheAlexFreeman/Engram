@@ -75,7 +75,7 @@ work:
       description: Input schemas for add and remove tools
   - id: skill-sync-tool
     title: Implement memory_skill_sync to reconcile manifest with filesystem
-    status: pending
+    status: completed
     commit: null
     blockers:
     - skill-add-remove

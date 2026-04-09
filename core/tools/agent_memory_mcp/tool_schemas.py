@@ -2707,6 +2707,64 @@ def skill_remove_input_schema() -> dict[str, Any]:
     )
 
 
+def skill_sync_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_sync",
+        title="memory_skill_sync input schema",
+        notes=[
+            "check_only=true returns a JSON report only (no writes).",
+            "approval_token is required for apply when archive_orphans or remove_missing_entries "
+            "will perform work (orphans on disk or manifest rows with missing directories).",
+            "Non-destructive refresh (lock + indexes) does not use approval_token.",
+            "verify_symlinks is reserved; symlink_errors in the report stays 0 for now.",
+        ],
+        properties={
+            "check_only": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, report inconsistencies without modifying files.",
+            },
+            "fix_stale_locks": {
+                "type": "boolean",
+                "default": True,
+                "description": "Rebuild SKILLS.lock entries from manifest + on-disk skills.",
+            },
+            "archive_orphans": {
+                "type": "boolean",
+                "default": False,
+                "description": "Move skill directories not listed in the manifest into _archive/.",
+            },
+            "remove_missing_entries": {
+                "type": "boolean",
+                "default": False,
+                "description": "Remove manifest entries whose SKILL.md directory is missing.",
+            },
+            "verify_symlinks": {
+                "type": "boolean",
+                "default": True,
+                "description": "Reserved for future symlink verification (currently no-op).",
+            },
+            "regenerate_indexes": {
+                "type": "boolean",
+                "default": True,
+                "description": "Regenerate SKILL_TREE.md and SUMMARY.md current-skills section.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return a governed preview envelope instead of applying writes.",
+            },
+            "approval_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Required for destructive apply (orphan archive or missing-entry removal) after preview.",
+            },
+        },
+    )
+
+
 def reindex_input_schema() -> dict[str, Any]:
     return _base_schema(
         tool_name="memory_reindex",
@@ -3123,6 +3181,7 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_skill_manifest_read": skill_manifest_read_input_schema,
     "memory_skill_manifest_write": skill_manifest_write_input_schema,
     "memory_skill_remove": skill_remove_input_schema,
+    "memory_skill_sync": skill_sync_input_schema,
     "memory_stage_external": stage_external_input_schema,
     "memory_update_frontmatter": update_frontmatter_input_schema,
     "memory_update_frontmatter_bulk": update_frontmatter_bulk_input_schema,

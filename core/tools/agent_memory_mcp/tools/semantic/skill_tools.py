@@ -139,9 +139,9 @@ def _load_generate_skill_catalog_module(repo_root: Path) -> Any:
 
 def _regenerate_skill_tree_content(repo_root: Path) -> str:
     mod = _load_generate_skill_catalog_module(repo_root)
-    skills_dir = repo_root / "core" / "memory" / "skills"
-    entries = mod.discover_skills(skills_dir)
-    return mod.generate_catalog(entries)
+    return mod.regenerate_skill_tree_markdown(
+        repo_root, log_missing_frontmatter=False
+    )
 
 
 def _append_skill_summary_bullet(repo_root: Path, slug: str, description: str) -> str | None:
@@ -185,6 +185,49 @@ def _append_archive_index_row(
             f"{row}"
         )
     return "core/memory/skills/_archive/ARCHIVE_INDEX.md", text
+
+
+def _rebuild_skills_lock_data(
+    manifest_skills: dict[str, Any],
+    skills_dir: Path,
+    prior_lock: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Rebuild SKILLS.lock ``entries`` from manifest + on-disk skill directories."""
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    old_entries_raw = (prior_lock or {}).get("entries") or {}
+    old_entries: dict[str, Any] = (
+        old_entries_raw if isinstance(old_entries_raw, dict) else {}
+    )
+    new_entries: dict[str, Any] = {}
+    for slug, mentry in sorted(manifest_skills.items()):
+        if not isinstance(mentry, dict):
+            continue
+        if mentry.get("enabled", True) is False:
+            continue
+        skill_dir = skills_dir / slug
+        if not (skill_dir / "SKILL.md").is_file():
+            continue
+        prev = old_entries.get(slug, {})
+        if not isinstance(prev, dict):
+            prev = {}
+        src = prev.get("source") or mentry.get("source") or "local"
+        rpath = prev.get("resolved_path") or f"core/memory/skills/{slug}/"
+        content_hash = compute_content_hash(skill_dir)
+        fc, tb = get_dir_stats(skill_dir)
+        new_entries[slug] = {
+            "source": src,
+            "resolved_path": rpath,
+            "content_hash": content_hash,
+            "locked_at": ts,
+            "file_count": fc,
+            "total_bytes": tb,
+        }
+    lv = (prior_lock or {}).get("lock_version", 1)
+    return {
+        "lock_version": lv,
+        "locked_at": ts,
+        "entries": new_entries,
+    }
 
 
 def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
@@ -1464,6 +1507,535 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         out["result"] = result_body
         return json.dumps(out, indent=2)
 
+    @mcp.tool(
+        name="memory_skill_sync",
+        annotations=_tool_annotations(
+            title="Sync Skill Manifest",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_skill_sync(
+        check_only: bool = False,
+        fix_stale_locks: bool = True,
+        archive_orphans: bool = False,
+        remove_missing_entries: bool = False,
+        verify_symlinks: bool = True,
+        regenerate_indexes: bool = True,
+        preview: bool = False,
+        approval_token: str | None = None,
+    ) -> str:
+        """Reconcile SKILLS.yaml, SKILLS.lock, and skill directories; refresh SKILL_TREE / SUMMARY.
+
+        When ``check_only`` is true, returns a report only (no writes).
+
+        Destructive options ``archive_orphans`` and ``remove_missing_entries`` use the
+        governed preview + ``approval_token`` flow. Non-destructive refresh (lock
+        rebuild, index regeneration) does not require an approval token.
+
+        ``verify_symlinks`` is reserved; symlink checks are reported as zero until
+        distribution symlinks are implemented.
+        """
+        import json
+
+        import yaml
+
+        from ...errors import NotFoundError, ValidationError
+        from ...guard_pipeline import require_guarded_write_pass
+        from ...models import MemoryWriteResult
+
+        repo = get_repo()
+        mod = _load_generate_skill_catalog_module(repo.root)
+        manifest_path = repo.root / "core" / "memory" / "skills" / "SKILLS.yaml"
+        lock_path = repo.root / "core" / "memory" / "skills" / "SKILLS.lock"
+        skills_dir = repo.root / "core" / "memory" / "skills"
+
+        if not manifest_path.is_file():
+            raise NotFoundError("Skill manifest not found: core/memory/skills/SKILLS.yaml")
+
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            manifest_data = yaml.safe_load(f) or {}
+        skills_map: dict[str, Any] = manifest_data.get("skills", {})
+        if not isinstance(skills_map, dict):
+            skills_map = {}
+
+        disk_slugs = set(mod.iter_disk_skill_slugs(skills_dir))
+        manifest_keys = set(skills_map.keys())
+        orphans = sorted(disk_slugs - manifest_keys)
+
+        missing_dir_slugs: list[str] = []
+        for slug, mentry in skills_map.items():
+            if not isinstance(mentry, dict):
+                continue
+            if mentry.get("enabled", True) is False:
+                continue
+            if not (skills_dir / slug / "SKILL.md").is_file():
+                missing_dir_slugs.append(slug)
+
+        lock_data: dict[str, Any] = {}
+        if lock_path.is_file():
+            with open(lock_path, "r", encoding="utf-8") as lf:
+                lock_data = yaml.safe_load(lf) or {}
+        lock_entries: dict[str, Any] = lock_data.get("entries", {})
+        if not isinstance(lock_entries, dict):
+            lock_entries = {}
+
+        stale_lock_count = 0
+        missing_lock_count = 0
+        details: list[dict[str, Any]] = []
+
+        for slug, mentry in skills_map.items():
+            if not isinstance(mentry, dict):
+                continue
+            if mentry.get("enabled", True) is False:
+                continue
+            sd = skills_dir / slug
+            if not (sd / "SKILL.md").is_file():
+                continue
+            if slug not in lock_entries:
+                missing_lock_count += 1
+                details.append({
+                    "type": "missing_lock_entry",
+                    "slug": slug,
+                    "issue": "manifest skill with directory has no lock entry",
+                })
+
+        for slug, lock_entry in sorted(lock_entries.items()):
+            if not isinstance(lock_entry, dict):
+                continue
+            sd = skills_dir / slug
+            if not (sd / "SKILL.md").is_file():
+                continue
+            expected = lock_entry.get("content_hash", "")
+            actual = compute_content_hash(sd)
+            if expected and actual and expected != actual:
+                stale_lock_count += 1
+                details.append({
+                    "type": "stale_lock",
+                    "slug": slug,
+                    "issue": "content hash mismatch",
+                })
+
+        for slug in missing_dir_slugs:
+            details.append({
+                "type": "missing_directory",
+                "slug": slug,
+                "issue": "manifest entry but no SKILL.md on disk",
+            })
+
+        for slug in orphans:
+            details.append({
+                "type": "orphaned_skill",
+                "slug": slug,
+                "issue": "directory on disk not listed in manifest",
+            })
+
+        symlink_issues = 0
+        if verify_symlinks:
+            symlink_issues = 0
+
+        issues_found = {
+            "stale_locks": stale_lock_count,
+            "orphaned_skills": len(orphans),
+            "missing_directories": len(missing_dir_slugs),
+            "missing_lock_entries": missing_lock_count,
+            "symlink_errors": symlink_issues,
+        }
+
+        healthy = (
+            stale_lock_count == 0
+            and len(orphans) == 0
+            and len(missing_dir_slugs) == 0
+            and missing_lock_count == 0
+        )
+        sync_status = "healthy" if healthy else "needs_attention"
+
+        report_base = {
+            "sync_status": sync_status,
+            "timestamp": datetime.now(timezone.utc)
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z"),
+            "issues_found": issues_found,
+            "details": details,
+            "check_only": check_only,
+        }
+
+        if check_only:
+            report_base["actions_taken"] = {
+                "locks_refreshed": False,
+                "orphans_archived": 0,
+                "missing_entries_removed": 0,
+                "symlinks_repaired": 0,
+                "indexes_regenerated": False,
+            }
+            report_base["approval_required"] = False
+            report_base["artifacts_updated"] = []
+            return json.dumps({"result": report_base})
+
+        destructive = (
+            (archive_orphans and bool(orphans))
+            or (remove_missing_entries and bool(missing_dir_slugs))
+        )
+        operation_arguments: dict[str, Any] = {
+            "check_only": check_only,
+            "fix_stale_locks": fix_stale_locks,
+            "archive_orphans": archive_orphans,
+            "remove_missing_entries": remove_missing_entries,
+            "verify_symlinks": verify_symlinks,
+            "regenerate_indexes": regenerate_indexes,
+        }
+
+        files_changed: list[str] = []
+        commit_msg = "[skill] Sync skill manifest and lockfile"
+
+        def _apply_lock_and_indexes(
+            skills_map_local: dict[str, Any],
+        ) -> None:
+            nonlocal files_changed
+            if fix_stale_locks:
+                prior = {}
+                if lock_path.is_file():
+                    with open(lock_path, "r", encoding="utf-8") as lf:
+                        prior = yaml.safe_load(lf) or {}
+                rebuilt = _rebuild_skills_lock_data(
+                    skills_map_local, skills_dir, prior
+                )
+                lock_yaml = yaml.dump(
+                    rebuilt, default_flow_style=False, sort_keys=False, allow_unicode=True
+                )
+                require_guarded_write_pass(
+                    path="core/memory/skills/SKILLS.lock",
+                    operation="write",
+                    root=repo.root,
+                    content=lock_yaml,
+                )
+                lock_path.write_text(lock_yaml, encoding="utf-8")
+                if "core/memory/skills/SKILLS.lock" not in files_changed:
+                    files_changed.append("core/memory/skills/SKILLS.lock")
+
+            if regenerate_indexes:
+                tree_content = mod.regenerate_skill_tree_markdown(
+                    repo.root, log_missing_frontmatter=False
+                )
+                require_guarded_write_pass(
+                    path="core/memory/skills/SKILL_TREE.md",
+                    operation="write",
+                    root=repo.root,
+                    content=tree_content,
+                )
+                (skills_dir / "SKILL_TREE.md").write_text(
+                    tree_content, encoding="utf-8"
+                )
+                if "core/memory/skills/SKILL_TREE.md" not in files_changed:
+                    files_changed.append("core/memory/skills/SKILL_TREE.md")
+
+                new_summary = mod.regenerate_skills_summary_markdown(repo.root)
+                if new_summary is not None:
+                    require_guarded_write_pass(
+                        path="core/memory/skills/SUMMARY.md",
+                        operation="write",
+                        root=repo.root,
+                        content=new_summary,
+                    )
+                    (skills_dir / "SUMMARY.md").write_text(
+                        new_summary, encoding="utf-8"
+                    )
+                    if "core/memory/skills/SUMMARY.md" not in files_changed:
+                        files_changed.append("core/memory/skills/SUMMARY.md")
+
+        if destructive:
+            target_files: list[dict[str, Any]] = []
+            if archive_orphans and orphans:
+                for slug in orphans:
+                    dest = skills_dir / "_archive" / slug
+                    if dest.exists():
+                        continue
+                    skill_rel = f"core/memory/skills/{slug}"
+                    archive_rel = f"core/memory/skills/_archive/{slug}"
+                    target_files.extend(
+                        [
+                            preview_target(skill_rel, "move_from"),
+                            preview_target(
+                                archive_rel, "move_to", from_path=skill_rel
+                            ),
+                        ]
+                    )
+            if remove_missing_entries and missing_dir_slugs:
+                target_files.append(
+                    preview_target("core/memory/skills/SKILLS.yaml", "update")
+                )
+            if fix_stale_locks:
+                target_files.append(
+                    preview_target("core/memory/skills/SKILLS.lock", "update")
+                )
+            if regenerate_indexes:
+                target_files.append(
+                    preview_target("core/memory/skills/SKILL_TREE.md", "update")
+                )
+                if (skills_dir / "SUMMARY.md").is_file():
+                    target_files.append(
+                        preview_target("core/memory/skills/SUMMARY.md", "update")
+                    )
+            if archive_orphans and orphans:
+                target_files.append(
+                    preview_target(
+                        "core/memory/skills/_archive/ARCHIVE_INDEX.md", "update"
+                    )
+                )
+
+            preview_payload = build_governed_preview(
+                mode="preview" if preview else "apply",
+                change_class="protected",
+                summary="Sync skills: archive orphans and/or drop manifest entries, then refresh lock and indexes.",
+                reasoning="Destructive sync changes manifest paths or move skill directories; protected tier.",
+                target_files=target_files,
+                invariant_effects=[
+                    "Optional: move orphan skill dirs into _archive/.",
+                    "Optional: remove manifest rows with no on-disk SKILL.md.",
+                    "Rebuild SKILLS.lock when fix_stale_locks=true.",
+                    "Regenerate SKILL_TREE.md / SUMMARY.md when regenerate_indexes=true.",
+                ],
+                commit_message=commit_msg,
+                resulting_state={"destructive": True},
+            )
+            preview_payload, protected_token = attach_approval_requirement(
+                preview_payload,
+                repo,
+                tool_name="memory_skill_sync",
+                operation_arguments=operation_arguments,
+            )
+
+            preview_files = sorted(
+                {
+                    str(t.get("path", ""))
+                    for t in target_files
+                    if isinstance(t.get("path"), str) and t.get("path")
+                }
+            )
+            if preview:
+                return MemoryWriteResult(
+                    files_changed=preview_files
+                    or ["core/memory/skills/SKILLS.yaml"],
+                    commit_sha=None,
+                    commit_message=None,
+                    new_state={
+                        "approval_token": protected_token,
+                        "report": {**report_base, "preview": True},
+                    },
+                    preview=preview_payload,
+                ).to_json()
+
+            require_approval_token(
+                repo,
+                tool_name="memory_skill_sync",
+                operation_arguments=operation_arguments,
+                approval_token=approval_token,
+            )
+
+            orphans_archived = 0
+            if archive_orphans:
+                archive_parent = skills_dir / "_archive"
+                archive_parent.mkdir(parents=True, exist_ok=True)
+                for slug in list(orphans):
+                    dest = archive_parent / slug
+                    if dest.exists():
+                        raise ValidationError(
+                            f"Cannot archive orphan {slug}: {dest} already exists."
+                        )
+                    skill_rel = f"core/memory/skills/{slug}"
+                    archive_rel = f"core/memory/skills/_archive/{slug}"
+                    repo.mv(skill_rel, archive_rel)
+                    files_changed.extend([skill_rel, archive_rel])
+                    arch_rel, arch_text = _append_archive_index_row(
+                        repo.root, slug, "orphaned (memory_skill_sync)"
+                    )
+                    require_guarded_write_pass(
+                        path=arch_rel,
+                        operation="write",
+                        root=repo.root,
+                        content=arch_text,
+                    )
+                    (repo.root / arch_rel).write_text(arch_text, encoding="utf-8")
+                    if arch_rel not in files_changed:
+                        files_changed.append(arch_rel)
+                    orphans_archived += 1
+
+            removed_missing = 0
+            if remove_missing_entries and missing_dir_slugs:
+                for slug in missing_dir_slugs:
+                    if slug in skills_map:
+                        del skills_map[slug]
+                        removed_missing += 1
+                manifest_data["skills"] = skills_map
+                ordered_manifest: dict[str, Any] = {}
+                for key in ("schema_version", "defaults", "skills"):
+                    if key in manifest_data:
+                        ordered_manifest[key] = manifest_data[key]
+                manifest_yaml = yaml.dump(
+                    ordered_manifest,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+                require_guarded_write_pass(
+                    path="core/memory/skills/SKILLS.yaml",
+                    operation="write",
+                    root=repo.root,
+                    content=manifest_yaml,
+                )
+                manifest_path.write_text(manifest_yaml, encoding="utf-8")
+                if "core/memory/skills/SKILLS.yaml" not in files_changed:
+                    files_changed.append("core/memory/skills/SKILLS.yaml")
+
+            _apply_lock_and_indexes(skills_map)
+
+            for rel in files_changed:
+                repo.add(rel)
+            commit_result = repo.commit(commit_msg)
+
+            result_body = {
+                **report_base,
+                "sync_status": "repaired",
+                "actions_taken": {
+                    "locks_refreshed": fix_stale_locks,
+                    "orphans_archived": orphans_archived,
+                    "missing_entries_removed": removed_missing,
+                    "symlinks_repaired": 0,
+                    "indexes_regenerated": regenerate_indexes,
+                },
+                "approval_required": True,
+                "artifacts_updated": sorted(set(files_changed)),
+            }
+            mw = MemoryWriteResult.from_commit(
+                files_changed=sorted(set(files_changed)),
+                commit_result=commit_result,
+                commit_message=commit_msg,
+                new_state={"destructive": True},
+                preview=preview_payload,
+            )
+            out = mw.to_dict()
+            out["result"] = result_body
+            return json.dumps(out, indent=2)
+
+        # Non-destructive sync
+        if not fix_stale_locks and not regenerate_indexes:
+            result_body = {
+                **report_base,
+                "actions_taken": {
+                    "locks_refreshed": False,
+                    "orphans_archived": 0,
+                    "missing_entries_removed": 0,
+                    "symlinks_repaired": 0,
+                    "indexes_regenerated": False,
+                },
+                "approval_required": False,
+                "artifacts_updated": [],
+            }
+            if preview:
+                preview_idle = build_governed_preview(
+                    mode="preview",
+                    change_class="automatic",
+                    summary="No lock or index refresh requested.",
+                    reasoning="fix_stale_locks and regenerate_indexes are both false.",
+                    target_files=[],
+                    invariant_effects=["No files will be modified."],
+                    commit_message=None,
+                    resulting_state={},
+                )
+                return MemoryWriteResult(
+                    files_changed=[],
+                    commit_sha=None,
+                    commit_message=None,
+                    new_state={"report": {**result_body, "preview": True}},
+                    preview=preview_idle,
+                ).to_json()
+            return json.dumps({"result": result_body})
+
+        if preview:
+            nd_targets: list[dict[str, Any]] = []
+            if fix_stale_locks:
+                nd_targets.append(
+                    preview_target("core/memory/skills/SKILLS.lock", "update")
+                )
+            if regenerate_indexes:
+                nd_targets.append(
+                    preview_target("core/memory/skills/SKILL_TREE.md", "update")
+                )
+                if (skills_dir / "SUMMARY.md").is_file():
+                    nd_targets.append(
+                        preview_target("core/memory/skills/SUMMARY.md", "update")
+                    )
+            preview_payload_nd = build_governed_preview(
+                mode="preview",
+                change_class="automatic",
+                summary="Refresh SKILLS.lock and/or skill indexes (non-destructive).",
+                reasoning="Lock hash refresh and catalog regeneration are automatic-tier.",
+                target_files=nd_targets,
+                invariant_effects=[
+                    "Rebuilds lock entries from manifest + on-disk skills when fix_stale_locks=true.",
+                    "Regenerates SKILL_TREE.md and SUMMARY.md when regenerate_indexes=true.",
+                ],
+                commit_message=commit_msg,
+                resulting_state={"destructive": False},
+            )
+            return MemoryWriteResult(
+                files_changed=[
+                    t.get("path", "") for t in nd_targets if isinstance(t.get("path"), str)
+                ],
+                commit_sha=None,
+                commit_message=None,
+                new_state={"report": {**report_base, "preview": True}},
+                preview=preview_payload_nd,
+            ).to_json()
+
+        _apply_lock_and_indexes(skills_map)
+        unique_changed = sorted(set(files_changed))
+        if not unique_changed:
+            result_body = {
+                **report_base,
+                "sync_status": sync_status,
+                "actions_taken": {
+                    "locks_refreshed": False,
+                    "orphans_archived": 0,
+                    "missing_entries_removed": 0,
+                    "symlinks_repaired": 0,
+                    "indexes_regenerated": False,
+                },
+                "approval_required": False,
+                "artifacts_updated": [],
+            }
+            return json.dumps({"result": result_body})
+
+        for rel in unique_changed:
+            repo.add(rel)
+        commit_result = repo.commit(commit_msg)
+
+        result_body = {
+            **report_base,
+            "sync_status": "repaired" if fix_stale_locks or regenerate_indexes else sync_status,
+            "actions_taken": {
+                "locks_refreshed": fix_stale_locks,
+                "orphans_archived": 0,
+                "missing_entries_removed": 0,
+                "symlinks_repaired": 0,
+                "indexes_regenerated": regenerate_indexes,
+            },
+            "approval_required": False,
+            "artifacts_updated": unique_changed,
+        }
+        mw = MemoryWriteResult.from_commit(
+            files_changed=unique_changed,
+            commit_result=commit_result,
+            commit_message=commit_msg,
+            new_state={"destructive": False},
+            preview=None,
+        )
+        out = mw.to_dict()
+        out["result"] = result_body
+        return json.dumps(out, indent=2)
+
     return {
         "memory_update_skill": memory_update_skill,
         "memory_skill_manifest_read": memory_skill_manifest_read,
@@ -1471,6 +2043,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         "memory_skill_list": memory_skill_list,
         "memory_skill_add": memory_skill_add,
         "memory_skill_remove": memory_skill_remove,
+        "memory_skill_sync": memory_skill_sync,
     }
 
 
