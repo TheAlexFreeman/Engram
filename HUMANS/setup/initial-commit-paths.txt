@@ -124,8 +124,8 @@ core/memory/activity/2026/03/18/chat-001/SUMMARY.md
 core/memory/activity/2026/03/18/chat-001/reflection.md
 core/memory/activity/2026/04/02/chat-001/SUMMARY.md
 core/memory/activity/2026/04/02/chat-001/traces.jsonl
-core/memory/activity/2026/04/08/chat-001.traces.jsonl
-core/memory/activity/2026/04/08/chat-002.traces.jsonl
+core/memory/activity/2026/04/08/traces-chat-001.jsonl
+core/memory/activity/2026/04/08/traces-chat-002.jsonl
 core/memory/activity/ACCESS.jsonl
 core/memory/activity/SUMMARY.md
 core/memory/knowledge/ACCESS.jsonl

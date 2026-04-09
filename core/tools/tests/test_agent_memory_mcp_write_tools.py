@@ -6279,7 +6279,9 @@ Load compact context.
             )
         )
         payload = json.loads(raw)
-        skill = (repo_root / "memory" / "skills" / "session-start" / "SKILL.md").read_text(encoding="utf-8")
+        skill = (repo_root / "memory" / "skills" / "session-start" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
 
         self.assertEqual(payload["new_state"]["section"], "Steps")
         self.assertIn("## Steps\n\nLoad compact context and active plans.", skill)
@@ -6323,7 +6325,9 @@ Capture a short checkpoint.
                 approval_token=approval_token,
             )
         )
-        skill = (repo_root / "memory" / "skills" / "session-sync" / "SKILL.md").read_text(encoding="utf-8")
+        skill = (repo_root / "memory" / "skills" / "session-sync" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("Capture a short checkpoint.\nRecord any open questions.", skill)
 
@@ -6365,7 +6369,9 @@ Old guidance.
                 approval_token=approval_token,
             )
         )
-        skill = (repo_root / "memory" / "skills" / "session-wrapup" / "SKILL.md").read_text(encoding="utf-8")
+        skill = (repo_root / "memory" / "skills" / "session-wrapup" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("Use the governed session recorder when available.", skill)
         self.assertNotIn("Old guidance.", skill)
@@ -6471,7 +6477,9 @@ Load compact context.
             )
         )
 
-        updated = (repo_root / "memory" / "skills" / "session-start" / "SKILL.md").read_text(encoding="utf-8")
+        updated = (repo_root / "memory" / "skills" / "session-start" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("Load compact context and active plans.", updated)
         self.assertEqual(preview["preview"]["target_files"], applied["preview"]["target_files"])
         self.assertEqual(
@@ -6997,7 +7005,9 @@ Load compact context.
 
         with self.assertRaises(self.errors.MemoryPermissionError):
             asyncio.run(
-                tools["memory_write"](path="memory/skills/session-start/SKILL.md", content="injected\n")
+                tools["memory_write"](
+                    path="memory/skills/session-start/SKILL.md", content="injected\n"
+                )
             )
 
     def test_memory_write_blocks_protected_meta_path(self) -> None:

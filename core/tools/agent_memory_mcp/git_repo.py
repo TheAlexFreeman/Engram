@@ -642,9 +642,7 @@ class GitRepo:
             # writers), it is safe to write the ref file directly.
             if not self._should_fallback_to_plumbing(ref_error):
                 raise
-            _log.warning(
-                "update-ref failed (%s), writing ref file directly", ref_error
-            )
+            _log.warning("update-ref failed (%s), writing ref file directly", ref_error)
             self._direct_update_ref(branch_ref, commit_sha, parent_sha)
             warnings.append(
                 "Ref updated via direct file write after update-ref could not acquire HEAD.lock."

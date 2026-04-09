@@ -116,13 +116,15 @@ def discover_skills(skills_dir: Path, *, log_missing_frontmatter: bool = True) -
         trust = fm.get("trust", "unknown")
         compatibility = fm.get("compatibility", "")
 
-        entries.append({
-            "name": name,
-            "description": description,
-            "trust": trust,
-            "compatibility": compatibility,
-            "path": str(skill_md.relative_to(skills_dir)),
-        })
+        entries.append(
+            {
+                "name": name,
+                "description": description,
+                "trust": trust,
+                "compatibility": compatibility,
+                "path": str(skill_md.relative_to(skills_dir)),
+            }
+        )
     return entries
 
 
@@ -144,8 +146,7 @@ def generate_catalog(entries: list[dict]) -> str:
     lines = [
         "# Skill Catalog",
         "",
-        f"_Auto-generated on {date.today()} by `generate_skill_catalog.py`. "
-        "Do not edit manually._",
+        f"_Auto-generated on {date.today()} by `generate_skill_catalog.py`. Do not edit manually._",
         "",
         "This file is the **tier-1 progressive disclosure surface** — loaded at "
         "session start to route skill activation. Each entry is ~50–100 tokens. "
@@ -175,8 +176,10 @@ def generate_catalog(entries: list[dict]) -> str:
 
     lines.append("---")
     lines.append("")
-    lines.append(f"**{len(entries)} skills** indexed. "
-                 "Run `python HUMANS/tooling/scripts/generate_skill_catalog.py` to regenerate.")
+    lines.append(
+        f"**{len(entries)} skills** indexed. "
+        "Run `python HUMANS/tooling/scripts/generate_skill_catalog.py` to regenerate."
+    )
     lines.append("")
     return "\n".join(lines)
 

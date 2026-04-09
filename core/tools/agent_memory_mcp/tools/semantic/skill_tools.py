@@ -102,9 +102,7 @@ def _validate_trigger_field(trigger_value: object) -> None:
                     f"trigger priority must be an int if present: {type(item['priority']).__name__}"
                 )
         else:
-            raise ValidationError(
-                f"trigger must be a string, dict, or list: {type(item).__name__}"
-            )
+            raise ValidationError(f"trigger must be a string, dict, or list: {type(item).__name__}")
 
     if isinstance(trigger_value, list):
         for item in trigger_value:
@@ -139,9 +137,7 @@ def _load_generate_skill_catalog_module(repo_root: Path) -> Any:
 
 def _regenerate_skill_tree_content(repo_root: Path) -> str:
     mod = _load_generate_skill_catalog_module(repo_root)
-    return mod.regenerate_skill_tree_markdown(
-        repo_root, log_missing_frontmatter=False
-    )
+    return mod.regenerate_skill_tree_markdown(repo_root, log_missing_frontmatter=False)
 
 
 def _append_skill_summary_bullet(repo_root: Path, slug: str, description: str) -> str | None:
@@ -195,9 +191,7 @@ def _rebuild_skills_lock_data(
     """Rebuild SKILLS.lock ``entries`` from manifest + on-disk skill directories."""
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     old_entries_raw = (prior_lock or {}).get("entries") or {}
-    old_entries: dict[str, Any] = (
-        old_entries_raw if isinstance(old_entries_raw, dict) else {}
-    )
+    old_entries: dict[str, Any] = old_entries_raw if isinstance(old_entries_raw, dict) else {}
     new_entries: dict[str, Any] = {}
     for slug, mentry in sorted(manifest_skills.items()):
         if not isinstance(mentry, dict):
@@ -551,9 +545,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         # Validate trust level
         valid_trusts = {"high", "medium", "low"}
         if trust not in valid_trusts:
-            raise ValidationError(
-                f"trust must be one of {sorted(valid_trusts)}: {trust}"
-            )
+            raise ValidationError(f"trust must be one of {sorted(valid_trusts)}: {trust}")
 
         # Validate source format
         source_patterns = {
@@ -583,9 +575,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         manifest_path = repo.root / "core" / "memory" / "skills" / "SKILLS.yaml"
 
         if not manifest_path.exists():
-            raise ValidationError(
-                "Skill manifest not found: core/memory/skills/SKILLS.yaml"
-            )
+            raise ValidationError("Skill manifest not found: core/memory/skills/SKILLS.yaml")
 
         with open(manifest_path, "r") as f:
             manifest_data = yaml.safe_load(f) or {}
@@ -610,7 +600,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         rel_path = "core/memory/skills/SKILLS.yaml"
         commit_msg = (
-            f"[skill-manifest] Add skill {slug}" if is_new
+            f"[skill-manifest] Add skill {slug}"
+            if is_new
             else f"[skill-manifest] Update skill {slug}"
         )
         operation_arguments = {
@@ -738,9 +729,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         # Validate filter inputs
         if trust_level and trust_level not in {"high", "medium", "low"}:
-            raise ValidationError(
-                f"trust_level must be one of high, medium, low: {trust_level}"
-            )
+            raise ValidationError(f"trust_level must be one of high, medium, low: {trust_level}")
         if source_type and source_type not in {"local", "github", "git", "path", "remote"}:
             raise ValidationError(
                 f"source_type must be one of local, github, git, path, remote: {source_type}"
@@ -764,9 +753,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         lock_entries = lock_data.get("entries", {})
         manifest_skills = manifest_data.get("skills", {})
 
-        def _build_skill_entry(
-            skill_dir_path: Path, slug: str, is_archived: bool
-        ) -> dict | None:
+        def _build_skill_entry(skill_dir_path: Path, slug: str, is_archived: bool) -> dict | None:
             """Build a skill entry dict from disk + manifest + lock data."""
             skill_md = skill_dir_path / "SKILL.md"
             if not skill_md.exists():
@@ -784,10 +771,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             entry: dict = {
                 "slug": slug,
                 "title": fm_dict.get("name", slug),
-                "description": (
-                    manifest_entry.get("description")
-                    or fm_dict.get("description")
-                ),
+                "description": (manifest_entry.get("description") or fm_dict.get("description")),
                 "source": manifest_entry.get("source", "local"),
                 "trust": fm_dict.get("trust", manifest_entry.get("trust")),
                 "enabled": manifest_entry.get("enabled", True),
@@ -881,10 +865,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 filtered = [s for s in filtered if s.get("source") == "local"]
             else:
                 # Match source prefix: github, git, path
-                filtered = [
-                    s for s in filtered
-                    if s.get("source", "").startswith(source_type)
-                ]
+                filtered = [s for s in filtered if s.get("source", "").startswith(source_type)]
 
         if enabled is not None:
             filtered = [s for s in filtered if s.get("enabled") == enabled]
@@ -1080,9 +1061,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         summary_updated = False
         summary_preview = _append_skill_summary_bullet(repo.root, slug, description)
         if summary_preview is not None:
-            target_files.append(
-                preview_target("core/memory/skills/SUMMARY.md", "update")
-            )
+            target_files.append(preview_target("core/memory/skills/SUMMARY.md", "update"))
             summary_updated = True
 
         commit_msg = f"[skill] Add skill {slug}"
@@ -1114,11 +1093,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     "core/memory/skills/SKILLS.yaml",
                     "core/memory/skills/SKILLS.lock",
                     "core/memory/skills/SKILL_TREE.md",
-                    *(
-                        ["core/memory/skills/SUMMARY.md"]
-                        if summary_updated
-                        else []
-                    ),
+                    *(["core/memory/skills/SUMMARY.md"] if summary_updated else []),
                 ],
                 commit_sha=None,
                 commit_message=None,
@@ -1148,9 +1123,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         else:
             shutil.copytree(src_dir, skill_dir, dirs_exist_ok=False)
             fm_disk, _body_disk = read_with_frontmatter(skill_dir / "SKILL.md")
-            validate_frontmatter_metadata(
-                fm_disk, context=f"skill frontmatter for {skill_md_rel}"
-            )
+            validate_frontmatter_metadata(fm_disk, context=f"skill frontmatter for {skill_md_rel}")
 
         skills_map[slug] = skill_entry
         manifest_data["skills"] = skills_map
@@ -1187,7 +1160,9 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         }
         lock_data["lock_version"] = lock_data.get("lock_version", 1)
         lock_data["locked_at"] = ts
-        lock_yaml = yaml.dump(lock_data, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        lock_yaml = yaml.dump(
+            lock_data, default_flow_style=False, sort_keys=False, allow_unicode=True
+        )
         require_guarded_write_pass(
             path="core/memory/skills/SKILLS.lock",
             operation="write",
@@ -1596,11 +1571,13 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 continue
             if slug not in lock_entries:
                 missing_lock_count += 1
-                details.append({
-                    "type": "missing_lock_entry",
-                    "slug": slug,
-                    "issue": "manifest skill with directory has no lock entry",
-                })
+                details.append(
+                    {
+                        "type": "missing_lock_entry",
+                        "slug": slug,
+                        "issue": "manifest skill with directory has no lock entry",
+                    }
+                )
 
         for slug, lock_entry in sorted(lock_entries.items()):
             if not isinstance(lock_entry, dict):
@@ -1612,25 +1589,31 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             actual = compute_content_hash(sd)
             if expected and actual and expected != actual:
                 stale_lock_count += 1
-                details.append({
-                    "type": "stale_lock",
-                    "slug": slug,
-                    "issue": "content hash mismatch",
-                })
+                details.append(
+                    {
+                        "type": "stale_lock",
+                        "slug": slug,
+                        "issue": "content hash mismatch",
+                    }
+                )
 
         for slug in missing_dir_slugs:
-            details.append({
-                "type": "missing_directory",
-                "slug": slug,
-                "issue": "manifest entry but no SKILL.md on disk",
-            })
+            details.append(
+                {
+                    "type": "missing_directory",
+                    "slug": slug,
+                    "issue": "manifest entry but no SKILL.md on disk",
+                }
+            )
 
         for slug in orphans:
-            details.append({
-                "type": "orphaned_skill",
-                "slug": slug,
-                "issue": "directory on disk not listed in manifest",
-            })
+            details.append(
+                {
+                    "type": "orphaned_skill",
+                    "slug": slug,
+                    "issue": "directory on disk not listed in manifest",
+                }
+            )
 
         symlink_issues = 0
         if verify_symlinks:
@@ -1674,9 +1657,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             report_base["artifacts_updated"] = []
             return json.dumps({"result": report_base})
 
-        destructive = (
-            (archive_orphans and bool(orphans))
-            or (remove_missing_entries and bool(missing_dir_slugs))
+        destructive = (archive_orphans and bool(orphans)) or (
+            remove_missing_entries and bool(missing_dir_slugs)
         )
         operation_arguments: dict[str, Any] = {
             "check_only": check_only,
@@ -1699,9 +1681,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 if lock_path.is_file():
                     with open(lock_path, "r", encoding="utf-8") as lf:
                         prior = yaml.safe_load(lf) or {}
-                rebuilt = _rebuild_skills_lock_data(
-                    skills_map_local, skills_dir, prior
-                )
+                rebuilt = _rebuild_skills_lock_data(skills_map_local, skills_dir, prior)
                 lock_yaml = yaml.dump(
                     rebuilt, default_flow_style=False, sort_keys=False, allow_unicode=True
                 )
@@ -1725,9 +1705,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     root=repo.root,
                     content=tree_content,
                 )
-                (skills_dir / "SKILL_TREE.md").write_text(
-                    tree_content, encoding="utf-8"
-                )
+                (skills_dir / "SKILL_TREE.md").write_text(tree_content, encoding="utf-8")
                 if "core/memory/skills/SKILL_TREE.md" not in files_changed:
                     files_changed.append("core/memory/skills/SKILL_TREE.md")
 
@@ -1739,9 +1717,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                         root=repo.root,
                         content=new_summary,
                     )
-                    (skills_dir / "SUMMARY.md").write_text(
-                        new_summary, encoding="utf-8"
-                    )
+                    (skills_dir / "SUMMARY.md").write_text(new_summary, encoding="utf-8")
                     if "core/memory/skills/SUMMARY.md" not in files_changed:
                         files_changed.append("core/memory/skills/SUMMARY.md")
 
@@ -1757,32 +1733,20 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     target_files.extend(
                         [
                             preview_target(skill_rel, "move_from"),
-                            preview_target(
-                                archive_rel, "move_to", from_path=skill_rel
-                            ),
+                            preview_target(archive_rel, "move_to", from_path=skill_rel),
                         ]
                     )
             if remove_missing_entries and missing_dir_slugs:
-                target_files.append(
-                    preview_target("core/memory/skills/SKILLS.yaml", "update")
-                )
+                target_files.append(preview_target("core/memory/skills/SKILLS.yaml", "update"))
             if fix_stale_locks:
-                target_files.append(
-                    preview_target("core/memory/skills/SKILLS.lock", "update")
-                )
+                target_files.append(preview_target("core/memory/skills/SKILLS.lock", "update"))
             if regenerate_indexes:
-                target_files.append(
-                    preview_target("core/memory/skills/SKILL_TREE.md", "update")
-                )
+                target_files.append(preview_target("core/memory/skills/SKILL_TREE.md", "update"))
                 if (skills_dir / "SUMMARY.md").is_file():
-                    target_files.append(
-                        preview_target("core/memory/skills/SUMMARY.md", "update")
-                    )
+                    target_files.append(preview_target("core/memory/skills/SUMMARY.md", "update"))
             if archive_orphans and orphans:
                 target_files.append(
-                    preview_target(
-                        "core/memory/skills/_archive/ARCHIVE_INDEX.md", "update"
-                    )
+                    preview_target("core/memory/skills/_archive/ARCHIVE_INDEX.md", "update")
                 )
 
             preview_payload = build_governed_preview(
@@ -1816,8 +1780,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             )
             if preview:
                 return MemoryWriteResult(
-                    files_changed=preview_files
-                    or ["core/memory/skills/SKILLS.yaml"],
+                    files_changed=preview_files or ["core/memory/skills/SKILLS.yaml"],
                     commit_sha=None,
                     commit_message=None,
                     new_state={
@@ -1956,17 +1919,11 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         if preview:
             nd_targets: list[dict[str, Any]] = []
             if fix_stale_locks:
-                nd_targets.append(
-                    preview_target("core/memory/skills/SKILLS.lock", "update")
-                )
+                nd_targets.append(preview_target("core/memory/skills/SKILLS.lock", "update"))
             if regenerate_indexes:
-                nd_targets.append(
-                    preview_target("core/memory/skills/SKILL_TREE.md", "update")
-                )
+                nd_targets.append(preview_target("core/memory/skills/SKILL_TREE.md", "update"))
                 if (skills_dir / "SUMMARY.md").is_file():
-                    nd_targets.append(
-                        preview_target("core/memory/skills/SUMMARY.md", "update")
-                    )
+                    nd_targets.append(preview_target("core/memory/skills/SUMMARY.md", "update"))
             preview_payload_nd = build_governed_preview(
                 mode="preview",
                 change_class="automatic",

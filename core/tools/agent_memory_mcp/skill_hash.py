@@ -29,9 +29,7 @@ def compute_content_hash(skill_dir: Path) -> str:
             rel_path_str = str(file_path.relative_to(skill_dir))
             with open(file_path, "rb") as f:
                 content = f.read()
-            file_hash = hashlib.sha256(
-                rel_path_str.encode("utf-8") + b"\0" + content
-            ).digest()
+            file_hash = hashlib.sha256(rel_path_str.encode("utf-8") + b"\0" + content).digest()
             file_hashes.append(file_hash)
 
     if not file_hashes:
