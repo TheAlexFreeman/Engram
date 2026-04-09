@@ -5,7 +5,7 @@ origin_session: memory/activity/2026/04/08/chat-001
 status: active
 budget:
   max_sessions: 2
-sessions_used: 1
+sessions_used: 2
 purpose:
   summary: Decompose the monolithic memory_update_skill into discrete lifecycle operations
   context: 'Engram''s memory_update_skill handles creation, section edits, frontmatter updates,
@@ -36,8 +36,8 @@ work:
         \ and interaction with memory_update_skill"
   - id: skill-list-tool
     title: Implement memory_skill_list as a read-only catalog query
-    status: pending
-    commit: null
+    status: completed
+    commit: e98a6d2
     blockers:
     - tool-surface-design
     postconditions:
