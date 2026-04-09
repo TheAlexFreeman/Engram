@@ -120,6 +120,11 @@ semantic_extensions = [
   "memory_session_flush",
   "memory_append_scratchpad",
   "memory_update_skill",
+  "memory_skill_manifest_read",
+  "memory_skill_manifest_write",
+  "memory_skill_list",
+  "memory_skill_add",
+  "memory_skill_remove",
   "memory_update_user_trait",
   "memory_record_session",
   "memory_run_aggregation",
@@ -443,6 +448,14 @@ indexed = "Files Indexed"
 skipped = "Files Skipped"
 removed = "Files Removed"
 total_chunks = "Total Chunks"
+slug = "Skill Slug"
+result = "Structured Result"
+commit_sha = "Commit SHA"
+commit_message = "Commit Message"
+new_state = "New State"
+warnings = "Warnings"
+publication = "Publication"
+preview = "Preview"
 
 [shared_result]
 fields = [
@@ -1555,6 +1568,128 @@ error_kinds = [
   "StagingError",
 ]
 notes = "Protected apply mode requires the opaque approval_token receipt returned by preview mode."
+
+[operations.memory_skill_manifest_read]
+group = "skill"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "skill"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["result"]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError"]
+
+[operations.memory_skill_manifest_write]
+group = "skill"
+tier = "semantic"
+change_class = "protected"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "skill"
+writes = ["memory/skills/SKILLS.yaml"]
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["slug", "source", "trust"]
+fallback_tools = []
+error_kinds = ["ValidationError", "StagingError"]
+notes = "Protected apply mode requires the opaque approval_token receipt returned by preview mode."
+
+[operations.memory_skill_list]
+group = "skill"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "skill"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["result"]
+fallback_tools = []
+error_kinds = ["ValidationError"]
+
+[operations.memory_skill_add]
+group = "skill"
+tier = "semantic"
+change_class = "protected"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "skill"
+writes = [
+  "memory/skills/{slug}/**/*",
+  "memory/skills/SKILLS.yaml",
+  "memory/skills/SKILLS.lock",
+  "memory/skills/SKILL_TREE.md",
+  "memory/skills/SUMMARY.md",
+]
+owns_frontmatter = ["memory/skills/{slug}/SKILL.md"]
+owns_summaries = ["memory/skills/SUMMARY.md"]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "result",
+  "files_changed",
+  "commit_sha",
+  "commit_message",
+  "new_state",
+  "warnings",
+  "publication",
+  "preview",
+]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+notes = "Creates a skill from template or copies path:./…; protected apply requires approval_token. Remote sources are not implemented yet."
+
+[operations.memory_skill_remove]
+group = "skill"
+tier = "semantic"
+change_class = "protected"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "skill"
+writes = [
+  "memory/skills/{slug}/**/*",
+  "memory/skills/_archive/{slug}/**/*",
+  "memory/skills/SKILLS.yaml",
+  "memory/skills/SKILLS.lock",
+  "memory/skills/SKILL_TREE.md",
+  "memory/skills/SUMMARY.md",
+  "memory/skills/_archive/ARCHIVE_INDEX.md",
+]
+owns_frontmatter = [
+  "memory/skills/{slug}/SKILL.md",
+  "memory/skills/_archive/{slug}/SKILL.md",
+]
+owns_summaries = ["memory/skills/SUMMARY.md"]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "result",
+  "files_changed",
+  "commit_sha",
+  "commit_message",
+  "new_state",
+  "warnings",
+  "publication",
+  "preview",
+]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+notes = "git mv skill directory to _archive when present; always refreshes lockfile and SKILL_TREE; protected apply requires approval_token."
 
 [operations.memory_register_tool]
 group = "skill"

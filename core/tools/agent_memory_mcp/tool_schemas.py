@@ -2571,6 +2571,142 @@ def skill_list_input_schema() -> dict[str, Any]:
     )
 
 
+def skill_add_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_add",
+        title="memory_skill_add input schema",
+        required=["slug", "title", "description", "source", "trust", "origin_session"],
+        all_of=[
+            {
+                "if": {
+                    "anyOf": [
+                        {
+                            "required": ["preview"],
+                            "properties": {"preview": {"const": False}},
+                        },
+                        {"not": {"required": ["preview"]}},
+                    ]
+                },
+                "then": {"required": ["approval_token"]},
+            },
+        ],
+        notes=[
+            "Protected apply mode requires the opaque approval_token returned by preview mode.",
+            "source must be 'template' or path:./relative/path within the repository.",
+            "Remote sources (github:, git:) are not supported yet.",
+        ],
+        properties={
+            "slug": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Skill directory slug (kebab-case).",
+            },
+            "title": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Human-readable title for the SKILL.md heading.",
+            },
+            "description": {
+                "type": "string",
+                "minLength": 1,
+                "description": "One-line description for manifest and SUMMARY.md.",
+            },
+            "source": {
+                "type": "string",
+                "minLength": 1,
+                "description": "template, or path:./relative/path to copy an existing skill directory.",
+            },
+            "trust": {
+                "type": "string",
+                "enum": sorted(SKILL_CREATE_TRUST_LEVELS),
+                "description": "Trust level; for path: sources must match SKILL.md frontmatter.",
+            },
+            "origin_session": _session_id_string_schema(
+                description="Session id recorded in new skill frontmatter (template source).",
+                nullable=False,
+            ),
+            "ref": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Reserved for future remote pins; must be omitted for now.",
+            },
+            "enabled": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    {"type": "null"},
+                ],
+                "description": "Manifest enabled flag; default true.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope instead of writing.",
+            },
+            "approval_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Fresh preview-issued approval receipt required for protected apply mode.",
+            },
+        },
+    )
+
+
+def skill_remove_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_remove",
+        title="memory_skill_remove input schema",
+        required=["slug"],
+        all_of=[
+            {
+                "if": {
+                    "anyOf": [
+                        {
+                            "required": ["preview"],
+                            "properties": {"preview": {"const": False}},
+                        },
+                        {"not": {"required": ["preview"]}},
+                    ]
+                },
+                "then": {"required": ["approval_token"]},
+            },
+        ],
+        notes=[
+            "Protected apply mode requires the opaque approval_token returned by preview mode.",
+            "Moves the skill directory to _archive/{slug}/ when present; always refreshes indexes.",
+        ],
+        properties={
+            "slug": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Skill slug to archive and unregister.",
+            },
+            "archive_reason": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional reason recorded in _archive/ARCHIVE_INDEX.md when a directory is moved.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope instead of writing.",
+            },
+            "approval_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Fresh preview-issued approval receipt required for protected apply mode.",
+            },
+        },
+    )
+
+
 def reindex_input_schema() -> dict[str, Any]:
     return _base_schema(
         tool_name="memory_reindex",
@@ -2982,9 +3118,11 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_search": grep_search_input_schema,
     "memory_semantic_search": semantic_search_input_schema,
     "memory_session_flush": session_flush_input_schema,
+    "memory_skill_add": skill_add_input_schema,
     "memory_skill_list": skill_list_input_schema,
     "memory_skill_manifest_read": skill_manifest_read_input_schema,
     "memory_skill_manifest_write": skill_manifest_write_input_schema,
+    "memory_skill_remove": skill_remove_input_schema,
     "memory_stage_external": stage_external_input_schema,
     "memory_update_frontmatter": update_frontmatter_input_schema,
     "memory_update_frontmatter_bulk": update_frontmatter_bulk_input_schema,

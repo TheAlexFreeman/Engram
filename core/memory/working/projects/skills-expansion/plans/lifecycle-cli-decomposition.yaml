@@ -55,7 +55,7 @@ work:
         type, status)
   - id: skill-add-remove
     title: Implement memory_skill_add and memory_skill_remove
-    status: pending
+    status: completed
     commit: null
     blockers:
     - skill-list-tool

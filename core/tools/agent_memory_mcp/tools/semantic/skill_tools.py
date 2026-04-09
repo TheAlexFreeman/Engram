@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import importlib.util
 import re
+import shutil
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from ...frontmatter_policy import validate_frontmatter_metadata
@@ -107,6 +111,80 @@ def _validate_trigger_field(trigger_value: object) -> None:
             validate_single_trigger(item)
     else:
         validate_single_trigger(trigger_value)
+
+
+_SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def _validate_skill_kebab_slug(slug: str) -> None:
+    from ...errors import ValidationError
+
+    if not _SLUG_PATTERN.match(slug):
+        raise ValidationError(f"slug must be kebab-case: {slug}")
+
+
+def _load_generate_skill_catalog_module(repo_root: Path) -> Any:
+    from ...errors import ValidationError
+
+    script = repo_root / "HUMANS" / "tooling" / "scripts" / "generate_skill_catalog.py"
+    if not script.is_file():
+        raise ValidationError(f"generate_skill_catalog.py not found: {script}")
+    spec = importlib.util.spec_from_file_location("_engram_generate_skill_catalog", script)
+    if spec is None or spec.loader is None:
+        raise ValidationError("failed to load generate_skill_catalog module")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _regenerate_skill_tree_content(repo_root: Path) -> str:
+    mod = _load_generate_skill_catalog_module(repo_root)
+    skills_dir = repo_root / "core" / "memory" / "skills"
+    entries = mod.discover_skills(skills_dir)
+    return mod.generate_catalog(entries)
+
+
+def _append_skill_summary_bullet(repo_root: Path, slug: str, description: str) -> str | None:
+    summary_path = repo_root / "core" / "memory" / "skills" / "SUMMARY.md"
+    if not summary_path.is_file():
+        return None
+    text = summary_path.read_text(encoding="utf-8")
+    if f"({slug}/SKILL.md)" in text:
+        return text
+    line = f"- **[{slug}/]({slug}/SKILL.md)** — {description.strip()}\n"
+    anchor = "\n\n## Scenario suites"
+    if anchor in text:
+        return text.replace(anchor, f"\n{line}{anchor}", 1)
+    return text.rstrip() + "\n" + line + "\n"
+
+
+def _remove_skill_summary_bullet(content: str, slug: str) -> str:
+    needle = f"({slug}/SKILL.md)"
+    lines = [ln for ln in content.splitlines() if needle not in ln]
+    out = "\n".join(lines)
+    if content.endswith("\n"):
+        out += "\n"
+    return out
+
+
+def _append_archive_index_row(
+    repo_root: Path, slug: str, archive_reason: str | None
+) -> tuple[str, str]:
+    path = repo_root / "core" / "memory" / "skills" / "_archive" / "ARCHIVE_INDEX.md"
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    reason = (archive_reason or "").replace("|", "\\|").replace("\n", " ")
+    row = f"| `{slug}` | {ts} | {reason} |\n"
+    if path.is_file():
+        text = path.read_text(encoding="utf-8").rstrip() + "\n" + row
+    else:
+        text = (
+            "# Skill archive index\n\n"
+            "Skills moved out of the active catalog by `memory_skill_remove`.\n\n"
+            "| Slug | Archived at | Reason |\n"
+            "| --- | --- | --- |\n"
+            f"{row}"
+        )
+    return "core/memory/skills/_archive/ARCHIVE_INDEX.md", text
 
 
 def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
@@ -313,18 +391,17 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         - skill (optional): Filter to a single skill entry by slug
         """
         import json
-        from pathlib import Path
 
         import yaml
 
-        from ...errors import NotFoundError, ValidationError
+        from ...errors import NotFoundError
 
         repo = get_repo()
         manifest_path = repo.root / "core" / "memory" / "skills" / "SKILLS.yaml"
         lockfile_path = repo.root / "core" / "memory" / "skills" / "SKILLS.lock"
 
         if not manifest_path.exists():
-            raise NotFoundError(f"Skill manifest not found: core/memory/skills/SKILLS.yaml")
+            raise NotFoundError("Skill manifest not found: core/memory/skills/SKILLS.yaml")
 
         with open(manifest_path, "r") as f:
             manifest_data = yaml.safe_load(f) or {}
@@ -409,7 +486,6 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         - approval_token (string): Required for apply mode (non-preview)
         """
         import re
-        from pathlib import Path
 
         import yaml
 
@@ -455,7 +531,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         # Validate ref only used with remote sources
         if ref and not source.startswith(("github:", "git:")):
-            raise ValidationError(f"ref is only valid with github: or git: sources")
+            raise ValidationError("ref is only valid with github: or git: sources")
 
         # Validate description is non-empty
         if not description or not description.strip():
@@ -465,7 +541,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         if not manifest_path.exists():
             raise ValidationError(
-                f"Skill manifest not found: core/memory/skills/SKILLS.yaml"
+                "Skill manifest not found: core/memory/skills/SKILLS.yaml"
             )
 
         with open(manifest_path, "r") as f:
@@ -605,7 +681,6 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         - max_results: limit results (default 100, 0 = unlimited)
         """
         import json
-        from pathlib import Path
 
         import yaml
 
@@ -791,11 +866,611 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             }
         )
 
+    @mcp.tool(
+        name="memory_skill_add",
+        annotations=_tool_annotations(
+            title="Add Skill",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_skill_add(
+        slug: str,
+        title: str,
+        description: str,
+        source: str,
+        trust: str,
+        origin_session: str,
+        ref: str | None = None,
+        enabled: bool | None = None,
+        preview: bool = False,
+        approval_token: str | None = None,
+    ) -> str:
+        """Create a new skill directory, register it in SKILLS.yaml, refresh SKILLS.lock and indexes.
+
+        Supported `source` values:
+        - `template` — empty scaffold with valid frontmatter under core/memory/skills/{slug}/.
+        - `path:./relative/path` — copy an existing skill directory from the repo (must contain SKILL.md).
+
+        Remote installs (`github:`, `git:`) are not implemented yet; use template or path sources.
+
+        Uses the governed preview-then-apply pattern (protected tier).
+        """
+        import json
+
+        import yaml
+
+        from ...errors import NotFoundError, ValidationError
+        from ...frontmatter_utils import (
+            read_with_frontmatter,
+            render_with_frontmatter,
+            today_str,
+            write_with_frontmatter,
+        )
+        from ...guard_pipeline import require_guarded_write_pass
+        from ...models import MemoryWriteResult
+
+        repo = get_repo()
+        _validate_skill_kebab_slug(slug)
+        validate_session_id(origin_session)
+
+        if trust not in SKILL_CREATE_TRUST_LEVELS:
+            raise ValidationError(
+                f"trust must be one of {sorted(SKILL_CREATE_TRUST_LEVELS)}: {trust}"
+            )
+        if not title.strip():
+            raise ValidationError("title must be non-empty")
+        if not description.strip():
+            raise ValidationError("description must be non-empty")
+
+        src = source.strip()
+        if src in ("github:", "git:") or src.startswith("github:") or src.startswith("git:"):
+            raise ValidationError(
+                "memory_skill_add does not install from remote sources yet; "
+                "use source='template' or path:./..."
+            )
+        if ref:
+            raise ValidationError(
+                "ref is not supported until remote installs are implemented; omit ref for template/path sources."
+            )
+
+        manifest_path = repo.root / "core" / "memory" / "skills" / "SKILLS.yaml"
+        lock_path = repo.root / "core" / "memory" / "skills" / "SKILLS.lock"
+        skills_dir = repo.root / "core" / "memory" / "skills"
+        skill_dir = skills_dir / slug
+        skill_rel = f"core/memory/skills/{slug}"
+        skill_md_rel = f"{skill_rel}/SKILL.md"
+
+        if not manifest_path.is_file():
+            raise NotFoundError("Skill manifest not found: core/memory/skills/SKILLS.yaml")
+
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            manifest_data = yaml.safe_load(f) or {}
+        skills_map = manifest_data.get("skills", {})
+        if slug in skills_map:
+            raise ValidationError(
+                f"Skill slug already registered in manifest: {slug}. "
+                "Remove or rename the existing entry first."
+            )
+        if skill_dir.exists():
+            raise ValidationError(
+                f"Skill directory already exists: {skill_rel}/. "
+                "Choose a different slug or remove the directory first."
+            )
+
+        manifest_source = "local"
+        lock_source = "local"
+        today = today_str()
+
+        if src == "template":
+            body = (
+                f"# {title.strip()}\n\n"
+                "## When to use this skill\n\n"
+                "(To be written.)\n\n"
+                "## Steps\n\n"
+                "(To be written.)\n\n"
+                "## Examples\n\n"
+                "(To be written.)\n"
+            )
+            fm_dict: dict[str, Any] = {
+                "name": slug,
+                "description": description.strip(),
+                "source": "template",
+                "origin_session": origin_session,
+                "created": today,
+                "last_verified": today,
+                "trust": trust,
+            }
+        elif re.match(r"^path:\./.+$", src):
+            rel = src[len("path:") :].lstrip("./")
+            src_dir = (repo.root / rel).resolve()
+            try:
+                src_dir.relative_to(repo.root.resolve())
+            except ValueError as e:
+                raise ValidationError(f"path source must stay within the repository: {src}") from e
+            if not src_dir.is_dir():
+                raise NotFoundError(f"path source directory not found: {src}")
+            skill_md = src_dir / "SKILL.md"
+            if not skill_md.is_file():
+                raise ValidationError(f"path source must contain SKILL.md: {src}")
+            fm_existing, _ = read_with_frontmatter(skill_md)
+            fm_trust = fm_existing.get("trust")
+            if fm_trust != trust:
+                raise ValidationError(
+                    f"path skill SKILL.md trust is {fm_trust!r} but trust parameter is {trust!r}; "
+                    "they must match."
+                )
+            manifest_source = src
+            lock_source = src
+        else:
+            raise ValidationError(
+                f"Unsupported source {source!r}. Use 'template' or path:./relative/path under the repo."
+            )
+
+        enabled_flag = True if enabled is None else enabled
+        skill_entry = {
+            "source": manifest_source,
+            "trust": trust,
+            "description": description.strip(),
+            "enabled": enabled_flag,
+        }
+
+        operation_arguments: dict[str, Any] = {
+            "slug": slug,
+            "title": title,
+            "description": description,
+            "source": source,
+            "trust": trust,
+            "origin_session": origin_session,
+            "ref": ref,
+            "enabled": enabled,
+        }
+
+        target_files = [
+            preview_target(skill_md_rel, "create"),
+            preview_target("core/memory/skills/SKILLS.yaml", "update"),
+            preview_target("core/memory/skills/SKILLS.lock", "update"),
+            preview_target("core/memory/skills/SKILL_TREE.md", "update"),
+        ]
+        summary_updated = False
+        summary_preview = _append_skill_summary_bullet(repo.root, slug, description)
+        if summary_preview is not None:
+            target_files.append(
+                preview_target("core/memory/skills/SUMMARY.md", "update")
+            )
+            summary_updated = True
+
+        commit_msg = f"[skill] Add skill {slug}"
+        preview_payload = build_governed_preview(
+            mode="preview" if preview else "apply",
+            change_class="protected",
+            summary=f"Create skill {slug} and register it in the skill manifest.",
+            reasoning="Skill directories and manifests are protected-tier procedural assets.",
+            target_files=target_files,
+            invariant_effects=[
+                f"Creates {skill_rel}/ with SKILL.md and adds manifest entry.",
+                "Refreshes SKILLS.lock, SKILL_TREE.md"
+                + (", SUMMARY.md." if summary_updated else "."),
+            ],
+            commit_message=commit_msg,
+            resulting_state={"slug": slug, "source": source},
+        )
+        preview_payload, protected_token = attach_approval_requirement(
+            preview_payload,
+            repo,
+            tool_name="memory_skill_add",
+            operation_arguments=operation_arguments,
+        )
+
+        if preview:
+            return MemoryWriteResult(
+                files_changed=[
+                    skill_md_rel,
+                    "core/memory/skills/SKILLS.yaml",
+                    "core/memory/skills/SKILLS.lock",
+                    "core/memory/skills/SKILL_TREE.md",
+                    *(
+                        ["core/memory/skills/SUMMARY.md"]
+                        if summary_updated
+                        else []
+                    ),
+                ],
+                commit_sha=None,
+                commit_message=None,
+                new_state={"slug": slug, "approval_token": protected_token},
+                preview=preview_payload,
+            ).to_json()
+
+        require_approval_token(
+            repo,
+            tool_name="memory_skill_add",
+            operation_arguments=operation_arguments,
+            approval_token=approval_token,
+        )
+
+        # --- apply ---
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        if src == "template":
+            validate_frontmatter_metadata(fm_dict, context=f"skill frontmatter for {skill_md_rel}")
+            rendered = render_with_frontmatter(fm_dict, body)
+            require_guarded_write_pass(
+                path=skill_md_rel,
+                operation="write",
+                root=repo.root,
+                content=rendered,
+            )
+            write_with_frontmatter(skill_dir / "SKILL.md", fm_dict, body)
+        else:
+            shutil.copytree(src_dir, skill_dir, dirs_exist_ok=False)
+            fm_disk, _body_disk = read_with_frontmatter(skill_dir / "SKILL.md")
+            validate_frontmatter_metadata(
+                fm_disk, context=f"skill frontmatter for {skill_md_rel}"
+            )
+
+        skills_map[slug] = skill_entry
+        manifest_data["skills"] = skills_map
+        ordered_manifest: dict[str, Any] = {}
+        for key in ("schema_version", "defaults", "skills"):
+            if key in manifest_data:
+                ordered_manifest[key] = manifest_data[key]
+        manifest_yaml = yaml.dump(
+            ordered_manifest, default_flow_style=False, sort_keys=False, allow_unicode=True
+        )
+        require_guarded_write_pass(
+            path="core/memory/skills/SKILLS.yaml",
+            operation="write",
+            root=repo.root,
+            content=manifest_yaml,
+        )
+        manifest_path.write_text(manifest_yaml, encoding="utf-8")
+
+        lock_data: dict[str, Any] = {}
+        if lock_path.is_file():
+            with open(lock_path, "r", encoding="utf-8") as f:
+                lock_data = yaml.safe_load(f) or {}
+        entries = lock_data.setdefault("entries", {})
+        ts = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+        content_hash = compute_content_hash(skill_dir)
+        fc, tb = get_dir_stats(skill_dir)
+        entries[slug] = {
+            "source": lock_source,
+            "resolved_path": f"core/memory/skills/{slug}/",
+            "content_hash": content_hash,
+            "locked_at": ts,
+            "file_count": fc,
+            "total_bytes": tb,
+        }
+        lock_data["lock_version"] = lock_data.get("lock_version", 1)
+        lock_data["locked_at"] = ts
+        lock_yaml = yaml.dump(lock_data, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        require_guarded_write_pass(
+            path="core/memory/skills/SKILLS.lock",
+            operation="write",
+            root=repo.root,
+            content=lock_yaml,
+        )
+        lock_path.write_text(lock_yaml, encoding="utf-8")
+
+        tree_content = _regenerate_skill_tree_content(repo.root)
+        require_guarded_write_pass(
+            path="core/memory/skills/SKILL_TREE.md",
+            operation="write",
+            root=repo.root,
+            content=tree_content,
+        )
+        (repo.root / "core" / "memory" / "skills" / "SKILL_TREE.md").write_text(
+            tree_content, encoding="utf-8"
+        )
+
+        files_changed = [
+            skill_md_rel,
+            "core/memory/skills/SKILLS.yaml",
+            "core/memory/skills/SKILLS.lock",
+            "core/memory/skills/SKILL_TREE.md",
+        ]
+        if summary_preview is not None:
+            require_guarded_write_pass(
+                path="core/memory/skills/SUMMARY.md",
+                operation="write",
+                root=repo.root,
+                content=summary_preview,
+            )
+            (repo.root / "core" / "memory" / "skills" / "SUMMARY.md").write_text(
+                summary_preview, encoding="utf-8"
+            )
+            files_changed.append("core/memory/skills/SUMMARY.md")
+
+        for rel in files_changed:
+            repo.add(rel)
+        commit_result = repo.commit(commit_msg)
+
+        lock_entry = entries[slug]
+        result_body = {
+            "slug": slug,
+            "status": "created",
+            "location": f"{skill_rel}/",
+            "manifest_entry": skill_entry,
+            "lock_entry": lock_entry,
+            "artifacts_updated": files_changed,
+        }
+        mw = MemoryWriteResult.from_commit(
+            files_changed=files_changed,
+            commit_result=commit_result,
+            commit_message=commit_msg,
+            new_state={"slug": slug},
+            preview=preview_payload,
+        )
+        out = mw.to_dict()
+        out["result"] = result_body
+        return json.dumps(out, indent=2)
+
+    @mcp.tool(
+        name="memory_skill_remove",
+        annotations=_tool_annotations(
+            title="Archive Skill",
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_skill_remove(
+        slug: str,
+        archive_reason: str | None = None,
+        preview: bool = False,
+        approval_token: str | None = None,
+    ) -> str:
+        """Archive a skill to _archive/, remove manifest and lock entries, refresh indexes.
+
+        Uses the governed preview-then-apply pattern (protected tier).
+        """
+        import json
+
+        import yaml
+
+        from ...errors import NotFoundError, ValidationError
+        from ...guard_pipeline import require_guarded_write_pass
+        from ...models import MemoryWriteResult
+
+        repo = get_repo()
+        _validate_skill_kebab_slug(slug)
+
+        manifest_path = repo.root / "core" / "memory" / "skills" / "SKILLS.yaml"
+        lock_path = repo.root / "core" / "memory" / "skills" / "SKILLS.lock"
+        skills_dir = repo.root / "core" / "memory" / "skills"
+        skill_dir = skills_dir / slug
+        archive_parent = skills_dir / "_archive"
+        archive_dir = archive_parent / slug
+        skill_rel = f"core/memory/skills/{slug}"
+        archive_rel = f"core/memory/skills/_archive/{slug}"
+
+        if not manifest_path.is_file():
+            raise NotFoundError("Skill manifest not found: core/memory/skills/SKILLS.yaml")
+
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            manifest_data = yaml.safe_load(f) or {}
+        skills_map = manifest_data.get("skills", {})
+        in_manifest = slug in skills_map
+        had_dir = skill_dir.is_dir() and (skill_dir / "SKILL.md").is_file()
+
+        if not in_manifest and not had_dir:
+            raise NotFoundError(
+                f"Skill not found in manifest or on disk: {slug}. "
+                "Use memory_skill_list to list installed skills."
+            )
+
+        if had_dir and archive_dir.exists():
+            raise ValidationError(
+                f"Archive target already exists: {archive_rel}/. "
+                "Remove or rename the archived copy first."
+            )
+
+        removed_manifest = skills_map.get(slug)
+        operation_arguments: dict[str, Any] = {
+            "slug": slug,
+            "archive_reason": archive_reason,
+        }
+
+        target_files: list[dict[str, Any]] = []
+        if had_dir:
+            target_files.extend(
+                [
+                    preview_target(skill_rel, "move_from"),
+                    preview_target(archive_rel, "move_to", from_path=skill_rel),
+                ]
+            )
+        if in_manifest:
+            target_files.append(preview_target("core/memory/skills/SKILLS.yaml", "update"))
+        lock_has_slug = False
+        if lock_path.is_file():
+            with open(lock_path, "r", encoding="utf-8") as lf:
+                lock_preview = yaml.safe_load(lf) or {}
+            lock_has_slug = slug in (lock_preview.get("entries") or {})
+        if lock_has_slug:
+            target_files.append(preview_target("core/memory/skills/SKILLS.lock", "update"))
+        target_files.append(preview_target("core/memory/skills/SKILL_TREE.md", "update"))
+        summary_path = repo.root / "core" / "memory" / "skills" / "SUMMARY.md"
+        summary_changed = summary_path.is_file() and f"({slug}/SKILL.md)" in summary_path.read_text(
+            encoding="utf-8"
+        )
+        if summary_changed:
+            target_files.append(preview_target("core/memory/skills/SUMMARY.md", "update"))
+        if had_dir:
+            target_files.append(
+                preview_target("core/memory/skills/_archive/ARCHIVE_INDEX.md", "update")
+            )
+
+        commit_msg = f"[skill] Archive skill {slug}"
+        preview_payload = build_governed_preview(
+            mode="preview" if preview else "apply",
+            change_class="protected",
+            summary=f"Archive skill {slug} and remove manifest entry.",
+            reasoning="Archival changes the active skill catalog and manifest; protected tier.",
+            target_files=target_files,
+            invariant_effects=[
+                f"Moves {skill_rel}/ to {archive_rel}/ when a skill directory exists.",
+                "Removes manifest and lock entries for the slug when present.",
+                "Regenerates SKILL_TREE.md; updates archive index when a directory is archived.",
+            ],
+            commit_message=commit_msg,
+            resulting_state={"slug": slug},
+        )
+        preview_payload, protected_token = attach_approval_requirement(
+            preview_payload,
+            repo,
+            tool_name="memory_skill_remove",
+            operation_arguments=operation_arguments,
+        )
+
+        preview_files: list[str] = ["core/memory/skills/SKILL_TREE.md"]
+        if in_manifest:
+            preview_files.append("core/memory/skills/SKILLS.yaml")
+        if lock_has_slug:
+            preview_files.append("core/memory/skills/SKILLS.lock")
+        if had_dir:
+            preview_files = [skill_rel, archive_rel, *preview_files]
+        if summary_changed:
+            preview_files.append("core/memory/skills/SUMMARY.md")
+        if had_dir:
+            preview_files.append("core/memory/skills/_archive/ARCHIVE_INDEX.md")
+
+        if preview:
+            return MemoryWriteResult(
+                files_changed=preview_files,
+                commit_sha=None,
+                commit_message=None,
+                new_state={"slug": slug, "approval_token": protected_token},
+                preview=preview_payload,
+            ).to_json()
+
+        require_approval_token(
+            repo,
+            tool_name="memory_skill_remove",
+            operation_arguments=operation_arguments,
+            approval_token=approval_token,
+        )
+
+        if had_dir:
+            archive_parent.mkdir(parents=True, exist_ok=True)
+            repo.mv(skill_rel, archive_rel)
+
+        if in_manifest:
+            del skills_map[slug]
+            manifest_data["skills"] = skills_map
+            ordered_manifest: dict[str, Any] = {}
+            for key in ("schema_version", "defaults", "skills"):
+                if key in manifest_data:
+                    ordered_manifest[key] = manifest_data[key]
+            manifest_yaml = yaml.dump(
+                ordered_manifest, default_flow_style=False, sort_keys=False, allow_unicode=True
+            )
+            require_guarded_write_pass(
+                path="core/memory/skills/SKILLS.yaml",
+                operation="write",
+                root=repo.root,
+                content=manifest_yaml,
+            )
+            manifest_path.write_text(manifest_yaml, encoding="utf-8")
+
+        wrote_lock = False
+        if lock_path.is_file():
+            with open(lock_path, "r", encoding="utf-8") as f:
+                lock_data = yaml.safe_load(f) or {}
+            entries = lock_data.get("entries", {})
+            if slug in entries:
+                del entries[slug]
+                lock_data["entries"] = entries
+                ts = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+                lock_data["locked_at"] = ts
+                lock_yaml = yaml.dump(
+                    lock_data, default_flow_style=False, sort_keys=False, allow_unicode=True
+                )
+                require_guarded_write_pass(
+                    path="core/memory/skills/SKILLS.lock",
+                    operation="write",
+                    root=repo.root,
+                    content=lock_yaml,
+                )
+                lock_path.write_text(lock_yaml, encoding="utf-8")
+                wrote_lock = True
+
+        tree_content = _regenerate_skill_tree_content(repo.root)
+        require_guarded_write_pass(
+            path="core/memory/skills/SKILL_TREE.md",
+            operation="write",
+            root=repo.root,
+            content=tree_content,
+        )
+        (repo.root / "core" / "memory" / "skills" / "SKILL_TREE.md").write_text(
+            tree_content, encoding="utf-8"
+        )
+
+        files_changed: list[str] = []
+        if had_dir:
+            files_changed.extend([skill_rel, archive_rel])
+        if in_manifest:
+            files_changed.append("core/memory/skills/SKILLS.yaml")
+        if wrote_lock:
+            files_changed.append("core/memory/skills/SKILLS.lock")
+        files_changed.append("core/memory/skills/SKILL_TREE.md")
+
+        if summary_changed:
+            new_summary = _remove_skill_summary_bullet(
+                summary_path.read_text(encoding="utf-8"), slug
+            )
+            require_guarded_write_pass(
+                path="core/memory/skills/SUMMARY.md",
+                operation="write",
+                root=repo.root,
+                content=new_summary,
+            )
+            summary_path.write_text(new_summary, encoding="utf-8")
+            files_changed.append("core/memory/skills/SUMMARY.md")
+
+        if had_dir:
+            arch_rel, arch_text = _append_archive_index_row(repo.root, slug, archive_reason)
+            require_guarded_write_pass(
+                path=arch_rel,
+                operation="write",
+                root=repo.root,
+                content=arch_text,
+            )
+            (repo.root / arch_rel).write_text(arch_text, encoding="utf-8")
+            files_changed.append(arch_rel)
+
+        for rel in files_changed:
+            repo.add(rel)
+        commit_result = repo.commit(commit_msg)
+
+        result_body = {
+            "slug": slug,
+            "status": "archived",
+            "previous_location": f"{skill_rel}/" if had_dir else None,
+            "archive_location": f"{archive_rel}/" if had_dir else None,
+            "archive_reason": archive_reason,
+            "manifest_entry_removed": removed_manifest,
+            "artifacts_updated": files_changed,
+        }
+        mw = MemoryWriteResult.from_commit(
+            files_changed=files_changed,
+            commit_result=commit_result,
+            commit_message=commit_msg,
+            new_state={"slug": slug},
+            preview=preview_payload,
+        )
+        out = mw.to_dict()
+        out["result"] = result_body
+        return json.dumps(out, indent=2)
+
     return {
         "memory_update_skill": memory_update_skill,
         "memory_skill_manifest_read": memory_skill_manifest_read,
         "memory_skill_manifest_write": memory_skill_manifest_write,
         "memory_skill_list": memory_skill_list,
+        "memory_skill_add": memory_skill_add,
+        "memory_skill_remove": memory_skill_remove,
     }
 
 
