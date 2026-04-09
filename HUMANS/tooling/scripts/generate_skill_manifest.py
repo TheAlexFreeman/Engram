@@ -5,12 +5,13 @@ Scans core/memory/skills/*/SKILL.md, extracts metadata from YAML frontmatter,
 and generates the skill manifest and lockfile with content hashes.
 
 Usage:
-    python generate_skill_manifest.py [--repo-root PATH] [--lock] [--verify] [--dry-run]
+    python generate_skill_manifest.py [--repo-root PATH] [--lock] [--verify] [--frozen] [--dry-run]
 
 Flags:
     --repo-root PATH  Repository root (default: current directory)
     --lock            Only regenerate the lockfile without updating manifest
     --verify          Check freshness of existing lockfile and exit (no write)
+    --frozen          CI mode: verify lock + reject unlocked skills (exit 1 on failure)
     --dry-run         Print what would be written without writing files
 """
 
@@ -227,10 +228,12 @@ def generate_lock(entries: list[dict], skills_dir: Path) -> str:
     return "\n".join(lines)
 
 
-def verify_lock(lock_path: Path, skills_dir: Path) -> bool:
+def verify_lock(lock_path: Path, skills_dir: Path, frozen: bool = False) -> bool:
     """Verify freshness of existing lockfile.
 
     Returns True if all hashes match, False otherwise.
+    When frozen=True, also rejects skills found on disk but missing from the
+    lockfile (CI reproducibility mode per skill-manifest-spec.md).
     """
     if not lock_path.exists():
         print(f"error: lockfile not found: {lock_path}", file=sys.stderr)
@@ -240,7 +243,7 @@ def verify_lock(lock_path: Path, skills_dir: Path) -> bool:
         if yaml is not None:
             lock_data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
         else:
-            print("error: PyYAML required for --verify", file=sys.stderr)
+            print("error: PyYAML required for --verify/--frozen", file=sys.stderr)
             return False
     except Exception as e:
         print(f"error: failed to parse lockfile: {e}", file=sys.stderr)
@@ -249,10 +252,10 @@ def verify_lock(lock_path: Path, skills_dir: Path) -> bool:
     entries = lock_data.get("entries", {})
     all_fresh = True
 
-    for slug, entry in entries.items():
+    for slug, entry in sorted(entries.items()):
         skill_dir = skills_dir / slug
         if not skill_dir.is_dir():
-            print(f"warning: skill directory missing: {slug}", file=sys.stderr)
+            print(f"MISSING: {slug} — lock entry exists but directory not found", file=sys.stderr)
             all_fresh = False
             continue
 
@@ -260,14 +263,22 @@ def verify_lock(lock_path: Path, skills_dir: Path) -> bool:
         actual_hash = compute_content_hash(skill_dir)
 
         if expected_hash != actual_hash:
-            print(
-                f"stale: {slug} content has changed",
-                f"(expected {expected_hash}, got {actual_hash})",
-                file=sys.stderr,
-            )
+            print(f"STALE: {slug}", file=sys.stderr)
+            print(f"  expected: {expected_hash}", file=sys.stderr)
+            print(f"  actual:   {actual_hash}", file=sys.stderr)
             all_fresh = False
         else:
-            print(f"fresh: {slug}")
+            print(f"  OK: {slug}")
+
+    # In frozen mode, check for skills on disk not present in the lockfile
+    if frozen:
+        for skill_md in sorted(skills_dir.glob("*/SKILL.md")):
+            dir_name = skill_md.parent.name
+            if dir_name.startswith("_") or dir_name in {"tool-registry", "eval-scenarios"}:
+                continue
+            if dir_name not in entries:
+                print(f"UNLOCKED: {dir_name} — present on disk but not in lockfile", file=sys.stderr)
+                all_fresh = False
 
     return all_fresh
 
@@ -293,6 +304,11 @@ def main() -> None:
         help="Verify lockfile freshness and exit (no write)",
     )
     parser.add_argument(
+        "--frozen",
+        action="store_true",
+        help="CI mode: verify lock integrity + reject unlocked skills (exit 1 on failure)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print what would be written without writing",
@@ -308,14 +324,15 @@ def main() -> None:
         print(f"error: skills directory not found: {skills_dir}", file=sys.stderr)
         sys.exit(1)
 
-    # --verify mode
-    if args.verify:
-        print(f"Verifying {lock_path} ...")
-        if verify_lock(lock_path, skills_dir):
-            print("All locks are fresh.")
+    # --verify / --frozen mode
+    if args.verify or args.frozen:
+        mode = "frozen" if args.frozen else "verify"
+        print(f"Verifying {lock_path} (mode: {mode}) ...")
+        if verify_lock(lock_path, skills_dir, frozen=args.frozen):
+            print("All locks verified.")
             sys.exit(0)
         else:
-            print("Some locks are stale. Run with --lock to refresh.", file=sys.stderr)
+            print("Verification FAILED. Run with --lock to refresh.", file=sys.stderr)
             sys.exit(1)
 
     # Normal discovery
