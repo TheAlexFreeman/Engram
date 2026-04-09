@@ -344,6 +344,34 @@ class GitRepo:
             )
         return result.stdout.strip()
 
+    def _direct_update_ref(self, ref: str, new_sha: str, expected_old: str) -> None:
+        """Write a ref file directly, bypassing git update-ref.
+
+        This is a last-resort fallback for environments where git's lock-file
+        mechanism is broken (e.g. FUSE/cross-filesystem mounts that refuse
+        unlink on stale lock files).
+
+        Safety: callers MUST hold write_lock before invoking this.
+        The compare-and-swap check (expected_old) ensures we don't clobber a
+        concurrent update, though write_lock already prevents that.
+        """
+        # ref is like "refs/heads/alex" — resolve to filesystem path
+        ref_path = self.git_dir / ref
+        if not ref_path.parent.exists():
+            ref_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Compare-and-swap: verify current value matches expected
+        if ref_path.exists():
+            current = ref_path.read_text(encoding="utf-8").strip()
+            if current != expected_old:
+                raise StagingError(
+                    f"Ref {ref} has changed since read: expected {expected_old}, "
+                    f"found {current}. Refusing direct update."
+                )
+
+        ref_path.write_text(new_sha + "\n", encoding="utf-8")
+        _log.info("Direct-wrote ref %s → %s", ref, new_sha[:12])
+
     def _head_tree(self) -> str:
         result = self._run(["git", "rev-parse", "HEAD^{tree}"])
         return result.stdout.strip()
@@ -446,7 +474,18 @@ class GitRepo:
             lock_path.unlink()
         except FileNotFoundError:
             return False
-        except OSError:
+        except OSError as unlink_err:
+            # On FUSE / cross-filesystem mounts, unlink may fail with EPERM
+            # even when the lock is stale.  Log clearly so operators can
+            # diagnose, but don't raise — callers will fall back to plumbing.
+            _log.warning(
+                "Cannot remove stale lock %s (pid=%s): %s. "
+                "This is common on FUSE/cross-filesystem mounts. "
+                "The plumbing commit path will attempt a direct ref write.",
+                lock_path.name,
+                pid,
+                unlink_err,
+            )
             return False
         _log.warning("Removed stale lock file: %s (pid=%s)", lock_path.name, pid)
         return True
@@ -591,7 +630,25 @@ class GitRepo:
 
         commit_result = self._run(["git", "commit-tree", tree_sha, "-p", parent_sha, "-m", message])
         commit_sha = commit_result.stdout.strip()
-        self._run(["git", "update-ref", branch_ref, commit_sha, parent_sha])
+
+        warnings = [
+            "Published via degraded plumbing path after porcelain commit could not lock the git index."
+        ]
+        try:
+            self._run(["git", "update-ref", branch_ref, commit_sha, parent_sha])
+        except StagingError as ref_error:
+            # update-ref needs HEAD.lock, which may be stuck on FUSE/cross-FS
+            # mounts.  Since we already hold write_lock (serialising all
+            # writers), it is safe to write the ref file directly.
+            if not self._should_fallback_to_plumbing(ref_error):
+                raise
+            _log.warning(
+                "update-ref failed (%s), writing ref file directly", ref_error
+            )
+            self._direct_update_ref(branch_ref, commit_sha, parent_sha)
+            warnings.append(
+                "Ref updated via direct file write after update-ref could not acquire HEAD.lock."
+            )
         return GitPublicationResult(
             sha=commit_sha,
             parent_sha=parent_sha,
@@ -599,9 +656,7 @@ class GitRepo:
             operation="commit",
             mode="plumbing",
             degraded=True,
-            warnings=[
-                "Published via degraded plumbing path after porcelain commit could not lock the git index."
-            ],
+            warnings=warnings,
         )
 
     def commit(
