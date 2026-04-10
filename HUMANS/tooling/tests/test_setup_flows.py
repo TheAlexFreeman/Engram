@@ -388,7 +388,9 @@ class SetupFlowTests(unittest.TestCase):
                 ).is_file()
             )
             self.assertTrue(
-                (worktree_root / "core" / "memory" / "skills" / "codebase-survey.md").is_file()
+                (
+                    worktree_root / "core" / "memory" / "skills" / "codebase-survey" / "SKILL.md"
+                ).is_file()
             )
 
             codex_config = (host_root / ".codex" / "config.toml").read_text(encoding="utf-8")

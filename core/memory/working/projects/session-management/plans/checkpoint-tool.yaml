@@ -57,7 +57,7 @@ work:
             CURRENT.md write protocol, what belongs in scratchpad vs
             formal memory, and the rule that scratchpad writes are not
             ACCESS-logged.
-        - path: core/memory/skills/session-sync.md
+        - path: core/memory/skills/session-sync/SKILL.md
           type: internal
           intent: >
             The heavier mid-session checkpoint protocol that
@@ -122,10 +122,10 @@ work:
         - checkpoint-tool-impl
       requires_approval: true
       sources:
-        - path: core/memory/skills/session-start.md
+        - path: core/memory/skills/session-start/SKILL.md
           type: internal
           intent: Add checkpoint guidance to session start instructions.
-        - path: core/memory/skills/session-sync.md
+        - path: core/memory/skills/session-sync/SKILL.md
           type: internal
           intent: >
             Clarify relationship: checkpoint is micro-persist,
@@ -136,18 +136,18 @@ work:
       postconditions:
         - type: grep
           pattern: "memory_checkpoint"
-          path: core/memory/skills/session-start.md
+          path: core/memory/skills/session-start/SKILL.md
           description: session-start.md mentions memory_checkpoint
         - type: grep
           pattern: "checkpoint"
-          path: core/memory/skills/session-sync.md
+          path: core/memory/skills/session-sync/SKILL.md
           description: session-sync.md references checkpoint as alternative
         - type: manual
           description: >
             Session checklists include checkpoint triggers: after
             decisions, discoveries, and task completions
       changes:
-        - path: core/memory/skills/session-start.md
+        - path: core/memory/skills/session-start/SKILL.md
           action: modify
           description: >
             Add section: '## Incremental persistence' — instruct agents
@@ -155,7 +155,7 @@ work:
             learning something new about the user, making a decision with
             non-obvious reasoning, or noticing a pattern worth preserving.
             Frame as habit, not emergency.
-        - path: core/memory/skills/session-sync.md
+        - path: core/memory/skills/session-sync/SKILL.md
           action: modify
           description: >
             Add note in 'When to use this skill': 'For lightweight

@@ -1,4 +1,11 @@
 ---
+name: session-start
+description: >-
+  Session opener for returning users. Loads recent context, checks pending
+  review items and maintenance triggers, greets the user with continuity.
+  Use at the beginning of any returning session after initial routing.
+compatibility: Requires agent-memory MCP server with memory_context_home and memory_session_health_check
+
 source: user-stated
 origin_session: manual
 created: 2026-03-16

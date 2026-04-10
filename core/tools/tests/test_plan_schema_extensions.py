@@ -2746,7 +2746,7 @@ def _make_approval(
     project_id: str = "proj-c",
     status: str = "pending",
     requested: str = "2026-04-01T10:00:00Z",
-    expires: str = "2026-04-08T10:00:00Z",
+    expires: str = "2099-12-31T23:59:59Z",
     **kwargs: Any,
 ) -> ApprovalDocument:
     return ApprovalDocument(

@@ -4,11 +4,12 @@ This folder contains procedural knowledge — instructions for how the agent sho
 
 ## Current skills
 
-- **[onboarding.md](onboarding.md)** — First-session user onboarding. Runs a collaborative seed-task session that surfaces the user's role, preferences, and working style while demonstrating memory and trust behavior in context.
-- **[codebase-survey.md](codebase-survey.md)** — Systematic host-repo exploration for a new worktree-backed memory store. Use when `projects/codebase-survey/SUMMARY.md` is active or when a codebase knowledge skeleton still contains template stubs.
-- **[session-start.md](session-start.md)** — Session opener. Loads recent context, checks pending review items and maintenance triggers, greets the user with continuity.
-- **[session-sync.md](session-sync.md)** — Mid-session checkpoint. Captures decisions, open threads, and key artifacts without ending the session. Trigger: user says "sync" or "checkpoint".
-- **[session-wrapup.md](session-wrapup.md)** — Session closer. Writes chat summary, reflection note, ACCESS entries, and flags pending system maintenance. Produces deferred actions on read-only platforms.
+- **[onboarding/](onboarding/SKILL.md)** — First-session user onboarding. Runs a collaborative seed-task session that surfaces the user's role, preferences, and working style while demonstrating memory and trust behavior in context.
+- **[codebase-survey/](codebase-survey/SKILL.md)** — Systematic host-repo exploration for a new worktree-backed memory store. Use when `projects/codebase-survey/SUMMARY.md` is active or when a codebase knowledge skeleton still contains template stubs.
+- **[flow-trace/](flow-trace/SKILL.md)** — Trace how operations execute through a codebase, recording boundary crossings, data transformations, and implicit couplings. Complements codebase-survey by mapping what happens rather than what exists.
+- **[session-start/](session-start/SKILL.md)** — Session opener. Loads recent context, checks pending review items and maintenance triggers, greets the user with continuity.
+- **[session-sync/](session-sync/SKILL.md)** — Mid-session checkpoint. Captures decisions, open threads, and key artifacts without ending the session. Trigger: user says "sync" or "checkpoint".
+- **[session-wrapup/](session-wrapup/SKILL.md)** — Session closer. Writes chat summary, reflection note, ACCESS entries, and flags pending system maintenance. Produces deferred actions on read-only platforms.
 
 ## Scenario suites
 
@@ -16,7 +17,7 @@ This folder contains procedural knowledge — instructions for how the agent sho
 
 ## Archived fallbacks
 
-- **[_archive/onboarding-v1.md](_archive/onboarding-v1.md)** — Legacy interview-style onboarding retained as an explicit fallback when the collaborative seed-task flow is not appropriate.
+- **[_archive/onboarding-v1/](_archive/onboarding-v1/SKILL.md)** — Legacy interview-style onboarding retained as an explicit fallback when the collaborative seed-task flow is not appropriate.
 
 ## What belongs here
 
@@ -25,15 +26,25 @@ This folder contains procedural knowledge — instructions for how the agent sho
 - **Tool-specific procedures.** How to interact with particular tools, APIs, or platforms the user works with regularly.
 - **Templates.** Reusable structures for common outputs (emails, reports, code patterns).
 
-## Skill file format
+## Skill format (Agent Skills standard)
 
-Each skill file should include:
+Skills follow the [Agent Skills standard](https://agentskills.io/specification) — each skill is a **directory** containing a `SKILL.md` file with YAML frontmatter and Markdown instructions:
 
-1. **When to use this skill.** Trigger conditions — what kind of user request activates this procedure.
-2. **Steps.** The actual procedure, written as clear instructions the agent should follow.
-3. **Quality criteria.** How to evaluate whether the output meets the user's standards.
-4. **Examples.** At least one concrete example of good output, ideally drawn from an actual past interaction.
-5. **Anti-patterns.** Common mistakes to avoid, especially ones the user has previously corrected.
+```
+skill-name/
+├── SKILL.md          # Required: metadata + instructions
+├── scripts/          # Optional: executable code
+├── references/       # Optional: supplementary docs
+└── assets/           # Optional: templates, resources
+```
+
+**Required frontmatter fields:** `name` (kebab-case, matches directory), `description` (routing surface for catalog-based activation), plus Engram governance fields (`source`, `origin_session`, `created`, `trust`).
+
+**Progressive disclosure:** At session start, only `name` + `description` are loaded (~50–100 tokens per skill). Full SKILL.md body is loaded on activation. Files in `references/`, `scripts/`, `assets/` are loaded on demand.
+
+**Body sections:** (1) When to use this skill, (2) Steps / Flow, (3) Quality criteria, (4) Examples, (5) Anti-patterns. Keep SKILL.md under 500 lines; move supplementary material to `references/`.
+
+See `HUMANS/docs/skill-format-spec.md` for the complete specification, including all frontmatter fields, naming rules, and the migration guide from flat files.
 
 ## Skill discovery
 

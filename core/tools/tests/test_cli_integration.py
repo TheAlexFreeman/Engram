@@ -527,7 +527,9 @@ def _seed_maintenance_fixture(repo_root: Path) -> None:
     )
     _write(repo_root / "core" / "memory" / "knowledge" / "topic.md", "# Topic\n")
     _write(repo_root / "core" / "memory" / "working" / "projects" / "demo.md", "# Demo\n")
-    _write(repo_root / "core" / "memory" / "skills" / "session-start.md", "# Session Start\n")
+    _write(
+        repo_root / "core" / "memory" / "skills" / "session-start" / "SKILL.md", "# Session Start\n"
+    )
     _write(
         repo_root / "core" / "memory" / "knowledge" / "SUMMARY.md",
         "# Knowledge\n\n## Usage patterns\n\n_No access data yet._\n",
@@ -612,7 +614,7 @@ def _seed_maintenance_fixture(repo_root: Path) -> None:
                     {
                         "date": "2099-01-03",
                         "session_id": "memory/activity/2099/01/03/chat-001",
-                        "file": "memory/skills/session-start.md",
+                        "file": "memory/skills/session-start/SKILL.md",
                         "helpfulness": 0.9,
                     }
                 ),
@@ -620,7 +622,7 @@ def _seed_maintenance_fixture(repo_root: Path) -> None:
                     {
                         "date": "2099-01-04",
                         "session_id": "memory/activity/2099/01/04/chat-001",
-                        "file": "memory/skills/session-start.md",
+                        "file": "memory/skills/session-start/SKILL.md",
                         "helpfulness": 0.9,
                     }
                 ),
@@ -628,7 +630,7 @@ def _seed_maintenance_fixture(repo_root: Path) -> None:
                     {
                         "date": "2099-01-05",
                         "session_id": "memory/activity/2099/01/05/chat-001",
-                        "file": "memory/skills/session-start.md",
+                        "file": "memory/skills/session-start/SKILL.md",
                         "helpfulness": 0.9,
                     }
                 ),

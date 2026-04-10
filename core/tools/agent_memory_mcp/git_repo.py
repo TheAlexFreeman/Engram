@@ -246,6 +246,7 @@ class GitRepo:
         """Stage one or more content-relative files."""
         if not rel_paths:
             return
+        self._try_cleanup_stale_index_lock()
         git_paths = [self._to_git_path(p) for p in rel_paths]
         self._run(["git", "add", "-A", "--"] + git_paths)
 
@@ -257,6 +258,7 @@ class GitRepo:
 
     def add_all(self) -> None:
         """Stage all changes (git add -A)."""
+        self._try_cleanup_stale_index_lock()
         self._run(["git", "add", "-A"])
 
     def restore_paths(
@@ -342,6 +344,49 @@ class GitRepo:
             )
         return result.stdout.strip()
 
+    def _direct_update_ref(self, ref: str, new_sha: str, expected_old: str) -> None:
+        """Write a ref file directly, bypassing git update-ref.
+
+        This is a last-resort fallback for environments where git's lock-file
+        mechanism is broken (e.g. FUSE/cross-filesystem mounts that refuse
+        unlink on stale lock files).
+
+        Safety: callers MUST hold write_lock before invoking this.
+        The compare-and-swap check (expected_old) ensures we don't clobber a
+        concurrent update, though write_lock already prevents that.
+        """
+        # ref is like "refs/heads/alex" — resolve to filesystem path
+        ref_path = self.git_dir / ref
+        if not ref_path.parent.exists():
+            ref_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Compare-and-swap: verify current value matches expected.
+        # Refs may be stored as loose files *or* in packed-refs — check both.
+        current: str | None = None
+        if ref_path.exists():
+            current = ref_path.read_text(encoding="utf-8").strip()
+        else:
+            # Ref not present as a loose file; look it up in packed-refs.
+            packed_refs_path = self.git_dir / "packed-refs"
+            if packed_refs_path.is_file():
+                for line in packed_refs_path.read_text(encoding="utf-8").splitlines():
+                    # packed-refs lines: "<sha> <refname>" (comment lines start with #/^)
+                    if line.startswith("#") or line.startswith("^"):
+                        continue
+                    parts = line.split()
+                    if len(parts) == 2 and parts[1] == ref:
+                        current = parts[0]
+                        break
+
+        if current is not None and current != expected_old:
+            raise StagingError(
+                f"Ref {ref} has changed since read: expected {expected_old}, "
+                f"found {current}. Refusing direct update."
+            )
+
+        ref_path.write_text(new_sha + "\n", encoding="utf-8")
+        _log.info("Direct-wrote ref %s → %s", ref, new_sha[:12])
+
     def _head_tree(self) -> str:
         result = self._run(["git", "rev-parse", "HEAD^{tree}"])
         return result.stdout.strip()
@@ -422,24 +467,40 @@ class GitRepo:
             return True
 
     def _try_cleanup_stale_lock(self, lock_path: Path) -> bool:
-        """Remove a stale lock file if it's old and its owner PID is dead."""
+        """Remove a stale lock file if it's old and its owner PID is dead.
+
+        Git's own HEAD.lock and index.lock are typically empty (0 bytes)
+        and contain no PID.  When a lock file is older than the staleness
+        threshold and either (a) contains no PID or (b) the PID is dead,
+        it is safe to remove.
+        """
         if not lock_path.exists():
             return False
         if not self._is_lock_older_than(lock_path, _STALE_HEAD_LOCK_MAX_AGE_SECONDS):
             return False
 
         pid = self._extract_pid_from_lock(lock_path)
-        if pid is None:
-            # Cannot identify owner — conservative, do not remove.
-            return False
-        if self._is_pid_alive(pid):
+        if pid is not None and self._is_pid_alive(pid):
             return False
 
+        # Lock is old enough and either has no PID (empty/git-native) or
+        # its owner process is dead — safe to remove.
         try:
             lock_path.unlink()
         except FileNotFoundError:
             return False
-        except OSError:
+        except OSError as unlink_err:
+            # On FUSE / cross-filesystem mounts, unlink may fail with EPERM
+            # even when the lock is stale.  Log clearly so operators can
+            # diagnose, but don't raise — callers will fall back to plumbing.
+            _log.warning(
+                "Cannot remove stale lock %s (pid=%s): %s. "
+                "This is common on FUSE/cross-filesystem mounts. "
+                "The plumbing commit path will attempt a direct ref write.",
+                lock_path.name,
+                pid,
+                unlink_err,
+            )
             return False
         _log.warning("Removed stale lock file: %s (pid=%s)", lock_path.name, pid)
         return True
@@ -584,7 +645,23 @@ class GitRepo:
 
         commit_result = self._run(["git", "commit-tree", tree_sha, "-p", parent_sha, "-m", message])
         commit_sha = commit_result.stdout.strip()
-        self._run(["git", "update-ref", branch_ref, commit_sha, parent_sha])
+
+        warnings = [
+            "Published via degraded plumbing path after porcelain commit could not lock the git index."
+        ]
+        try:
+            self._run(["git", "update-ref", branch_ref, commit_sha, parent_sha])
+        except StagingError as ref_error:
+            # update-ref needs HEAD.lock, which may be stuck on FUSE/cross-FS
+            # mounts.  Since we already hold write_lock (serialising all
+            # writers), it is safe to write the ref file directly.
+            if not self._should_fallback_to_plumbing(ref_error):
+                raise
+            _log.warning("update-ref failed (%s), writing ref file directly", ref_error)
+            self._direct_update_ref(branch_ref, commit_sha, parent_sha)
+            warnings.append(
+                "Ref updated via direct file write after update-ref could not acquire HEAD.lock."
+            )
         return GitPublicationResult(
             sha=commit_sha,
             parent_sha=parent_sha,
@@ -592,9 +669,7 @@ class GitRepo:
             operation="commit",
             mode="plumbing",
             degraded=True,
-            warnings=[
-                "Published via degraded plumbing path after porcelain commit could not lock the git index."
-            ],
+            warnings=warnings,
         )
 
     def commit(
@@ -617,6 +692,9 @@ class GitRepo:
         git_paths = [self._to_git_path(p) for p in paths] if paths else None
 
         with self.write_lock("commit"):
+            # 0. Proactively clean stale git locks before attempting commit.
+            self._try_cleanup_all_stale_locks()
+
             # 1. Try porcelain commit.
             try:
                 return self._commit_porcelain(message, paths=git_paths, allow_empty=allow_empty)

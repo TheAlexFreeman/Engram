@@ -1,4 +1,11 @@
 ---
+name: session-wrapup
+description: >-
+  Session closer. Writes chat summary, reflection note, ACCESS entries, and
+  flags pending system maintenance. Produces deferred actions on read-only
+  platforms. Activate when the user ends the session or context is running low.
+compatibility: Requires agent-memory MCP server with memory_record_session
+
 source: user-stated
 origin_session: manual
 created: 2026-03-16

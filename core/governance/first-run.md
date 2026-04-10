@@ -19,13 +19,13 @@ If neither condition matches — a user portrait exists without the `template` m
 2. Use the thresholds and routing state already loaded from `core/INIT.md`; do not override them with older prose elsewhere.
 3. Read the following sections of `core/governance/update-guidelines.md`: "Change categories", "Read-only operation", and the periodic-review trigger reference only if needed.
 4. **Check write access.** Can you write to this repository? If not, note this — all behavioral rules still apply, but writes must be deferred per `core/governance/update-guidelines.md` § "Read-only operation". If this is your first read-only session, also review the worked example in `core/governance/update-guidelines.md` § "Worked example" for the output format.
-5. Read `core/memory/skills/SUMMARY.md` and `core/memory/skills/onboarding.md`.
+5. Read `core/memory/skills/SUMMARY.md` and `core/memory/skills/onboarding/SKILL.md`.
 
 At this point you have loaded: system architecture (README.md), evolution history, active thresholds, change-control rules, write-access status, and the onboarding skill. **Stop loading files and begin interactive work below.** Do not summarize any of this to the user.
 
 ## Interactive onboarding (this is the part the user sees)
 
-6. **Run the onboarding skill** (`core/memory/skills/onboarding.md`). This is a collaborative first session centered on a seed task, with profile discovery, capability demonstration, and explicit confirmation folded into the work. Follow the skill's phases and quality criteria exactly.
+6. **Run the onboarding skill** (`core/memory/skills/onboarding/SKILL.md`). This is a collaborative first session centered on a seed task, with profile discovery, capability demonstration, and explicit confirmation folded into the work. Follow the skill's phases and quality criteria exactly.
 
 7. **After onboarding completes**, greet the user using what you learned. Do not recap the bootstrap process or list which files you read. The greeting should feel like the start of a relationship, not a system status report.
 

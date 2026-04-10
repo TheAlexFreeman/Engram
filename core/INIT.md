@@ -28,7 +28,7 @@ Load files in the listed order. Skip files marked _(skip if empty)_ when they co
 
 | Session type | Files to load | MCP shortcut |
 |---|---|---|
-| **First run** | this file → `core/governance/first-run.md` (which directs: `CHANGELOG.md`, `core/governance/update-guidelines.md` §§ Change categories + Read-only operation, `core/memory/skills/SUMMARY.md`, `core/memory/skills/onboarding.md`) | — |
+| **First run** | this file → `core/governance/first-run.md` (which directs: `CHANGELOG.md`, `core/governance/update-guidelines.md` §§ Change categories + Read-only operation, `core/memory/skills/SUMMARY.md`, `core/memory/skills/onboarding/SKILL.md`) | — |
 | **Compact returning** | this file → `core/memory/HOME.md` _(skip if empty or still placeholder; then load `core/memory/users/SUMMARY.md`, `core/memory/activity/SUMMARY.md`, `core/memory/working/USER.md`, and `core/memory/working/CURRENT.md`; load task-relevant `core/memory/working/projects/SUMMARY.md` and/or `core/memory/knowledge/SUMMARY.md` and/or `core/memory/skills/SUMMARY.md` only as needed)_ | `memory_context_home` |
 | **Full bootstrap** | this file → Compact returning files + `CHANGELOG.md`, `core/governance/curation-policy.md`, `core/governance/update-guidelines.md` | — |
 | **Periodic review** | Full bootstrap files + `core/governance/system-maturity.md`, `core/governance/belief-diff-log.md`, `core/governance/review-queue.md`, `core/governance/session-checklists.md` § "Periodic integrity audit", `core/governance/security-signals.md` | `memory_prepare_periodic_review` |

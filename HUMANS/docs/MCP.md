@@ -140,7 +140,7 @@ For worktree deployments, set `MEMORY_REPO_ROOT` to the worktree path and `HOST_
 
 ## Tool surface
 
-The MCP server exposes **99 tools by default**: 48 Tier 0 read-only tools plus 51 Tier 1 semantic tools. Enabling `MEMORY_ENABLE_RAW_WRITE_TOOLS=1` adds **7 Tier 2** raw fallback tools for a full surface of **106**. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
+The MCP server exposes **105 tools by default**: 48 Tier 0 read-only tools plus 57 Tier 1 semantic tools. Enabling `MEMORY_ENABLE_RAW_WRITE_TOOLS=1` adds **7 Tier 2** raw fallback tools for a full surface of **112**. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
 
 ### JSON Schema registry (`memory_tool_schema`)
 

@@ -144,7 +144,7 @@ work:
       commit: null       # SHA populated on completion
       blockers: []       # intra-plan: "phase-id", inter-plan: "plan-id:phase-id"
       changes:
-        - path: memory/skills/onboarding.md
+        - path: memory/skills/onboarding/SKILL.md
           action: rewrite  # create | rewrite | update | delete | rename
           description: >
             Prose context for this change — what it does and why.

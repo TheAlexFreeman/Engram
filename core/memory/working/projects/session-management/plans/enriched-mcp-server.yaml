@@ -109,7 +109,7 @@ work:
       blockers: []
       requires_approval: true
       sources:
-        - path: core/memory/skills/session-start.md
+        - path: core/memory/skills/session-start/SKILL.md
           type: internal
           intent: >
             Session skills must instruct agents to check and act on
@@ -133,7 +133,7 @@ work:
           description: >
             MemoryWriteResult.to_json(session_state=...) wraps payload
             with envelope_tool_result when session_state is passed.
-        - path: core/memory/skills/session-start.md
+        - path: core/memory/skills/session-start/SKILL.md
           action: modify
           description: >
             Add section: '## Session advisories' — instruct agents

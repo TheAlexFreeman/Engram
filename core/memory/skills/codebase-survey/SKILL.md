@@ -1,4 +1,12 @@
 ---
+name: codebase-survey
+description: >-
+  Systematic host-repo exploration for a new worktree-backed memory store.
+  Use when projects/codebase-survey/SUMMARY.md is active or when codebase
+  knowledge files still contain template stubs. Supports both initial survey
+  and ongoing deepening rounds.
+compatibility: Requires agent-memory MCP server for plan management and knowledge search
+
 source: agent-generated
 origin_session: manual
 created: 2026-03-20
@@ -79,7 +87,7 @@ As knowledge **specializes**, it is acceptable to add **subsections, tables, or 
 - When MCP is available, use `memory_plan_verify` or pass `verify=true` to `memory_plan_execute` to check postconditions automatically.
 - If a postcondition is not satisfied, continue working on the phase rather than advancing.
 
-**Reflective-loop rounds** use the roadmap’s “done when” criteria as informal postconditions even though they are not in the YAML plan.
+**Reflective-loop rounds** use the roadmap's "done when" criteria as informal postconditions even though they are not in the YAML plan.
 
 ### 7. Manage trust deliberately
 
@@ -93,7 +101,7 @@ Each **review round** should close a loop, not only append text. After exploring
 
 1. **Integrate** — Merge new facts into the right `knowledge/codebase/*.md` file(s); extend `related` paths; bump `last_verified` when the note matches the repo **today**.
 2. **Specialize** — Prefer **deeper detail on a slice** (one subsystem, one risk surface) over shallow edits everywhere. If a section exceeds ~400–600 words of dense fact, consider splitting a topic into a linked note under `knowledge/codebase/` and keep `SUMMARY.md` as the index.
-3. **Reflect** — In `projects/codebase-survey/questions.md`: move answered items to **Resolved Questions** with date + pointer to the knowledge file and section. **Add** new open questions discovered during the round (deeper “why,” edge cases, integration points). Update `next_question_id` if you add net-new numbered items.
+3. **Reflect** — In `projects/codebase-survey/questions.md`: move answered items to **Resolved Questions** with date + pointer to the knowledge file and section. **Add** new open questions discovered during the round (deeper "why," edge cases, integration points). Update `next_question_id` if you add net-new numbered items.
 4. **Steer** — Update `IN/knowledge-roadmap.md` if priorities shift (reorder phases, add a step, mark a row satisfied). Update `projects/codebase-survey/SUMMARY.md` (`current_focus`, `open_questions` count, `last_activity`).
 5. **Stop with a handoff** — End the session with one explicit **next round** suggestion: the single roadmap phase or question cluster that yields the best depth-per-token next time.
 
@@ -108,7 +116,7 @@ When MCP is available, use `memory_search` / `memory_semantic_search` at the sta
 
 **Deepening-specific:**
 
-- Each reflective round **reduces** ambiguity in at least one **named** area (e.g. “Celery periodic tasks,” “membership invite rules”) or **documents** that ambiguity explicitly as an open question with a source to read next.
+- Each reflective round **reduces** ambiguity in at least one **named** area (e.g. "Celery periodic tasks," "membership invite rules") or **documents** that ambiguity explicitly as an open question with a source to read next.
 - Knowledge **density** increases over rounds: later passes add **interfaces, invariants, failure modes, and pointers** — not paraphrases of the first pass.
 - The question file and roadmap stay **honest inventories** of what is still unknown or stale.
 
@@ -116,7 +124,7 @@ When MCP is available, use `memory_search` / `memory_semantic_search` at the sta
 
 **First pass (YAML plan):** The session maps app entry points, updates `knowledge/codebase/architecture.md` with the boot sequence and major modules, adds `related` source paths, verifies the phase postcondition, and leaves deeper subsystem questions in the project's `IN/` directory for the next pass.
 
-**Second pass (reflective loop):** The session picks roadmap **Phase A** (Celery): inventories tasks and beat configuration, adds a subsection to `data-model.md` or `operations.md`, resolves questions 1–2 in `questions.md` with pointers, adds question 18 about a specific task’s retry policy discovered while reading code, bumps `last_verified` on touched notes, and sets `SUMMARY.md` `current_focus` to Phase B for next time.
+**Second pass (reflective loop):** The session picks roadmap **Phase A** (Celery): inventories tasks and beat configuration, adds a subsection to `data-model.md` or `operations.md`, resolves questions 1–2 in `questions.md` with pointers, adds question 18 about a specific task's retry policy discovered while reading code, bumps `last_verified` on touched notes, and sets `SUMMARY.md` `current_focus` to Phase B for next time.
 
 ## Anti-patterns
 
@@ -125,6 +133,6 @@ When MCP is available, use `memory_search` / `memory_semantic_search` at the sta
 - Do not promote placeholder text to higher trust just because the file exists.
 - Do not skip plan updates after replacing a template stub with verified knowledge.
 - Do not mark a phase complete without checking its postconditions.
-- Do not treat **survey-plan.yaml** “complete” as permission to **stop maintaining** codebase knowledge unless the user archives the project.
+- Do not treat **survey-plan.yaml** "complete" as permission to **stop maintaining** codebase knowledge unless the user archives the project.
 - Do not run a deepening round on **every** topic at once — breadth without depth violates the reflective loop.
 - Do not delete open questions just to shrink the list; **resolve** them into knowledge or **refine** them into sharper follow-ups.

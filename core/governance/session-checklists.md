@@ -1,6 +1,6 @@
 # Session checklists
 
-Quick-reference runbooks for session start and end. **Load on demand** when you want more structure than the compact manifest in `core/INIT.md`. For full detail, quality criteria, and edge cases, see the skill files: `core/memory/skills/session-start.md`, `core/memory/skills/session-sync.md`, `core/memory/skills/session-wrapup.md`.
+Quick-reference runbooks for session start and end. **Load on demand** when you want more structure than the compact manifest in `core/INIT.md`. For full detail, quality criteria, and edge cases, see the skill files: `core/memory/skills/session-start/SKILL.md`, `core/memory/skills/session-sync/SKILL.md`, `core/memory/skills/session-wrapup/SKILL.md`.
 
 > **Authority:** Subordinate to `core/INIT.md` for routing and thresholds. When these runbooks and `core/INIT.md` conflict, `core/INIT.md` governs.
 
@@ -16,15 +16,15 @@ Follow `core/governance/first-run.md` instead.
 4. Weave `core/memory/working/USER.md` content into greeting naturally.
 5. Greet with continuity — reference what the user was working on. 2–3 sentences, then let the user speak.
 
-Detail: `core/memory/skills/session-start.md`
+Detail: `core/memory/skills/session-start/SKILL.md`
 
 ## Mid-session sync
 
 Use `memory_checkpoint` for lightweight in-progress saves after decisions, discoveries, and major task completions. Reserve `checkpoint.md` in the chat folder for user-requested or heavier mid-session syncs. Don't checkpoint trivially.
 
-If context pressure is detected (>75% of effective context window consumed, or platform signals compaction), trigger an automatic checkpoint per the context-pressure flush protocol. See `core/memory/skills/session-sync.md` § "Context-pressure flush".
+If context pressure is detected (>75% of effective context window consumed, or platform signals compaction), trigger an automatic checkpoint per the context-pressure flush protocol. See `core/memory/skills/session-sync/SKILL.md` § "Context-pressure flush".
 
-Detail: `core/memory/skills/session-sync.md`
+Detail: `core/memory/skills/session-sync/SKILL.md`
 
 ## Session end
 
@@ -37,7 +37,7 @@ Detail: `core/memory/skills/session-sync.md`
 7. **Deferred actions** (read-only only) — Produce a deferred-action summary per `core/governance/update-guidelines.md` § "How to communicate deferred actions".
 8. **Sign off** — Brief, warm, specific to the session.
 
-Detail: `core/memory/skills/session-wrapup.md`
+Detail: `core/memory/skills/session-wrapup/SKILL.md`
 
 ## Periodic integrity audit
 

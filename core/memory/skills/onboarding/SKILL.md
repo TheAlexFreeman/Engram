@@ -1,4 +1,11 @@
 ---
+name: onboarding
+description: >-
+  First-session user onboarding. Runs a collaborative seed-task session that
+  surfaces the user's role, preferences, and working style while demonstrating
+  memory and trust behavior in context.
+compatibility: Requires write access for profile persistence; produces export on read-only platforms
+
 source: user-stated
 origin_session: manual
 created: 2026-03-16
@@ -45,14 +52,14 @@ During this phase:
 4. Make trust visible only when relevant. If you introduce external information or a synthesized inference, note that direct user statements can be saved at high trust while external or inferred material starts lower until confirmed.
 5. Watch pacing. If the seed task could consume the entire session, transition once the user has received real value and you have enough signal for a useful portrait. Concrete transition signals: the user has a tangible artifact, a decision, or a clear next step — even if the larger task is unfinished; or you have observed enough traits across at least 4 discovery-audit categories to draft a useful portrait.
 
-Use demonstrations as natural moments, not a script. Aim for 2 to 3 across the session.
+Use demonstrations as natural moments, not a script. Aim for 2 to 3 across the session. See [references/demo-menu.md](references/demo-menu.md) for the demonstration menu.
 
 ### Phase C. Reflect, fill gaps, and propose the profile
 
 When the seed task reaches a natural pause, shift explicitly: "Before we wrap, here's what I've learned about how you work."
 
 1. Reflect back the working portrait based on the collaboration, not just direct Q&A.
-2. Audit for gaps using the checklist below. Ask only the minimum targeted questions needed to cover missing high-value categories.
+2. Audit for gaps using the [discovery audit checklist](references/discovery-audit.md). Ask only the minimum targeted questions needed to cover missing high-value categories.
 3. Give a short tailored capability tour: 2 or 3 things this system can do for this user. Keep it concrete and tied to the seed task.
 4. If a starter template exists, reconcile it now: confirm accurate traits, revise or remove bad ones, and retag confirmed template traits as `[observed]`.
 5. Ask the open-ended capture question: _"Is there anything else you'd like me to remember going forward that would make our work more useful?"_
@@ -86,31 +93,6 @@ End by making session two feel real:
 3. If the seed task has follow-up work, suggest tracking it as a project or plan.
 4. If `core/memory/working/projects/codebase-survey/SUMMARY.md` exists and its status is `active`, mention the codebase survey as the natural first project to pick up next session. Frame it concretely: "Next time I'll start mapping [project name]'s architecture so future sessions can orient quickly."
 5. Close as someone who now knows the user, not as a generic system.
-
-## Discovery audit
-
-Use this after Phase B, not as a scripted questionnaire. Interpret each category for the user's domain — "languages and frameworks" becomes "tools and platforms" for a non-technical user; "editor/IDE" becomes "productivity tools" for someone outside software engineering.
-
-- Role and responsibilities
-- Active projects or current focus
-- Domain expertise: what they know well and what is new
-- Communication preferences: detail, tone, format
-- Anti-preferences in AI interaction
-- Primary languages, frameworks, or subject domains
-- Editor, IDE, and recurring tools
-- Collaboration context: solo, team, open source, stakeholders
-
-## Inline demonstration menu
-
-Use whichever moments occur naturally:
-
-| Moment | Brief example | Capability shown |
-| --- | --- | --- |
-| User mentions a durable preference | "Noted — I'll remember that next time." | Cross-session memory |
-| User corrects the agent | "Good correction. That's worth saving." | Corrections improve future sessions |
-| Agent cites outside information | "I pulled this from an external source, so it starts unverified until you confirm it." | Trust tiers |
-| Agent proposes profile text | "I'm marking this high-trust because you told me directly." | Provenance-aware writing |
-| Work produces something worth keeping | "Want me to save this so it's available next session?" | Knowledge persistence |
 
 ## Session record
 

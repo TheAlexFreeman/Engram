@@ -145,7 +145,7 @@ This three-audience tension is not a problem to solve once — it is a permanent
 
 **Skip annotations.** When a governance file restates information that already exists in `core/INIT.md` (trust-level behaviors, decay thresholds, anomaly signals), it includes a one-line annotation: *"If you've already loaded core/INIT.md, skip this section."* This preserves readability for humans browsing the file while giving agents an explicit exit ramp from redundant content.
 
-**Checklist-skill separation.** Session checklists (`core/governance/session-checklists.md`) are self-sufficient for normal operation — they include inline quality criteria and anti-patterns. The full skill files (`core/memory/skills/session-start.md`, `core/memory/skills/session-wrapup.md`) are on-demand references for first bootstrap or uncertainty. This avoids loading ~950 words of skill files every session when a ~600-word checklist covers the same ground.
+**Checklist-skill separation.** Session checklists (`core/governance/session-checklists.md`) are self-sufficient for normal operation — they include inline quality criteria and anti-patterns. The full skill files (`core/memory/skills/session-start/SKILL.md`, `core/memory/skills/session-wrapup/SKILL.md`) are on-demand references for first bootstrap or uncertainty. This avoids loading ~950 words of skill files every session when a ~600-word checklist covers the same ground.
 
 ### Principles for dual-audience friendliness
 
@@ -239,7 +239,7 @@ These capabilities were future aspirations when the system was first designed. T
 
 **MCP health and analytics tools.** `memory_session_health_check` (session-start maintenance status), `memory_validate` (system integrity check), `memory_get_maturity_signals` (maturity indicators), `memory_access_analytics` (retrieval metrics), `memory_check_knowledge_freshness` (staleness detection), and `memory_audit_trust` (trust decay audit) provide programmatic system health reporting.
 
-**Collaborative onboarding.** The first session is no longer an interview-style intake. The four-phase onboarding flow (`core/memory/skills/onboarding.md`) has the agent work with the user on a real seed task, demonstrate capabilities inline, perform a discovery audit of working style, and confirm a profile at the end — with a read-only export path for platforms without write access.
+**Collaborative onboarding.** The first session is no longer an interview-style intake. The four-phase onboarding flow (`core/memory/skills/onboarding/SKILL.md`) has the agent work with the user on a real seed task, demonstrate capabilities inline, perform a discovery audit of working style, and confirm a profile at the end — with a read-only export path for platforms without write access.
 
 **Knowledge graph analysis.** MCP tools for computing structural metrics (`memory_analyze_graph`) and pruning redundant cross-references (`memory_prune_redundant_links`); plus a browser-based canvas graph overlay with domain coloring, zoom, search, and network analysis.
 
