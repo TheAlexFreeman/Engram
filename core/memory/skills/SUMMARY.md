@@ -40,6 +40,8 @@ skill-name/
 
 **Required frontmatter fields:** `name` (kebab-case, matches directory), `description` (routing surface for catalog-based activation), plus Engram governance fields (`source`, `origin_session`, `created`, `trust`).
 
+**Optional lifecycle frontmatter:** `trigger` for deterministic activation. It may be a simple event string, an `{ event, matcher?, priority? }` mapping, or a non-empty list of those entries. Skills without `trigger` remain catalog-discoverable.
+
 **Progressive disclosure:** At session start, only `name` + `description` are loaded (~50–100 tokens per skill). Full SKILL.md body is loaded on activation. Files in `references/`, `scripts/`, `assets/` are loaded on demand.
 
 **Body sections:** (1) When to use this skill, (2) Steps / Flow, (3) Quality criteria, (4) Examples, (5) Anti-patterns. Keep SKILL.md under 500 lines; move supplementary material to `references/`.

@@ -5,6 +5,11 @@ description: >-
   review items and maintenance triggers, greets the user with continuity.
   Use at the beginning of any returning session after initial routing.
 compatibility: Requires agent-memory MCP server with memory_context_home and memory_session_health_check
+trigger:
+  event: session-start
+  matcher:
+    condition: returning_session
+  priority: 50
 
 source: user-stated
 origin_session: manual
@@ -54,6 +59,7 @@ Skip this skill on the very first session — use `core/governance/first-run.md`
 ### 5. Greet with continuity (interactive)
 
 Greet the user in a way that reflects:
+
 - What they were working on last time (from the recent chat summary).
 - Any pending items that need attention (from the review queue).
 - Any system maintenance due (aggregation, periodic review).

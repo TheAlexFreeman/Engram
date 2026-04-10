@@ -5,6 +5,9 @@ description: >-
   flags pending system maintenance. Produces deferred actions on read-only
   platforms. Activate when the user ends the session or context is running low.
 compatibility: Requires agent-memory MCP server with memory_record_session
+trigger:
+  event: session-end
+  priority: 50
 
 source: user-stated
 origin_session: manual
@@ -20,6 +23,7 @@ trust: high
 ## When to use this skill
 
 Activate when:
+
 - The user says "wrap up", "end session", "that's all", or similar.
 - The session is clearly concluding (final thanks, sign-off language).
 - Context window is running low and the session should be archived before context is lost.
@@ -34,6 +38,7 @@ Activate when:
 Create the session's chat folder if it doesn't exist: `core/memory/activity/YYYY/MM/DD/chat-NNN/`.
 
 Write `SUMMARY.md` following the compression hierarchy in README.md § "Summaries":
+
 - Key topics discussed.
 - Decisions made and their reasoning.
 - Action items (for the user or for future sessions).
@@ -46,6 +51,7 @@ When ACCESS entries are available, include them in the same composite call so `s
 ### 2. Update summaries if warranted
 
 If this session produced significant new knowledge, identity changes, or skill refinements:
+
 - Update the relevant folder's `SUMMARY.md` to reflect the new content.
 - For identity or governance changes, ensure they were proposed and approved per `core/governance/update-guidelines.md`.
 
@@ -57,6 +63,7 @@ If this session produced significant new knowledge, identity changes, or skill r
 ### 4. Produce deferred actions (if read-only)
 
 If write access is unavailable, produce a deferred-action summary listing:
+
 - All ACCESS entries that should be appended.
 - All file writes (summaries, reflections, knowledge updates) that should be applied.
 - All review-queue items.

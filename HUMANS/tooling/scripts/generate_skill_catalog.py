@@ -25,6 +25,12 @@ import textwrap
 from datetime import date
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from core.tools.agent_memory_mcp.skill_trigger import summarize_skill_trigger
+
 try:
     import yaml  # PyYAML
 except ImportError:
@@ -115,6 +121,7 @@ def discover_skills(skills_dir: Path, *, log_missing_frontmatter: bool = True) -
         description = fm.get("description", "(no description)")
         trust = fm.get("trust", "unknown")
         compatibility = fm.get("compatibility", "")
+        trigger_summary = summarize_skill_trigger(fm.get("trigger"))
 
         entries.append(
             {
@@ -122,7 +129,8 @@ def discover_skills(skills_dir: Path, *, log_missing_frontmatter: bool = True) -
                 "description": description,
                 "trust": trust,
                 "compatibility": compatibility,
-                "path": str(skill_md.relative_to(skills_dir)),
+                "trigger_summary": trigger_summary,
+                "path": skill_md.relative_to(skills_dir).as_posix(),
             }
         )
     return entries
@@ -170,6 +178,8 @@ def generate_catalog(entries: list[dict]) -> str:
             lines.append(f"**Trust:** {entry['trust']}")
         if entry["compatibility"]:
             lines.append(f"**Requires:** {entry['compatibility']}")
+        if entry.get("trigger_summary"):
+            lines.append(f"**Trigger:** {entry['trigger_summary']}")
         lines.append("")
         lines.append(desc)
         lines.append("")

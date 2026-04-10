@@ -5,6 +5,9 @@ description: >-
   without ending the session. Activate when the user says "sync" or "checkpoint",
   or when context pressure makes a save worthwhile.
 compatibility: Requires agent-memory MCP server with memory_checkpoint
+trigger:
+  event: session-checkpoint
+  priority: 50
 
 source: user-stated
 origin_session: manual
@@ -20,6 +23,7 @@ trust: high
 ## When to use this skill
 
 Activate when:
+
 - The user says "sync", "checkpoint", "save progress", or similar.
 - A long session has produced significant decisions or context that would be costly to lose.
 - The agent judges that enough has happened to warrant a checkpoint (use judgment — don't checkpoint after trivial exchanges).
@@ -31,6 +35,7 @@ For lightweight in-progress saves, use `memory_checkpoint` instead. This skill i
 ### 1. Summarize progress so far
 
 Write a brief checkpoint note capturing:
+
 - **Decisions made** this session (with reasoning if non-obvious).
 - **Open threads** — questions raised but not yet resolved.
 - **Key artifacts** — files created, modified, or discussed.
@@ -38,6 +43,7 @@ Write a brief checkpoint note capturing:
 ### 2. Persist the checkpoint
 
 If write access is available:
+
 - Prefer local agent-memory MCP write tools when they can perform the checkpoint write cleanly; otherwise use direct file writes.
 - Create or update the current session's chat folder (`core/memory/activity/YYYY/MM/DD/chat-NNN/`).
 - Write a `checkpoint.md` file in the chat folder with the summary above. If multiple syncs happen in one session, append to the same file with timestamps.
@@ -45,6 +51,7 @@ If write access is available:
 - Commit with message: `[chat] Mid-session checkpoint — <brief description>`.
 
 If read-only:
+
 - Present the checkpoint summary to the user so they can save it.
 
 ### 3. Confirm to the user
@@ -54,7 +61,7 @@ Briefly confirm what was captured. One or two sentences — not a full recap.
 ## Quality criteria
 
 - The checkpoint should be useful to a future agent (or the same agent after context loss) as a recovery point.
-- Decisions are captured with enough context to understand *why*, not just *what*.
+- Decisions are captured with enough context to understand _why_, not just _what_.
 - The checkpoint is concise — aim for 10–20 lines, not a full session transcript.
 
 ## Anti-patterns

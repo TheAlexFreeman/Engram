@@ -18,6 +18,7 @@ from .plan_utils import (
     plan_create_input_schema,
     verification_results_item_schema,
 )
+from .skill_trigger import SKILL_TRIGGER_EVENTS, skill_trigger_value_schema
 
 ACCESS_MODES = frozenset({"read", "write", "update", "create"})
 FRONTMATTER_BULK_MAX_UPDATES = 100
@@ -1621,10 +1622,32 @@ def update_skill_input_schema() -> dict[str, Any]:
                 },
                 "then": {"required": ["approval_token"]},
             },
+            {
+                "if": {"properties": {"section": {"const": "trigger"}}},
+                "then": {
+                    "properties": {
+                        "content": skill_trigger_value_schema(
+                            description="Trigger frontmatter value to write when section='trigger'."
+                        )
+                    }
+                },
+            },
+            {
+                "if": {"not": {"properties": {"section": {"const": "trigger"}}}},
+                "then": {
+                    "properties": {
+                        "content": {
+                            "type": "string",
+                            "description": "Replacement or appended content.",
+                        }
+                    }
+                },
+            },
         ],
         notes=[
             "When create_if_missing=false, source/trust/origin_session are ignored.",
             "Protected apply mode requires the opaque approval_token returned by preview mode.",
+            "When section='trigger', content may be a trigger event string, a trigger mapping, or a non-empty list of trigger entries.",
         ],
         properties={
             "file": {
@@ -1637,7 +1660,6 @@ def update_skill_input_schema() -> dict[str, Any]:
                 "description": "Frontmatter key or markdown section heading to update.",
             },
             "content": {
-                "type": "string",
                 "description": "Replacement or appended content.",
             },
             "mode": {
@@ -2571,6 +2593,193 @@ def skill_list_input_schema() -> dict[str, Any]:
     )
 
 
+def skill_route_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_route",
+        title="memory_skill_route input schema",
+        required=["event"],
+        notes=[
+            "Read-only trigger router for explicit skill dispatch.",
+            "Frontmatter trigger metadata takes precedence over SKILLS.yaml trigger fallback.",
+            "Catalog fallback contributes triggerless skills only when query or skill_slug is provided in context.",
+        ],
+        properties={
+            "event": {
+                "type": "string",
+                "enum": sorted(SKILL_TRIGGER_EVENTS),
+                "description": "Trigger event to evaluate against skill metadata.",
+            },
+            "context": {
+                "oneOf": [
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "tool_name": {
+                                "oneOf": [
+                                    {"type": "string", "minLength": 1},
+                                    {"type": "null"},
+                                ],
+                                "description": "Optional tool name used for pre-tool-use and post-tool-use matcher evaluation.",
+                            },
+                            "project_id": {
+                                "oneOf": [
+                                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                                    {"type": "null"},
+                                ],
+                                "description": "Optional active project slug used for project-active matcher evaluation.",
+                            },
+                            "interval": {
+                                "oneOf": [
+                                    {"type": "string", "minLength": 1},
+                                    {"type": "null"},
+                                ],
+                                "description": "Optional periodic interval token used for periodic matcher evaluation.",
+                            },
+                            "condition": {
+                                "oneOf": [
+                                    {"type": "string", "minLength": 1},
+                                    {"type": "null"},
+                                ],
+                                "description": "Optional single active condition; merged with context.conditions.",
+                            },
+                            "conditions": {
+                                "oneOf": [
+                                    {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "items": {"type": "string", "minLength": 1},
+                                    },
+                                    {"type": "null"},
+                                ],
+                                "description": "Optional active condition set for condition matcher evaluation.",
+                            },
+                            "query": {
+                                "oneOf": [
+                                    {"type": "string", "minLength": 1},
+                                    {"type": "null"},
+                                ],
+                                "description": "Optional catalog fallback query matched against slug, title, and description.",
+                            },
+                            "skill_slug": {
+                                "oneOf": [
+                                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                                    {"type": "null"},
+                                ],
+                                "description": "Optional exact skill slug to narrow explicit or catalog matches.",
+                            },
+                        },
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional routing context for matcher evaluation and catalog fallback.",
+            },
+            "include_catalog_fallback": {
+                "type": "boolean",
+                "default": True,
+                "description": "Include triggerless catalog matches when query or skill_slug is supplied in context.",
+            },
+            "include_archived": {
+                "type": "boolean",
+                "default": False,
+                "description": "Include archived skills from core/memory/skills/_archive/.",
+            },
+            "include_disabled": {
+                "type": "boolean",
+                "default": False,
+                "description": "Include skills disabled in SKILLS.yaml.",
+            },
+            "max_results": {
+                "type": "integer",
+                "default": 20,
+                "description": "Maximum number of ordered matches to return. 0 for unlimited.",
+            },
+        },
+    )
+
+
+def skill_install_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_install",
+        title="memory_skill_install input schema",
+        required=["source"],
+        all_of=[
+            {
+                "if": {
+                    "anyOf": [
+                        {
+                            "required": ["preview"],
+                            "properties": {"preview": {"const": False}},
+                        },
+                        {"not": {"required": ["preview"]}},
+                    ]
+                },
+                "then": {"required": ["approval_token"]},
+            },
+            {
+                "if": {
+                    "required": ["source"],
+                    "properties": {"source": {"const": "local"}},
+                },
+                "then": {"required": ["slug"]},
+            },
+        ],
+        notes=[
+            "Protected apply mode requires the opaque approval_token returned by preview mode.",
+            "Installs a skill from local, path:./..., path:../..., github:owner/repo, or git:url sources.",
+            "When slug is omitted, the resolver derives it from the resolved skill directory name.",
+            "trust, when provided, rewrites the installed SKILL.md frontmatter to keep manifest and content aligned.",
+        ],
+        properties={
+            "source": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Source string to resolve: local, path:./..., path:../..., github:owner/repo, or git:url.",
+            },
+            "slug": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional installed skill slug override. Required when source='local'.",
+            },
+            "ref": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional git/github ref pin. Valid only for github: and git: sources.",
+            },
+            "trust": {
+                "oneOf": [
+                    {"type": "string", "enum": sorted(SKILL_CREATE_TRUST_LEVELS)},
+                    {"type": "null"},
+                ],
+                "description": "Optional trust override written into the installed SKILL.md and manifest.",
+            },
+            "enabled": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    {"type": "null"},
+                ],
+                "description": "Optional manifest enabled flag; defaults to true.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope instead of writing.",
+            },
+            "approval_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Fresh preview-issued approval receipt required for protected apply mode.",
+            },
+        },
+    )
+
+
 def skill_add_input_schema() -> dict[str, Any]:
     return _base_schema(
         tool_name="memory_skill_add",
@@ -3177,10 +3386,12 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_semantic_search": semantic_search_input_schema,
     "memory_session_flush": session_flush_input_schema,
     "memory_skill_add": skill_add_input_schema,
+    "memory_skill_install": skill_install_input_schema,
     "memory_skill_list": skill_list_input_schema,
     "memory_skill_manifest_read": skill_manifest_read_input_schema,
     "memory_skill_manifest_write": skill_manifest_write_input_schema,
     "memory_skill_remove": skill_remove_input_schema,
+    "memory_skill_route": skill_route_input_schema,
     "memory_skill_sync": skill_sync_input_schema,
     "memory_stage_external": stage_external_input_schema,
     "memory_update_frontmatter": update_frontmatter_input_schema,
@@ -3275,7 +3486,9 @@ __all__ = [
     "scan_drop_zone_input_schema",
     "semantic_search_input_schema",
     "session_flush_input_schema",
+    "skill_install_input_schema",
     "skill_list_input_schema",
+    "skill_route_input_schema",
     "skill_manifest_read_input_schema",
     "skill_manifest_write_input_schema",
     "stage_external_input_schema",
