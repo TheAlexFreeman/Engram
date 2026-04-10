@@ -360,14 +360,29 @@ class GitRepo:
         if not ref_path.parent.exists():
             ref_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Compare-and-swap: verify current value matches expected
+        # Compare-and-swap: verify current value matches expected.
+        # Refs may be stored as loose files *or* in packed-refs — check both.
+        current: str | None = None
         if ref_path.exists():
             current = ref_path.read_text(encoding="utf-8").strip()
-            if current != expected_old:
-                raise StagingError(
-                    f"Ref {ref} has changed since read: expected {expected_old}, "
-                    f"found {current}. Refusing direct update."
-                )
+        else:
+            # Ref not present as a loose file; look it up in packed-refs.
+            packed_refs_path = self.git_dir / "packed-refs"
+            if packed_refs_path.is_file():
+                for line in packed_refs_path.read_text(encoding="utf-8").splitlines():
+                    # packed-refs lines: "<sha> <refname>" (comment lines start with #/^)
+                    if line.startswith("#") or line.startswith("^"):
+                        continue
+                    parts = line.split()
+                    if len(parts) == 2 and parts[1] == ref:
+                        current = parts[0]
+                        break
+
+        if current is not None and current != expected_old:
+            raise StagingError(
+                f"Ref {ref} has changed since read: expected {expected_old}, "
+                f"found {current}. Refusing direct update."
+            )
 
         ref_path.write_text(new_sha + "\n", encoding="utf-8")
         _log.info("Direct-wrote ref %s → %s", ref, new_sha[:12])

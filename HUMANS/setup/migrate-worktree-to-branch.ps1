@@ -83,7 +83,8 @@ if (Test-Path (Join-Path $OldMcpRoot ".git")) {
     Write-Host "  Old repo branch: $oldBranch ($commitCount commits)"
     Pop-Location
     $hasOldCommits = $true
-} else {
+}
+else {
     Write-Host "`n[1/5] Old MCP root not found or not a repo -- skipping merge." -ForegroundColor Yellow
 }
 
@@ -92,6 +93,15 @@ if (Test-Path (Join-Path $OldMcpRoot ".git")) {
 if ($hasOldCommits) {
     Write-Host "`n[2/5] Merging old MCP history into $TargetBranch..." -ForegroundColor Green
     Push-Location $EngramRoot
+
+    # Ensure we are on the target branch before merging
+    Write-Host "  Checking out $TargetBranch..."
+    git checkout $TargetBranch
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "`n  Failed to checkout '$TargetBranch'. Ensure it exists and the working tree is clean." -ForegroundColor Red
+        Pop-Location
+        exit 1
+    }
 
     # Add old repo as a temporary remote
     git remote add old-mcp $OldMcpRoot 2>$null
@@ -112,7 +122,8 @@ if ($hasOldCommits) {
     git remote remove old-mcp
     Write-Host "  Merge complete." -ForegroundColor Green
     Pop-Location
-} else {
+}
+else {
     Write-Host "`n[2/5] No merge needed -- skipping." -ForegroundColor Yellow
 }
 
@@ -128,7 +139,8 @@ $isWorktree = $worktrees | Select-String ([regex]::Escape($OldMcpRoot))
 if ($isWorktree) {
     Write-Host "  Removing linked worktree at $OldMcpRoot..."
     git worktree remove $OldMcpRoot --force
-} else {
+}
+else {
     Write-Host "  $OldMcpRoot is a standalone repo (not a worktree of Engram)."
     Write-Host "  You can delete it manually once you've confirmed the merge:"
     Write-Host "    Remove-Item -Recurse -Force '$OldMcpRoot'" -ForegroundColor DarkGray

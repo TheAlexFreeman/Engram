@@ -1195,8 +1195,18 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             tree_content, encoding="utf-8"
         )
 
+        if src == "template":
+            skill_files_staged = [skill_md_rel]
+        else:
+            # shutil.copytree may have brought over multiple files; stage them all
+            # so the commit is complete and the worktree is left clean.
+            skill_files_staged = [
+                str(f.relative_to(repo.root)).replace("\\", "/")
+                for f in sorted(skill_dir.rglob("*"))
+                if f.is_file()
+            ]
         files_changed = [
-            skill_md_rel,
+            *skill_files_staged,
             "core/memory/skills/SKILLS.yaml",
             "core/memory/skills/SKILLS.lock",
             "core/memory/skills/SKILL_TREE.md",
