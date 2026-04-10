@@ -83,6 +83,53 @@ def _build_delete_permission_hook(root: Path) -> DeletePermissionHook | None:
     return _grant
 
 
+def _validate_repo_identity(repo: GitRepo) -> None:
+    """Warn loudly if the resolved repo doesn't look like the expected Engram instance.
+
+    Checks two signals:
+    1. MEMORY_REPO_IDENTITY env var, if set, must match the repo's git remote or root name.
+    2. The repo must contain core/INIT.md (Engram's routing entrypoint) — a lightweight
+       structural fingerprint that catches stale worktrees and wrong-repo misconfigurations.
+    """
+    # Structural check: does this look like an Engram memory repo?
+    init_md = repo.content_root / "INIT.md"
+    if not init_md.is_file():
+        print(
+            f"WARNING: MCP repo at {repo.root} does not contain "
+            f"{repo.content_prefix + '/' if repo.content_prefix else ''}INIT.md. "
+            "This may not be a valid Engram memory repository.",
+            file=sys.stderr,
+        )
+
+    # Identity check: does the repo origin match what's expected?
+    expected_identity = os.environ.get("MEMORY_REPO_IDENTITY", "").strip()
+    if not expected_identity:
+        return
+
+    # Check remote URL
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=str(repo.root),
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+        )
+        origin_url = result.stdout.strip() if result.returncode == 0 else ""
+    except Exception:
+        origin_url = ""
+
+    repo_name = repo.root.name
+    if expected_identity not in origin_url and expected_identity != repo_name:
+        print(
+            f"WARNING: MEMORY_REPO_IDENTITY='{expected_identity}' does not match "
+            f"repo at {repo.root} (origin: {origin_url or '(none)'}, "
+            f"dir: {repo_name}). The MCP server may be pointed at a stale or "
+            f"wrong repository. Check MEMORY_REPO_ROOT in your MCP config.",
+            file=sys.stderr,
+        )
+
+
 def create_mcp(
     repo_root: str | Path | None = None,
     delete_permission_hook: DeletePermissionHook | None = None,
@@ -92,6 +139,7 @@ def create_mcp(
     root = resolve_repo_root(repo_root)
     content_prefix = os.environ.get("MEMORY_CORE_PREFIX", "core")
     repo = GitRepo(root, content_prefix=content_prefix)
+    _validate_repo_identity(repo)
     root = repo.root
     mcp = FastMCP("agent_memory_mcp")
     delete_permission_hook = (

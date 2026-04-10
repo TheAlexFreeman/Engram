@@ -2414,6 +2414,357 @@ def semantic_search_input_schema() -> dict[str, Any]:
     )
 
 
+def skill_manifest_read_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_manifest_read",
+        title="memory_skill_manifest_read input schema",
+        notes=[
+            "Reads and parses SKILLS.yaml, checking lock status for each skill.",
+            "For each skill, lock_status is: 'locked' (hash matches), 'stale' (hash mismatch), or 'unlocked' (no lock entry).",
+            "Returns schema_version, defaults, and enriched skills dict with lock_status added to each entry.",
+        ],
+        properties={
+            "skill": {
+                "oneOf": [
+                    {"type": "string", "pattern": _PLAN_SLUG_PATTERN},
+                    {"type": "null"},
+                ],
+                "description": "Optional skill slug to filter to a single entry. If omitted, returns all skills.",
+            },
+        },
+    )
+
+
+def skill_manifest_write_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_manifest_write",
+        title="memory_skill_manifest_write input schema",
+        required=["slug", "source", "trust", "description"],
+        all_of=[
+            {
+                "if": {
+                    "anyOf": [
+                        {
+                            "required": ["preview"],
+                            "properties": {"preview": {"const": False}},
+                        },
+                        {"not": {"required": ["preview"]}},
+                    ]
+                },
+                "then": {"required": ["approval_token"]},
+            },
+        ],
+        notes=[
+            "Protected apply mode requires the opaque approval_token returned by preview mode.",
+            "slug must be kebab-case: /^[a-z0-9]+(?:-[a-z0-9]+)*$/",
+            "source must match one of: 'local', 'github:owner/repo', 'git:url', or 'path:./relative'",
+            "trust must be one of: high, medium, low",
+            "ref is only valid with github: or git: sources and is ignored for source: local",
+        ],
+        properties={
+            "slug": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Skill identifier in kebab-case. Must match skill directory name.",
+            },
+            "source": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Source location: 'local', 'github:owner/repo', 'git:url', or 'path:./relative'.",
+            },
+            "trust": {
+                "type": "string",
+                "enum": sorted(SKILL_CREATE_TRUST_LEVELS),
+                "description": "Trust level: must match SKILL.md frontmatter trust field.",
+            },
+            "description": {
+                "type": "string",
+                "minLength": 1,
+                "description": "One-line description for catalog display. Should match SKILL.md frontmatter.",
+            },
+            "ref": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional version pin (git tag, branch, or commit SHA) for remote sources only.",
+            },
+            "deployment_mode": {
+                "oneOf": [
+                    {"type": "string", "enum": ["checked", "gitignored"]},
+                    {"type": "null"},
+                ],
+                "description": "Optional override for deployment mode. Inherits from defaults if omitted.",
+            },
+            "enabled": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    {"type": "null"},
+                ],
+                "description": "Optional enabled flag. Default: true. When false, skill is excluded from catalog.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope instead of writing.",
+            },
+            "approval_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Fresh preview-issued approval receipt required for protected apply mode.",
+            },
+        },
+    )
+
+
+def skill_list_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_list",
+        title="memory_skill_list input schema",
+        notes=[
+            "Read-only discovery interface per skill-lifecycle-spec.md.",
+            "Reads SKILLS.yaml manifest and SKILLS.lock to enrich results.",
+            "Falls back to SKILL.md frontmatter for orphan skills (on disk but not in manifest).",
+            "Returns structured JSON with skill metadata, trust, lock status, and file stats.",
+            "All parameters are optional and can be combined to filter results.",
+        ],
+        properties={
+            "trust_level": {
+                "oneOf": [
+                    {"type": "string", "enum": sorted(SKILL_CREATE_TRUST_LEVELS)},
+                    {"type": "null"},
+                ],
+                "description": "Filter by trust level: high, medium, or low. Omit for all.",
+            },
+            "source_type": {
+                "oneOf": [
+                    {"type": "string", "enum": ["local", "github", "git", "path", "remote"]},
+                    {"type": "null"},
+                ],
+                "description": "Filter by source type. 'local' for local skills, 'remote' for any non-local, or specific types: github, git, path.",
+            },
+            "enabled": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    {"type": "null"},
+                ],
+                "description": "Filter by enabled state (true/false). Omit to include all.",
+            },
+            "archived": {
+                "type": "boolean",
+                "default": False,
+                "description": "Include archived skills from _archive/ directory.",
+            },
+            "include_lock_info": {
+                "type": "boolean",
+                "default": True,
+                "description": "Include content hash, lock date, and freshness for each skill. Set false to skip hash computation.",
+            },
+            "max_results": {
+                "type": "integer",
+                "default": 100,
+                "description": "Maximum results to return. 0 for unlimited.",
+            },
+        },
+    )
+
+
+def skill_add_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_add",
+        title="memory_skill_add input schema",
+        required=["slug", "title", "description", "source", "trust", "origin_session"],
+        all_of=[
+            {
+                "if": {
+                    "anyOf": [
+                        {
+                            "required": ["preview"],
+                            "properties": {"preview": {"const": False}},
+                        },
+                        {"not": {"required": ["preview"]}},
+                    ]
+                },
+                "then": {"required": ["approval_token"]},
+            },
+        ],
+        notes=[
+            "Protected apply mode requires the opaque approval_token returned by preview mode.",
+            "source must be 'template' or path:./relative/path within the repository.",
+            "Remote sources (github:, git:) are not supported yet.",
+        ],
+        properties={
+            "slug": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Skill directory slug (kebab-case).",
+            },
+            "title": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Human-readable title for the SKILL.md heading.",
+            },
+            "description": {
+                "type": "string",
+                "minLength": 1,
+                "description": "One-line description for manifest and SUMMARY.md.",
+            },
+            "source": {
+                "type": "string",
+                "minLength": 1,
+                "description": "template, or path:./relative/path to copy an existing skill directory.",
+            },
+            "trust": {
+                "type": "string",
+                "enum": sorted(SKILL_CREATE_TRUST_LEVELS),
+                "description": "Trust level; for path: sources must match SKILL.md frontmatter.",
+            },
+            "origin_session": _session_id_string_schema(
+                description="Session id recorded in new skill frontmatter (template source).",
+                nullable=False,
+            ),
+            "ref": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Reserved for future remote pins; must be omitted for now.",
+            },
+            "enabled": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    {"type": "null"},
+                ],
+                "description": "Manifest enabled flag; default true.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope instead of writing.",
+            },
+            "approval_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Fresh preview-issued approval receipt required for protected apply mode.",
+            },
+        },
+    )
+
+
+def skill_remove_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_remove",
+        title="memory_skill_remove input schema",
+        required=["slug"],
+        all_of=[
+            {
+                "if": {
+                    "anyOf": [
+                        {
+                            "required": ["preview"],
+                            "properties": {"preview": {"const": False}},
+                        },
+                        {"not": {"required": ["preview"]}},
+                    ]
+                },
+                "then": {"required": ["approval_token"]},
+            },
+        ],
+        notes=[
+            "Protected apply mode requires the opaque approval_token returned by preview mode.",
+            "Moves the skill directory to _archive/{slug}/ when present; always refreshes indexes.",
+        ],
+        properties={
+            "slug": {
+                "type": "string",
+                "pattern": _PLAN_SLUG_PATTERN,
+                "description": "Skill slug to archive and unregister.",
+            },
+            "archive_reason": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional reason recorded in _archive/ARCHIVE_INDEX.md when a directory is moved.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return the governed preview envelope instead of writing.",
+            },
+            "approval_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Fresh preview-issued approval receipt required for protected apply mode.",
+            },
+        },
+    )
+
+
+def skill_sync_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_skill_sync",
+        title="memory_skill_sync input schema",
+        notes=[
+            "check_only=true returns a JSON report only (no writes).",
+            "approval_token is required for apply when archive_orphans or remove_missing_entries "
+            "will perform work (orphans on disk or manifest rows with missing directories).",
+            "Non-destructive refresh (lock + indexes) does not use approval_token.",
+            "verify_symlinks is reserved; symlink_errors in the report stays 0 for now.",
+        ],
+        properties={
+            "check_only": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, report inconsistencies without modifying files.",
+            },
+            "fix_stale_locks": {
+                "type": "boolean",
+                "default": True,
+                "description": "Rebuild SKILLS.lock entries from manifest + on-disk skills.",
+            },
+            "archive_orphans": {
+                "type": "boolean",
+                "default": False,
+                "description": "Move skill directories not listed in the manifest into _archive/.",
+            },
+            "remove_missing_entries": {
+                "type": "boolean",
+                "default": False,
+                "description": "Remove manifest entries whose SKILL.md directory is missing.",
+            },
+            "verify_symlinks": {
+                "type": "boolean",
+                "default": True,
+                "description": "Reserved for future symlink verification (currently no-op).",
+            },
+            "regenerate_indexes": {
+                "type": "boolean",
+                "default": True,
+                "description": "Regenerate SKILL_TREE.md and SUMMARY.md current-skills section.",
+            },
+            "preview": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true, return a governed preview envelope instead of applying writes.",
+            },
+            "approval_token": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Required for destructive apply (orphan archive or missing-entry removal) after preview.",
+            },
+        },
+    )
+
+
 def reindex_input_schema() -> dict[str, Any]:
     return _base_schema(
         tool_name="memory_reindex",
@@ -2825,6 +3176,12 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_search": grep_search_input_schema,
     "memory_semantic_search": semantic_search_input_schema,
     "memory_session_flush": session_flush_input_schema,
+    "memory_skill_add": skill_add_input_schema,
+    "memory_skill_list": skill_list_input_schema,
+    "memory_skill_manifest_read": skill_manifest_read_input_schema,
+    "memory_skill_manifest_write": skill_manifest_write_input_schema,
+    "memory_skill_remove": skill_remove_input_schema,
+    "memory_skill_sync": skill_sync_input_schema,
     "memory_stage_external": stage_external_input_schema,
     "memory_update_frontmatter": update_frontmatter_input_schema,
     "memory_update_frontmatter_bulk": update_frontmatter_bulk_input_schema,
@@ -2918,6 +3275,9 @@ __all__ = [
     "scan_drop_zone_input_schema",
     "semantic_search_input_schema",
     "session_flush_input_schema",
+    "skill_list_input_schema",
+    "skill_manifest_read_input_schema",
+    "skill_manifest_write_input_schema",
     "stage_external_input_schema",
     "update_frontmatter_input_schema",
     "update_frontmatter_bulk_input_schema",

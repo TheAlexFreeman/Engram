@@ -1,0 +1,1 @@
+{"span_id": "e33b26de3656", "session_id": "memory/activity/2026/04/08/chat-002", "timestamp": "2026-04-09T01:09:22.724Z", "span_type": "plan_action", "name": "complete", "status": "ok", "metadata": {"plan_id": "skill-manifest-and-versioning", "phase_id": "migrate-existing", "action": "complete", "commit": "453e1d8", "plan_done": true}, "cost": {"tokens_in": 90, "tokens_out": 90}}

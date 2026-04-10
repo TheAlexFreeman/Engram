@@ -1,0 +1,111 @@
+id: skill-manifest-and-versioning
+project: skills-expansion
+created: '2026-04-08'
+origin_session: memory/activity/2026/04/08/chat-001
+status: completed
+budget:
+  max_sessions: 3
+sessions_used: 4
+purpose:
+  summary: Introduce a declarative skill manifest with version pinning and integrity lockfile
+  context: Engram skills today are directories discovered by convention with no dependency
+    declaration, versioning, or reproducibility guarantees. Inspired by dotagents' agents.toml/agents.lock
+    pattern, this plan adds a SKILLS.yaml manifest declaring active skills with sources and
+    version refs, plus a SKILLS.lock file recording resolved commits and integrity hashes.
+    This is the foundation that all other skills-expansion plans build on.
+  questions:
+  - Should SKILLS.yaml live at core/memory/skills/ or at the vault root?
+  - Should the lockfile be human-readable YAML or a more compact format?
+work:
+  phases:
+  - id: manifest-schema
+    title: Design and document the SKILLS.yaml manifest schema
+    status: completed
+    commit: aa26d8f
+    blockers: []
+    postconditions:
+    - description: 'SKILLS.yaml schema supports source types: github shorthand, pinned git
+        ref, local path'
+    - description: Schema documents required vs optional fields with validation rules
+    - description: SKILLS.yaml parses as valid YAML
+      type: check
+      target: core/memory/skills/SKILLS.yaml
+    changes:
+    - path: core/memory/skills/SKILLS.yaml
+      action: create
+      description: The manifest file itself with schema documentation in comments
+    - path: core/governance/skill-manifest-spec.md
+      action: create
+      description: 'Formal specification for manifest schema: fields, source formats, version
+        constraints'
+  - id: lockfile-design
+    title: Design the SKILLS.lock integrity lockfile
+    status: completed
+    commit: aa26d8f
+    blockers:
+    - manifest-schema
+    postconditions:
+    - description: 'Lock entries include: skill slug, resolved source, commit SHA, content
+        hash (SHA-256), locked timestamp'
+    - description: Spec defines when lock refresh is required vs optional
+    changes:
+    - path: core/memory/skills/SKILLS.lock
+      action: create
+      description: Lock file recording resolved commit SHAs and content hashes for each declared
+        skill
+    - path: core/governance/skill-manifest-spec.md
+      action: update
+      description: Add lockfile format specification to the manifest spec
+  - id: manifest-tooling
+    title: Build MCP tools for manifest read/write operations
+    status: completed
+    commit: 13271b9
+    blockers:
+    - lockfile-design
+    postconditions:
+    - description: memory_skill_manifest_read returns parsed manifest with lock status per
+        entry
+    - description: memory_skill_manifest_write validates against schema before writing
+    - description: New tools registered in MCP server
+      type: grep
+      target: memory_skill_manifest::core/tools/agent_memory_mcp/tools/semantic/__init__.py
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/semantic/skill_tools.py
+      action: update
+      description: Add memory_skill_manifest_read and memory_skill_manifest_write tools
+    - path: core/tools/agent_memory_mcp/tool_schemas.py
+      action: update
+      description: Add input schemas for new manifest tools
+  - id: migrate-existing
+    title: Generate initial manifest from existing installed skills
+    status: completed
+    commit: 453e1d8
+    blockers:
+    - manifest-tooling
+    postconditions:
+    - description: All 6 active skills appear in generated manifest
+    - description: Lock file has valid hashes for each skill directory
+    - description: generate_skill_catalog.py still works alongside new manifest
+    requires_approval: true
+    changes:
+    - path: HUMANS/tooling/scripts/generate_skill_manifest.py
+      action: create
+      description: Script to scan existing skills and produce initial SKILLS.yaml + SKILLS.lock
+    - path: core/memory/skills/SKILLS.yaml
+      action: update
+      description: Populated with entries for all current skills
+review:
+  completed: '2026-04-08'
+  completed_session: memory/activity/2026/04/08/chat-002
+  outcome: completed
+  purpose_assessment: 'Skill manifest system is now fully operational: SKILLS.yaml declares
+    all 6 active skills, SKILLS.lock provides verified integrity hashes, and generate_skill_manifest.py
+    supports generation, verification, and frozen CI mode. The existing generate_skill_catalog.py
+    continues to work alongside the manifest without conflicts.'
+  unresolved:
+  - question: Should SKILLS.yaml live at core/memory/skills/ or at the vault root?
+    note: "Kept at core/memory/skills/ \u2014 consistent with existing convention and SKILL_TREE.md\
+      \ location"
+  - question: Should the lockfile be human-readable YAML or a more compact format?
+    note: Chose YAML for consistency with the rest of the Engram ecosystem
+  follow_up: null

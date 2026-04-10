@@ -6279,7 +6279,9 @@ Load compact context.
             )
         )
         payload = json.loads(raw)
-        skill = (repo_root / "memory" / "skills" / "session-start" / "SKILL.md").read_text(encoding="utf-8")
+        skill = (repo_root / "memory" / "skills" / "session-start" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
 
         self.assertEqual(payload["new_state"]["section"], "Steps")
         self.assertIn("## Steps\n\nLoad compact context and active plans.", skill)
@@ -6323,7 +6325,9 @@ Capture a short checkpoint.
                 approval_token=approval_token,
             )
         )
-        skill = (repo_root / "memory" / "skills" / "session-sync" / "SKILL.md").read_text(encoding="utf-8")
+        skill = (repo_root / "memory" / "skills" / "session-sync" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("Capture a short checkpoint.\nRecord any open questions.", skill)
 
@@ -6365,7 +6369,9 @@ Old guidance.
                 approval_token=approval_token,
             )
         )
-        skill = (repo_root / "memory" / "skills" / "session-wrapup" / "SKILL.md").read_text(encoding="utf-8")
+        skill = (repo_root / "memory" / "skills" / "session-wrapup" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("Use the governed session recorder when available.", skill)
         self.assertNotIn("Old guidance.", skill)
@@ -6411,7 +6417,7 @@ Old guidance.
             )
         )
         payload = json.loads(raw)
-        skill_path = repo_root / "memory" / "skills" / "new-skill.md"
+        skill_path = repo_root / "memory" / "skills" / "new-skill" / "SKILL.md"
         skill = skill_path.read_text(encoding="utf-8")
 
         self.assertEqual(payload["new_state"]["section"], "Steps")
@@ -6471,7 +6477,9 @@ Load compact context.
             )
         )
 
-        updated = (repo_root / "memory" / "skills" / "session-start" / "SKILL.md").read_text(encoding="utf-8")
+        updated = (repo_root / "memory" / "skills" / "session-start" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("Load compact context and active plans.", updated)
         self.assertEqual(preview["preview"]["target_files"], applied["preview"]["target_files"])
         self.assertEqual(
@@ -6997,7 +7005,9 @@ Load compact context.
 
         with self.assertRaises(self.errors.MemoryPermissionError):
             asyncio.run(
-                tools["memory_write"](path="memory/skills/session-start/SKILL.md", content="injected\n")
+                tools["memory_write"](
+                    path="memory/skills/session-start/SKILL.md", content="injected\n"
+                )
             )
 
     def test_memory_write_blocks_protected_meta_path(self) -> None:
@@ -7240,8 +7250,8 @@ Load compact context.
                 update_ref_attempts["count"] += 1
                 if head_lock_path.exists():
                     raise self.errors.StagingError(
-                        "`git update-ref` failed (exit 128): fatal: Unable to create '.git/HEAD.lock': File exists.",
-                        stderr="fatal: Unable to create '.git/HEAD.lock': File exists.",
+                        "`git update-ref` failed (exit 128): fatal: could not lock ref head: busy (test simulated).",
+                        stderr="fatal: could not lock ref head: busy (test simulated).",
                     )
             return original_run(args, check=check, capture=capture, cwd=cwd, env=env)
 
@@ -7259,6 +7269,7 @@ Load compact context.
         self.assertTrue(payload["publication"]["degraded"])
 
     def test_memory_commit_does_not_remove_stale_head_lock_without_pid(self) -> None:
+        """HEAD.lock without pid is only left in place when it is not stale (<30s old)."""
         repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
         _, tools, _, repo = self.server.create_mcp(
             repo_root=repo_root,
@@ -7274,8 +7285,8 @@ Load compact context.
 
         head_lock_path = repo.git_dir / getattr(self.git_repo_module, "_HEAD_LOCK_NAME")
         head_lock_path.write_text("owner=unknown\n", encoding="utf-8")
-        stale_timestamp = time.time() - 120.0
-        os.utime(head_lock_path, (stale_timestamp, stale_timestamp))
+        fresh_timestamp = time.time() - 5.0
+        os.utime(head_lock_path, (fresh_timestamp, fresh_timestamp))
 
         def cleanup_head_lock() -> None:
             if head_lock_path.exists():
@@ -7303,8 +7314,8 @@ Load compact context.
                 update_ref_attempts["count"] += 1
                 if head_lock_path.exists():
                     raise self.errors.StagingError(
-                        "`git update-ref` failed (exit 128): fatal: Unable to create '.git/HEAD.lock': File exists.",
-                        stderr="fatal: Unable to create '.git/HEAD.lock': File exists.",
+                        "`git update-ref` failed (exit 128): fatal: could not lock ref head: busy (test simulated).",
+                        stderr="fatal: could not lock ref head: busy (test simulated).",
                     )
             return original_run(args, check=check, capture=capture, cwd=cwd, env=env)
 
@@ -7366,8 +7377,8 @@ Load compact context.
                 update_ref_attempts["count"] += 1
                 if head_lock_path.exists():
                     raise self.errors.StagingError(
-                        "`git update-ref` failed (exit 128): fatal: Unable to create '.git/HEAD.lock': File exists.",
-                        stderr="fatal: Unable to create '.git/HEAD.lock': File exists.",
+                        "`git update-ref` failed (exit 128): fatal: could not lock ref head: busy (test simulated).",
+                        stderr="fatal: could not lock ref head: busy (test simulated).",
                     )
             return original_run(args, check=check, capture=capture, cwd=cwd, env=env)
 
@@ -7427,8 +7438,8 @@ Load compact context.
             if args[:2] == ["git", "update-ref"]:
                 update_ref_attempts["count"] += 1
                 raise self.errors.StagingError(
-                    "`git update-ref` failed (exit 128): fatal: Unable to create '.git/HEAD.lock': File exists.",
-                    stderr="fatal: Unable to create '.git/HEAD.lock': File exists.",
+                    "`git update-ref` failed (exit 128): fatal: could not lock ref head: busy (test simulated).",
+                    stderr="fatal: could not lock ref head: busy (test simulated).",
                 )
             return original_run(args, check=check, capture=capture, cwd=cwd, env=env)
 
