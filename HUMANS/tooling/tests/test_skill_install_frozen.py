@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from core.tools.agent_memory_mcp.skill_hash import compute_content_hash
+from core.tools.agent_memory_mcp.skill_hash import compute_content_hash  # noqa: E402, I001
 
 
 SCRIPT_PATH = REPO_ROOT / "HUMANS" / "tooling" / "scripts" / "skill_install_frozen.py"

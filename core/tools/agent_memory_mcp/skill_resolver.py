@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .errors import NotFoundError, ValidationError
+from .errors import ValidationError
 from .path_policy import validate_slug
 from .skill_hash import compute_content_hash, get_dir_stats
 
