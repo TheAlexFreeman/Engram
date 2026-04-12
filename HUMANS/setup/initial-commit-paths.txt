@@ -67,6 +67,7 @@ HUMANS/tooling/scripts/prune_links.py
 HUMANS/tooling/scripts/resolve_bootstrap_manifest.py
 HUMANS/tooling/scripts/resolve_memory_capabilities.py
 HUMANS/tooling/scripts/resolve_task_readiness.py
+HUMANS/tooling/scripts/skill_install_frozen.py
 HUMANS/tooling/scripts/validate_memory_repo.py
 HUMANS/tooling/tests-js/dashboard-utils.test.js
 HUMANS/tooling/tests-js/engram-utils.test.js
@@ -76,9 +77,11 @@ HUMANS/tooling/tests-js/view-smoke.test.js
 HUMANS/tooling/tests/__init__.py
 HUMANS/tooling/tests/test_access_logging_batch.py
 HUMANS/tooling/tests/test_bootstrap_resolver.py
+HUMANS/tooling/tests/test_generate_skill_catalog.py
 HUMANS/tooling/tests/test_memory_capabilities.py
 HUMANS/tooling/tests/test_onboard_export.py
 HUMANS/tooling/tests/test_setup_flows.py
+HUMANS/tooling/tests/test_skill_install_frozen.py
 HUMANS/tooling/tests/test_task_readiness.py
 HUMANS/tooling/tests/test_validate_memory_repo.py
 HUMANS/tooling/tests/test_validate_memory_repo_project_plans.py
@@ -694,6 +697,7 @@ core/memory/skills/SKILL_TREE.md
 core/memory/skills/SUMMARY.md
 core/memory/skills/_archive/onboarding-v1/SKILL.md
 core/memory/skills/_external/.gitkeep
+core/memory/skills/_external/README.md
 core/memory/skills/codebase-survey/SKILL.md
 core/memory/skills/eval-scenarios/SUMMARY.md
 core/memory/skills/eval-scenarios/approval-pause-resume.yaml
@@ -868,6 +872,9 @@ core/tools/agent_memory_mcp/sidecar/parser.py
 core/tools/agent_memory_mcp/sidecar/parsers/__init__.py
 core/tools/agent_memory_mcp/sidecar/parsers/claude_code.py
 core/tools/agent_memory_mcp/skill_hash.py
+core/tools/agent_memory_mcp/skill_resolver.py
+core/tools/agent_memory_mcp/skill_trigger.py
+core/tools/agent_memory_mcp/skill_trigger_router.py
 core/tools/agent_memory_mcp/tool_schemas.py
 core/tools/agent_memory_mcp/tools/__init__.py
 core/tools/agent_memory_mcp/tools/graph_analysis.py
@@ -945,6 +952,9 @@ core/tools/tests/test_server_main.py
 core/tools/tests/test_session_lifecycle.py
 core/tools/tests/test_session_state.py
 core/tools/tests/test_sidecar_cli.py
+core/tools/tests/test_skill_install_tool.py
+core/tools/tests/test_skill_resolver.py
+core/tools/tests/test_skill_trigger_router.py
 core/tools/tests/test_surface_unlinked.py
 core/tools/tests/test_transcript_parser.py
 index.html
