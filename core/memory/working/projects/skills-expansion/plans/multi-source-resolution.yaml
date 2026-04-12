@@ -2,9 +2,10 @@ id: multi-source-resolution
 project: skills-expansion
 created: '2026-04-08'
 origin_session: memory/activity/2026/04/08/chat-001
-status: active
+status: completed
 budget:
   max_sessions: 3
+sessions_used: 1
 purpose:
   summary: 'Enable skills to be resolved from multiple source types: git repos, registries,
     and local paths'
@@ -22,7 +23,7 @@ work:
   phases:
   - id: source-format-spec
     title: Define canonical source format strings and resolution rules
-    status: pending
+    status: completed
     commit: null
     blockers: []
     postconditions:
@@ -40,7 +41,7 @@ work:
       description: Document how _external/ integrates with the new source resolution system
   - id: resolver-engine
     title: Implement the source resolver module
-    status: pending
+    status: completed
     commit: null
     blockers:
     - source-format-spec
@@ -59,7 +60,7 @@ work:
         entry'
   - id: install-tool
     title: Build memory_skill_install MCP tool using the resolver
-    status: pending
+    status: completed
     commit: null
     blockers:
     - resolver-engine
@@ -79,7 +80,7 @@ work:
       description: Add input schema for memory_skill_install
   - id: frozen-install
     title: Add frozen install mode for CI/CD reproducibility
-    status: pending
+    status: completed
     commit: null
     blockers:
     - install-tool

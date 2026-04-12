@@ -133,6 +133,8 @@ class MemoryMCPTests(unittest.TestCase):
         self.assertIn("memory_suggest_structure", payload["tool_sets"]["read_support"])
         self.assertIn("memory_reorganize_path", payload["tool_sets"]["semantic_extensions"])
         self.assertIn("memory_update_names_index", payload["tool_sets"]["semantic_extensions"])
+        self.assertIn("memory_skill_install", payload["tool_sets"]["semantic_extensions"])
+        self.assertIn("memory_skill_route", payload["tool_sets"]["semantic_extensions"])
         self.assertIn("memory_extract_file", payload["tool_sets"]["read_support"])
         self.assertIn("memory_generate_names_index", payload["tool_sets"]["read_support"])
         self.assertEqual(payload["summary"]["contract_versions"]["mcp"], 1)

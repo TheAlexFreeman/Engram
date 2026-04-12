@@ -5,6 +5,11 @@ description: >-
   surfaces the user's role, preferences, and working style while demonstrating
   memory and trust behavior in context.
 compatibility: Requires write access for profile persistence; produces export on read-only platforms
+trigger:
+  event: session-start
+  matcher:
+    condition: first_session
+  priority: 100
 
 source: user-stated
 origin_session: manual

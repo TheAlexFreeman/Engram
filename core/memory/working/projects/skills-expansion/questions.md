@@ -4,10 +4,22 @@ origin_session: memory/activity/2026/04/08/chat-001
 created: 2026-04-08
 trust: medium
 type: questions
-next_question_id: 6
+next_question_id: 9
 ---
 
 # Open Questions
+
+## q-006: Where should the narrative/formal boundary be drawn for each skill?
+**Asked:** 2026-04-09 | **Last touched:** 2026-04-09
+Skills steer agents via narrative (prose guidance) and formal mechanisms (deterministic triggers, validators, state machines). The transcript analysis on narrative-vs-formal specification suggests skills should stay narrative for judgment and priorities, and formalize only where determinism is load-bearing (checkpoints, retries, audit). What conventions should Engram develop for when skill content should delegate to deterministic tooling vs. staying in prose? The trigger system is a good first formal layer — what comes next, and what should explicitly *not* be formalized?
+
+## q-007: Should the graduation pipeline be bidirectional?
+**Asked:** 2026-04-09 | **Last touched:** 2026-04-09
+The existing design thesis is knowledge → skills → MCP tools (narrative → formal). But if formal control creates brittleness (agents failing on unanticipated inputs), that's a signal to relax back to narrative. Should the system support demotion as well as promotion, and what signals would trigger it?
+
+## q-008: How should skill quality be evaluated ethnographically rather than as unit tests?
+**Asked:** 2026-04-09 | **Last touched:** 2026-04-09
+Narrative-specified behavior can't be validated with `assert output == expected`. The sidecar transcript system already captures raw session data. What would an eval harness look like that assesses whether a skill's narrative guidance produces good agent behavior *across sessions*, not just within one?
 
 ## q-001: Should the manifest format be TOML (like dotagents) or YAML (consistent with existing Engram conventions)?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-08

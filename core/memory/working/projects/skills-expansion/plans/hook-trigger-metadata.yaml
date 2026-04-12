@@ -2,10 +2,10 @@ id: hook-trigger-metadata
 project: skills-expansion
 created: '2026-04-08'
 origin_session: memory/activity/2026/04/08/chat-001
-status: active
+status: completed
 budget:
-  max_sessions: 2
-sessions_used: 1
+  max_sessions: 3
+sessions_used: 3
 purpose:
   summary: Add explicit lifecycle hook triggers to skill frontmatter for deterministic activation
   context: "Engram skills like session-start and session-wrapup are implicitly lifecycle hooks\
@@ -46,7 +46,7 @@ work:
       description: Document the new trigger field in the skill format reference
   - id: frontmatter-extension
     title: Extend skill frontmatter parser to support trigger field
-    status: pending
+    status: completed
     commit: null
     blockers:
     - trigger-taxonomy
@@ -68,7 +68,7 @@ work:
         event types
   - id: annotate-existing-skills
     title: Add trigger metadata to existing lifecycle skills
-    status: pending
+    status: completed
     commit: null
     blockers:
     - frontmatter-extension
@@ -92,7 +92,7 @@ work:
       description: 'Add trigger: session-start with matcher: first_session=true'
   - id: trigger-router
     title: Build a trigger evaluation engine that routes events to matching skills
-    status: pending
+    status: completed
     commit: null
     blockers:
     - annotate-existing-skills

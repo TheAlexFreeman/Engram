@@ -122,7 +122,9 @@ semantic_extensions = [
   "memory_update_skill",
   "memory_skill_manifest_read",
   "memory_skill_manifest_write",
+  "memory_skill_route",
   "memory_skill_list",
+  "memory_skill_install",
   "memory_skill_add",
   "memory_skill_remove",
   "memory_skill_sync",
@@ -1035,7 +1037,12 @@ owns_frontmatter = [
 owns_summaries = []
 owns_access_logs = []
 owns_review_queue = []
-result_fields = ["project_id", "resolved_question", "open_questions", "resolved_questions"]
+result_fields = [
+  "project_id",
+  "resolved_question",
+  "open_questions",
+  "resolved_questions",
+]
 fallback_tools = ["memory_write", "memory_update_frontmatter", "memory_commit"]
 error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
 
@@ -1605,6 +1612,22 @@ fallback_tools = []
 error_kinds = ["ValidationError", "StagingError"]
 notes = "Protected apply mode requires the opaque approval_token receipt returned by preview mode."
 
+[operations.memory_skill_route]
+group = "skill"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "skill"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["result"]
+fallback_tools = []
+error_kinds = ["ValidationError"]
+notes = "Read-only trigger router. Frontmatter trigger metadata takes precedence over manifest trigger fallback; catalog fallback only contributes triggerless skills when query or skill_slug is supplied."
+
 [operations.memory_skill_list]
 group = "skill"
 tier = "semantic"
@@ -1619,6 +1642,40 @@ owns_review_queue = []
 result_fields = ["result"]
 fallback_tools = []
 error_kinds = ["ValidationError"]
+
+[operations.memory_skill_install]
+group = "skill"
+tier = "semantic"
+change_class = "protected"
+preview_support = true
+preview_mode = "preview"
+preview_argument = "preview"
+commit_model = "auto_commit"
+commit_category_hint = "skill"
+writes = [
+  "memory/skills/{slug}/**/*",
+  "memory/skills/SKILLS.yaml",
+  "memory/skills/SKILLS.lock",
+  "memory/skills/SKILL_TREE.md",
+  "memory/skills/SUMMARY.md",
+]
+owns_frontmatter = ["memory/skills/{slug}/SKILL.md"]
+owns_summaries = ["memory/skills/SUMMARY.md"]
+owns_access_logs = []
+owns_review_queue = []
+result_fields = [
+  "result",
+  "files_changed",
+  "commit_sha",
+  "commit_message",
+  "new_state",
+  "warnings",
+  "publication",
+  "preview",
+]
+fallback_tools = []
+error_kinds = ["NotFoundError", "ValidationError", "StagingError"]
+notes = "Installs a skill from local, path, github, or git sources via SkillResolver; protected apply requires approval_token. Writes the installed SKILL.md when slug or trust normalization is needed and always refreshes lock/index artifacts."
 
 [operations.memory_skill_add]
 group = "skill"
@@ -1784,7 +1841,12 @@ owns_frontmatter = ["memory/users/{file}.md"]
 owns_summaries = []
 owns_access_logs = []
 owns_review_queue = []
-result_fields = ["key", "mode", "identity_updates_this_session", "preview_token"]
+result_fields = [
+  "key",
+  "mode",
+  "identity_updates_this_session",
+  "preview_token",
+]
 fallback_tools = ["memory_edit", "memory_update_frontmatter", "memory_commit"]
 error_kinds = ["ConflictError", "ValidationError", "StagingError"]
 notes = "preview mode issues a preview_token receipt, and apply mode rejects writes until that fresh receipt is supplied."
