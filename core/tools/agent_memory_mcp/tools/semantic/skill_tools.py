@@ -1550,7 +1550,12 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         installed_skill_dir = resolved.skill_dir if resolved.source_type == "local" else skill_dir
         if resolved.source_type != "local":
-            shutil.copytree(resolved.skill_dir, installed_skill_dir, dirs_exist_ok=False)
+            shutil.copytree(
+                resolved.skill_dir,
+                installed_skill_dir,
+                dirs_exist_ok=False,
+                ignore=shutil.ignore_patterns(".git", ".svn", ".hg"),
+            )
 
         installed_skill_md = installed_skill_dir / "SKILL.md"
         if resolved.source_type != "local" or frontmatter_changed:

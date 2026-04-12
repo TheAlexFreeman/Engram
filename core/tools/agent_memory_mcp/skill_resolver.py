@@ -354,6 +354,10 @@ class SkillResolver:
         if not isinstance(resolved_path, str) or not resolved_path.strip():
             return None
         skill_dir = (self.repo_root / resolved_path).resolve()
+        try:
+            skill_dir.relative_to(self.repo_root)
+        except ValueError:
+            return None
         if not skill_dir.is_dir():
             return None
         resolved_slug = slug or skill_dir.name.rstrip("/")
@@ -482,7 +486,10 @@ class SkillResolver:
         if ref:
             self._run_git(["checkout", ref], cwd=checkout_dir)
         else:
-            self._run_git(["checkout", "HEAD"], cwd=checkout_dir)
+            self._run_git(["remote", "set-head", "origin", "--auto"], cwd=checkout_dir)
+            result = self._run_git(["rev-parse", "origin/HEAD"], cwd=checkout_dir)
+            tip = result.stdout.strip()
+            self._run_git(["checkout", "--detach", tip], cwd=checkout_dir)
         result = self._run_git(["rev-parse", "HEAD"], cwd=checkout_dir)
         return result.stdout.strip()
 
