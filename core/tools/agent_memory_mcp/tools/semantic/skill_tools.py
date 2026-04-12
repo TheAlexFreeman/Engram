@@ -18,6 +18,9 @@ from ...preview_contract import (
     require_approval_token,
 )
 from ...skill_hash import compute_content_hash, get_dir_stats
+from ...skill_resolver import SkillResolver, parse_skill_source
+from ...skill_trigger import summarize_skill_trigger, validate_skill_trigger
+from ...skill_trigger_router import TriggerRouter
 from ...tool_schemas import SKILL_CREATE_TRUST_LEVELS, UPDATE_MODES
 
 if TYPE_CHECKING:
@@ -67,59 +70,64 @@ def _resolve_skill_markdown_path(repo: Any, slug: str) -> tuple[str, Path]:
     return nested_rel, nested_abs
 
 
-def _validate_trigger_field(trigger_value: object) -> None:
-    """Validate trigger field in skill frontmatter.
+_KNOWN_SKILL_FRONTMATTER_FIELDS = frozenset(
+    {
+        "name",
+        "description",
+        "compatibility",
+        "source",
+        "origin_session",
+        "created",
+        "last_verified",
+        "trust",
+        "superseded_by",
+        "trigger",
+    }
+)
 
-    Accepts:
-    - A string matching one of: session-start, session-end, session-checkpoint,
-      pre-tool-use, post-tool-use, on-demand, periodic, project-active
-    - A dict with required 'event' key (same enum) and optional 'matcher' (dict)
-      and 'priority' (int)
-    - A list of the above
-    """
+
+def _is_skill_frontmatter_field(section: str, frontmatter: dict[str, Any]) -> bool:
+    return section in frontmatter or section in _KNOWN_SKILL_FRONTMATTER_FIELDS
+
+
+def _require_string_section_content(section: str, content: object) -> str:
     from ...errors import ValidationError
 
-    VALID_EVENTS = {
-        "session-start",
-        "session-end",
-        "session-checkpoint",
-        "pre-tool-use",
-        "post-tool-use",
-        "on-demand",
-        "periodic",
-        "project-active",
-    }
+    if not isinstance(content, str):
+        raise ValidationError(f"Skill section {section!r} requires string content")
+    return content
 
-    def validate_single_trigger(item: object) -> None:
-        if isinstance(item, str):
-            if item not in VALID_EVENTS:
-                raise ValidationError(
-                    f"trigger string must be one of {sorted(VALID_EVENTS)}: {item!r}"
+
+def _update_skill_frontmatter_field(
+    frontmatter: dict[str, Any], section: str, content: object, mode: str
+) -> None:
+    from ...errors import ValidationError
+
+    if section == "trigger":
+        if mode == "append":
+            existing = frontmatter.get(section)
+            if existing is None:
+                frontmatter[section] = list(content) if isinstance(content, list) else [content]
+            elif isinstance(existing, list):
+                frontmatter[section] = (
+                    [*existing, *content] if isinstance(content, list) else [*existing, content]
                 )
-        elif isinstance(item, dict):
-            if "event" not in item:
-                raise ValidationError("trigger dict must have required 'event' key")
-            event = item["event"]
-            if not isinstance(event, str) or event not in VALID_EVENTS:
-                raise ValidationError(
-                    f"trigger event must be one of {sorted(VALID_EVENTS)}: {event!r}"
-                )
-            if "matcher" in item and not isinstance(item["matcher"], dict):
-                raise ValidationError(
-                    f"trigger matcher must be a dict if present: {type(item['matcher']).__name__}"
-                )
-            if "priority" in item and not isinstance(item["priority"], int):
-                raise ValidationError(
-                    f"trigger priority must be an int if present: {type(item['priority']).__name__}"
+            else:
+                frontmatter[section] = (
+                    [existing, *content] if isinstance(content, list) else [existing, content]
                 )
         else:
-            raise ValidationError(f"trigger must be a string, dict, or list: {type(item).__name__}")
+            frontmatter[section] = content
+        validate_skill_trigger(frontmatter[section], context="trigger")
+        return
 
-    if isinstance(trigger_value, list):
-        for item in trigger_value:
-            validate_single_trigger(item)
-    else:
-        validate_single_trigger(trigger_value)
+    if not isinstance(content, str):
+        raise ValidationError(f"Frontmatter field {section!r} requires string content")
+    normalized = content.strip()
+    if mode == "append" and section in frontmatter and frontmatter[section] not in (None, ""):
+        frontmatter[section] = f"{frontmatter[section]}\n{normalized}"
+        return
+    frontmatter[section] = normalized
 
 
 _SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -226,6 +234,18 @@ def _rebuild_skills_lock_data(
             "locked_at": ts,
             "file_count": fc,
             "total_bytes": tb,
+            **(
+                {"requested_ref": prev.get("requested_ref")}
+                if isinstance(prev.get("requested_ref"), str)
+                else {"requested_ref": mentry.get("ref")}
+                if isinstance(mentry.get("ref"), str)
+                else {}
+            ),
+            **(
+                {"resolved_ref": prev.get("resolved_ref")}
+                if isinstance(prev.get("resolved_ref"), str)
+                else {}
+            ),
         }
     lv = (prior_lock or {}).get("lock_version", 1)
     return {
@@ -233,6 +253,49 @@ def _rebuild_skills_lock_data(
         "locked_at": ts,
         "entries": new_entries,
     }
+
+
+def _default_install_trust(frontmatter: dict[str, Any], source_type: str) -> str:
+    source = frontmatter.get("source")
+    if source_type in {"local", "path"} and source == "user-stated":
+        return "high"
+    return "medium"
+
+
+def _prepare_installed_skill_frontmatter(
+    frontmatter: dict[str, Any],
+    *,
+    slug: str,
+    source_type: str,
+    trust_override: str | None,
+) -> tuple[dict[str, Any], str, str, bool]:
+    from ...errors import ValidationError
+
+    normalized = dict(frontmatter)
+    normalized["name"] = slug
+
+    description = normalized.get("description")
+    if not isinstance(description, str) or not description.strip():
+        raise ValidationError(
+            "Installed skill SKILL.md must define a non-empty frontmatter description"
+        )
+
+    effective_trust = trust_override.strip() if isinstance(trust_override, str) else None
+    if effective_trust is not None:
+        if effective_trust not in SKILL_CREATE_TRUST_LEVELS:
+            raise ValidationError(
+                f"trust must be one of {sorted(SKILL_CREATE_TRUST_LEVELS)}: {effective_trust}"
+            )
+        normalized["trust"] = effective_trust
+    else:
+        existing_trust = normalized.get("trust")
+        if isinstance(existing_trust, str) and existing_trust in SKILL_CREATE_TRUST_LEVELS:
+            effective_trust = existing_trust
+        else:
+            effective_trust = _default_install_trust(normalized, source_type)
+            normalized["trust"] = effective_trust
+
+    return normalized, description.strip(), effective_trust, normalized != frontmatter
 
 
 def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
@@ -251,7 +314,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
     async def memory_update_skill(
         file: str,
         section: str,
-        content: str,
+        content: Any,
         mode: str = "upsert",
         version_token: str | None = None,
         create_if_missing: bool = False,
@@ -318,32 +381,26 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             body = f"# {file.replace('-', ' ').title()}\n"
 
         section_heading = f"## {section}"
-        if section in fm_dict:
-            if mode == "append":
-                existing = str(fm_dict[section])
-                fm_dict[section] = existing + "\n" + content.strip()
-            else:
-                fm_dict[section] = content
+        if _is_skill_frontmatter_field(section, fm_dict):
+            _update_skill_frontmatter_field(fm_dict, section, content, mode)
         elif section_heading in body:
+            string_content = _require_string_section_content(section, content)
             updated_body = (
-                _append_markdown_section(body, section, content)
+                _append_markdown_section(body, section, string_content)
                 if mode == "append"
-                else _replace_markdown_section(body, section, content)
+                else _replace_markdown_section(body, section, string_content)
             )
             if updated_body is None:
                 raise ValidationError(f"Skill section not found: {section_heading}")
             body = updated_body
         else:
-            body = body.rstrip() + f"\n\n{section_heading}\n\n{content.strip()}\n"
+            string_content = _require_string_section_content(section, content)
+            body = body.rstrip() + f"\n\n{section_heading}\n\n{string_content.strip()}\n"
 
         fm_dict["last_verified"] = today
 
-        # Validate trigger field if it's a frontmatter key being updated
-        if section in fm_dict and section == "trigger":
-            _validate_trigger_field(fm_dict[section])
-        elif section == "trigger" and section_heading in body:
-            # trigger as markdown section is not typical, skip validation for body sections
-            pass
+        if "trigger" in fm_dict:
+            validate_skill_trigger(fm_dict["trigger"], context=f"skill trigger for {rel_path}")
 
         validate_frontmatter_metadata(fm_dict, context=f"skill frontmatter for {rel_path}")
         commit_msg = f"[skill] Update {section} in {rel_path}"
@@ -535,9 +592,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         - preview (bool): When true, return preview without writing
         - approval_token (string): Required for apply mode (non-preview)
         """
-        import re
-
-        import yaml
+        import yaml  # type: ignore[import-untyped]
 
         from ...errors import ValidationError
         from ...models import MemoryWriteResult
@@ -560,26 +615,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         if trust not in valid_trusts:
             raise ValidationError(f"trust must be one of {sorted(valid_trusts)}: {trust}")
 
-        # Validate source format
-        source_patterns = {
-            "local": r"^local$",
-            "github": r"^github:[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$",
-            "git": r"^git:(https?:\/\/|git@).+$",
-            "path": r"^path:\./.+$",
-        }
-        valid_source = False
-        for pattern in source_patterns.values():
-            if re.match(pattern, source):
-                valid_source = True
-                break
-        if not valid_source:
-            raise ValidationError(
-                f"source format invalid. Must match one of: local, github:owner/repo, git:url, path:./relative: {source}"
-            )
-
-        # Validate ref only used with remote sources
-        if ref and not source.startswith(("github:", "git:")):
-            raise ValidationError("ref is only valid with github: or git: sources")
+        parse_skill_source(source, ref=ref)
 
         # Validate description is non-empty
         if not description or not description.strip():
@@ -695,6 +731,55 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         return result.to_json()
 
     @mcp.tool(
+        name="memory_skill_route",
+        annotations=_tool_annotations(
+            title="Route Skill Triggers",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_skill_route(
+        event: str,
+        context: dict[str, Any] | None = None,
+        include_catalog_fallback: bool = True,
+        include_archived: bool = False,
+        include_disabled: bool = False,
+        max_results: int = 20,
+    ) -> str:
+        """Resolve explicit skill triggers for an event and return ordered matches.
+
+        Read-only trigger router per skill-trigger-spec.md.
+        Frontmatter trigger metadata takes precedence over manifest trigger
+        fallback. Catalog fallback contributes triggerless skills only when the
+        caller supplies a query or skill_slug in context.
+
+        Parameters:
+        - event: Trigger event name (session-start, session-end, etc.)
+        - context: Optional routing context with tool_name, project_id,
+          interval, condition/conditions, query, and skill_slug keys
+        - include_catalog_fallback: Include triggerless catalog matches when
+          query or skill_slug is provided
+        - include_archived: Include archived skills from _archive/
+        - include_disabled: Include skills disabled in SKILLS.yaml
+        - max_results: Maximum matches to return (0 = unlimited)
+        """
+        import json
+
+        repo = get_repo()
+        router = TriggerRouter(repo.root)
+        result = router.route(
+            event,
+            context,
+            include_catalog_fallback=include_catalog_fallback,
+            include_archived=include_archived,
+            include_disabled=include_disabled,
+            max_results=max_results,
+        )
+        return json.dumps({"result": result})
+
+    @mcp.tool(
         name="memory_skill_list",
         annotations=_tool_annotations(
             title="List Skills",
@@ -792,6 +877,12 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "created": fm_dict.get("created"),
                 "last_verified": fm_dict.get("last_verified"),
             }
+            trigger_value = fm_dict.get("trigger")
+            if trigger_value is not None:
+                entry["trigger"] = trigger_value
+                trigger_summary = summarize_skill_trigger(trigger_value)
+                if trigger_summary:
+                    entry["trigger_summary"] = trigger_summary
 
             # File stats
             file_count, total_bytes = get_dir_stats(skill_dir_path)
@@ -1124,6 +1215,10 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         # --- apply ---
         skill_dir.mkdir(parents=True, exist_ok=True)
         if src == "template":
+            if "trigger" in fm_dict:
+                validate_skill_trigger(
+                    fm_dict["trigger"], context=f"skill trigger for {skill_md_rel}"
+                )
             validate_frontmatter_metadata(fm_dict, context=f"skill frontmatter for {skill_md_rel}")
             rendered = render_with_frontmatter(fm_dict, body)
             require_guarded_write_pass(
@@ -1136,6 +1231,10 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         else:
             shutil.copytree(src_dir, skill_dir, dirs_exist_ok=False)
             fm_disk, _body_disk = read_with_frontmatter(skill_dir / "SKILL.md")
+            if "trigger" in fm_disk:
+                validate_skill_trigger(
+                    fm_disk["trigger"], context=f"skill trigger for {skill_md_rel}"
+                )
             validate_frontmatter_metadata(fm_disk, context=f"skill frontmatter for {skill_md_rel}")
 
         skills_map[slug] = skill_entry
@@ -1241,6 +1340,352 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state={"slug": slug},
+            preview=preview_payload,
+        )
+        out = mw.to_dict()
+        out["result"] = result_body
+        return json.dumps(out, indent=2)
+
+    @mcp.tool(
+        name="memory_skill_install",
+        annotations=_tool_annotations(
+            title="Install Skill",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_skill_install(
+        source: str,
+        slug: str | None = None,
+        ref: str | None = None,
+        trust: str | None = None,
+        enabled: bool | None = None,
+        preview: bool = False,
+        approval_token: str | None = None,
+    ) -> str:
+        """Resolve and install a skill from local, path, git, or GitHub sources.
+
+        Uses SkillResolver to discover the source, copies the resolved skill into
+        core/memory/skills/{slug}/ when needed, then updates SKILLS.yaml,
+        SKILLS.lock, SKILL_TREE.md, and SUMMARY.md under the protected
+        preview-then-apply flow.
+
+        Parameters:
+        - source: Source string (local, path:./..., path:../..., github:owner/repo, git:url)
+        - slug: Optional installed skill slug override. Required for source=local.
+        - ref: Optional git/github ref pin.
+        - trust: Optional trust override written into the installed SKILL.md and manifest.
+        - enabled: Optional manifest enabled flag (default true).
+        - preview: When true, return the governed preview envelope.
+        - approval_token: Fresh preview-issued approval receipt for apply mode.
+        """
+        import json
+
+        import yaml  # type: ignore[import-untyped]
+
+        from ...errors import NotFoundError, ValidationError
+        from ...frontmatter_utils import (
+            read_with_frontmatter,
+            render_with_frontmatter,
+            write_with_frontmatter,
+        )
+        from ...guard_pipeline import require_guarded_write_pass
+        from ...models import MemoryWriteResult
+
+        repo = get_repo()
+        if slug is not None:
+            _validate_skill_kebab_slug(slug)
+        if trust is not None and trust not in SKILL_CREATE_TRUST_LEVELS:
+            raise ValidationError(
+                f"trust must be one of {sorted(SKILL_CREATE_TRUST_LEVELS)}: {trust}"
+            )
+
+        manifest_path = repo.root / "core" / "memory" / "skills" / "SKILLS.yaml"
+        lock_path = repo.root / "core" / "memory" / "skills" / "SKILLS.lock"
+        skills_dir = repo.root / "core" / "memory" / "skills"
+
+        if not manifest_path.is_file():
+            raise NotFoundError("Skill manifest not found: core/memory/skills/SKILLS.yaml")
+
+        with open(manifest_path, "r", encoding="utf-8") as handle:
+            manifest_data: dict[str, Any] = yaml.safe_load(handle) or {}
+        manifest_skills_raw = manifest_data.get("skills") or {}
+        skills_map: dict[str, Any] = (
+            manifest_skills_raw if isinstance(manifest_skills_raw, dict) else {}
+        )
+
+        lock_data: dict[str, Any] = {}
+        if lock_path.is_file():
+            with open(lock_path, "r", encoding="utf-8") as handle:
+                lock_data = yaml.safe_load(handle) or {}
+        lock_entries_raw = lock_data.get("entries") or {}
+        lock_entries: dict[str, Any] = (
+            lock_entries_raw if isinstance(lock_entries_raw, dict) else {}
+        )
+
+        resolver = SkillResolver(repo.root)
+        existing_lock_entry = lock_entries.get(slug) if isinstance(slug, str) else None
+        resolved = resolver.resolve(source, slug=slug, ref=ref, lock_entry=existing_lock_entry)
+
+        target_slug = slug or resolved.slug
+        _validate_skill_kebab_slug(target_slug)
+        if target_slug in skills_map:
+            raise ValidationError(
+                f"Skill slug already registered in manifest: {target_slug}. "
+                "Remove or rename the existing entry first."
+            )
+
+        skill_dir = skills_dir / target_slug
+        skill_rel = f"core/memory/skills/{target_slug}"
+        skill_md_rel = f"{skill_rel}/SKILL.md"
+        if resolved.source_type != "local" and skill_dir.exists():
+            raise ValidationError(
+                f"Skill directory already exists: {skill_rel}/. Choose a different slug or remove the directory first."
+            )
+
+        source_skill_md = resolved.skill_dir / "SKILL.md"
+        fm_dict, body = read_with_frontmatter(source_skill_md)
+        normalized_fm, manifest_description, effective_trust, frontmatter_changed = (
+            _prepare_installed_skill_frontmatter(
+                fm_dict,
+                slug=target_slug,
+                source_type=resolved.source_type,
+                trust_override=trust,
+            )
+        )
+        if "trigger" in normalized_fm:
+            validate_skill_trigger(
+                normalized_fm["trigger"], context=f"skill trigger for {skill_md_rel}"
+            )
+        validate_frontmatter_metadata(
+            normalized_fm, context=f"skill frontmatter for {skill_md_rel}"
+        )
+
+        enabled_flag = True if enabled is None else enabled
+        skill_entry: dict[str, Any] = {
+            "source": resolved.normalized_source,
+            "trust": effective_trust,
+            "description": manifest_description,
+            "enabled": enabled_flag,
+        }
+        if ref:
+            skill_entry["ref"] = ref
+
+        summary_preview = _append_skill_summary_bullet(repo.root, target_slug, manifest_description)
+        preview_targets = [
+            preview_target("core/memory/skills/SKILLS.yaml", "update"),
+            preview_target("core/memory/skills/SKILLS.lock", "update"),
+            preview_target("core/memory/skills/SKILL_TREE.md", "update"),
+        ]
+        if resolved.source_type == "local":
+            if frontmatter_changed:
+                preview_targets.insert(0, preview_target(skill_md_rel, "update"))
+        else:
+            preview_targets.insert(0, preview_target(skill_md_rel, "create"))
+        if summary_preview is not None:
+            preview_targets.append(preview_target("core/memory/skills/SUMMARY.md", "update"))
+
+        operation_arguments: dict[str, Any] = {
+            "source": source,
+            "slug": slug,
+            "ref": ref,
+            "trust": trust,
+            "enabled": enabled,
+        }
+        commit_msg = f"[skill] Install skill {target_slug}"
+        preview_payload = build_governed_preview(
+            mode="preview" if preview else "apply",
+            change_class="protected",
+            summary=f"Install skill {target_slug} from {resolved.normalized_source}.",
+            reasoning="Installing skills mutates protected skill directories, the manifest, and the lockfile.",
+            target_files=preview_targets,
+            invariant_effects=[
+                f"Registers {target_slug} in SKILLS.yaml with source={resolved.normalized_source}.",
+                "Refreshes SKILLS.lock, SKILL_TREE.md"
+                + (", SUMMARY.md." if summary_preview is not None else "."),
+                (
+                    f"Copies resolved skill contents from {resolved.source_type} source into {skill_rel}/."
+                    if resolved.source_type != "local"
+                    else f"Uses the existing local skill directory {skill_rel}/."
+                ),
+            ],
+            commit_message=commit_msg,
+            resulting_state={
+                "slug": target_slug,
+                "source": resolved.normalized_source,
+                "resolved_ref": resolved.resolved_ref,
+            },
+        )
+        preview_payload, protected_token = attach_approval_requirement(
+            preview_payload,
+            repo,
+            tool_name="memory_skill_install",
+            operation_arguments=operation_arguments,
+        )
+
+        if preview:
+            preview_files = [
+                *([skill_md_rel] if resolved.source_type != "local" or frontmatter_changed else []),
+                "core/memory/skills/SKILLS.yaml",
+                "core/memory/skills/SKILLS.lock",
+                "core/memory/skills/SKILL_TREE.md",
+                *(["core/memory/skills/SUMMARY.md"] if summary_preview is not None else []),
+            ]
+            return MemoryWriteResult(
+                files_changed=preview_files,
+                commit_sha=None,
+                commit_message=None,
+                new_state={"slug": target_slug, "approval_token": protected_token},
+                preview=preview_payload,
+            ).to_json()
+
+        require_approval_token(
+            repo,
+            tool_name="memory_skill_install",
+            operation_arguments=operation_arguments,
+            approval_token=approval_token,
+        )
+
+        installed_skill_dir = resolved.skill_dir if resolved.source_type == "local" else skill_dir
+        if resolved.source_type != "local":
+            shutil.copytree(
+                resolved.skill_dir,
+                installed_skill_dir,
+                dirs_exist_ok=False,
+                ignore=shutil.ignore_patterns(".git", ".svn", ".hg"),
+            )
+
+        installed_skill_md = installed_skill_dir / "SKILL.md"
+        if resolved.source_type != "local" or frontmatter_changed:
+            rendered = render_with_frontmatter(normalized_fm, body)
+            require_guarded_write_pass(
+                path=skill_md_rel,
+                operation="write",
+                root=repo.root,
+                content=rendered,
+            )
+            write_with_frontmatter(installed_skill_md, normalized_fm, body)
+
+        skills_map[target_slug] = skill_entry
+        manifest_data["skills"] = skills_map
+        ordered_manifest: dict[str, Any] = {}
+        for key in ("schema_version", "defaults", "skills"):
+            if key in manifest_data:
+                ordered_manifest[key] = manifest_data[key]
+        manifest_yaml = yaml.dump(
+            ordered_manifest, default_flow_style=False, sort_keys=False, allow_unicode=True
+        )
+        require_guarded_write_pass(
+            path="core/memory/skills/SKILLS.yaml",
+            operation="write",
+            root=repo.root,
+            content=manifest_yaml,
+        )
+        manifest_path.write_text(manifest_yaml, encoding="utf-8")
+
+        ts = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+        content_hash = compute_content_hash(installed_skill_dir)
+        file_count, total_bytes = get_dir_stats(installed_skill_dir)
+        lock_entries[target_slug] = {
+            "source": resolved.normalized_source,
+            "resolved_path": f"core/memory/skills/{target_slug}/",
+            "content_hash": content_hash,
+            "locked_at": ts,
+            "file_count": file_count,
+            "total_bytes": total_bytes,
+            **({"requested_ref": resolved.requested_ref} if resolved.requested_ref else {}),
+            **({"resolved_ref": resolved.resolved_ref} if resolved.resolved_ref else {}),
+        }
+        lock_data["entries"] = lock_entries
+        lock_data["lock_version"] = lock_data.get("lock_version", 1)
+        lock_data["locked_at"] = ts
+        lock_yaml = yaml.dump(
+            lock_data, default_flow_style=False, sort_keys=False, allow_unicode=True
+        )
+        require_guarded_write_pass(
+            path="core/memory/skills/SKILLS.lock",
+            operation="write",
+            root=repo.root,
+            content=lock_yaml,
+        )
+        lock_path.write_text(lock_yaml, encoding="utf-8")
+
+        tree_content = _regenerate_skill_tree_content(repo.root)
+        require_guarded_write_pass(
+            path="core/memory/skills/SKILL_TREE.md",
+            operation="write",
+            root=repo.root,
+            content=tree_content,
+        )
+        (repo.root / "core" / "memory" / "skills" / "SKILL_TREE.md").write_text(
+            tree_content, encoding="utf-8"
+        )
+
+        skill_content_rel = f"memory/skills/{target_slug}"
+        skill_md_content_rel = f"{skill_content_rel}/SKILL.md"
+        files_changed = [
+            "memory/skills/SKILLS.yaml",
+            "memory/skills/SKILLS.lock",
+            "memory/skills/SKILL_TREE.md",
+        ]
+        if resolved.source_type != "local":
+            files_changed = [
+                str(path.relative_to(repo.content_root)).replace("\\", "/")
+                for path in sorted(installed_skill_dir.rglob("*"))
+                if path.is_file()
+            ] + files_changed
+        elif frontmatter_changed:
+            files_changed = [skill_md_content_rel, *files_changed]
+
+        if summary_preview is not None:
+            require_guarded_write_pass(
+                path="core/memory/skills/SUMMARY.md",
+                operation="write",
+                root=repo.root,
+                content=summary_preview,
+            )
+            (repo.root / "core" / "memory" / "skills" / "SUMMARY.md").write_text(
+                summary_preview, encoding="utf-8"
+            )
+            files_changed.append("memory/skills/SUMMARY.md")
+
+        for rel_path in files_changed:
+            repo.add(rel_path)
+        commit_result = repo.commit(commit_msg)
+
+        result_body = {
+            "slug": target_slug,
+            "status": "installed",
+            "location": f"{skill_rel}/",
+            "manifest_entry": skill_entry,
+            "lock_entry": lock_entries[target_slug],
+            "resolution": {
+                "source": resolved.normalized_source,
+                "source_type": resolved.source_type,
+                "requested_ref": resolved.requested_ref,
+                "resolved_ref": resolved.resolved_ref,
+                "resolution_mode": resolved.resolution_mode,
+                "lock_verification": (
+                    {
+                        "checked": resolved.lock_verification.checked,
+                        "usable": resolved.lock_verification.usable,
+                        "source_matches": resolved.lock_verification.source_matches,
+                        "hash_matches": resolved.lock_verification.hash_matches,
+                        "ref_matches": resolved.lock_verification.ref_matches,
+                    }
+                    if resolved.lock_verification is not None
+                    else None
+                ),
+            },
+            "artifacts_updated": files_changed,
+        }
+        mw = MemoryWriteResult.from_commit(
+            files_changed=files_changed,
+            commit_result=commit_result,
+            commit_message=commit_msg,
+            new_state={"slug": target_slug, "resolved_ref": resolved.resolved_ref},
             preview=preview_payload,
         )
         out = mw.to_dict()
@@ -2020,7 +2465,9 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         "memory_update_skill": memory_update_skill,
         "memory_skill_manifest_read": memory_skill_manifest_read,
         "memory_skill_manifest_write": memory_skill_manifest_write,
+        "memory_skill_route": memory_skill_route,
         "memory_skill_list": memory_skill_list,
+        "memory_skill_install": memory_skill_install,
         "memory_skill_add": memory_skill_add,
         "memory_skill_remove": memory_skill_remove,
         "memory_skill_sync": memory_skill_sync,

@@ -2688,6 +2688,13 @@ declared_gaps = []
             payload["allOf"][0]["then"]["required"], ["source", "trust", "origin_session"]
         )
         self.assertEqual(payload["allOf"][1]["then"]["required"], ["approval_token"])
+        trigger_content_schema = payload["allOf"][2]["then"]["properties"]["content"]
+
+        self.assertEqual(payload["allOf"][2]["if"]["properties"]["section"]["const"], "trigger")
+        self.assertEqual(trigger_content_schema["oneOf"][0]["type"], "string")
+        self.assertEqual(trigger_content_schema["oneOf"][1]["type"], "object")
+        self.assertEqual(trigger_content_schema["oneOf"][2]["type"], "array")
+        self.assertEqual(payload["allOf"][3]["then"]["properties"]["content"]["type"], "string")
         self.assertFalse(payload["properties"]["create_if_missing"]["default"])
 
     def test_memory_tool_schema_returns_list_plans_contract(self) -> None:
@@ -6426,6 +6433,136 @@ Old guidance.
         self.assertIn("origin_session: memory/activity/2026/03/20/chat-001", skill)
         self.assertIn("trust: medium", skill)
         self.assertIn("## Steps\n\nCreate the first guidance block.", skill)
+
+    def test_memory_update_skill_adds_trigger_frontmatter_field(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/skills/session-start/SKILL.md": """---
+source: user-stated
+origin_session: manual
+created: 2026-03-16
+last_verified: 2026-03-16
+trust: high
+---
+
+# Session Start
+
+## Steps
+
+Load compact context.
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+        trigger = {
+            "event": "session-start",
+            "matcher": {"condition": "returning_session"},
+            "priority": 50,
+        }
+        approval_token, _ = self._approval_token_for(
+            tools,
+            "memory_update_skill",
+            file="session-start",
+            section="trigger",
+            content=trigger,
+        )
+
+        asyncio.run(
+            tools["memory_update_skill"](
+                file="session-start",
+                section="trigger",
+                content=trigger,
+                approval_token=approval_token,
+            )
+        )
+        skill_path = repo_root / "memory" / "skills" / "session-start" / "SKILL.md"
+        frontmatter, _ = self.frontmatter_utils.read_with_frontmatter(skill_path)
+        skill_text = skill_path.read_text(encoding="utf-8")
+
+        self.assertEqual(frontmatter["trigger"], trigger)
+        self.assertIn("trigger:", skill_text)
+        self.assertNotIn("## trigger", skill_text)
+
+    def test_memory_update_skill_appends_trigger_entries(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/skills/session-start/SKILL.md": """---
+source: user-stated
+origin_session: manual
+created: 2026-03-16
+last_verified: 2026-03-16
+trust: high
+trigger: session-start
+---
+
+# Session Start
+
+## Steps
+
+Load compact context.
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+        new_trigger = {"event": "session-checkpoint", "priority": 50}
+        approval_token, _ = self._approval_token_for(
+            tools,
+            "memory_update_skill",
+            file="session-start",
+            section="trigger",
+            content=new_trigger,
+            mode="append",
+        )
+
+        asyncio.run(
+            tools["memory_update_skill"](
+                file="session-start",
+                section="trigger",
+                content=new_trigger,
+                mode="append",
+                approval_token=approval_token,
+            )
+        )
+        frontmatter, _ = self.frontmatter_utils.read_with_frontmatter(
+            repo_root / "memory" / "skills" / "session-start" / "SKILL.md"
+        )
+
+        self.assertEqual(frontmatter["trigger"], ["session-start", new_trigger])
+
+    def test_memory_update_skill_rejects_invalid_trigger_without_mutation(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/skills/session-start/SKILL.md": """---
+source: user-stated
+origin_session: manual
+created: 2026-03-16
+last_verified: 2026-03-16
+trust: high
+---
+
+# Session Start
+
+## Steps
+
+Load compact context.
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+        skill_path = repo_root / "memory" / "skills" / "session-start" / "SKILL.md"
+        before = skill_path.read_text(encoding="utf-8")
+
+        with self.assertRaises(self.errors.ValidationError) as ctx:
+            asyncio.run(
+                tools["memory_update_skill"](
+                    file="session-start",
+                    section="trigger",
+                    content={"event": "not-a-real-trigger"},
+                )
+            )
+
+        self.assertIn("must be one of", str(ctx.exception))
+        self.assertEqual(skill_path.read_text(encoding="utf-8"), before)
 
     def test_memory_update_skill_preview_does_not_write_and_matches_apply(self) -> None:
         repo_root = self._init_repo(

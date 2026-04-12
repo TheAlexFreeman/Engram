@@ -20,11 +20,13 @@ if str(REPO_ROOT) not in sys.path:
 import frontmatter as fmlib  # type: ignore[import-untyped]  # noqa: E402
 import yaml  # type: ignore[import-untyped]  # noqa: E402
 
+from core.tools.agent_memory_mcp.errors import ValidationError  # noqa: E402
 from core.tools.agent_memory_mcp.frontmatter_policy import (  # noqa: E402
     ALLOWED_SOURCE_VALUES,
     ALLOWED_TRUST_VALUES,
     REQUIRED_FRONTMATTER_KEYS,
 )
+from core.tools.agent_memory_mcp.skill_trigger import validate_skill_trigger  # noqa: E402
 
 try:
     import tomllib
@@ -805,6 +807,11 @@ def validate_frontmatter(path: Path, root: Path, result: ValidationResult) -> No
             successor_path = root / "core" / superseded_by
             if not successor_path.exists():
                 result.warn(f"{path}: superseded_by target does not exist: {superseded_by}")
+    if "trigger" in frontmatter:
+        try:
+            validate_skill_trigger(frontmatter["trigger"], context=f"{path}: trigger")
+        except ValidationError as exc:
+            result.error(str(exc))
 
     origin_session = frontmatter["origin_session"]
     if origin_session in SPECIAL_ORIGIN_SESSION_VALUES:

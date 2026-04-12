@@ -140,7 +140,7 @@ For worktree deployments, set `MEMORY_REPO_ROOT` to the worktree path and `HOST_
 
 ## Tool surface
 
-The MCP server exposes **105 tools by default**: 48 Tier 0 read-only tools plus 57 Tier 1 semantic tools. Enabling `MEMORY_ENABLE_RAW_WRITE_TOOLS=1` adds **7 Tier 2** raw fallback tools for a full surface of **112**. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
+The MCP server exposes **107 tools by default**: 48 Tier 0 read-only tools plus 59 Tier 1 semantic tools. Enabling `MEMORY_ENABLE_RAW_WRITE_TOOLS=1` adds **7 Tier 2** raw fallback tools for a full surface of **114**. The tier system enforces a deliberate preference order: inspect before mutating, use semantic operations before raw edits, and gate low-level writes behind an explicit opt-in.
 
 ### JSON Schema registry (`memory_tool_schema`)
 
@@ -596,6 +596,8 @@ Plan statuses now include `paused` (awaiting human approval), in addition to `dr
 | Tool | Description |
 | --- | --- |
 | `memory_append_scratchpad` | Append a section to the session scratchpad (CURRENT.md). |
+| `memory_skill_install` | Protected installer that resolves local, path, git, or GitHub skill sources into the managed skills tree and refreshes manifest and lock artifacts. |
+| `memory_skill_route` | Read-only trigger router that orders matching skills for an event, with explicit triggers ahead of query-driven catalog fallback. |
 | `memory_update_skill` | Update a skill definition in the skills folder. Protected apply mode requires a preview-issued `approval_token`. |
 | `memory_update_user_trait` | Update a user trait in the identity file. Proposed apply mode now requires a preview-issued `preview_token`. |
 

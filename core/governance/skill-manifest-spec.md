@@ -87,16 +87,16 @@ Sources tell the resolver where to find a skill's content. Four formats are supp
 | **Local** | `local` | `source: local` | Skill directory already exists at `core/memory/skills/{slug}/`. No remote fetch. |
 | **GitHub shorthand** | `github:{owner}/{repo}` | `source: github:alexrfreeman/engram-skills` | Clones `https://github.com/{owner}/{repo}`, discovers skill by slug in `skills/` or root. |
 | **Pinned git ref** | `github:{owner}/{repo}` + `ref` field | `ref: v1.2.0` or `ref: abc1234` | Same as GitHub shorthand but checks out the specified ref. |
-| **Git URL** | `git:{url}` | `source: git:https://git.corp.dev/team/skills` | Clones arbitrary git URL. Supports SSH (`git:git@host:repo`). |
-| **Local path** | `path:{relative-path}` | `source: path:../shared-skills/my-skill` | Copies or symlinks from a local filesystem path relative to vault root. |
+| **Git URL** | `git:{url}` | `source: git:https://git.corp.dev/team/skills` | Clones arbitrary git URL. Supports HTTPS, SSH (`git:git@host:repo`), and local file URLs (`git:file:///tmp/shared-skills.git`). |
+| **Local path** | `path:{relative-path}` | `source: path:../shared-skills/my-skill` | Copies or symlinks from a local filesystem path relative to vault root. Paths must stay relative, never absolute. |
 
 ### Source format validation
 
 ```
 local            → exact literal "local"
 github:{o}/{r}   → /^github:[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/
-git:{url}        → /^git:(https?:\/\/|git@).+$/
-path:{p}         → /^path:\.\/.+$/  (must be relative, must start with ./)
+git:{url}        → /^git:(https?:\/\/|git@|file:\/\/).+$/
+path:{p}         → /^path:(?:\.\/|\.\.\/).+$/  (must be relative, must start with ./ or ../)
 ```
 
 ### Resolution precedence
@@ -112,6 +112,7 @@ When resolving a skill, the resolver follows this order:
 - Every `skills` key must be kebab-case and match the pattern `^[a-z0-9]+(?:-[a-z0-9]+)*$`.
 - The `trust` field must match the corresponding `SKILL.md` frontmatter `trust` field. A mismatch is a sync error, not a silent override.
 - `ref` is only valid when `source` is `github:` or `git:`. Setting `ref` with `source: local` is an error.
+- `path:` sources must stay relative. Absolute filesystem paths are rejected so manifests remain portable across worktrees and machines.
 - `enabled: false` skills are excluded from catalog generation and distribution but retained in the manifest for version tracking.
 - Unknown fields at any level produce a validation warning (not an error) to support forward-compatible extensions.
 
@@ -152,6 +153,7 @@ entries:
 | Field | Type | Description |
 |---|---|---|
 | `source` | string | The source string from the manifest at lock time. |
+| `requested_ref` | string | Optional manifest `ref` value captured at lock time for remote sources. Used to detect ref changes in frozen verification. |
 | `resolved_ref` | string | For remote sources: the full commit SHA that was resolved. Absent for `local`. |
 | `resolved_path` | string | Repo-relative path to the installed skill directory. |
 | `content_hash` | string | `sha256:{hex}` hash of the skill directory contents (deterministic tree hash). |
@@ -173,11 +175,12 @@ This ensures the hash changes when any file is added, removed, renamed, or modif
 
 A lock entry is **fresh** when:
 - The `content_hash` matches the current directory state.
-- For remote sources: `resolved_ref` matches the `ref` constraint in the manifest (or is the latest when no ref is pinned).
+- For remote sources with a manifest `ref`: `requested_ref` matches the current manifest `ref` value.
+- For remote sources without a manifest `ref`: `resolved_ref` still identifies the locked commit.
 
 A lock entry is **stale** when:
 - The content hash no longer matches (local edits since last lock).
-- The manifest `ref` changed and no longer matches `resolved_ref`.
+- The manifest `ref` changed and no longer matches `requested_ref` recorded in the lock entry.
 - The skill was removed from the manifest but the lock entry remains.
 
 ### Frozen install mode

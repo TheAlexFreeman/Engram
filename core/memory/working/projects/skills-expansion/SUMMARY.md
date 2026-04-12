@@ -1,10 +1,10 @@
 ---
-active_plans: 5
+active_plans: 4
 cognitive_mode: planning
 created: '2026-04-08'
-current_focus: 'Hook/trigger metadata workstream — next phase is frontmatter parser
-  extension. Informed by narrative-vs-formal design analysis (2026-04-09).'
-last_activity: '2026-04-09'
+current_focus: 'Lifecycle-cli-decomposition workstream — multi-source resolution
+  completed 2026-04-10 with memory_skill_install and skill_install_frozen.py.'
+last_activity: '2026-04-10'
 open_questions: 8
 origin_session: memory/activity/2026/04/08/chat-001
 plans: 6
@@ -31,9 +31,9 @@ From analysis of the "Personality and Narrative for AI Agents" transcript:
 
 ## Workstream priority order
 
-1. **hook-trigger-metadata** — Phase 1 complete (trigger taxonomy spec). Next: frontmatter parser extension. *This is the formal layer for deterministic dispatch — the right place to formalize first.*
+1. **hook-trigger-metadata** — Complete. Trigger router landed with `memory_skill_route`, explicit frontmatter/manifest precedence, and query-driven catalog fallback for triggerless skills.
 2. **skill-manifest-and-versioning** — Complete.
-3. **multi-source-resolution** — Planned.
-4. **lifecycle-cli-decomposition** — Planned.
+3. **multi-source-resolution** — Complete. Source parsing rules, `SkillResolver`, `memory_skill_install`, and `skill_install_frozen.py` landed with focused resolver/install/frozen tests.
+4. **lifecycle-cli-decomposition** — Next.
 5. **multi-agent-distribution** — Planned.
 6. **gitignore-deployment-modes** — Planned.
