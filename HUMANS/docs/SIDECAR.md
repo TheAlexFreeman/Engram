@@ -17,10 +17,12 @@ This document covers `engram-sidecar`, the optional observer process that watche
 In the current implementation, the sidecar:
 
 - discovers supported transcript files on disk,
-- parses user turns, assistant turns, and MCP tool calls,
+- parses user turns, assistant turns, and MCP tool calls (including timestamps and platform metadata when present),
+- appends `tool_call` spans to each session's `TRACES.jsonl` (with deduplication and `metadata.source: sidecar`),
+- writes compressed `dialogue.jsonl` rows when a session is recorded (no full message bodies),
 - logs ACCESS entries through `memory_log_access_batch`,
 - checks aggregation triggers after each ACCESS batch,
-- records completed sessions through `memory_record_session`,
+- records completed sessions through `memory_record_session` with activity metrics in SUMMARY frontmatter,
 - persists local replay state so reruns stay idempotent and `chat-NNN` assignment remains stable.
 
 The sidecar only attributes direct `memory_read_file` retrievals right now. Discovery tools such as `memory_search` and `memory_list_folder` remain outside automatic ACCESS attribution until they have stronger per-file result contracts.
@@ -75,7 +77,7 @@ Watch mode polls for transcript changes on a fixed interval and closes inactive 
 
 After a successful run, inspect:
 
-- `core/memory/activity/YYYY/MM/DD/chat-NNN/` for recorded sessions,
+- `core/memory/activity/YYYY/MM/DD/chat-NNN/` for recorded sessions, optional `dialogue.jsonl`, and sibling `chat-NNN.traces.jsonl`,
 - `core/memory/knowledge/ACCESS.jsonl`, `core/memory/users/ACCESS.jsonl`, and related namespace logs for sidecar-generated ACCESS entries.
 
 The sidecar writes through MCP tools rather than editing these files directly, so the normal policy checks and repo validation still apply.
@@ -142,6 +144,13 @@ The sidecar is the first automation layer in the session-management roadmap. It 
 - Session recording uses the same governed semantic write surface as direct agent workflows, including replay checks.
 
 This keeps the automation conservative: the sidecar enriches the existing system rather than bypassing it.
+
+## Adding a new platform parser
+
+1. Implement the `TranscriptParser` contract in `core/tools/agent_memory_mcp/sidecar/parser.py`: `platform_name()`, `detect_platform()`, `find_transcripts()`, `extract_tool_calls()`, and `parse_session()` returning a `ParsedSession` (populate `dialogue_turns` in transcript order when possible).
+2. Add a module under `core/tools/agent_memory_mcp/sidecar/parsers/` and register the parser class in `PARSER_REGISTRY` with a stable CLI key (for example `my-platform`). Keep `PARSER_PRIORITY` ordered so auto mode tries parsers in the intended order.
+3. Extend `load_config` / `build_parsers_from_registry` consumers only through the registry: new platforms should not require edits to `lifecycle.py` or trace/dialogue capture logic.
+4. Run the sidecar with `--platform <key>` or rely on `auto` once the parser is registered and discovery paths are correct.
 
 ## Troubleshooting
 

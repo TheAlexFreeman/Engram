@@ -101,6 +101,7 @@ semantic_extensions = [
   "memory_eval_report",
   "memory_record_trace",
   "memory_query_traces",
+  "memory_query_dialogue",
   "memory_request_approval",
   "memory_resolve_approval",
   "memory_register_tool",
@@ -1076,6 +1077,22 @@ owns_review_queue = []
 result_fields = ["total_matched", "aggregates"]
 fallback_tools = []
 error_kinds = ["ValidationError"]
+
+[operations.memory_query_dialogue]
+group = "session"
+tier = "semantic"
+change_class = "automatic"
+commit_model = "none"
+commit_category_hint = "chat"
+writes = []
+owns_frontmatter = []
+owns_summaries = []
+owns_access_logs = []
+owns_review_queue = []
+result_fields = ["entries", "total_matched", "limit", "offset"]
+fallback_tools = []
+error_kinds = ["ValidationError"]
+notes = "Reads sidecar-written dialogue.jsonl rows for review and clustering workflows."
 
 [operations.memory_run_eval]
 group = "plan"

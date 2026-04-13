@@ -384,6 +384,26 @@ def record_session_input_schema() -> dict[str, Any]:
                 ],
                 "description": "Optional ACCESS entries recorded atomically with the session summary.",
             },
+            "metrics": {
+                "oneOf": [
+                    {"type": "object", "additionalProperties": True},
+                    {"type": "null"},
+                ],
+                "description": (
+                    "Optional activity metrics merged into SUMMARY.md frontmatter "
+                    "(sidecar fields take precedence over trace-file counters when both exist)."
+                ),
+            },
+            "dialogue_entries": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "items": {"type": "object", "additionalProperties": True},
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional compressed dialogue rows written to session dialogue.jsonl.",
+            },
         },
     )
 
@@ -2236,19 +2256,90 @@ def plan_verify_input_schema() -> dict[str, Any]:
     )
 
 
+def query_dialogue_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_query_dialogue",
+        title="memory_query_dialogue input schema",
+        notes=[
+            "sessions, when provided, reads dialogue.jsonl for each canonical session id.",
+            "date_from and date_to filter by activity folder date (YYYY-MM-DD) during discovery.",
+        ],
+        properties={
+            "sessions": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "items": _session_id_string_schema(
+                            description="Canonical memory/activity session id.",
+                        ),
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional explicit session ids to read dialogue.jsonl from.",
+            },
+            "date_from": {
+                "oneOf": [
+                    {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "format": "date"},
+                    {"type": "null"},
+                ],
+                "description": "Optional inclusive lower date bound for dialogue file discovery.",
+            },
+            "date_to": {
+                "oneOf": [
+                    {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "format": "date"},
+                    {"type": "null"},
+                ],
+                "description": "Optional inclusive upper date bound for dialogue file discovery.",
+            },
+            "keyword": {
+                "oneOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                ],
+                "description": "Optional case-insensitive substring filter on dialogue first_line.",
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 100,
+                "description": "Maximum rows returned after sorting.",
+            },
+            "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0,
+                "description": "Number of leading rows to skip after filtering.",
+            },
+        },
+    )
+
+
 def query_traces_input_schema() -> dict[str, Any]:
     return _base_schema(
         tool_name="memory_query_traces",
         title="memory_query_traces input schema",
         notes=[
-            "session_id, when provided, narrows the query to one trace file and overrides date-range file discovery.",
+            "Provide only one of session_id or sessions when narrowing to known sessions.",
             "date_from and date_to must be ISO dates in YYYY-MM-DD format when supplied.",
+            "group_by returns aggregated buckets instead of raw spans when set.",
         ],
         properties={
             "session_id": _session_id_string_schema(
                 description="Optional canonical session id whose trace file should be queried directly.",
                 nullable=True,
             ),
+            "sessions": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "items": _session_id_string_schema(
+                            description="Canonical memory/activity session id.",
+                        ),
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional list of session ids to query trace files for.",
+            },
             "date_from": {
                 "oneOf": [
                     {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "format": "date"},
@@ -2288,7 +2379,17 @@ def query_traces_input_schema() -> dict[str, Any]:
                 "type": "integer",
                 "minimum": 1,
                 "default": 100,
-                "description": "Maximum number of spans returned after newest-first sorting.",
+                "description": "Maximum number of spans or group rows returned after sorting.",
+            },
+            "group_by": {
+                "oneOf": [
+                    {
+                        "type": "string",
+                        "enum": ["tool_name", "span_type", "session_id", "date"],
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional aggregation dimension; when set, spans list is empty and groups are returned.",
             },
         },
     )
@@ -3364,6 +3465,7 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_promote_knowledge": promote_knowledge_input_schema,
     "memory_promote_knowledge_batch": promote_knowledge_batch_input_schema,
     "memory_promote_knowledge_subtree": promote_knowledge_subtree_input_schema,
+    "memory_query_dialogue": query_dialogue_input_schema,
     "memory_query_traces": query_traces_input_schema,
     "memory_read_file": read_file_input_schema,
     "memory_reindex": reindex_input_schema,
@@ -3466,6 +3568,7 @@ __all__ = [
     "promote_knowledge_input_schema",
     "promote_knowledge_batch_input_schema",
     "promote_knowledge_subtree_input_schema",
+    "query_dialogue_input_schema",
     "query_traces_input_schema",
     "read_file_input_schema",
     "reindex_input_schema",

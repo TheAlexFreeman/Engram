@@ -2639,20 +2639,22 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
     )
     async def memory_query_traces(
         session_id: str | None = None,
+        sessions: list[str] | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
         span_type: str | None = None,
         plan_id: str | None = None,
         status: str | None = None,
         limit: int = 100,
+        group_by: str | None = None,
     ) -> str:
         """Query trace spans from TRACES.jsonl files.
 
-        Filter by session_id (exact match), date range (YYYY-MM-DD), span_type,
-        plan_id (matched against metadata.plan_id), or status.  Returns spans
-        newest-first up to ``limit``, plus aggregates: total_duration_ms,
-        by_type counts, by_status counts, error_rate. Call memory_tool_schema
-        with tool_name="memory_query_traces" for the filter contract.
+        Filter by session_id (exact match), sessions (list of ids), date range
+        (YYYY-MM-DD), span_type, plan_id (matched against metadata.plan_id), or
+        status. When group_by is set (tool_name, span_type, session_id, date),
+        returns aggregated group rows instead of raw spans. Call
+        memory_tool_schema with tool_name="memory_query_traces" for the filter contract.
         """
         import json as _json
 
@@ -2662,12 +2664,14 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         result = query_trace_spans(
             root,
             session_id=session_id,
+            sessions=sessions,
             date_from=date_from,
             date_to=date_to,
             span_type=span_type,
             plan_id=plan_id,
             status=status,
             limit=limit,
+            group_by=group_by,
         )
         return _json.dumps(result, indent=2)
 

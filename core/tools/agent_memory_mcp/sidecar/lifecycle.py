@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .access_logger import MCPToolClient
+from .dialogue_logger import DialogueLogger
+from .metrics import compute_session_metrics
 from .parser import ParsedSession
 
 
@@ -23,6 +25,7 @@ class SessionLifecycleResult:
     record_session_payload: dict[str, Any]
     record_summary_payload: dict[str, Any] | None = None
     warnings: list[str] = field(default_factory=list)
+    dialogue_rows: int = 0
 
 
 @dataclass(slots=True)
@@ -30,6 +33,7 @@ class _TrackedSession:
     session: ParsedSession
     transcript_path: str | None
     last_activity: datetime
+    dialogue_entries: list[dict[str, Any]] = field(default_factory=list)
 
 
 class SessionLifecycleManager:
@@ -39,11 +43,13 @@ class SessionLifecycleManager:
         self,
         client: MCPToolClient,
         *,
+        content_root: Path,
         session_id_factory: Callable[[ParsedSession], str],
         inactivity_threshold: timedelta = timedelta(minutes=30),
         long_session_threshold: int = 20,
     ) -> None:
         self._client = client
+        self._content_root = content_root
         self._session_id_factory = session_id_factory
         self._inactivity_threshold = inactivity_threshold
         self._long_session_threshold = long_session_threshold
@@ -56,6 +62,7 @@ class SessionLifecycleManager:
         *,
         transcript_path: str | None = None,
         transcript_closed: bool = False,
+        dialogue_entries: list[dict[str, Any]] | None = None,
     ) -> list[SessionLifecycleResult]:
         """Register or update an observed transcript session."""
 
@@ -74,11 +81,14 @@ class SessionLifecycleManager:
                 session=session,
                 transcript_path=transcript_path,
                 last_activity=session.end_time,
+                dialogue_entries=list(dialogue_entries or []),
             )
         else:
             tracked.session = session
             tracked.transcript_path = transcript_path or tracked.transcript_path
             tracked.last_activity = max(tracked.last_activity, session.end_time)
+            if dialogue_entries is not None:
+                tracked.dialogue_entries = list(dialogue_entries)
 
         if transcript_closed:
             finalized.append(await self._finalize_session(session.session_id))
@@ -132,10 +142,19 @@ class SessionLifecycleManager:
         )
 
     async def _finalize_session(self, observed_session_id: str) -> SessionLifecycleResult:
+        from ..plan_trace import load_session_trace_spans
+
         tracked = self._tracked_sessions[observed_session_id]
         session = tracked.session
         memory_session_id = self._session_id_factory(session)
-        summary = build_session_summary(session)
+        dialogue_entries = (
+            list(tracked.dialogue_entries)
+            if tracked.dialogue_entries
+            else DialogueLogger.build_dialogue_entries(session)
+        )
+        trace_spans = load_session_trace_spans(self._content_root, memory_session_id)
+        metrics = compute_session_metrics(trace_spans, dialogue_entries, session)
+        summary = build_session_summary(session, metrics=metrics)
         key_topics = build_key_topics(session)
         warnings = _build_checkpoint_warnings(session, self._long_session_threshold)
 
@@ -145,6 +164,8 @@ class SessionLifecycleManager:
                 "session_id": memory_session_id,
                 "summary": summary,
                 "key_topics": key_topics,
+                "metrics": metrics,
+                "dialogue_entries": dialogue_entries,
             },
         )
 
@@ -160,6 +181,7 @@ class SessionLifecycleManager:
             key_topics=key_topics,
             record_session_payload=record_session_payload,
             warnings=warnings,
+            dialogue_rows=len(dialogue_entries),
         )
 
     async def _call_json_tool(
@@ -192,7 +214,9 @@ def _coerce_tool_response(raw_payload: Any) -> dict[str, Any]:
     return {"raw": raw_payload}
 
 
-def build_session_summary(session: ParsedSession) -> str:
+def build_session_summary(
+    session: ParsedSession, *, metrics: dict[str, Any] | None = None
+) -> str:
     """Create a compact deterministic summary for a completed session."""
 
     task = _last_non_empty(session.user_messages)
@@ -203,6 +227,13 @@ def build_session_summary(session: ParsedSession) -> str:
         lines.append(f"Task: {task}")
     if outcome:
         lines.append(f"Outcome: {outcome}")
+    if metrics:
+        breakdown = metrics.get("tool_call_breakdown") or {}
+        top_tools = sorted(breakdown.items(), key=lambda kv: (-kv[1], kv[0]))[:3]
+        top_line = ", ".join(f"{name} ({count})" for name, count in top_tools) if top_tools else "none"
+        char = str(metrics.get("session_characterization") or "").strip()
+        if char:
+            lines.append(f"Activity: {char}. Top tools: {top_line}.")
     if not lines:
         return f"Observed transcript session {session.session_id}."
     return "\n\n".join(lines)

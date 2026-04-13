@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib
 import json
+import shutil
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -63,6 +65,8 @@ class SessionLifecycleTests(unittest.TestCase):
         return ParsedSession(**defaults)
 
     def test_close_inactive_sessions_records_session_and_summary(self) -> None:
+        content_root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(content_root, ignore_errors=True))
         client = _FakeClient(
             {
                 "memory_record_session": json.dumps(
@@ -72,6 +76,7 @@ class SessionLifecycleTests(unittest.TestCase):
         )
         manager = self.lifecycle_module.SessionLifecycleManager(
             client,
+            content_root=content_root,
             session_id_factory=lambda _: "memory/activity/2026/03/29/chat-010",
         )
         session = self._session()
@@ -86,6 +91,8 @@ class SessionLifecycleTests(unittest.TestCase):
         record_session_args = client.calls[0][1]
         summary = cast(str, record_session_args["summary"])
         key_topics = cast(str, record_session_args["key_topics"])
+        self.assertIn("metrics", record_session_args)
+        self.assertIn("dialogue_entries", record_session_args)
         self.assertEqual(record_session_args["session_id"], "memory/activity/2026/03/29/chat-010")
         self.assertIn("Task: summarize the parser framework", summary)
         self.assertIn(
@@ -95,6 +102,8 @@ class SessionLifecycleTests(unittest.TestCase):
         self.assertEqual(key_topics, "parser")
 
     def test_observe_session_finalizes_prior_session_after_gap(self) -> None:
+        content_root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(content_root, ignore_errors=True))
         client = _FakeClient(
             {
                 "memory_record_session": json.dumps(
@@ -104,6 +113,7 @@ class SessionLifecycleTests(unittest.TestCase):
         )
         manager = self.lifecycle_module.SessionLifecycleManager(
             client,
+            content_root=content_root,
             session_id_factory=lambda _: "memory/activity/2026/03/29/chat-011",
         )
         first = self._session(
@@ -126,6 +136,8 @@ class SessionLifecycleTests(unittest.TestCase):
 
     def test_long_session_with_checkpoint_does_not_emit_warning(self) -> None:
         ToolCall = self.parser_module.ToolCall
+        content_root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(content_root, ignore_errors=True))
         client = _FakeClient(
             {
                 "memory_record_session": json.dumps(
@@ -135,6 +147,7 @@ class SessionLifecycleTests(unittest.TestCase):
         )
         manager = self.lifecycle_module.SessionLifecycleManager(
             client,
+            content_root=content_root,
             session_id_factory=lambda _: "memory/activity/2026/03/29/chat-012",
             long_session_threshold=20,
         )
@@ -163,6 +176,8 @@ class SessionLifecycleTests(unittest.TestCase):
 
     def test_transcript_closed_finalizes_immediately_and_surfaces_checkpoint_warning(self) -> None:
         ToolCall = self.parser_module.ToolCall
+        content_root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(content_root, ignore_errors=True))
         client = _FakeClient(
             {
                 "memory_record_session": json.dumps(
@@ -172,6 +187,7 @@ class SessionLifecycleTests(unittest.TestCase):
         )
         manager = self.lifecycle_module.SessionLifecycleManager(
             client,
+            content_root=content_root,
             session_id_factory=lambda _: "memory/activity/2026/03/29/chat-013",
             long_session_threshold=20,
         )
@@ -195,6 +211,8 @@ class SessionLifecycleTests(unittest.TestCase):
     def test_duplicate_closed_session_observation_is_noop_after_successful_finalization(
         self,
     ) -> None:
+        content_root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(content_root, ignore_errors=True))
         client = _FakeClient(
             {
                 "memory_record_session": json.dumps(
@@ -204,6 +222,7 @@ class SessionLifecycleTests(unittest.TestCase):
         )
         manager = self.lifecycle_module.SessionLifecycleManager(
             client,
+            content_root=content_root,
             session_id_factory=lambda _: "memory/activity/2026/03/29/chat-014",
         )
         session = self._session(session_id="claude-session-closed")
@@ -222,6 +241,8 @@ class SessionLifecycleTests(unittest.TestCase):
     def test_close_inactive_sessions_does_not_replay_after_transcript_closed_finalization(
         self,
     ) -> None:
+        content_root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(content_root, ignore_errors=True))
         client = _FakeClient(
             {
                 "memory_record_session": json.dumps(
@@ -231,6 +252,7 @@ class SessionLifecycleTests(unittest.TestCase):
         )
         manager = self.lifecycle_module.SessionLifecycleManager(
             client,
+            content_root=content_root,
             session_id_factory=lambda _: "memory/activity/2026/03/29/chat-015",
         )
         session = self._session(session_id="claude-session-finalized")

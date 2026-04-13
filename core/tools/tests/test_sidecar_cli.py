@@ -33,6 +33,15 @@ def load_parser_module() -> ModuleType:
         raise unittest.SkipTest(f"sidecar parser dependencies unavailable: {exc.name}") from exc
 
 
+def load_parsers_module() -> ModuleType:
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    try:
+        return importlib.import_module("engram_mcp.agent_memory_mcp.sidecar.parsers")
+    except ModuleNotFoundError as exc:
+        raise unittest.SkipTest(f"sidecar parsers package unavailable: {exc.name}") from exc
+
+
 class _FakeClient:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, object]]] = []
@@ -71,11 +80,13 @@ class _FakeClientContext:
 class SidecarCliTests(unittest.TestCase):
     cli_module: ClassVar[ModuleType]
     parser_module: ClassVar[ModuleType]
+    parsers_module: ClassVar[ModuleType]
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.cli_module = load_sidecar_cli_module()
         cls.parser_module = load_parser_module()
+        cls.parsers_module = load_parsers_module()
 
     def setUp(self) -> None:
         self._tmpdir = tempfile.TemporaryDirectory()
@@ -263,7 +274,7 @@ class SidecarCliTests(unittest.TestCase):
                 env={"MEMORY_REPO_ROOT": str(self.repo_root)},
                 client_factory=lambda _config: _FakeClientContext(fake_client),
                 parser_factory=lambda _config: [
-                    self.cli_module.ClaudeCodeTranscriptParser(projects_root=self.projects_root)
+                    self.parsers_module.ClaudeCodeTranscriptParser(projects_root=self.projects_root)
                 ],
                 state_store_factory=lambda _config: self.cli_module.SidecarStateStore(state_path),
                 now_factory=lambda: datetime(2026, 3, 29, 12, 0, tzinfo=timezone.utc),

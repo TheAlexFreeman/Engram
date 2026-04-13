@@ -20,7 +20,7 @@ Examples: a SQL query, a cron job, a git commit hook, a frontmatter validator. T
 
 In Engram: git operations, file validation, access logging, aggregation triggers. These run the same way regardless of what is being researched or who is asking.
 
-**Design principle:** Maximize the surface area of Level 1. Every operation that *can* be made deterministic *should* be, because determinism is free auditability.
+**Design principle:** Maximize the surface area of Level 1 — but only for behaviors whose stability has been empirically established. Every operation that *can* be made deterministic *should* eventually be, because determinism is free auditability. However, premature formalization — imposing Level 1 rigidity on behaviors that are not yet well-understood — is a worse failure mode than sustained narrative specification at Level 3. A brittle formal rule fails silently when it encounters an unanticipated case; a narrative-level specification degrades gracefully because the model can reason about intent. The practical implication: behaviors should be observed at higher levels first, and formalized downward only when patterns stabilize. The maturity model's Exploration → Consolidation arc is this principle applied to the system as a whole.
 
 ### Level 2 — Targeted optimization
 
@@ -88,6 +88,7 @@ The pyramid connects to several existing threads:
 - **Access-driven curation** is a Level 2 optimization loop: retrieval patterns feed back into organization decisions, navigating toward better knowledge surfacing.
 - **The capability-robustness tradeoff** in alignment research maps onto the Level 3–4 boundary: any system capable of flexible judgment over novel situations is also capable of being convinced by flexible arguments. The tradeoff is intrinsic to the kind of reasoning Level 3 requires, which is part of why Level 4 remains necessary.
 - **The dynamical systems frame** for LLM behavior provides a mechanistic vocabulary for Level 3: analytic evaluation as extended trajectory through activation space, with chain-of-thought as computation unrolled into sequence.
+- **Narrative-vs-formal specification** maps onto the pyramid's level boundaries. The insight that LLM agents are more reliably steered by narrative (system prompts as constitutions, skills as character sheets, chain-of-thought as on-screen reasoning) than by formal control flow corresponds to the claim that most agent behavior currently belongs at Levels 2–3, not Level 1. Agent Skills — prose documents loaded by recognition, not explicit dispatch — are Level 3 artifacts. The trigger system that routes events to matching skills is Level 1. The graduation pipeline (knowledge → skills → MCP tools) is movement down the pyramid: narrative content stabilizes into parameterized optimization, then into deterministic execution. Level 2 is the underexplored middle — parameterized skill behavior that optimizes toward declared goals without being either free-form narrative or fixed procedure.
 
 ## Status
 

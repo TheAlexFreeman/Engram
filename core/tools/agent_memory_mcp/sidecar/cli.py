@@ -17,9 +17,11 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Protocol
 
 from .access_logger import AccessLogger, MCPToolClient
+from .dialogue_logger import DialogueLogger
 from .lifecycle import SessionLifecycleManager
 from .parser import ParsedSession, TranscriptParser
-from .parsers import ClaudeCodeTranscriptParser
+from .parsers import PARSER_REGISTRY, build_parsers_from_registry
+from .trace_logger import TraceLogger
 
 _DEFAULT_PLATFORM = "auto"
 _DEFAULT_POLL_INTERVAL = 30.0
@@ -50,6 +52,8 @@ class SidecarRunResult:
     processed_transcripts: int = 0
     access_entries_logged: int = 0
     finalized_sessions: int = 0
+    trace_spans_logged: int = 0
+    dialogue_entries_logged: int = 0
 
 
 @dataclass(slots=True)
@@ -254,9 +258,12 @@ class SidecarRunner:
         self._now_factory = now_factory or (lambda: datetime.now(timezone.utc))
         self._allocator = SessionIdAllocator(config.content_root, self._state)
         self._access_logger = AccessLogger(client)
+        self._trace_logger = TraceLogger(config.content_root)
+        self._dialogue_logger = DialogueLogger(config.content_root)
         self._lifecycles = {
             parser.platform_name(): SessionLifecycleManager(
                 client,
+                content_root=config.content_root,
                 session_id_factory=self._session_id_factory_for(parser.platform_name()),
             )
             for parser in parsers
@@ -275,21 +282,26 @@ class SidecarRunner:
                     session,
                     platform=parser.platform_name(),
                 )
+                trace_added = self._trace_logger.persist_tool_spans(memory_session_id, session)
                 access_result = await self._access_logger.log_session_access(
                     session,
                     session_id=memory_session_id,
                 )
+                dialogue_entries = self._dialogue_logger.build_dialogue_entries(session)
                 finalized = await lifecycle.observe_session(
                     session,
                     transcript_path=transcript.path.as_posix(),
                     transcript_closed=once,
+                    dialogue_entries=dialogue_entries,
                 )
                 self._state.transcript_watermarks[transcript.path.as_posix()] = _utc(
                     transcript.modified_time
                 ).isoformat()
                 result.processed_transcripts += 1
                 result.access_entries_logged += len(access_result.entries)
+                result.trace_spans_logged += trace_added
                 result.finalized_sessions += len(finalized)
+                result.dialogue_entries_logged += sum(fin.dialogue_rows for fin in finalized)
 
         if not once:
             reference_time = self._now_factory()
@@ -358,7 +370,7 @@ def load_config(
     )
     if platform in {"auto-detect", "autodetect"}:
         platform = _DEFAULT_PLATFORM
-    if platform not in {_DEFAULT_PLATFORM, "claude-code"}:
+    if platform not in {_DEFAULT_PLATFORM, *PARSER_REGISTRY.keys()}:
         raise ValueError(f"Unsupported sidecar platform: {platform}")
 
     raw_poll_interval = args.poll_interval
@@ -398,9 +410,7 @@ def load_config(
 def build_parsers(config: SidecarConfig) -> list[TranscriptParser]:
     """Instantiate transcript parsers for the configured platform selection."""
 
-    if config.platform in {_DEFAULT_PLATFORM, "claude-code"}:
-        return [ClaudeCodeTranscriptParser()]
-    raise ValueError(f"Unsupported sidecar platform: {config.platform}")
+    return build_parsers_from_registry(config.platform)
 
 
 def build_state_store(config: SidecarConfig) -> SidecarStateStore:

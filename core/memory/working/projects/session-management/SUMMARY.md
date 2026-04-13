@@ -1,10 +1,10 @@
 ---
-type: project-summary
+
+## type: project-summary
 created: 2026-03-28
 project_count: 1
-active_plans: 0
-plans: 4
----
+active_plans: 1
+plans: 5
 
 # Session Management
 
@@ -16,11 +16,13 @@ Add session lifecycle infrastructure to Engram: automatic ACCESS logging, contex
 
 ## Three-phase roadmap
 
-| Phase | Component | What it adds |
-|---|---|---|
-| 1 | **Sidecar observer** | Automatic ACCESS logging, session lifecycle management, aggregation triggering |
-| 2 | **Optional proxy** | Pre-query context injection, token-aware compaction flush, transparent checkpointing |
-| 3 | **Enriched MCP server** | Server-side session state, advisory responses, composite context tools |
+
+| Phase | Component               | What it adds                                                                         |
+| ----- | ----------------------- | ------------------------------------------------------------------------------------ |
+| 1     | **Sidecar observer**    | Automatic ACCESS logging, session lifecycle management, aggregation triggering       |
+| 2     | **Optional proxy**      | Pre-query context injection, token-aware compaction flush, transparent checkpointing |
+| 3     | **Enriched MCP server** | Server-side session state, advisory responses, composite context tools               |
+
 
 Each phase builds on the previous rather than replacing it. See [notes/integrated-roadmap.md](../../notes/integrated-roadmap.md) for the full design.
 
@@ -45,14 +47,17 @@ Each phase builds on the previous rather than replacing it. See [notes/integrate
 
 ## Plans
 
-| Plan | Status | Phases | Focus |
-|---|---|---|---|
-| [checkpoint-tool](plans/checkpoint-tool.yaml) | complete | 3 | `memory_checkpoint` tool, session skill updates, docs |
-| [sidecar-observer](plans/sidecar-observer.yaml) | complete | 7 | Transcript parser framework, Claude Code parser, helpfulness estimator, ACCESS logger, session lifecycle, CLI, docs |
-| [optional-proxy](plans/optional-proxy.yaml) | complete | 6 | API proxy core, context injection, compaction flush, auto-checkpointing, CLI, docs |
-| [enriched-mcp-server](plans/enriched-mcp-server.yaml) | active | 6 | Session state (done), `_session` advisories (in progress), auto-ACCESS, deferred `memory_context_query`, health/docs |
 
-**Parallelism:** Enriched MCP server is in flight: session state landed; advisory envelope and health/docs work remain; auto-ACCESS and `memory_context_query` are still open (context query deferred per MCP.md).
+| Plan                                                                      | Status   | Phases | Focus                                                                                                                |
+| ------------------------------------------------------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------------- |
+| [checkpoint-tool](plans/checkpoint-tool.yaml)                             | complete | 3      | `memory_checkpoint` tool, session skill updates, docs                                                                |
+| [sidecar-observer](plans/sidecar-observer.yaml)                           | complete | 7      | Transcript parser framework, Claude Code parser, helpfulness estimator, ACCESS logger, session lifecycle, CLI, docs  |
+| [optional-proxy](plans/optional-proxy.yaml)                               | complete | 6      | API proxy core, context injection, compaction flush, auto-checkpointing, CLI, docs                                   |
+| [enriched-mcp-server](plans/enriched-mcp-server.yaml)                     | active   | 6      | Session state (done), `_session` advisories (in progress), auto-ACCESS, deferred `memory_context_query`, health/docs |
+| [sidecar-comprehensive-capture](plans/sidecar-comprehensive-capture.yaml) | active   | 7      | All-tool trace spans, compressed dialogue logs, session metrics, query surface for review agents                     |
+
+
+**Parallelism:** Enriched MCP server is in flight: session state landed; advisory envelope and health/docs work remain; auto-ACCESS and `memory_context_query` are still open (context query deferred per MCP.md). Sidecar comprehensive capture is independent of the enriched server and can proceed in parallel.
 
 ## Deferred
 

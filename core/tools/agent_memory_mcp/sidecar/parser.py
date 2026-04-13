@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +24,19 @@ class ToolCall:
     name: str
     args: Any = None
     result: Any = None
+    timestamp: datetime | None = None
+    duration_ms: int | None = None
+    tool_use_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DialogueTurn:
+    """One user or assistant turn in transcript order (for compressed dialogue logs)."""
+
+    role: Literal["user", "assistant"]
+    text: str
+    timestamp: datetime | None = None
+    tool_names: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -37,6 +50,10 @@ class ParsedSession:
     assistant_messages: list[str] = field(default_factory=list)
     tool_calls: list[ToolCall] = field(default_factory=list)
     files_referenced: list[str] = field(default_factory=list)
+    platform_metadata: dict[str, Any] = field(default_factory=dict)
+    user_timestamps: list[datetime | None] = field(default_factory=list)
+    assistant_timestamps: list[datetime | None] = field(default_factory=list)
+    dialogue_turns: list[DialogueTurn] = field(default_factory=list)
 
     def all_messages(self) -> list[str]:
         return [*self.user_messages, *self.assistant_messages]

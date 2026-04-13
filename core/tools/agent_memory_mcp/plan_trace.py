@@ -140,6 +140,11 @@ def estimate_cost(
     }
 
 
+def _format_trace_timestamp(when: datetime) -> str:
+    utc = when.astimezone(timezone.utc)
+    return utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
 def record_trace(
     root: Path,
     session_id: str | None,
@@ -151,6 +156,7 @@ def record_trace(
     metadata: dict[str, Any] | None = None,
     cost: dict[str, Any] | None = None,
     parent_span_id: str | None = None,
+    timestamp: datetime | None = None,
 ) -> str | None:
     """Append a trace span to the session's TRACES.jsonl file.
 
@@ -162,7 +168,8 @@ def record_trace(
         return None
     try:
         sanitized_metadata = _sanitize_metadata(metadata)
-        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        ts = timestamp if timestamp is not None else datetime.now(timezone.utc)
+        now_iso = _format_trace_timestamp(ts)
         span = TraceSpan(
             span_id=_make_span_id(),
             session_id=session_id,
@@ -185,16 +192,63 @@ def record_trace(
         return None
 
 
+def load_session_trace_spans(root: Path, session_id: str) -> list[dict[str, Any]]:
+    """Load all spans from a session's trace file (best-effort, skips bad lines)."""
+    validate_session_id(session_id)
+    path = root / trace_file_path(session_id)
+    if not path.exists():
+        return []
+    spans: list[dict[str, Any]] = []
+    try:
+        raw_lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    for raw_line in raw_lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            span = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(span, dict):
+            spans.append(span)
+    return spans
+
+
+def _session_id_from_trace_path(activity_root: Path, trace_file: Path) -> str | None:
+    try:
+        rel = trace_file.relative_to(activity_root)
+    except ValueError:
+        return None
+    parts = rel.parts
+    if len(parts) < 4:
+        return None
+    name = parts[-1]
+    if not name.endswith(".traces.jsonl"):
+        return None
+    stem = name[: -len(".traces.jsonl")]
+    day = "/".join(parts[:3])
+    return f"memory/activity/{day}/{stem}"
+
+
+def _span_date_key(span: dict[str, Any]) -> str:
+    ts = str(span.get("timestamp") or "")
+    return ts[:10] if len(ts) >= 10 else "unknown"
+
+
 def query_trace_spans(
     root: Path,
     *,
     session_id: str | None = None,
+    sessions: list[str] | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     span_type: str | None = None,
     plan_id: str | None = None,
     status: str | None = None,
     limit: int = 100,
+    group_by: str | None = None,
 ) -> dict[str, Any]:
     """Query trace spans across one session or a date-filtered activity window."""
     if span_type is not None and span_type not in TRACE_SPAN_TYPES:
@@ -207,8 +261,17 @@ def query_trace_spans(
         raise ValidationError("date_to must be in YYYY-MM-DD format")
     if session_id is not None:
         validate_session_id(session_id)
+    if sessions:
+        for sid in sessions:
+            validate_session_id(sid)
+    if session_id is not None and sessions:
+        raise ValidationError("Provide only one of session_id or sessions, not both")
     if plan_id is not None:
         plan_id = validate_slug(plan_id, field_name="plan_id")
+    if group_by is not None and group_by not in {"tool_name", "span_type", "session_id", "date"}:
+        raise ValidationError(
+            "group_by must be one of tool_name, span_type, session_id, date when provided"
+        )
 
     try:
         normalized_limit = int(limit)
@@ -218,12 +281,17 @@ def query_trace_spans(
         raise ValidationError("limit must be >= 1")
 
     activity_root = root / "memory" / "activity"
-    trace_files: list[Path] = []
+    trace_files: list[tuple[Path, str | None]] = []
 
-    if session_id is not None:
+    if sessions:
+        for sid in sessions:
+            candidate = root / trace_file_path(sid)
+            if candidate.exists():
+                trace_files.append((candidate, sid))
+    elif session_id is not None:
         candidate = root / trace_file_path(session_id)
         if candidate.exists():
-            trace_files = [candidate]
+            trace_files.append((candidate, session_id))
     elif activity_root.is_dir():
         for trace_file in sorted(activity_root.rglob("*.traces.jsonl"), reverse=True):
             parts = trace_file.relative_to(activity_root).parts
@@ -233,10 +301,10 @@ def query_trace_spans(
                     continue
                 if date_to is not None and file_date > date_to:
                     continue
-            trace_files.append(trace_file)
+            trace_files.append((trace_file, _session_id_from_trace_path(activity_root, trace_file)))
 
     all_spans: list[dict[str, Any]] = []
-    for trace_file in trace_files:
+    for trace_file, sid_hint in trace_files:
         try:
             raw_lines = trace_file.read_text(encoding="utf-8").splitlines()
         except OSError:
@@ -260,11 +328,13 @@ def query_trace_spans(
                 metadata = span.get("metadata")
                 if not isinstance(metadata, dict) or metadata.get("plan_id") != plan_id:
                     continue
+            resolved_sid = span.get("session_id") or sid_hint
+            if resolved_sid is not None:
+                span = {**span, "session_id": resolved_sid}
             all_spans.append(span)
 
     all_spans.sort(key=lambda span: str(span.get("timestamp") or ""), reverse=True)
     total_matched = len(all_spans)
-    limited_spans = all_spans[:normalized_limit]
 
     total_duration_ms = 0
     total_tokens_in = 0
@@ -297,17 +367,64 @@ def query_trace_spans(
             except (TypeError, ValueError):
                 pass
 
+    aggregates = {
+        "total_duration_ms": total_duration_ms,
+        "total_cost": {
+            "tokens_in": total_tokens_in,
+            "tokens_out": total_tokens_out,
+        },
+        "by_type": by_type,
+        "by_status": by_status,
+        "error_rate": round(error_count / total_matched, 3) if total_matched > 0 else 0.0,
+    }
+
+    if group_by:
+        buckets: dict[str, list[dict[str, Any]]] = {}
+        for span in all_spans:
+            if group_by == "tool_name":
+                key = str(span.get("name") or "")
+            elif group_by == "span_type":
+                key = str(span.get("span_type") or "")
+            elif group_by == "session_id":
+                key = str(span.get("session_id") or "")
+            else:
+                key = _span_date_key(span)
+            buckets.setdefault(key, []).append(span)
+
+        group_rows: list[dict[str, Any]] = []
+        for key, group_spans in buckets.items():
+            g_count = len(group_spans)
+            g_dur = 0
+            g_err = 0
+            for sp in group_spans:
+                try:
+                    g_dur += int(sp.get("duration_ms") or 0)
+                except (TypeError, ValueError):
+                    pass
+                if str(sp.get("status") or "") == "error":
+                    g_err += 1
+            group_rows.append(
+                {
+                    "group_key": key,
+                    "count": g_count,
+                    "total_duration_ms": g_dur,
+                    "mean_duration_ms": round(g_dur / g_count, 3) if g_count else 0.0,
+                    "error_rate": round(g_err / g_count, 3) if g_count else 0.0,
+                }
+            )
+        group_rows.sort(key=lambda row: (-int(row["count"]), str(row["group_key"])))
+        limited_groups = group_rows[:normalized_limit]
+        return {
+            "spans": [],
+            "groups": limited_groups,
+            "group_by": group_by,
+            "total_matched": total_matched,
+            "aggregates": aggregates,
+        }
+
+    limited_spans = all_spans[:normalized_limit]
     return {
         "spans": limited_spans,
         "total_matched": total_matched,
-        "aggregates": {
-            "total_duration_ms": total_duration_ms,
-            "total_cost": {
-                "tokens_in": total_tokens_in,
-                "tokens_out": total_tokens_out,
-            },
-            "by_type": by_type,
-            "by_status": by_status,
-            "error_rate": round(error_count / total_matched, 3) if total_matched > 0 else 0.0,
-        },
+        "aggregates": aggregates,
     }

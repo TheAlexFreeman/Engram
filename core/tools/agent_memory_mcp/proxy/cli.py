@@ -18,8 +18,10 @@ from typing import Any
 from ..server import create_mcp
 from ..sidecar.access_logger import AccessLogger, MCPToolClient
 from ..sidecar.cli import SessionIdAllocator, SidecarStateStore
+from ..sidecar.dialogue_logger import DialogueLogger
 from ..sidecar.lifecycle import SessionLifecycleManager
 from ..sidecar.parser import ParsedSession, ToolCall
+from ..sidecar.trace_logger import TraceLogger
 from .auto_checkpoint import AutoCheckpointConfig, AutoCheckpointMonitor
 from .compaction import CompactionConfig, CompactionMonitor
 from .injection import ContextInjector, InjectionConfig
@@ -136,8 +138,11 @@ class ProxySidecarObserver:
         self._state = state_store.load()
         self._allocator = SessionIdAllocator(config.content_root, self._state)
         self._access_logger = AccessLogger(tool_client)
+        self._trace_logger = TraceLogger(config.content_root)
+        self._dialogue_logger = DialogueLogger(config.content_root)
         self._lifecycle = SessionLifecycleManager(
             tool_client,
+            content_root=config.content_root,
             session_id_factory=self._memory_session_id_for,
             inactivity_threshold=_DEFAULT_IDLE_TIMEOUT,
         )
@@ -223,8 +228,8 @@ class ProxySidecarObserver:
             tracked.session.files_referenced.extend(file_updates)
         tracked.session.end_time = observation.observed_at
 
+        memory_session_id = self._memory_session_id_for(tracked.session)
         if tool_updates:
-            memory_session_id = self._memory_session_id_for(tracked.session)
             await self._access_logger.log_session_access(
                 ParsedSession(
                     session_id=tracked.session.session_id,
@@ -237,12 +242,15 @@ class ProxySidecarObserver:
                 ),
                 session_id=memory_session_id,
             )
+            self._trace_logger.persist_tool_spans(memory_session_id, tracked.session)
 
         if user_updates or assistant_updates or tool_updates:
+            dialogue_entries = self._dialogue_logger.build_dialogue_entries(tracked.session)
             await self._lifecycle.observe_session(
                 tracked.session,
                 transcript_path=f"proxy://{observed_session_id}",
                 transcript_closed=False,
+                dialogue_entries=dialogue_entries,
             )
             self._state_store.save(self._state)
 

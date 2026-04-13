@@ -47,6 +47,7 @@ _ACCESS_SCANS_FILENAME = "ACCESS_SCANS.jsonl"
 _CATEGORY_CODE_RE = re.compile(r"`([a-z0-9]+(?:-[a-z0-9]+)*)`")
 _CATEGORY_LIST_RE = re.compile(r"^(?:[-*]|\d+\.)\s+([a-z0-9]+(?:-[a-z0-9]+)*)\s*$")
 _CURRENT_SESSION_SENTINEL = PurePosixPath("memory/activity/CURRENT_SESSION")
+_DIALOGUE_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _REVIEW_QUEUE_HEADING_RE = re.compile(
     r"(?m)^### (?:\[(?P<date>\d{4}-\d{2}-\d{2})\] (?P<title>.+)|(?P<legacy_date>\d{4}-\d{2}-\d{2}) — (?P<legacy_title>.+))$"
 )
@@ -269,6 +270,7 @@ def _build_chat_summary_content(
     key_topics: str = "",
     root: "Path | None" = None,
     recorded_date: str | None = None,
+    session_metrics: dict[str, object] | None = None,
 ) -> str:
     from ...frontmatter_utils import today_str
 
@@ -283,10 +285,18 @@ def _build_chat_summary_content(
     if topics:
         fm_dict["key_topics"] = topics
 
+    trace_metrics: dict[str, object] | None = None
     if root is not None:
-        metrics = _compute_trace_metrics(root, session_id)
-        if metrics is not None:
-            fm_dict["metrics"] = metrics
+        trace_metrics = _compute_trace_metrics(root, session_id)
+
+    if session_metrics is not None:
+        merged: dict[str, object] = dict(session_metrics)
+        if trace_metrics:
+            for key, value in trace_metrics.items():
+                merged.setdefault(key, value)
+        fm_dict["metrics"] = merged
+    elif trace_metrics is not None:
+        fm_dict["metrics"] = trace_metrics
 
     import frontmatter as fmlib  # type: ignore[import-untyped]
 
@@ -327,6 +337,16 @@ def _summary_recorded_date(abs_session_summary: Path) -> str | None:
     return normalized or None
 
 
+def _summary_metrics_from_frontmatter(abs_session_summary: Path) -> dict[str, object] | None:
+    from ...frontmatter_utils import read_with_frontmatter
+
+    if not abs_session_summary.exists():
+        return None
+    frontmatter, _ = read_with_frontmatter(abs_session_summary)
+    metrics = frontmatter.get("metrics")
+    return dict(metrics) if isinstance(metrics, dict) else None
+
+
 def _existing_chat_summary_matches(
     root: Path,
     abs_session_summary: Path,
@@ -334,13 +354,20 @@ def _existing_chat_summary_matches(
     session_id: str,
     summary: str,
     key_topics: str,
+    session_metrics: dict[str, object] | None = None,
 ) -> bool:
+    resolved_metrics = (
+        session_metrics
+        if session_metrics is not None
+        else _summary_metrics_from_frontmatter(abs_session_summary)
+    )
     expected_content = _build_chat_summary_content(
         session_id,
         summary,
         key_topics,
         root=root,
         recorded_date=_summary_recorded_date(abs_session_summary),
+        session_metrics=resolved_metrics,
     )
     return abs_session_summary.read_text(encoding="utf-8") == expected_content
 
@@ -460,6 +487,97 @@ def _build_structured_reflection_content(
     if system_observations:
         lines.append(f"**System observations:** {system_observations}\n")
     return "".join(lines)
+
+
+def _iter_dialogue_files(
+    root: Path,
+    *,
+    sessions: list[str] | None,
+    date_from: str | None,
+    date_to: str | None,
+) -> list[tuple[str, Path]]:
+    results: list[tuple[str, Path]] = []
+    if sessions:
+        for sid in sessions:
+            validate_session_id(sid)
+            path = root / sid / "dialogue.jsonl"
+            if path.is_file():
+                results.append((sid, path))
+        return results
+
+    activity = root / "memory" / "activity"
+    if not activity.is_dir():
+        return []
+    for path in sorted(activity.rglob("dialogue.jsonl"), reverse=True):
+        rel = path.relative_to(root)
+        parts = rel.parts
+        if len(parts) < 7 or parts[-1] != "dialogue.jsonl":
+            continue
+        y, mo, d = parts[2], parts[3], parts[4]
+        file_date = f"{y}-{mo}-{d}"
+        if date_from is not None and file_date < date_from:
+            continue
+        if date_to is not None and file_date > date_to:
+            continue
+        session_id = str(PurePosixPath(*parts[:-1]).as_posix())
+        results.append((session_id, path))
+    return results
+
+
+def query_dialogue_entries(
+    root: Path,
+    *,
+    sessions: list[str] | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    keyword: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    from ...errors import ValidationError
+
+    if date_from is not None and not _DIALOGUE_DATE_RE.fullmatch(date_from):
+        raise ValidationError("date_from must be in YYYY-MM-DD format")
+    if date_to is not None and not _DIALOGUE_DATE_RE.fullmatch(date_to):
+        raise ValidationError("date_to must be in YYYY-MM-DD format")
+    if limit < 1:
+        raise ValidationError("limit must be >= 1")
+    if offset < 0:
+        raise ValidationError("offset must be >= 0")
+
+    kw = keyword.strip().lower() if isinstance(keyword, str) and keyword.strip() else None
+    collected: list[dict[str, Any]] = []
+    for session_id, path in _iter_dialogue_files(
+        root, sessions=sessions, date_from=date_from, date_to=date_to
+    ):
+        try:
+            raw_lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in raw_lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                row = json.loads(stripped)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            first_line = str(row.get("first_line") or "")
+            if kw is not None and kw not in first_line.lower():
+                continue
+            collected.append({"session_id": session_id, **row})
+
+    collected.sort(key=lambda item: str(item.get("timestamp") or ""), reverse=True)
+    total_matched = len(collected)
+    page = collected[offset : offset + limit]
+    return {
+        "entries": page,
+        "total_matched": total_matched,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 def _resolve_access_session_id(root: Path, session_id: str | None) -> str | None:
@@ -1843,6 +1961,8 @@ def register_tools(
         reflection: str | None = None,
         key_topics: str = "",
         access_entries: list[dict[str, object]] | None = None,
+        metrics: dict[str, object] | None = None,
+        dialogue_entries: list[dict[str, object]] | None = None,
     ) -> str:
         """Record a full session in one commit.
 
@@ -1854,6 +1974,8 @@ def register_tools(
         - reflection: markdown text written to reflection.md
         - key_topics: summary index topics string
         - access_entries: ACCESS entries to append under the same session id
+        - metrics: optional session activity metrics dict merged into SUMMARY frontmatter
+        - dialogue_entries: optional compressed dialogue rows written to dialogue.jsonl
 
         The tool writes the session summary, optional reflection, chat index
         update, and optional ACCESS entries atomically under a single [chat]
@@ -1891,6 +2013,7 @@ def register_tools(
                 session_id=session_id,
                 summary=summary,
                 key_topics=key_topics,
+                session_metrics=metrics,
             ):
                 raise ValidationError(
                     f"Session summary already exists for {session_id} with different content. Edit the existing session files directly if an update is needed."
@@ -1940,10 +2063,24 @@ def register_tools(
 
         files_changed = [session_summary_rel]
         abs_session_summary.write_text(
-            _build_chat_summary_content(session_id, summary, key_topics, root=root),
+            _build_chat_summary_content(
+                session_id, summary, key_topics, root=root, session_metrics=metrics
+            ),
             encoding="utf-8",
         )
         repo.add(session_summary_rel)
+
+        dialogue_rows = dialogue_entries or []
+        if dialogue_rows:
+            dialogue_rel = f"{session_id}/dialogue.jsonl"
+            dialogue_abs = root / dialogue_rel
+            dialogue_abs.parent.mkdir(parents=True, exist_ok=True)
+            dialogue_abs.write_text(
+                "\n".join(json.dumps(row, ensure_ascii=False) for row in dialogue_rows) + "\n",
+                encoding="utf-8",
+            )
+            repo.add(dialogue_rel)
+            files_changed.append(dialogue_rel)
 
         applied_reflection_path: str | None = None
         if normalized_reflection:
@@ -2500,6 +2637,42 @@ def register_tools(
         )
         return result.to_json()
 
+    @mcp.tool(
+        name="memory_query_dialogue",
+        annotations=_tool_annotations(
+            title="Query Compressed Dialogue Logs",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_query_dialogue(
+        sessions: list[str] | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        keyword: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> str:
+        """Read sidecar-written dialogue.jsonl rows across sessions.
+
+        Filter by explicit session ids, optional activity date range (YYYY-MM-DD),
+        or keyword substring match on first_line. Paginate with offset/limit.
+        Call memory_tool_schema with tool_name=\"memory_query_dialogue\" for fields.
+        """
+        root = get_root()
+        payload = query_dialogue_entries(
+            root,
+            sessions=sessions,
+            date_from=date_from,
+            date_to=date_to,
+            keyword=keyword,
+            limit=limit,
+            offset=offset,
+        )
+        return json.dumps(payload, indent=2)
+
     return {
         "memory_checkpoint": memory_checkpoint,
         "memory_session_flush": memory_session_flush,
@@ -2510,6 +2683,7 @@ def register_tools(
         "memory_log_access": memory_log_access,
         "memory_log_access_batch": memory_log_access_batch,
         "memory_record_session": memory_record_session,
+        "memory_query_dialogue": memory_query_dialogue,
         "memory_run_aggregation": memory_run_aggregation,
         "memory_record_reflection": memory_record_reflection,
         "memory_record_periodic_review": memory_record_periodic_review,

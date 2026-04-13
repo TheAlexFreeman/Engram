@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..parser import ParsedSession, ToolCall, TranscriptFile
+from ..parser import DialogueTurn, ParsedSession, ToolCall, TranscriptFile
 
 _RELATIVE_PATH_FIELD_NAMES = {
     "file",
@@ -37,6 +37,20 @@ def _parse_timestamp(value: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed
+
+
+def _parse_duration_ms(payload: Any) -> int | None:
+    if not isinstance(payload, dict):
+        return None
+    for key in ("duration_ms", "durationMs", "latency_ms"):
+        raw = payload.get(key)
+        if raw is None:
+            continue
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            continue
+    return None
 
 
 def _coerce_text_blocks(content: Any) -> list[str]:
@@ -165,6 +179,7 @@ class ClaudeCodeTranscriptParser:
         if raw_session.get("type") != "assistant":
             return []
 
+        ts = _parse_timestamp(raw_session.get("timestamp"))
         message = raw_session.get("message")
         if not isinstance(message, dict):
             return []
@@ -176,11 +191,14 @@ class ClaudeCodeTranscriptParser:
         for block in content:
             if not isinstance(block, dict) or block.get("type") != "tool_use":
                 continue
+            use_id = str(block.get("id", "")).strip()
             tool_calls.append(
                 ToolCall(
                     name=str(block.get("name", "")),
                     args=block.get("input"),
                     result=None,
+                    timestamp=ts,
+                    tool_use_id=use_id or None,
                 )
             )
         return tool_calls
@@ -205,19 +223,39 @@ class ClaudeCodeTranscriptParser:
         start_time = min(timestamps) if timestamps else transcript.modified_time
         end_time = max(timestamps) if timestamps else transcript.modified_time
 
+        platform_metadata: dict[str, Any] = {}
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            for key in ("cwd", "gitBranch", "agentId", "entrypoint"):
+                if key in platform_metadata:
+                    continue
+                val = record.get(key)
+                if val is not None and str(val).strip():
+                    platform_metadata[key] = val
+            if len(platform_metadata) >= 4:
+                break
+
         user_messages: list[str] = []
         assistant_messages: list[str] = []
+        user_timestamps: list[datetime | None] = []
+        assistant_timestamps: list[datetime | None] = []
+        dialogue_turns: list[DialogueTurn] = []
         pending_tool_calls: dict[str, dict[str, Any]] = {}
         files_referenced: list[str] = []
 
         for record in records:
             record_type = str(record.get("type", ""))
             message = record.get("message")
+            ts = _parse_timestamp(record.get("timestamp"))
 
             if record_type == "user" and isinstance(message, dict):
                 text_blocks = _coerce_text_blocks(message.get("content"))
                 if text_blocks:
                     user_messages.extend(text_blocks)
+                    user_timestamps.extend([ts] * len(text_blocks))
+                    for tb in text_blocks:
+                        dialogue_turns.append(DialogueTurn("user", tb, ts, ()))
 
                 content_blocks = message.get("content")
                 if isinstance(content_blocks, list):
@@ -228,14 +266,31 @@ class ClaudeCodeTranscriptParser:
                         result_payload = record.get("toolUseResult", block.get("content"))
                         if tool_use_id and tool_use_id in pending_tool_calls:
                             pending_tool_calls[tool_use_id]["result"] = result_payload
+                            duration_ms = _parse_duration_ms(result_payload)
+                            if duration_ms is not None:
+                                pending_tool_calls[tool_use_id]["duration_ms"] = duration_ms
                         files_referenced.extend(_extract_file_references(result_payload))
                 continue
 
             if record_type != "assistant" or not isinstance(message, dict):
                 continue
 
-            assistant_messages.extend(_coerce_text_blocks(message.get("content")))
             content_blocks = message.get("content")
+            tool_names_list: list[str] = []
+            if isinstance(content_blocks, list):
+                for block in content_blocks:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        tool_names_list.append(str(block.get("name", "")))
+
+            text_blocks = _coerce_text_blocks(message.get("content"))
+            if text_blocks:
+                assistant_messages.extend(text_blocks)
+                assistant_timestamps.extend([ts] * len(text_blocks))
+            merged_assistant = "\n".join(text_blocks)
+            dialogue_turns.append(
+                DialogueTurn("assistant", merged_assistant, ts, tuple(tool_names_list))
+            )
+
             if not isinstance(content_blocks, list):
                 continue
             for block in content_blocks:
@@ -248,12 +303,20 @@ class ClaudeCodeTranscriptParser:
                         "name": str(block.get("name", "")),
                         "args": input_payload,
                         "result": None,
+                        "timestamp": ts,
+                        "tool_use_id": tool_use_id or None,
+                        "duration_ms": None,
                     }
                 files_referenced.extend(_extract_file_references(input_payload))
 
         tool_calls = [
             ToolCall(
-                name=str(payload["name"]), args=payload.get("args"), result=payload.get("result")
+                name=str(payload["name"]),
+                args=payload.get("args"),
+                result=payload.get("result"),
+                timestamp=payload.get("timestamp"),
+                duration_ms=payload.get("duration_ms"),
+                tool_use_id=payload.get("tool_use_id"),
             )
             for payload in pending_tool_calls.values()
         ]
@@ -266,6 +329,10 @@ class ClaudeCodeTranscriptParser:
             assistant_messages=assistant_messages,
             tool_calls=tool_calls,
             files_referenced=_dedupe_preserving_order(files_referenced),
+            platform_metadata=platform_metadata,
+            user_timestamps=user_timestamps,
+            assistant_timestamps=assistant_timestamps,
+            dialogue_turns=dialogue_turns,
         )
 
     def _resolve_session_id(
