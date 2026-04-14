@@ -1,0 +1,6 @@
+**
+!compose/
+!compose/prod/
+!compose/prod/postgres/
+!compose/prod/postgres/maintenance/
+!compose/prod/postgres/maintenance/**

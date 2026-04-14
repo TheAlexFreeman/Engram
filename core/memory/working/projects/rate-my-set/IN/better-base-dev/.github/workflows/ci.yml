@@ -1,0 +1,119 @@
+name: CI
+
+env:
+  COMPOSE_DOCKER_CLI_BUILD: 1
+  DOCKER_BUILDKIT: 1
+  DJANGO_SETTINGS_MODULE: config.settings.ci
+
+on:
+  pull_request:
+    branches: ["dev", "main", "master"]
+    paths-ignore: ["docs/**"]
+
+  push:
+    branches: ["dev", "main", "master"]
+    paths-ignore: ["docs/**"]
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  linter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v6
+
+      - name: Setup UV
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.0"
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+
+      - name: Setup Python
+        run: uv python install
+
+      - name: Sync UV
+        run: uv sync --locked --no-install-project
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.11"
+
+      - name: Cache Bun Dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install NPM Packages
+        run: bun install
+
+      - name: Run Ruff
+        run: uvx ruff check . --output-format=github
+
+      - name: Run Prek (Pre-Commit In Rust)
+        run: uv run prek run --show-diff-on-failure --color=always --all-files
+
+      - name: Run Oxfmt
+        run: bun run fmt:check
+
+      - name: Run Taplo (TOML)
+        run: bun run fmt:toml:check
+
+      - name: Run Typescript Check
+        run: bun run tscheck
+
+      - name: Run Oxlint (type-aware)
+        run: bunx oxlint --type-aware --format=github --deny-warnings
+
+      - name: Run ESLint
+        run: bun run lint:full
+
+      - name: Check Circular Imports
+        run: bun run circular-import-check
+
+  pytest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v6
+
+      - name: Build the Stack
+        run: docker compose -f dc.ci.yml build
+
+      - name: Run DB Migrations
+        run: docker compose -f dc.ci.yml run --rm django python manage.py migrate
+
+      - name: Run Django Tests
+        run: docker compose -f dc.ci.yml run django pytest backend/
+
+      - name: Tear Down the Stack
+        run: docker compose -f dc.ci.yml down
+
+  mypy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v6
+
+      - name: Build the Stack
+        run: docker compose -f dc.ci.yml build
+
+      - name: Run DB Migrations
+        run: docker compose -f dc.ci.yml run --rm django python manage.py migrate
+
+      - name: Run Mypy
+        run: docker compose -f dc.ci.yml run django mypy .
+
+      - name: Tear Down the Stack
+        run: docker compose -f dc.ci.yml down

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+exec watchfiles --filter python celery.__main__.main --args '-A config.celery_app worker -c 3 -l INFO'

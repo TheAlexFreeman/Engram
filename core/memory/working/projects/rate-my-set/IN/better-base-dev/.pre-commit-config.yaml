@@ -1,0 +1,100 @@
+default_language_version:
+  node: "24.14.0"
+  python: python3.14
+default_stages: [pre-commit]
+exclude: "^docs/|/migrations/"
+
+repos:
+  - repo: builtin
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-json
+        exclude: |
+          (?x)^(
+            .vscode/.*|
+            tsconfig.json|
+            tsconfig.app.json|
+            tsconfig.node.json
+          )$
+      - id: check-toml
+      - id: check-xml
+      - id: check-yaml
+      - id: check-case-conflict
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.15.7
+    hooks:
+      # Run the linter.
+      - id: ruff-check
+        args: [--fix]
+      # Run the formatter.
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: oxfmt
+        name: oxfmt
+        description: "Run Oxfmt formatter."
+        entry: bun run fmt:hook
+        language: node
+        types_or: [javascript, jsx, ts, tsx, json, css, scss, html, markdown, yaml]
+        args: []
+        require_serial: false
+
+      - id: taplo-fmt
+        name: taplo-fmt
+        description: "Run Taplo TOML formatter."
+        entry: bun run fmt:toml:hook
+        language: node
+        files: |
+          (?x)^(
+            .*\.toml$|
+            uv\.lock$
+          )$
+        require_serial: false
+
+      - id: oxlint
+        name: oxlint
+        description: "Run oxlint for fast JavaScript/TypeScript linting."
+        entry: bunx oxlint --deny-warnings
+        language: node
+        types_or: [javascript, jsx, ts, tsx]
+        pass_filenames: true
+        require_serial: false
+
+      - id: fix-email-txt-invalid-wrapped-template-sections
+        name: fix-email-txt-invalid-wrapped-template-sections
+        description: "Fix word wrapping issues in email .txt files."
+        entry: python scripts/fix_email_txt_wrapping.py
+        language: system
+        files: |
+          (?x)^(
+            ^emails/exported/txt/.*\.txt$|
+            ^backend/templates/emails/.*\.txt$
+          )$
+        require_serial: false
+
+  - repo: https://github.com/djlint/djLint
+    rev: v1.36.4
+    hooks:
+      - id: djlint-reformat-django
+        files: ^backend/templates/.*\.html$
+      - id: djlint-django
+        files: ^backend/templates/.*\.html$
+
+  - repo: https://github.com/adamchainz/djade-pre-commit
+    rev: "1.9.0"
+    hooks:
+      - id: djade
+        args: [--target-version, "6.0"]
+        files: ^backend/templates/.*\.html$
+
+  - repo: https://github.com/adamchainz/django-upgrade
+    rev: "1.30.0"
+    hooks:
+      - id: django-upgrade
+        args: ["--target-version", "6.0"]
+        stages: [manual]

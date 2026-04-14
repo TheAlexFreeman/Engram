@@ -1,0 +1,5 @@
+**
+!compose/
+!compose/prod/
+!compose/prod/traefik/
+!compose/prod/traefik/traefik.yml

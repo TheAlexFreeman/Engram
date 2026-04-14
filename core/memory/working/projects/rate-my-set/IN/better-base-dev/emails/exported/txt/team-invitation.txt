@@ -1,0 +1,9 @@
+You have been invited to join {{ team_display_name }}. If you do not wish to join this account, you may ignore this email.
+
+{{ action_text }} {{ secret_link }}
+
+----------------------------------------
+
+Better Base {{ web_app_root_url }}
+
+If you are not sure why you’re receiving this, please contact us at {{ support_email }} {{ support_email }}

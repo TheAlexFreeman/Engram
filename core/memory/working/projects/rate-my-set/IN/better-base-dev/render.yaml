@@ -1,0 +1,317 @@
+databases:
+  # Prod - Database - PostgreSQL
+  - name: better-base-prod-db-postgresql
+    region: oregon
+    databaseName: better_base_prod
+    diskSizeGB: 5
+    plan: basic-256mb
+    postgresMajorVersion: "18"
+
+envVarGroups:
+  # Prod - Env Group - Shared Across All Services Frontend and Backend
+  - name: better-base-prod-shared
+    envVars:
+      - key: ENVIRONMENT
+        value: prod
+      - key: VITE_ENVIRONMENT
+        value: prod
+      - key: VITE_SENTRY_AUTH_TOKEN
+        sync: false
+      - key: VITE_SENTRY_DSN
+        sync: false
+      - key: VITE_SENTRY_IS_ENABLED
+        value: "true"
+      - key: VITE_SENTRY_ORG
+        value: "better-base"
+      - key: VITE_SENTRY_PROJECT
+        value: "better-base-prod"
+      # * Important NOTE: This (`VITE_SENTRY_RELEASE`) *SHOULD NOT* be set in the
+      #   environment on staging/production right now. It will be automatically injected
+      #   by other build processes. See staging/production `Dockerfile`, `dc.stage.yml`,
+      #   `dc.prod.yml`, and/or `Taskfile.yml`, etc., for more info.
+      # - key: VITE_SENTRY_RELEASE
+      #   sync: false
+
+  # Prod - Env Group - Shared Across All Backend Services
+  - name: better-base-prod-backend
+    envVars:
+      - key: ARE_ROOT_DOMAIN_COOKIES_ENABLED
+        sync: false
+      - key: BASE_BACKEND_URL
+        value: "https://app.betterbase.com"
+      - key: BASE_LANDING_SITE_URL
+        value: "https://betterbase.com"
+      - key: BASE_DOMAIN_FOR_SUBDOMAINS
+        value: "betterbase.com"
+      - key: BASE_WEB_APP_URL
+        value: https://app.betterbase.com
+      - key: CACHALOT_ENABLED
+        value: "True"
+      - key: CELERY_FLOWER_PASSWORD
+        sync: false
+      - key: CELERY_FLOWER_USER
+        value: "better_base_prod_flower_user"
+      - key: CELERY_RESULT_BACKEND
+        value: "django-db"
+      - key: CONN_MAX_AGE
+        value: "60"
+      - key: CONN_HEALTH_CHECKS
+        value: "False"
+      - key: DB_DISABLE_SERVER_SIDE_CURSORS
+        value: "False"
+      - key: DEFAULT_SITE_DOMAIN
+        value: "app.betterbase.com"
+      - key: DEFAULT_SITE_NAME
+        value: "app.betterbase.com"
+      - key: DEFAULT_SUPPORT_EMAIL
+        value: support@betterbase.com
+      - key: DJANGO_ADMIN_URL
+        sync: false
+      - key: DJANGO_ALLOWED_HOSTS
+        value: "betterbase.com,app.betterbase.com,demo.betterbase.com,files.betterbase.com,www.betterbase.com,better-base-prod-webserver-django.onrender.com"
+      - key: DJANGO_AWS_ACCESS_KEY_ID
+        sync: false
+      - key: DJANGO_AWS_PRIVATE_STORAGE_BUCKET_NAME
+        value: "better-base-prod-private"
+      - key: DJANGO_AWS_PUBLIC_STORAGE_BUCKET_NAME
+        value: "better-base-prod-public"
+      - key: DJANGO_AWS_QUERYSTRING_AUTH
+        value: "True"
+      - key: DJANGO_AWS_S3_CUSTOM_DOMAIN
+        # <fill_in>.r2.cloudflarestorage.com
+        sync: false
+      - key: DJANGO_AWS_S3_ENDPOINT_URL
+        # https://<fill_in>.r2.cloudflarestorage.com
+        sync: false
+      - key: DJANGO_AWS_S3_PUBLIC_CUSTOM_DOMAIN
+        # NOTE: `"TODO-FILL-IN.betterbase.com"` is just a more fun name than something
+        # like `"public-files.betterbase.com"`.
+        value: "TODO-FILL-IN.betterbase.com"
+      - key: DJANGO_AWS_S3_PRIVATE_CUSTOM_DOMAIN
+        # <fill_in>.r2.cloudflarestorage.com
+        sync: false
+      - key: DJANGO_AWS_S3_REGION_NAME
+        value: "auto"
+      - key: DJANGO_AWS_S3_PRIVATE_ENDPOINT_URL
+        # https://<fill_in>.r2.cloudflarestorage.com
+        sync: false
+      - key: DJANGO_AWS_S3_PUBLIC_ENDPOINT_URL
+        # https://<fill_in>.r2.cloudflarestorage.com
+        sync: false
+      - key: DJANGO_AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: DJANGO_AWS_STORAGE_BUCKET_NAME
+        value: "better-base-prod-private"
+      - key: DJANGO_CORS_ALLOWED_ORIGINS
+        value: "https://betterbase.com,https://app.betterbase.com,https://demo.betterbase.com,https://files.betterbase.com,https://www.betterbase.com,https://better-base-prod-webserver-django.onrender.com"
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        value: "https://betterbase.com,https://app.betterbase.com,https://demo.betterbase.com,https://files.betterbase.com,https://www.betterbase.com,https://better-base-prod-webserver-django.onrender.com"
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_DEFAULT_FROM_EMAIL
+        value: "Better Base <accounts@mail.betterbase.com>"
+      - key: DJANGO_EMAIL_SUBJECT_PREFIX
+        value: "None"
+      - key: DJANGO_LOG_LEVEL
+        value: "INFO"
+      - key: DJANGO_READ_DOT_ENV_FILE
+        value: "False"
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: DJANGO_SECURE_HSTS_SECONDS
+        value: "10800"
+      - key: DJANGO_SENTRY_EVENT_LEVEL
+        sync: false
+      - key: DJANGO_SENTRY_LOG_LEVEL
+        sync: false
+      - key: DJANGO_SESSION_COOKIE_DOMAIN
+        value: ".betterbase.com"
+      - key: DJANGO_SETTINGS_MODULE
+        value: "config.settings.prod"
+      - key: ENVIRONMENT
+        value: "prod"
+      - key: MAILGUN_API_KEY
+        sync: false
+      - key: MAILGUN_DOMAIN
+        value: "mail.betterbase.com"
+      - key: MAILGUN_WEBHOOK_SIGNING_KEY
+        sync: false
+      - key: PORT
+        value: 5000
+      - key: PYTHONHASHSEED
+        value: "random"
+      - key: REST_FRAMEWORK_SHOW_BROWSABLE_API
+        value: "False"
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_PROFILES_SAMPLE_RATE
+        sync: false
+      - key: SENTRY_SEND_DEFAULT_PII
+        sync: false
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        sync: false
+      # NOTE: SENTRY_RELEASE is used by the backend Python Sentry SDK. It can be set to
+      # the git commit SHA. The backend also reads from .sentry-release file if this env
+      # var is not set. On Render, RENDER_GIT_COMMIT is automatically available.
+      - key: SENTRY_RELEASE
+        sync: false
+      - key: SERVER_EMAIL
+        value: "Better Base System <system@mail.betterbase.com>"
+      - key: SIGNUP_ENABLE_ALLOWING_ANY_EMAIL_DOMAIN_IF_CREATING_FROM_INVITATION
+        value: "False"
+      - key: SIGNUP_ENABLE_ONLY_ALLOWING_SPECIFIC_EMAIL_DOMAINS
+        value: "False"
+      - key: SIGNUP_ONLY_ALLOW_SPECIFIC_EMAIL_DOMAINS
+        value: "betterbase.com"
+      - key: WEB_CONCURRENCY
+        sync: false
+
+  # Prod - Env Group - Shared Across All Frontend Service(s)
+  - name: better-base-prod-frontend
+    envVars:
+      - key: VITE_HOTJAR_ENABLE_DEBUG_MODE
+        value: "false"
+      - key: VITE_HOTJAR_IS_ENABLED
+        sync: false
+      - key: VITE_HOTJAR_SITE_ID
+        sync: false
+      - key: VITE_HOTJAR_SNIPPET_VERSION
+        value: "6"
+
+services:
+  # Prod - Redis - Cache
+  - type: redis
+    name: better-base-prod-redis-cache
+    region: oregon
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+    plan: free
+
+  # Prod - Redis - Celery Broker
+  - type: redis
+    name: better-base-prod-redis-celery-broker
+    region: oregon
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    plan: starter
+
+  # Prod - Web Service - Django
+  - type: web
+    name: better-base-prod-webserver-django
+    region: oregon
+    autoDeploy: true
+    branch: main
+    dockerCommand: /app/start
+    dockerfilePath: compose/prod/django/Dockerfile
+    domains:
+      - app.betterbase.com
+    envVars:
+      - fromGroup: better-base-prod-shared
+      - fromGroup: better-base-prod-backend
+      - fromGroup: better-base-prod-frontend
+      - fromService:
+          name: better-base-prod-redis-celery-broker
+          property: connectionString
+          type: redis
+        key: CELERY_BROKER_URL
+      - fromDatabase:
+          name: better-base-prod-db-postgresql
+          property: connectionString
+        key: DATABASE_URL
+      - fromService:
+          name: better-base-prod-redis-cache
+          property: connectionString
+          type: redis
+        key: REDIS_CACHE_URL
+      - fromService:
+          name: better-base-prod-redis-celery-broker
+          property: connectionString
+          type: redis
+        key: REDIS_CELERY_BROKER_URL
+      - key: JUDOSCALE_IS_ENABLED
+        sync: false
+      - key: JUDOSCALE_URL
+        sync: false
+      - key: PORT
+        value: 5000
+      - key: WEB_CONCURRENCY
+        sync: false
+    plan: standard
+    preDeployCommand: "python manage.py migrate"
+    runtime: docker
+
+  # Prod - Worker - Celery Beat
+  - type: worker
+    name: better-base-prod-celery-beat
+    region: oregon
+    autoDeploy: true
+    branch: main
+    dockerCommand: /app/start-celerybeat
+    dockerfilePath: compose/prod/django/Dockerfile
+    envVars:
+      - fromGroup: better-base-prod-shared
+      - fromGroup: better-base-prod-backend
+      - fromGroup: better-base-prod-frontend
+      - fromService:
+          name: better-base-prod-redis-celery-broker
+          property: connectionString
+          type: redis
+        key: CELERY_BROKER_URL
+      - fromDatabase:
+          name: better-base-prod-db-postgresql
+          property: connectionString
+        key: DATABASE_URL
+      - fromService:
+          name: better-base-prod-redis-celery-broker
+          property: connectionString
+          type: redis
+        key: REDIS_CELERY_BROKER_URL
+      - fromService:
+          name: better-base-prod-redis-cache
+          property: connectionString
+          type: redis
+        key: REDIS_CACHE_URL
+      - key: JUDOSCALE_IS_ENABLED
+        sync: false
+      - key: JUDOSCALE_URL
+        sync: false
+    plan: starter
+    runtime: docker
+
+  # Prod - Worker - Celery Worker - Regular
+  - type: worker
+    name: better-base-prod-background-celery-worker-regular
+    region: oregon
+    autoDeploy: true
+    branch: main
+    dockerCommand: /app/start-celeryworker-regular
+    dockerfilePath: compose/prod/django/Dockerfile
+    envVars:
+      - fromGroup: better-base-prod-shared
+      - fromGroup: better-base-prod-backend
+      - fromGroup: better-base-prod-frontend
+      - fromService:
+          name: better-base-prod-redis-celery-broker
+          property: connectionString
+          type: redis
+        key: CELERY_BROKER_URL
+      - fromDatabase:
+          name: better-base-prod-db-postgresql
+          property: connectionString
+        key: DATABASE_URL
+      - fromService:
+          name: better-base-prod-redis-cache
+          property: connectionString
+          type: redis
+        key: REDIS_CACHE_URL
+      - fromService:
+          name: better-base-prod-redis-celery-broker
+          property: connectionString
+          type: redis
+        key: REDIS_CELERY_BROKER_URL
+      - key: JUDOSCALE_IS_ENABLED
+        sync: false
+      - key: JUDOSCALE_URL
+        sync: false
+    plan: standard
+    runtime: docker

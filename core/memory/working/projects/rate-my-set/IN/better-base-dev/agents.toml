@@ -1,0 +1,51 @@
+version = 1
+agents = ["claude", "cursor", "codex", "opencode"]
+
+[[skills]]
+name = "dotagents"
+source = "getsentry/dotagents"
+
+[[skills]]
+name = "update-eng-style-guide"
+source = "path:.agents/skills/update-eng-style-guide"
+
+[[skills]]
+name = "update-style-guide"
+source = "path:.agents/skills/update-style-guide"
+
+[[skills]]
+name = "update-engineering-style-guide"
+source = "path:.agents/skills/update-engineering-style-guide"
+
+[[skills]]
+name = "consolidate-session-learnings"
+source = "path:.agents/skills/consolidate-session-learnings"
+
+[[skills]]
+name = "django-models"
+source = "path:.agents/skills/django-models"
+
+[[skills]]
+name = "django-admins"
+source = "path:.agents/skills/django-admins"
+
+[[skills]]
+name = "django-model-factories"
+source = "path:.agents/skills/django-model-factories"
+
+[[skills]]
+name = "operations"
+source = "path:.agents/skills/operations"
+
+[[skills]]
+name = "update-deps"
+source = "path:.agents/skills/update-deps"
+
+[[mcp]]
+name = "chakra-ui"
+command = "bunx"
+args = ["-y", "@chakra-ui/react-mcp"]
+
+[[mcp]]
+name = "figma"
+url = "https://mcp.figma.com/mcp"

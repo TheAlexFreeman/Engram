@@ -1,0 +1,18 @@
+{% load static_for_email %}
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<link rel="preload"
+      as="image"
+      href="{% static_for_email 'logos/email-logo-small.png' %}" />
+<!--$-->
+<img alt="Better Base"
+     height="32"
+     src="{% static_for_email 'logos/email-logo-small.png' %}"
+     style="display:block;
+            outline:none;
+            border:none;
+            text-decoration:none;
+            border-radius:0;
+            width:41px;
+            height:32px"
+     width="41" />
+<!--/$-->

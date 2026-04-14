@@ -1,0 +1,251 @@
+version: "3"
+
+dotenv: [.taskfile.env]
+
+tasks:
+  # --- Docker-Specific Commands ---
+  build:
+    cmds:
+      - docker compose -f $COMPOSE_FILE build
+  up:
+    cmds:
+      - docker compose -f $COMPOSE_FILE up django postgres redis mailpit celeryworker celerybeat bun
+  back:
+    cmds:
+      - docker compose -f $COMPOSE_FILE up -d postgres redis mailpit
+  celery:
+    cmds:
+      - docker compose -f $COMPOSE_FILE up -d celeryworker celerybeat flower
+  flower:
+    cmds:
+      - docker compose -f $COMPOSE_FILE up -d flower
+  down:
+    cmds:
+      - docker compose -f $COMPOSE_FILE down
+  # `downvv` instead of `downv` to avoid having accidental typos unintentionally nuke your volumes.
+  downvv:
+    cmds:
+      - docker compose -f $COMPOSE_FILE down -v
+  prune:
+    cmds:
+      - docker system prune -f
+
+  # --- Local (Outside of Docker) Commands ---
+
+  # Run development `vite` stuff (see `package.json`).
+  vdev:
+    cmds:
+      - bun dev
+  # Run `vite` build (see `package.json`).
+  vbuild:
+    cmds:
+      - bun run build
+  # Locally run the Django server (not in Docker).
+  rs:
+    cmds:
+      - python manage.py runserver 8020
+  # Locally run a Python shell (not in Docker).
+  s:
+    cmds:
+      - python manage.py shell_plus
+  # Make Django migrations.
+  mm:
+    cmds:
+      - python manage.py makemigrations
+  # Run Django migrations.
+  m:
+    cmds:
+      - python manage.py migrate
+  # Run Django `collectstatic` (without prompting for input).
+  cs:
+    cmds:
+      - python manage.py collectstatic --noinput
+  # Run Django `check`.
+  ch:
+    cmds:
+      - python manage.py check
+  # Run the tests.
+  t:
+    cmds:
+      - pytest .
+  # Run the tests, re-creating the database (and applying any fresh migrations, etc.).
+  tdb:
+    cmds:
+      - pytest . --create-db
+  # Run the tests with coverage.
+  tcov:
+    cmds:
+      - pytest . --cov=backend && coverage html
+  # Run the tests with coverage, re-creating the database.
+  tcovdb:
+    cmds:
+      - pytest . --cov=backend --create-db && coverage html
+  # Run the tests in parallel.
+  tp:
+    cmds:
+      - pytest . -n auto --cov=backend --create-db
+  # Run the tests in parallel with coverage.
+  tpcov:
+    cmds:
+      - pytest . -n auto --cov=backend && coverage html
+  # Run the tests in parallel, re-creating the database.
+  tpdb:
+    cmds:
+      - pytest . -n auto --create-db
+  # Run the tests in parallel with coverage, re-creating the database.
+  tpcovdb:
+    cmds:
+      - pytest . -n auto --cov=backend --create-db && coverage html
+  # Run `mypy`.
+  mp:
+    cmds:
+      - mypy .
+  # run `ruff check`.
+  rc:
+    cmds:
+      - ruff check .
+  # run `ruff check --fix`.
+  rcf:
+    cmds:
+      - ruff check . --fix
+  # run `ruff format`.
+  rf:
+    cmds:
+      - ruff format
+  # Run `vbuild` and `cs` (`bun run build` and `python manage.py collectstatic --noinput`).
+  bcs:
+    cmds:
+      - task: vbuild
+      - task: cs
+  # Run our own command to create default admin(s).
+  cda:
+    cmds:
+      - python manage.py create_default_admins
+  # Generate OpenAPI Schema
+  gos:
+    cmds:
+      - python manage.py spectacular --file openapi/generated/schema.yml
+      - bunx openapi-typescript openapi/generated/schema.yml --output openapi/generated/schema.ts
+      # NOTE: Uncomment this line if you want client code generation.
+      # - bunx openapi-typescript-codegen --input openapi/generated/schema.yml --output openapi/generated/client/
+
+  # --- Local Commands That Can Be Run Inside Docker Instead ---
+  # Some may be slightly modified to work with/take advantage of the context of being run within Docker.
+
+  # Locally run the Django server (not in Docker).
+  drs:
+    cmds:
+      - docker compose up -d bun
+      - docker compose up django
+  # Locally run a Python shell (not in Docker).
+  ds:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django python manage.py shell_plus
+  # Make Django migrations.
+  dmm:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django python manage.py makemigrations
+  # Run Django migrations.
+  dm:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django python manage.py migrate
+  # Run Django `collectstatic` (without prompting for input).
+  dcs:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django python manage.py collectstatic --noinput
+  # Run Django `check`.
+  dch:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django python manage.py check
+  # Run the tests.
+  dt:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django pytest .
+  # Run the tests, re-creating the database (and applying any fresh migrations, etc.).
+  dtdb:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django pytest . --create-db
+  # Run the tests with coverage.
+  dtcov:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django pytest . --cov=backend && coverage html
+  # Run the tests with coverage, re-creating the database.
+  dtcovdb:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django pytest . --cov=backend --create-db && coverage html
+  # Run the tests in parallel.
+  dtp:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django pytest . -n auto --cov=backend --create-db && coverage html
+  # Run the tests in parallel with coverage.
+  dtpcov:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django pytest . -n auto --cov=backend && coverage html
+  # Run the tests in parallel, re-creating the database.
+  dtpdb:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django pytest . -n auto --create-db
+  # Run the tests in parallel with coverage, re-creating the database.
+  dtpcovdb:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django pytest . -n auto --cov=backend --create-db && coverage html
+  # Run `mypy`.
+  dmp:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django mypy .
+  # Run our own command to create default admin(s).
+  dcda:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django python manage.py create_default_admins
+
+  # --- Production-Specific Commands ---
+  pbuild:
+    vars:
+      GIT_CURRENT_COMMIT_SHA:
+        sh: git rev-parse HEAD
+    cmds:
+      - >
+        VITE_SENTRY_IS_ENABLED=${VITE_SENTRY_IS_ENABLED}
+        VITE_SENTRY_AUTH_TOKEN=${VITE_SENTRY_AUTH_TOKEN}
+        VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
+        VITE_SENTRY_ORG=${VITE_SENTRY_ORG}
+        VITE_SENTRY_PROJECT=${VITE_SENTRY_PROJECT}
+        VITE_SENTRY_RELEASE={{.GIT_CURRENT_COMMIT_SHA}}
+        RENDER_GIT_COMMIT={{.GIT_CURRENT_COMMIT_SHA}}
+        docker compose -f $COMPOSE_FILE build
+
+  pd:
+    cmds:
+      - docker compose -f $COMPOSE_FILE down
+
+  pup:
+    cmds:
+      - docker compose -f $COMPOSE_FILE up -d traefik django redis_cache redis_broker celerybeat celeryworker
+
+  pm:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django python manage.py migrate
+
+  ps:
+    cmds:
+      - docker compose -f $COMPOSE_FILE run --rm django python manage.py shell_plus --ipython
+
+  pl:
+    cmds:
+      - docker compose -f $COMPOSE_FILE logs -f
+
+  pnm:
+    cmds:
+      - git pull
+      - task: pbuild
+      - task: pd
+      - task: pup
+
+  pall:
+    cmds:
+      - task: pnm
+      - task: pm
+
+  ppr:
+    cmds:
+      - docker system prune -f

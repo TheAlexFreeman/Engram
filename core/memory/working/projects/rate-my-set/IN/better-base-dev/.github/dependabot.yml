@@ -1,0 +1,121 @@
+# Config for Dependabot updates. See Documentation here:
+# https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+
+version: 2
+updates:
+  # Update GitHub actions in workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    # Every month
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 25
+
+  # Enable version updates for Docker
+  # We need to specify each Dockerfile in a separate entry because Dependabot doesn't
+  # support wildcards or recursively checking subdirectories. Check this issue for updates:
+  # https://github.com/dependabot/dependabot-core/issues/2178
+  - package-ecosystem: "docker"
+    # Look for a `Dockerfile` in the `compose/dev/django` directory
+    directory: "compose/dev/django/"
+    # Every month
+    schedule:
+      interval: "monthly"
+    # Ignore minor version updates (3.10 -> 3.11) but update patch versions
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+    open-pull-requests-limit: 25
+
+  - package-ecosystem: "docker"
+    # Look for a `Dockerfile` in the `compose/dev/docs` directory
+    directory: "compose/dev/docs/"
+    # Every month
+    schedule:
+      interval: "monthly"
+    # Ignore minor version updates (3.10 -> 3.11) but update patch versions
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+    open-pull-requests-limit: 25
+
+  - package-ecosystem: "docker"
+    # Look for a `Dockerfile` in the `compose/dev/bun` directory
+    directory: "compose/dev/bun/"
+    # Every month
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 25
+
+  - package-ecosystem: "docker"
+    # Look for a `Dockerfile` in the `compose/prod/aws` directory
+    directory: "compose/prod/aws/"
+    # Every month
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 25
+
+  - package-ecosystem: "docker"
+    # Look for a `Dockerfile` in the `compose/prod/django` directory
+    directory: "compose/prod/django/"
+    # Every month
+    schedule:
+      interval: "monthly"
+    # Ignore minor version updates (3.10 -> 3.11) but update patch versions
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+    open-pull-requests-limit: 25
+
+  - package-ecosystem: "docker"
+    # Look for a `Dockerfile` in the `compose/prod/postgres` directory
+    directory: "compose/prod/postgres/"
+    # Every month
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 25
+
+  - package-ecosystem: "docker"
+    # Look for a `Dockerfile` in the `compose/prod/traefik` directory
+    directory: "compose/prod/traefik/"
+    # Every month
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 25
+
+  # Enable version updates for Python/Pip - Production
+  - package-ecosystem: "pip"
+    # Look for a `requirements.txt` in the `root` directory
+    # also 'setup.cfg', 'runtime.txt' and 'requirements/*.txt'
+    directory: "/"
+    # Every month
+    schedule:
+      interval: "monthly"
+    # Create a group of dependencies to be updated together in one pull request
+    # (https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#groups)
+    groups:
+      grouped-python-deps:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 25
+
+  # Enable version updates for javascript/npm
+  - package-ecosystem: "npm"
+    # Look for a `package.json` in the `root` directory
+    directory: "/"
+    # Every month
+    schedule:
+      interval: "monthly"
+    # Create a group of dependencies to be updated together in one pull request
+    # (https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#groups)
+    groups:
+      grouped-npm-deps:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 25

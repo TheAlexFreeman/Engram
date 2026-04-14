@@ -1,0 +1,15 @@
+.backend.env
+.celery.env
+.frontend.env
+.env
+.misc.env
+.postgres.env
+.redis.env
+
+!.backend.template.env
+!.celery.template.env
+!.frontend.template.env
+!.template.env
+!.misc.template.env
+!.postgres.template.env
+!.redis.template.env
