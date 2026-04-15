@@ -23,6 +23,8 @@ schema_version: 1
 
 # Default settings applied to all skills unless overridden per-entry.
 defaults:
+  # Optional repo-wide override. Omit deployment_mode to use trust-aware fallback:
+  # high -> checked, medium -> checked, low -> gitignored.
   deployment_mode: checked        # checked | gitignored
   targets: [engram]               # distribution targets (future: claude, cursor, codex)
 
@@ -62,8 +64,8 @@ skills:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `deployment_mode` | enum | `checked` | `checked` (committed to git) or `gitignored` (fetched on demand). |
-| `targets` | list[string] | `[engram]` | Distribution targets. Reserved for multi-agent distribution plan. |
+| `deployment_mode` | enum | trust-aware | Optional repo-wide override. If omitted, the effective default is derived from trust: `high -> checked`, `medium -> checked`, `low -> gitignored`. |
+| `targets` | list[string] | `[engram]` | Distribution targets. See `core/governance/skill-distribution-spec.md` for target identifiers and adapter rules. |
 
 ### Per-skill fields
 
@@ -73,8 +75,8 @@ skills:
 | `ref` | string | no | Version pin: git tag, branch, or commit SHA. Ignored for `local` source. |
 | `trust` | enum | yes | `high`, `medium`, or `low`. Must match SKILL.md frontmatter `trust` field. |
 | `description` | string | yes | One-line description for catalog display. Should match SKILL.md frontmatter. |
-| `deployment_mode` | enum | no | Override for this skill. Inherits from `defaults` if omitted. |
-| `targets` | list[string] | no | Override distribution targets for this skill. |
+| `deployment_mode` | enum | no | Override for this skill. If omitted, inherits from `defaults.deployment_mode` when present, otherwise falls back to the trust-aware default. |
+| `targets` | list[string] | no | Override distribution targets for this skill. Inherits from `defaults.targets` if omitted. |
 | `enabled` | boolean | no | Default `true`. Set `false` to disable without removing the entry. |
 | `trigger` | string or mapping | no | Lifecycle trigger binding. Reserved for hook-trigger-metadata plan. |
 
@@ -115,6 +117,53 @@ When resolving a skill, the resolver follows this order:
 - `path:` sources must stay relative. Absolute filesystem paths are rejected so manifests remain portable across worktrees and machines.
 - `enabled: false` skills are excluded from catalog generation and distribution but retained in the manifest for version tracking.
 - Unknown fields at any level produce a validation warning (not an error) to support forward-compatible extensions.
+
+## Deployment mode semantics
+
+`deployment_mode` controls whether the canonical skill directory is expected to be committed to git or restored on demand from the manifest and lockfile.
+
+### Effective deployment mode
+
+Resolve the effective mode in this order:
+
+1. `skills.{slug}.deployment_mode`
+2. `defaults.deployment_mode`
+3. Trust-aware fallback from `trust`
+
+| Trust | Effective default | Rationale |
+|---|---|---|
+| `high` | `checked` | High-trust skills are part of the durable operating surface and should be available immediately after clone. |
+| `medium` | `checked` | Medium-trust skills remain shared workflow defaults unless a repo explicitly chooses a lighter local-only install model. |
+| `low` | `gitignored` | Low-trust or agent-generated skills are more likely to be experimental, noisy, or local to a single operator, so on-demand install is the safer default. |
+
+### Migration from checked-only vaults
+
+Existing vaults that already commit all skills do not need an immediate migration. Keeping `defaults.deployment_mode: checked` preserves current behavior.
+
+Repositories can adopt trust-aware deployment incrementally by:
+
+- removing `defaults.deployment_mode`, so omitted entries fall back to the trust-aware mapping
+- setting `deployment_mode: gitignored` only on selected skills
+- later restoring an explicit repo-wide default if team policy requires uniform behavior
+
+This preserves backward compatibility for current vaults while giving new or revised vaults a clean path to lower-noise deployment.
+
+### Gitignore management contract
+
+When a skill's effective deployment mode is `gitignored`:
+
+- the canonical install location remains `core/memory/skills/{slug}/`
+- the path is managed inside a delimited block in `core/memory/skills/.gitignore`
+- tooling may add or remove entries only inside that managed block; user-authored rules outside the block are preserved verbatim
+- switching a skill back to `checked` removes the managed ignore entry but does not delete the local directory
+
+### Fresh clone contract
+
+- `checked` skills must be present and usable immediately after clone without an install step
+- `gitignored` skills must be recoverable from `SKILLS.yaml` and `SKILLS.lock` through install or sync workflows
+- tools must surface missing `gitignored` skills as an explicit state, not silently treat them as absent from the manifest
+
+See `core/governance/skill-distribution-spec.md` for how deployment mode interacts with external distribution targets.
 
 ## SKILLS.lock schema
 
