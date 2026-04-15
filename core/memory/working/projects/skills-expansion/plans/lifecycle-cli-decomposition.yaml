@@ -2,10 +2,10 @@ id: lifecycle-cli-decomposition
 project: skills-expansion
 created: '2026-04-08'
 origin_session: memory/activity/2026/04/08/chat-001
-status: active
+status: completed
 budget:
   max_sessions: 2
-sessions_used: 2
+sessions_used: 3
 purpose:
   summary: Decompose the monolithic memory_update_skill into discrete lifecycle operations
   context: 'Engram''s memory_update_skill handles creation, section edits, frontmatter updates,
@@ -93,4 +93,15 @@ work:
       action: update
       description: Refactor catalog generation into a callable function usable by both the
         script and the sync tool
-review: null
+review:
+  completed: '2026-04-15'
+  completed_session: memory/activity/2026/04/15/chat-001
+  outcome: completed
+  purpose_assessment: >
+    The lifecycle decomposition is now functionally landed: the tool-surface
+    spec shipped first, memory_skill_list provides the read-side catalog query,
+    manifest-backed add/remove flows are implemented, and memory_skill_sync now
+    reconciles manifest and filesystem state while preserving
+    generate_skill_catalog.py as a standalone entry point.
+  unresolved: []
+  follow_up: gitignore-deployment-modes
