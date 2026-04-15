@@ -2,11 +2,11 @@
 active_plans: 3
 cognitive_mode: planning
 created: '2026-04-08'
-current_focus: Gitignore-deployment-modes workstream — deployment-mode semantics and
-  trust-aware defaults are the active plan focus; multi-agent distribution remains
-  queued behind deployment-mode tooling.
+current_focus: Gitignore-deployment-modes workstream — deployment-mode spec, managed
+  .gitignore handling, and install/sync integration are implemented and verified;
+  fresh-clone follow-through is the next phase before multi-agent distribution.
 last_activity: '2026-04-15'
-open_questions: 3
+open_questions: 4
 origin_session: memory/activity/2026/04/08/chat-001
 plans: 6
 source: agent-generated
@@ -38,5 +38,5 @@ Execution note (2026-04-15): the original roadmap had `lifecycle-cli-decompositi
 2. **skill-manifest-and-versioning** — Complete.
 3. **multi-source-resolution** — Complete. Source parsing rules, `SkillResolver`, `memory_skill_install`, and `skill_install_frozen.py` landed with focused resolver/install/frozen tests.
 4. **lifecycle-cli-decomposition** — Completed. The decomposed lifecycle surface (`memory_skill_list`, add/remove flows, sync support, and the lifecycle spec) is implemented and the plan metadata now matches that shipped state.
-5. **gitignore-deployment-modes** — Active current focus. Deployment-mode semantics and trust-aware defaults are now the selected plan because they define the checked-vs-gitignored contract that later install, sync, and distribution work must obey.
-6. **multi-agent-distribution** — Active but queued behind deployment-mode follow-through. The target/distribution spec is now drafted, but implementation should proceed after deployment-mode tooling is aligned so adapters build on settled local-install semantics.
+5. **gitignore-deployment-modes** — Active current focus. Deployment-mode spec, managed `.gitignore` reconciliation, and install/sync semantics are implemented and verified. The remaining phase is fresh-clone follow-through so gitignored skills can be restored cleanly before downstream distribution work depends on them.
+6. **multi-agent-distribution** — Active but queued behind the remaining clone-experience phase in `gitignore-deployment-modes`. The target/distribution spec is drafted, but implementation should proceed after local install semantics are finished end to end.

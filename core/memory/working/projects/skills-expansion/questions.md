@@ -1,6 +1,6 @@
 ---
 created: 2026-04-08
-next_question_id: 9
+next_question_id: 10
 origin_session: memory/activity/2026/04/08/chat-001
 source: agent-generated
 trust: medium
@@ -20,6 +20,11 @@ The existing design thesis is knowledge → skills → MCP tools (narrative → 
 ## q-008: How should skill quality be evaluated ethnographically rather than as unit tests?
 **Asked:** 2026-04-09 | **Last touched:** 2026-04-09
 Narrative-specified behavior can't be validated with `assert output == expected`. The sidecar transcript system already captures raw session data. What would an eval harness look like that assesses whether a skill's narrative guidance produces good agent behavior *across sessions*, not just within one?
+
+---
+
+## q-009: How should fresh-clone recovery handle gitignored skills whose manifest source is `local` (including template-created low-trust skills), given that `SKILLS.lock` records hashes and refs but not the skill contents needed to reconstruct them?
+**Asked:** 2026-04-15 | **Last touched:** 2026-04-15
 
 ---
 
@@ -43,14 +48,4 @@ Narrative-specified behavior can't be validated with `assert output == expected`
 
 ## q-005: Should the skill registry be centralized (like npm) or federated (like git remotes)?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-15
-
----
-
----
-
----
-
----
-
----
 **Resolved:** 2026-04-15 | **Resolution:** Prefer a federated model rooted in git and local path sources, not a centralized registry. The manifest now supports `github:`, `git:`, `path:`, and `local` sources, with lockfile capture for reproducibility. That keeps publishing and consumption aligned with Engram’s git-native design while still allowing a future registry layer to exist as an optional convenience rather than a required authority.
