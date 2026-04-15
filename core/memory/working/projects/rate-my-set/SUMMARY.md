@@ -1,13 +1,13 @@
 ---
-active_plans: 0
+active_plans: 1
 cognitive_mode: exploration
 created: '2026-04-14'
 current_focus: Concept for an entertainment-industry forum where cast and crew can
   post honest reviews of their on-set experiences with
-last_activity: '2026-04-14'
+last_activity: '2026-04-15'
 open_questions: 8
 origin_session: memory/activity/2026/04/14/chat-001
-plans: 0
+plans: 1
 source: agent-generated
 status: active
 trust: medium

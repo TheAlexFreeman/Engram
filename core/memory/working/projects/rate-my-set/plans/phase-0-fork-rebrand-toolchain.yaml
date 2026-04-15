@@ -1,0 +1,109 @@
+id: phase-0-fork-rebrand-toolchain
+project: rate-my-set
+created: '2026-04-15'
+origin_session: memory/activity/2026/04/15/chat-001
+status: active
+purpose:
+  summary: "Fork Better Base, rebrand to Rate My Set, validate toolchain, and commit the account-model\
+    \ mapping decision \u2014 reach a green-CI starting point with no Better Base marketing\
+    \ copy remaining."
+  context: "Phase 0 of better-base-roadmap.md is the only phase with no dependency on unresolved\
+    \ v1 design questions, and it blocks every subsequent build phase. Goal: a running local\
+    \ dev environment with Rate My Set branding and passing CI. The account-model mapping\
+    \ decision (Option A lightweight vs Option B heavier multi-tenant) is included because\
+    \ it must be resolved before Phase 1 domain models can be written \u2014 Option A is currently\
+    \ recommended in the roadmap."
+  questions: []
+work:
+  phases:
+  - id: fork-and-rebrand
+    title: Fork Better Base and strip all Better Base branding
+    status: pending
+    commit: null
+    blockers: []
+    postconditions:
+    - description: No remaining occurrences of 'Better Base' in source (outside of CHANGELOG/history)
+      type: grep
+      target: (?i)better\s*base::(README.md|AGENTS.md|config|backend|frontend)
+    - description: 'Manual: logo SVGs visually match Rate My Set brand'
+    changes:
+    - path: config/settings/base.py
+      action: update
+      description: Replace Spectacular title/description, DEFAULT_FROM_EMAIL, support email,
+        and site name with Rate My Set values.
+    - path: backend/accounts/models/invitations.py
+      action: update
+      description: Replace invitation email headline copy.
+    - path: README.md
+      action: rewrite
+      description: Replace cookiecutter boilerplate with Rate My Set project README.
+    - path: AGENTS.md
+      action: update
+      description: Update project context to Rate My Set.
+    - path: backend/templates
+      action: update
+      description: Rebrand all email templates under backend/templates/ and emails/.
+    - path: frontend/components/logos
+      action: update
+      description: Replace Better Base logo SVGs with Rate My Set logos.
+  - id: validate-toolchain
+    title: Validate local toolchain against forked repo
+    status: pending
+    commit: null
+    blockers: []
+    postconditions:
+    - description: 'Manual: task build produces Docker images cleanly'
+    - description: 'Manual: uv sync resolves Python 3.14+ venv'
+    - description: 'Manual: task back brings up Postgres, Redis, Mailpit'
+    - description: 'Manual: python manage.py migrate applies cleanly'
+    - description: 'Manual: bun install && bun dev serves frontend at :4020'
+    - description: 'Manual: task tcovdb passes existing test suite'
+    - description: 'Manual: task mp reports mypy clean'
+    - description: 'Manual: bun run lint && bun run tscheck are clean'
+    changes:
+    - path: .
+      action: update
+      description: "No code changes in this phase \u2014 verify task build, uv sync, task\
+        \ back, manage.py migrate, bun install/dev, task tcovdb, task mp, bun lint/tscheck\
+        \ all pass on the developer machine."
+  - id: decide-account-model
+    title: Decide and document account-model mapping (Option A vs Option B)
+    status: pending
+    commit: null
+    blockers: []
+    sources:
+    - path: memory/working/projects/rate-my-set/notes/better-base-roadmap.md
+      type: internal
+      intent: Phase 0 design-decision section
+    - path: memory/working/projects/rate-my-set/notes/account-model-migration-plan.md
+      type: internal
+      intent: Downstream migration plan that depends on this decision
+    postconditions:
+    - description: check::memory/working/projects/rate-my-set/notes/account-model-decision.md
+    - description: 'Manual: decision note records chosen option plus explicit implications
+        for account-model-migration-plan.md phases'
+    changes:
+    - path: memory/working/projects/rate-my-set/notes/account-model-decision.md
+      action: create
+      description: "Capture the account-model mapping choice: Option A (lightweight \u2014\
+        \ reviewer = User + personal Account, moderation team = single team Account) or Option\
+        \ B (heavier multi-tenant \u2014 production companies / union locals modeled as Accounts).\
+        \ Record rationale and implications for Phase 1 domain models."
+  - id: initial-green-ci-commit
+    title: Push initial Rate My Set commit with green CI
+    status: pending
+    commit: null
+    blockers: []
+    postconditions:
+    - description: 'Manual: GitHub Actions CI run is green on the initial Rate My Set commit'
+    - description: 'Manual: commit message references phase-0-fork-rebrand-toolchain plan
+        id'
+    changes:
+    - path: .github/workflows
+      action: update
+      description: Confirm GitHub Actions workflows run under the Rate My Set repo; adjust
+        any Better Base-specific secrets or references.
+    - path: .
+      action: update
+      description: Commit and push rebranded tree; verify CI is green end-to-end.
+review: null
