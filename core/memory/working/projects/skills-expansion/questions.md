@@ -21,14 +21,13 @@ The existing design thesis is knowledge → skills → MCP tools (narrative → 
 **Asked:** 2026-04-09 | **Last touched:** 2026-04-09
 Narrative-specified behavior can't be validated with `assert output == expected`. The sidecar transcript system already captures raw session data. What would an eval harness look like that assesses whether a skill's narrative guidance produces good agent behavior *across sessions*, not just within one?
 
-## q-001: Should the manifest format be TOML (like dotagents) or YAML (consistent with existing Engram conventions)?
-**Asked:** 2026-04-08 | **Last touched:** 2026-04-08
-
 ## q-002: How should skill versioning interact with Engram's existing trust model — does pinning a version imply trust:high?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-08
 
 ## q-005: Should the skill registry be centralized (like npm) or federated (like git remotes)?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-08
+
+---
 
 ---
 
@@ -45,3 +44,7 @@ Narrative-specified behavior can't be validated with `assert output == expected`
 ## q-004: What is the migration path for existing vaults that have skills checked into git today?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-15
 **Resolved:** 2026-04-15 | **Resolution:** Use an incremental migration path. Existing vaults can keep `defaults.deployment_mode: checked` and continue committing all skills unchanged. Repos that want lower-noise deployment can opt in gradually by removing the repo-wide default to enable trust-aware fallback or by setting `deployment_mode: gitignored` only on selected skills; install/sync then restores those skills locally from manifest and lock state.
+
+## q-001: Should the manifest format be TOML (like dotagents) or YAML (consistent with existing Engram conventions)?
+**Asked:** 2026-04-08 | **Last touched:** 2026-04-15
+**Resolved:** 2026-04-15 | **Resolution:** Use YAML for the canonical skill manifest. Engram already governs most durable memory artifacts as human-readable YAML frontmatter or YAML documents, so `SKILLS.yaml` fits existing editing and validation flows better than introducing a TOML-only island. The dotagents influence remains architectural rather than syntactic: adopt package-manager ideas such as declarative manifests, lockfiles, and source pins, but express them in Engram’s existing YAML conventions.
