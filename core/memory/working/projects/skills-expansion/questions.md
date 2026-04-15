@@ -1,10 +1,10 @@
 ---
-source: agent-generated
-origin_session: memory/activity/2026/04/08/chat-001
 created: 2026-04-08
+next_question_id: 9
+origin_session: memory/activity/2026/04/08/chat-001
+source: agent-generated
 trust: medium
 type: questions
-next_question_id: 9
 ---
 
 # Open Questions
@@ -27,9 +27,6 @@ Narrative-specified behavior can't be validated with `assert output == expected`
 ## q-002: How should skill versioning interact with Engram's existing trust model — does pinning a version imply trust:high?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-08
 
-## q-003: Should multi-agent distribution target specific tools (Claude, Cursor, Codex) or be extensible via a plugin pattern?
-**Asked:** 2026-04-08 | **Last touched:** 2026-04-08
-
 ## q-004: What is the migration path for existing vaults that have skills checked into git today?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-08
 
@@ -38,6 +35,10 @@ Narrative-specified behavior can't be validated with `assert output == expected`
 
 ---
 
+---
+
 # Resolved Questions
 
-_None yet._
+## q-003: Should multi-agent distribution target specific tools (Claude, Cursor, Codex) or be extensible via a plugin pattern?
+**Asked:** 2026-04-08 | **Last touched:** 2026-04-15
+**Resolved:** 2026-04-15 | **Resolution:** Adopt a hybrid model: reserve a small built-in target set in the manifest (`engram`, `generic`, `claude`, `cursor`, `codex`) for interoperability, but implement distribution through target adapters so new tools can be added without changing manifest shape. Unknown target ids remain invalid unless an adapter is registered.
