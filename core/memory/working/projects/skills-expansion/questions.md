@@ -21,11 +21,10 @@ The existing design thesis is knowledge → skills → MCP tools (narrative → 
 **Asked:** 2026-04-09 | **Last touched:** 2026-04-09
 Narrative-specified behavior can't be validated with `assert output == expected`. The sidecar transcript system already captures raw session data. What would an eval harness look like that assesses whether a skill's narrative guidance produces good agent behavior *across sessions*, not just within one?
 
-## q-002: How should skill versioning interact with Engram's existing trust model — does pinning a version imply trust:high?
-**Asked:** 2026-04-08 | **Last touched:** 2026-04-08
-
 ## q-005: Should the skill registry be centralized (like npm) or federated (like git remotes)?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-08
+
+---
 
 ---
 
@@ -48,3 +47,7 @@ Narrative-specified behavior can't be validated with `assert output == expected`
 ## q-001: Should the manifest format be TOML (like dotagents) or YAML (consistent with existing Engram conventions)?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-15
 **Resolved:** 2026-04-15 | **Resolution:** Use YAML for the canonical skill manifest. Engram already governs most durable memory artifacts as human-readable YAML frontmatter or YAML documents, so `SKILLS.yaml` fits existing editing and validation flows better than introducing a TOML-only island. The dotagents influence remains architectural rather than syntactic: adopt package-manager ideas such as declarative manifests, lockfiles, and source pins, but express them in Engram’s existing YAML conventions.
+
+## q-002: How should skill versioning interact with Engram's existing trust model — does pinning a version imply trust:high?
+**Asked:** 2026-04-08 | **Last touched:** 2026-04-15
+**Resolved:** 2026-04-15 | **Resolution:** No. Version pinning and trust answer different questions. `ref`, `requested_ref`, and `resolved_ref` capture reproducibility and supply-chain determinism; `trust` remains a separate declaration that must match SKILL.md frontmatter and still flows through governed trust updates. A pinned remote skill can still be `medium` or `low` trust if the content is reproducible but not yet socially verified.

@@ -6,7 +6,7 @@ current_focus: Gitignore-deployment-modes workstream — deployment-mode semanti
   trust-aware defaults are the active plan focus; multi-agent distribution remains
   queued behind deployment-mode tooling.
 last_activity: '2026-04-15'
-open_questions: 5
+open_questions: 4
 origin_session: memory/activity/2026/04/08/chat-001
 plans: 6
 source: agent-generated
