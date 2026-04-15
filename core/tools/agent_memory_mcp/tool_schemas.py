@@ -2904,6 +2904,7 @@ def skill_add_input_schema() -> dict[str, Any]:
             "Protected apply mode requires the opaque approval_token returned by preview mode.",
             "source must be 'template' or path:./relative/path within the repository.",
             "Remote sources (github:, git:) are not supported yet.",
+            "deployment_mode is optional; when omitted, the effective mode falls back to defaults.deployment_mode or the trust-aware mapping.",
         ],
         properties={
             "slug": {
@@ -2948,6 +2949,13 @@ def skill_add_input_schema() -> dict[str, Any]:
                     {"type": "null"},
                 ],
                 "description": "Manifest enabled flag; default true.",
+            },
+            "deployment_mode": {
+                "oneOf": [
+                    {"type": "string", "enum": ["checked", "gitignored"]},
+                    {"type": "null"},
+                ],
+                "description": "Optional override for deployment mode. Inherits from defaults if omitted.",
             },
             "preview": {
                 "type": "boolean",
