@@ -21,17 +21,6 @@ The existing design thesis is knowledge → skills → MCP tools (narrative → 
 **Asked:** 2026-04-09 | **Last touched:** 2026-04-09
 Narrative-specified behavior can't be validated with `assert output == expected`. The sidecar transcript system already captures raw session data. What would an eval harness look like that assesses whether a skill's narrative guidance produces good agent behavior *across sessions*, not just within one?
 
-## q-005: Should the skill registry be centralized (like npm) or federated (like git remotes)?
-**Asked:** 2026-04-08 | **Last touched:** 2026-04-08
-
----
-
----
-
----
-
----
-
 ---
 
 # Resolved Questions
@@ -51,3 +40,17 @@ Narrative-specified behavior can't be validated with `assert output == expected`
 ## q-002: How should skill versioning interact with Engram's existing trust model — does pinning a version imply trust:high?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-15
 **Resolved:** 2026-04-15 | **Resolution:** No. Version pinning and trust answer different questions. `ref`, `requested_ref`, and `resolved_ref` capture reproducibility and supply-chain determinism; `trust` remains a separate declaration that must match SKILL.md frontmatter and still flows through governed trust updates. A pinned remote skill can still be `medium` or `low` trust if the content is reproducible but not yet socially verified.
+
+## q-005: Should the skill registry be centralized (like npm) or federated (like git remotes)?
+**Asked:** 2026-04-08 | **Last touched:** 2026-04-15
+
+---
+
+---
+
+---
+
+---
+
+---
+**Resolved:** 2026-04-15 | **Resolution:** Prefer a federated model rooted in git and local path sources, not a centralized registry. The manifest now supports `github:`, `git:`, `path:`, and `local` sources, with lockfile capture for reproducibility. That keeps publishing and consumption aligned with Engram’s git-native design while still allowing a future registry layer to exist as an optional convenience rather than a required authority.
