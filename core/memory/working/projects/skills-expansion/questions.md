@@ -27,11 +27,10 @@ Narrative-specified behavior can't be validated with `assert output == expected`
 ## q-002: How should skill versioning interact with Engram's existing trust model — does pinning a version imply trust:high?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-08
 
-## q-004: What is the migration path for existing vaults that have skills checked into git today?
-**Asked:** 2026-04-08 | **Last touched:** 2026-04-08
-
 ## q-005: Should the skill registry be centralized (like npm) or federated (like git remotes)?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-08
+
+---
 
 ---
 
@@ -42,3 +41,7 @@ Narrative-specified behavior can't be validated with `assert output == expected`
 ## q-003: Should multi-agent distribution target specific tools (Claude, Cursor, Codex) or be extensible via a plugin pattern?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-15
 **Resolved:** 2026-04-15 | **Resolution:** Adopt a hybrid model: reserve a small built-in target set in the manifest (`engram`, `generic`, `claude`, `cursor`, `codex`) for interoperability, but implement distribution through target adapters so new tools can be added without changing manifest shape. Unknown target ids remain invalid unless an adapter is registered.
+
+## q-004: What is the migration path for existing vaults that have skills checked into git today?
+**Asked:** 2026-04-08 | **Last touched:** 2026-04-15
+**Resolved:** 2026-04-15 | **Resolution:** Use an incremental migration path. Existing vaults can keep `defaults.deployment_mode: checked` and continue committing all skills unchanged. Repos that want lower-noise deployment can opt in gradually by removing the repo-wide default to enable trust-aware fallback or by setting `deployment_mode: gitignored` only on selected skills; install/sync then restores those skills locally from manifest and lock state.
