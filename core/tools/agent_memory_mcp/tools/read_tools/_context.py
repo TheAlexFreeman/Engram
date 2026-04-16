@@ -13,7 +13,10 @@ from typing import TYPE_CHECKING, Any, Iterator, cast
 import yaml  # type: ignore[import-untyped]
 
 from ...errors import ValidationError
-from ...frontmatter_utils import read_with_frontmatter
+from ...frontmatter_utils import (
+    extract_project_cold_start_sections,
+    read_with_frontmatter,
+)
 from ...path_policy import validate_slug
 from ...plan_utils import budget_status, load_plan, next_action, phase_payload, resolve_phase
 
@@ -262,6 +265,33 @@ def _read_section_with_budget(
     """Read a file if it fits within the remaining character budget."""
     content, chars_used, _ = _read_section_status(root, repo_relative_path, remaining_chars)
     return content, chars_used
+
+
+def _read_project_summary_with_cold_start_fallback(
+    root: Path,
+    repo_relative_path: str,
+    remaining_chars: int,
+) -> tuple[str | None, int, str]:
+    """Read a project SUMMARY.md, falling back to cold-start subsections.
+
+    When the full body does not fit in ``remaining_chars``, attempt to extract
+    just the Layout / Canonical source / How to continue subsections. If that
+    extracted payload also overflows, return ``over_budget`` as usual. The
+    returned reason is one of ``"included"``, ``"included_cold_start_only"``,
+    ``"missing"``, ``"placeholder"``, or ``"over_budget"``.
+    """
+    content = _read_file_content(root, repo_relative_path)
+    if content is None:
+        return None, 0, "missing"
+    if _is_placeholder(content):
+        return None, 0, "placeholder"
+    if remaining_chars <= 0 or len(content) <= remaining_chars:
+        return content, len(content), "included"
+
+    cold_start = extract_project_cold_start_sections(content)
+    if cold_start is None or len(cold_start) > remaining_chars:
+        return None, 0, "over_budget"
+    return cold_start, len(cold_start), "included_cold_start_only"
 
 
 def _build_budget_report(
@@ -1322,10 +1352,12 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
             )
         else:
             with _span(timings, "project_summary"):
-                project_summary, chars_used, reason = _read_section_status(
-                    root,
-                    project_summary_path,
-                    remaining_chars,
+                project_summary, chars_used, reason = (
+                    _read_project_summary_with_cold_start_fallback(
+                        root,
+                        project_summary_path,
+                        remaining_chars,
+                    )
                 )
             if project_summary is None:
                 section_records.append(
@@ -1353,7 +1385,7 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                         "path": project_summary_path,
                         "chars": chars_used,
                         "included": True,
-                        "reason": "included",
+                        "reason": reason,
                     }
                 )
                 loaded_files.append(project_summary_path)

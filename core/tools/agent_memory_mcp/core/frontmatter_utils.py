@@ -1,12 +1,16 @@
 """Compatibility re-export for the import-safe format layer."""
 
 from ..frontmatter_utils import (
+    PROJECT_COLD_START_HEADINGS,
     add_progress_log_row,
     append_plan_to_summary,
     build_plan_summary_block,
+    build_project_cold_start_sections,
+    collect_project_cold_start_signals,
     collect_project_entries,
     count_active_project_plans,
     count_project_plans,
+    extract_project_cold_start_sections,
     find_begin_end_block,
     find_section_bounds,
     infer_section_id_from_path,
@@ -24,12 +28,16 @@ from ..frontmatter_utils import (
 )
 
 __all__ = [
+    "PROJECT_COLD_START_HEADINGS",
     "add_progress_log_row",
     "append_plan_to_summary",
     "build_plan_summary_block",
+    "build_project_cold_start_sections",
+    "collect_project_cold_start_signals",
     "collect_project_entries",
     "count_active_project_plans",
     "count_project_plans",
+    "extract_project_cold_start_sections",
     "find_begin_end_block",
     "find_section_bounds",
     "infer_section_id_from_path",

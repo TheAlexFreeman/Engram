@@ -4398,6 +4398,67 @@ Secondary body.
                 tools["memory_generate_summary"](path="memory/knowledge/topic", style="compact")
             )
 
+    def test_memory_generate_summary_detects_project_folder(self) -> None:
+        """Project folders get the cold-start briefing, not the folder listing."""
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/sample-project/SUMMARY.md": (
+                    "---\n"
+                    "active_plans: 1\n"
+                    "canonical_source: https://example.com/upstream/repo@abc123\n"
+                    "cognitive_mode: planning\n"
+                    "created: 2026-03-28\n"
+                    "current_focus: Sample focus.\n"
+                    "last_activity: 2026-03-28\n"
+                    "open_questions: 0\n"
+                    "origin_session: memory/activity/2026/03/28/chat-001\n"
+                    "plans: 1\n"
+                    "source: agent-generated\n"
+                    "status: active\n"
+                    "trust: medium\n"
+                    "type: project\n"
+                    "---\n"
+                    "\n"
+                    "# Project: Sample Project\n"
+                    "\n"
+                    "## Description\n"
+                    "Sample description body.\n"
+                ),
+                "memory/working/projects/sample-project/plans/main.yaml": (
+                    "id: main\nproject: sample-project\nstatus: active\n"
+                ),
+                "memory/working/projects/sample-project/questions.md": (
+                    "---\nopen_questions: 2\n---\n\n## q-001: First?\n## q-002: Second?\n"
+                ),
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        output = asyncio.run(
+            tools["memory_generate_summary"](path="memory/working/projects/sample-project")
+        )
+
+        # Project-mode output uses the project-briefing layout, not the folder-listing one.
+        self.assertIn("# Project: Sample Project", output)
+        self.assertIn("## Description", output)
+        self.assertIn("## Layout", output)
+        self.assertIn("- [IN/](memory/working/projects/sample-project/IN/)", output)
+        self.assertIn("## Canonical source", output)
+        self.assertIn("- https://example.com/upstream/repo@abc123", output)
+        self.assertIn("## How to continue", output)
+        self.assertIn(
+            "Active plan: [memory/working/projects/sample-project/plans/main.yaml]",
+            output,
+        )
+        self.assertIn(
+            "Open questions: [memory/working/projects/sample-project/questions.md]",
+            output,
+        )
+        self.assertIn("(2 open)", output)
+        self.assertIn("Last activity: 2026-03-28", output)
+        # The generic folder-listing "## Files" section must not appear in project mode.
+        self.assertNotIn("## Files", output)
+
     def test_memory_access_analytics_classifies_policy_buckets(self) -> None:
         repo_root = self._init_repo(
             {

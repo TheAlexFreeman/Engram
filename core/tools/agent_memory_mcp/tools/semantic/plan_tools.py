@@ -252,6 +252,7 @@ def create_project_write_result(
     status: str = "active",
     questions: list[str] | None = None,
     first_plan: dict[str, Any] | None = None,
+    canonical_source: str | None = None,
     preview: bool = False,
 ):
     """Create a project scaffold and optionally its first plan in one commit.
@@ -260,6 +261,7 @@ def create_project_write_result(
     """
     from ...errors import ValidationError
     from ...frontmatter_utils import (
+        build_project_cold_start_sections,
         collect_project_entries,
         render_projects_navigator,
         today_str,
@@ -322,12 +324,30 @@ def create_project_write_result(
         "trust": "medium",
         "type": "project",
     }
+    if canonical_source and canonical_source.strip():
+        frontmatter["canonical_source"] = canonical_source.strip()
+
+    first_plan_path: str | None = None
+    if first_plan is not None:
+        fp_plan_id = first_plan.get("plan_id")
+        if isinstance(fp_plan_id, str) and fp_plan_id:
+            first_plan_path = project_plan_path(project_slug, fp_plan_id)
+
+    cold_start_lines = build_project_cold_start_sections(
+        project_id=project_slug,
+        canonical_source=frontmatter.get("canonical_source"),
+        active_plan_paths=[first_plan_path] if first_plan_path else [],
+        questions_file_exists=bool(questions),
+        open_questions_count=len(questions) if questions else 0,
+        last_activity_date=today,
+    )
 
     body_lines = [
         f"# Project: {project_slug.replace('-', ' ').title()}",
         "",
         "## Description",
         description.strip(),
+        *cold_start_lines,
     ]
     body = "\n".join(body_lines) + "\n"
 
@@ -2017,6 +2037,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         status: str = "active",
         questions: list[str] | None = None,
         first_plan: dict[str, Any] | None = None,
+        canonical_source: str | None = None,
         preview: bool = False,
     ) -> str:
         """Create a new project scaffold with SUMMARY.md and navigator index.
@@ -2038,6 +2059,10 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
           memory_plan_create (plan_id, purpose_summary, purpose_context, phases,
           and optionally questions, budget, status, session_id). The project_id
           is inherited from the outer project_id.
+        - canonical_source: optional upstream pointer for projects that snapshot
+          external code (e.g. a repo URL, a commit ref, or a file path). When
+          set, it is stored in SUMMARY.md frontmatter and rendered as the
+          "Canonical source" subsection of the cold-start body.
         - preview: when true, validate and return the governed preview without
           writing or committing.
         """
@@ -2053,6 +2078,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             status=status,
             questions=questions,
             first_plan=first_plan,
+            canonical_source=canonical_source,
             preview=preview,
         )
         return result.to_json()

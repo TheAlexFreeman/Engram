@@ -274,6 +274,194 @@ def count_project_plans(root: Path, project_id: str) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Project SUMMARY.md cold-start subsection helpers
+# ---------------------------------------------------------------------------
+
+# Headings produced by `build_project_cold_start_sections`. Consumers use these
+# to detect and preserve the cold-start payload under budget pressure.
+PROJECT_COLD_START_HEADINGS: tuple[str, ...] = (
+    "Layout",
+    "Canonical source",
+    "How to continue",
+)
+
+
+def build_project_cold_start_sections(
+    *,
+    project_id: str,
+    canonical_source: str | None = None,
+    active_plan_paths: list[str] | None = None,
+    questions_file_exists: bool = False,
+    open_questions_count: int = 0,
+    recent_in_items: list[str] | None = None,
+    last_activity_date: str | None = None,
+) -> list[str]:
+    """Return body lines for Layout + optional Canonical source + How to continue.
+
+    Signals are supplied by the caller: at project-creation time they come
+    directly from input; at regeneration they are scanned from disk. Missing
+    signals degrade gracefully — the output always contains the three (or two,
+    when no canonical source is set) cold-start subsections a cold-starting
+    agent needs.
+    """
+    project_base = f"memory/working/projects/{project_id}"
+    lines: list[str] = [
+        "",
+        "## Layout",
+        f"- [IN/]({project_base}/IN/) -- staged external material (snapshots from upstream)",
+        f"- [OUT/]({project_base}/OUT/) -- artifacts emitted from this project",
+        f"- [docs/]({project_base}/docs/) -- citation-grade references",
+        f"- [notes/]({project_base}/notes/) -- working notes (lower trust)",
+        f"- [plans/]({project_base}/plans/) -- active and completed YAML plans",
+        f"- [questions.md]({project_base}/questions.md) -- open questions, if any",
+        "",
+        "See [memory/working/projects/README.md](memory/working/projects/README.md) for the full lifecycle.",
+    ]
+
+    if canonical_source:
+        lines.extend(
+            [
+                "",
+                "## Canonical source",
+                f"- {canonical_source.strip()}",
+            ]
+        )
+
+    lines.extend(["", "## How to continue"])
+    continue_entries: list[str] = []
+    for plan_path in active_plan_paths or []:
+        continue_entries.append(f"- Active plan: [{plan_path}]({plan_path})")
+    if questions_file_exists or open_questions_count:
+        q_path = f"{project_base}/questions.md"
+        suffix = f" ({open_questions_count} open)" if open_questions_count else ""
+        continue_entries.append(f"- Open questions: [{q_path}]({q_path}){suffix}")
+    for in_item in (recent_in_items or [])[:3]:
+        continue_entries.append(f"- Recent IN/: [{in_item}]({in_item})")
+    if last_activity_date:
+        continue_entries.append(f"- Last activity: {last_activity_date}")
+    if not continue_entries:
+        continue_entries.append("- _Empty project -- add a plan with `memory_plan_create`._")
+    lines.extend(continue_entries)
+    return lines
+
+
+def extract_project_cold_start_sections(body: str) -> str | None:
+    """Return just the Layout / Canonical source / How to continue subsections.
+
+    Used by ``memory_context_project`` to preserve the cold-start payload when
+    the full SUMMARY.md body overflows the remaining character budget. Returns
+    ``None`` when none of the cold-start headings are present.
+    """
+    lines = body.splitlines()
+    section_starts: list[int] = []
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            heading = stripped[3:].strip()
+            if heading in PROJECT_COLD_START_HEADINGS:
+                section_starts.append(idx)
+    if not section_starts:
+        return None
+
+    collected: list[str] = []
+    for start in section_starts:
+        end = len(lines)
+        for idx in range(start + 1, len(lines)):
+            if lines[idx].lstrip().startswith("## "):
+                end = idx
+                break
+        segment = lines[start:end]
+        # Trim trailing blank lines inside each segment to keep output tight.
+        while segment and not segment[-1].strip():
+            segment.pop()
+        collected.extend(segment)
+        collected.append("")
+    # Trim a single trailing blank if one leaked in.
+    while collected and not collected[-1].strip():
+        collected.pop()
+    return "\n".join(collected) + "\n"
+
+
+def collect_project_cold_start_signals(
+    root: Path,
+    project_id: str,
+    *,
+    canonical_source: str | None = None,
+) -> dict[str, Any]:
+    """Scan a project folder and return kwargs for ``build_project_cold_start_sections``.
+
+    Returns a dict ready to splat into ``build_project_cold_start_sections``.
+    Graceful under partial state — missing subfolders, empty plans/, and absent
+    operations logs all produce sensible defaults instead of raising.
+    """
+    project_root = root / "memory" / "working" / "projects" / project_id
+    active_plan_paths: list[str] = []
+    plans_dir = project_root / "plans"
+    if plans_dir.is_dir():
+        for plan_file in sorted(plans_dir.glob("*.yaml")):
+            try:
+                import yaml  # type: ignore[import-untyped]
+
+                raw = yaml.safe_load(plan_file.read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001 - degrade gracefully
+                continue
+            if not isinstance(raw, dict):
+                continue
+            status = str(raw.get("status") or "").lower()
+            if status in {"active", "draft", "planning", "in_progress"}:
+                rel = plan_file.relative_to(root).as_posix()
+                active_plan_paths.append(rel)
+
+    questions_path = project_root / "questions.md"
+    questions_file_exists = questions_path.is_file()
+    open_questions_count = 0
+    if questions_file_exists:
+        try:
+            fm_dict, _ = read_with_frontmatter(questions_path)
+            open_questions_count = _coerce_int(fm_dict.get("open_questions"), 0)
+        except Exception:  # noqa: BLE001
+            open_questions_count = 0
+        if open_questions_count == 0:
+            # Fall back to counting ## q-### headings if frontmatter is absent.
+            try:
+                text = questions_path.read_text(encoding="utf-8")
+            except OSError:
+                text = ""
+            open_questions_count = sum(
+                1 for ln in text.splitlines() if ln.lstrip().startswith("## q-")
+            )
+
+    recent_in_items: list[str] = []
+    in_dir = project_root / "IN"
+    if in_dir.is_dir():
+        candidates = [entry for entry in in_dir.iterdir() if entry.is_file()]
+        candidates.sort(key=lambda item: item.stat().st_mtime, reverse=True)
+        for entry in candidates[:3]:
+            recent_in_items.append(entry.relative_to(root).as_posix())
+
+    last_activity_date: str | None = None
+    summary_path = project_root / "SUMMARY.md"
+    if summary_path.is_file():
+        try:
+            fm_dict, _ = read_with_frontmatter(summary_path)
+            value = fm_dict.get("last_activity")
+            if value:
+                last_activity_date = str(value)
+        except Exception:  # noqa: BLE001
+            last_activity_date = None
+
+    return {
+        "project_id": project_id,
+        "canonical_source": canonical_source,
+        "active_plan_paths": active_plan_paths,
+        "questions_file_exists": questions_file_exists,
+        "open_questions_count": open_questions_count,
+        "recent_in_items": recent_in_items,
+        "last_activity_date": last_activity_date,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Plan file parsing and manipulation
 # ---------------------------------------------------------------------------
 

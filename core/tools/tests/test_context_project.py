@@ -1072,3 +1072,117 @@ work:
             self.assertLess(float(timings["total_ms"]), 500.0)
         finally:
             tmp.cleanup()
+
+    # --- Cold-start subsection preservation (P1-A) -------------------------
+
+    def _write_cold_start_summary(
+        self, root: Path, project_id: str, *, cold_start_tail: str
+    ) -> None:
+        summary_path = root / "core" / "memory" / "working" / "projects" / project_id / "SUMMARY.md"
+        # The verbose chaff ahead of the cold-start tail is what the fallback
+        # is meant to drop when the full body overflows the budget.
+        chaff_paragraph = "Background: " + (
+            "detailed rationale that a cold-starting agent does not need. " * 25
+        )
+        summary_path.write_text(
+            "---\n"
+            f"type: project\n"
+            f"status: active\n"
+            "cognitive_mode: planning\n"
+            "created: 2026-03-28\n"
+            "last_activity: 2026-03-28\n"
+            "open_questions: 0\n"
+            "plans: 0\n"
+            "active_plans: 0\n"
+            "origin_session: memory/activity/2026/03/28/chat-001\n"
+            "source: agent-generated\n"
+            "trust: medium\n"
+            "---\n\n"
+            f"# Project: {project_id.replace('-', ' ').title()}\n\n"
+            "## Description\n"
+            f"{chaff_paragraph}\n\n"
+            f"{cold_start_tail}",
+            encoding="utf-8",
+        )
+
+    def test_project_summary_preserves_cold_start_sections_under_budget(self) -> None:
+        """When the full SUMMARY.md overflows, cold-start subsections still load."""
+        from core.tools.agent_memory_mcp.frontmatter_utils import (
+            build_project_cold_start_sections,
+        )
+
+        tmp, tools = self._create_tools()
+        try:
+            root = Path(tmp.name)
+            tail_lines = build_project_cold_start_sections(
+                project_id="demo-project",
+                canonical_source="https://example.com/upstream@abc123",
+                active_plan_paths=["memory/working/projects/demo-project/plans/project-plan.yaml"],
+                questions_file_exists=False,
+                open_questions_count=0,
+                last_activity_date="2026-03-28",
+            )
+            tail = "\n".join(tail_lines).lstrip("\n") + "\n"
+            self._write_cold_start_summary(root, "demo-project", cold_start_tail=tail)
+
+            tool = cast(Any, tools["memory_context_project"])
+            # 2000 chars is enough for the cold-start tail (~600 chars) but not
+            # the full body (chaff pushes it well past 2000).
+            payload = asyncio.run(tool(project="demo-project", max_context_chars=2000))
+            metadata, body = _parse_context_response(payload)
+
+            # Cold-start subsections survived budget pressure.
+            self.assertIn("## Layout", body)
+            self.assertIn("## Canonical source", body)
+            self.assertIn("## How to continue", body)
+            self.assertIn("https://example.com/upstream@abc123", body)
+            # Chaff was dropped.
+            self.assertNotIn("detailed rationale", body)
+
+            # The section record reflects the partial-fit reason.
+            section_reasons = {
+                cast(dict[str, Any], item).get("name"): cast(dict[str, Any], item).get("reason")
+                for item in cast(list[Any], metadata["budget_report"]["details"])
+            }
+            self.assertEqual(section_reasons.get("Project Summary"), "included_cold_start_only")
+        finally:
+            tmp.cleanup()
+
+    def test_extract_project_cold_start_sections_returns_only_cold_start(self) -> None:
+        """Unit test: the extractor isolates the three cold-start subsections."""
+        from core.tools.agent_memory_mcp.frontmatter_utils import (
+            extract_project_cold_start_sections,
+        )
+
+        body = (
+            "# Project: Demo\n\n"
+            "## Description\n"
+            "Longwinded background.\n\n"
+            "## Layout\n"
+            "- [IN/](memory/working/projects/demo/IN/) -- staged\n\n"
+            "## Canonical source\n"
+            "- https://example.com/repo@v1\n\n"
+            "## How to continue\n"
+            "- Active plan: [plans/main.yaml](plans/main.yaml)\n\n"
+            "## Other notes\n"
+            "Should not appear in extracted output.\n"
+        )
+
+        extracted = extract_project_cold_start_sections(body)
+        self.assertIsNotNone(extracted)
+        assert extracted is not None  # for type narrowing
+        self.assertIn("## Layout", extracted)
+        self.assertIn("## Canonical source", extracted)
+        self.assertIn("## How to continue", extracted)
+        self.assertNotIn("## Description", extracted)
+        self.assertNotIn("## Other notes", extracted)
+        self.assertNotIn("Longwinded background", extracted)
+
+    def test_extract_project_cold_start_sections_returns_none_when_absent(self) -> None:
+        """The extractor returns None for pre-P1-A SUMMARY.md bodies."""
+        from core.tools.agent_memory_mcp.frontmatter_utils import (
+            extract_project_cold_start_sections,
+        )
+
+        body = "# Project: Legacy\n\n## Description\nOld body, no cold-start tail.\n"
+        self.assertIsNone(extract_project_cold_start_sections(body))

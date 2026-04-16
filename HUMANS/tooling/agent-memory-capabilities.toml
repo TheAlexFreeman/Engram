@@ -998,7 +998,7 @@ owns_review_queue = []
 result_fields = ["project_id", "status", "open_questions", "cognitive_mode"]
 fallback_tools = ["memory_write", "memory_update_frontmatter", "memory_commit"]
 error_kinds = ["ValidationError", "StagingError"]
-notes = "Scaffolds a project (SUMMARY, navigator) with optional questions.md and optional first plan in one commit."
+notes = "Scaffolds a project (SUMMARY, navigator) with optional questions.md and optional first plan in one commit. SUMMARY.md body carries Description plus three cold-start subsections — Layout, Canonical source (optional, from the `canonical_source` parameter), and How to continue — that memory_context_project preserves even under budget pressure."
 
 [operations.memory_project_add_questions]
 group = "plan"
