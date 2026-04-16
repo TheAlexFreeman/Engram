@@ -1537,6 +1537,42 @@ def register_tools(
             session_state.record_write(checkpoint_rel)
             session_state.record_checkpoint()
             session_state.record_flush()
+        merge_state: dict[str, object] | None = None
+        merge_warnings: list[str] = []
+        if (
+            session_state is not None
+            and session_state.publication_base_ref
+            and session_state.publication_session_branch_ref
+            and session_state.publication_base_ref != session_state.publication_session_branch_ref
+        ):
+            merge_payload: dict[str, object]
+            try:
+                merge_result = repo.fast_forward_ref(
+                    target_ref=session_state.publication_base_ref,
+                    source_ref=session_state.publication_session_branch_ref,
+                )
+                merge_payload = merge_result.to_dict()
+            except Exception as merge_error:
+                merge_payload = {
+                    "operation": "fast-forward",
+                    "status": "blocked",
+                    "target_ref": session_state.publication_base_ref,
+                    "source_ref": session_state.publication_session_branch_ref,
+                    "target_sha": None,
+                    "source_sha": commit_result.sha,
+                    "applied_sha": None,
+                    "reason": str(merge_error),
+                    "warnings": [],
+                }
+            merge_payload["base_branch"] = session_state.publication_base_branch
+            merge_payload["session_branch"] = session_state.publication_session_branch
+            merge_warnings.extend(cast(list[str], merge_payload.get("warnings", [])))
+            if merge_payload.get("status") == "blocked":
+                merge_warnings.append(
+                    "Session branch flush was committed, but the preserved base branch was not advanced: "
+                    f"{merge_payload.get('reason', 'fast-forward was blocked')}"
+                )
+            merge_state = merge_payload
         result = MemoryWriteResult.from_commit(
             files_changed=[checkpoint_rel],
             commit_result=commit_result,
@@ -1548,7 +1584,10 @@ def register_tools(
                 "trigger": normalized_trigger,
                 "user_id": resolved_user_id,
             },
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json(session_state=session_state)
 
     @mcp.tool(

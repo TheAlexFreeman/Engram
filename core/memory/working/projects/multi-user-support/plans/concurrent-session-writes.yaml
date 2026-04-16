@@ -101,6 +101,30 @@ work:
         - Repeated create_mcp() calls on an already-provisioned session branch retain the original base branch/ref instead of treating the session branch as its own base
         - Existing session-branch checkouts without persisted base metadata fail explicitly instead of silently corrupting later merge assumptions
 
+    - id: session-flush-fast-forward
+      title: Fast-forward the preserved base branch on session flush.
+      status: completed
+      commit: null
+      blockers:
+        - session-branch-base-metadata
+      sources:
+        - path: core/tools/agent_memory_mcp/git_repo.py
+          type: internal
+          intent: Add a direct fast-forward ref update path that does not require switching worktrees
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: Apply best-effort fast-forward auto-merge from memory_session_flush and report blocked divergence
+      changes:
+        - path: core/tools/agent_memory_mcp/git_repo.py
+          action: update
+          description: Add a lock-aware fast-forward helper for advancing one ref to another when the move is a true fast-forward.
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: After the flush checkpoint commit lands on the session branch, fast-forward the preserved base ref when possible and return structured merge status when it is blocked.
+      postconditions:
+        - memory_session_flush advances the preserved base branch when the session branch is ahead by a clean fast-forward
+        - Diverged base branches are reported as blocked without losing the session-branch checkpoint commit
+
     - id: branch-strategy
       title: Implement branch-per-session write isolation.
       status: pending

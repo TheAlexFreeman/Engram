@@ -93,6 +93,33 @@ class GitPublicationResult:
         }
 
 
+@dataclass(frozen=True)
+class GitFastForwardResult:
+    status: str
+    target_ref: str
+    source_ref: str
+    target_sha: str | None
+    source_sha: str | None
+    applied_sha: str | None = None
+    reason: str | None = None
+    warnings: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "operation": "fast-forward",
+            "status": self.status,
+            "target_ref": self.target_ref,
+            "source_ref": self.source_ref,
+            "target_sha": self.target_sha,
+            "source_sha": self.source_sha,
+            "applied_sha": self.applied_sha,
+            "warnings": list(self.warnings),
+        }
+        if self.reason is not None:
+            payload["reason"] = self.reason
+        return payload
+
+
 class GitRepo:
     def __init__(self, root: Path, *, content_prefix: str = "") -> None:
         candidate_root = Path(root).resolve()
@@ -289,6 +316,12 @@ class GitRepo:
             )
         return result
 
+    def _resolve_commit_ref(self, ref: str) -> str | None:
+        result = self._run(["git", "rev-parse", "--verify", f"{ref}^{{commit}}"], check=False)
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip() or None
+
     # ------------------------------------------------------------------
     # Author identity
     # ------------------------------------------------------------------
@@ -302,6 +335,89 @@ class GitRepo:
         email_result = self._run(["git", "config", "--local", "user.email"], check=False)
         if email_result.returncode != 0 or not email_result.stdout.strip():
             self._run(["git", "config", "--local", "user.email", _FALLBACK_AUTHOR_EMAIL])
+
+    def fast_forward_ref(self, *, target_ref: str, source_ref: str) -> GitFastForwardResult:
+        """Advance *target_ref* to *source_ref* when it is a strict fast-forward."""
+        with self.write_lock("fast-forward"):
+            self._try_cleanup_all_stale_locks()
+
+            target_sha = self._resolve_commit_ref(target_ref)
+            if target_sha is None:
+                return GitFastForwardResult(
+                    status="blocked",
+                    target_ref=target_ref,
+                    source_ref=source_ref,
+                    target_sha=None,
+                    source_sha=self._resolve_commit_ref(source_ref),
+                    reason=f"Target ref '{target_ref}' does not resolve to a commit.",
+                )
+
+            source_sha = self._resolve_commit_ref(source_ref)
+            if source_sha is None:
+                return GitFastForwardResult(
+                    status="blocked",
+                    target_ref=target_ref,
+                    source_ref=source_ref,
+                    target_sha=target_sha,
+                    source_sha=None,
+                    reason=f"Source ref '{source_ref}' does not resolve to a commit.",
+                )
+
+            if target_sha == source_sha:
+                return GitFastForwardResult(
+                    status="already-up-to-date",
+                    target_ref=target_ref,
+                    source_ref=source_ref,
+                    target_sha=target_sha,
+                    source_sha=source_sha,
+                    applied_sha=source_sha,
+                )
+
+            ancestor_result = self._run(
+                ["git", "merge-base", "--is-ancestor", target_sha, source_sha],
+                check=False,
+            )
+            if ancestor_result.returncode == 1:
+                return GitFastForwardResult(
+                    status="blocked",
+                    target_ref=target_ref,
+                    source_ref=source_ref,
+                    target_sha=target_sha,
+                    source_sha=source_sha,
+                    reason=(
+                        f"Target ref '{target_ref}' has diverged from '{source_ref}' and cannot be fast-forwarded."
+                    ),
+                )
+            if ancestor_result.returncode != 0:
+                stderr = ancestor_result.stderr.strip()
+                raise StagingError(
+                    f"`git merge-base --is-ancestor` failed (exit {ancestor_result.returncode}): {stderr}",
+                    stderr=stderr,
+                )
+
+            warnings: list[str] = []
+            try:
+                self._run(["git", "update-ref", target_ref, source_sha, target_sha])
+            except StagingError as ref_error:
+                if not self._should_fallback_to_plumbing(ref_error):
+                    raise
+                _log.warning(
+                    "update-ref fast-forward failed (%s), writing ref file directly", ref_error
+                )
+                self._direct_update_ref(target_ref, source_sha, target_sha)
+                warnings.append(
+                    "Target ref updated via direct file write after update-ref could not acquire the git ref lock."
+                )
+
+            return GitFastForwardResult(
+                status="fast-forwarded",
+                target_ref=target_ref,
+                source_ref=source_ref,
+                target_sha=target_sha,
+                source_sha=source_sha,
+                applied_sha=source_sha,
+                warnings=warnings,
+            )
 
     # ------------------------------------------------------------------
     # Object hashing (version tokens)

@@ -528,6 +528,160 @@ class MultiUserEnvIdentityTests(unittest.TestCase):
 
         self.assertIn("without persisted base metadata", str(ctx.exception))
 
+    def test_memory_session_flush_fast_forwards_preserved_base_branch(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/USER.md": "# User\n",
+                "memory/knowledge/README.md": "# Knowledge\n",
+            }
+        )
+        git_root = repo_root.parent
+        subprocess.run(
+            ["git", "branch", "-M", "alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "MEMORY_USER_ID": "alex",
+                "MEMORY_SESSION_ID": "memory/activity/2026/03/29/chat-002",
+                "MEMORY_ENABLE_SESSION_BRANCHES": "1",
+            },
+            clear=False,
+        ):
+            tools = self._create_tools(repo_root)
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_session_flush"](
+                        summary="Decision: flush should advance the preserved base branch.",
+                        session_id="memory/activity/2026/03/29/chat-002",
+                    )
+                )
+            )
+
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "refs/heads/alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        session_sha = subprocess.run(
+            ["git", "rev-parse", f"refs/heads/{session_branch}"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        merge = cast(dict[str, Any], payload["new_state"]["merge"])
+
+        self.assertEqual(base_sha, session_sha)
+        self.assertEqual(merge["status"], "fast-forwarded")
+        self.assertEqual(merge["base_branch"], "alex")
+        self.assertEqual(merge["session_branch"], session_branch)
+        self.assertEqual(merge["target_ref"], "refs/heads/alex")
+        self.assertEqual(merge["source_ref"], f"refs/heads/{session_branch}")
+        self.assertEqual(merge["applied_sha"], base_sha)
+
+    def test_memory_session_flush_reports_blocked_fast_forward_when_base_diverged(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/working/USER.md": "# User\n",
+                "memory/knowledge/README.md": "# Knowledge\n",
+            }
+        )
+        git_root = repo_root.parent
+        subprocess.run(
+            ["git", "branch", "-M", "alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "MEMORY_USER_ID": "alex",
+                "MEMORY_SESSION_ID": "memory/activity/2026/03/29/chat-002",
+                "MEMORY_ENABLE_SESSION_BRANCHES": "1",
+            },
+            clear=False,
+        ):
+            tools = self._create_tools(repo_root)
+            base_sha_before = subprocess.run(
+                ["git", "rev-parse", "refs/heads/alex"],
+                cwd=git_root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            base_tree = subprocess.run(
+                ["git", "rev-parse", "refs/heads/alex^{tree}"],
+                cwd=git_root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            diverged_sha = subprocess.run(
+                ["git", "commit-tree", base_tree, "-p", base_sha_before, "-m", "diverged base"],
+                cwd=git_root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            subprocess.run(
+                ["git", "update-ref", "refs/heads/alex", diverged_sha, base_sha_before],
+                cwd=git_root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_session_flush"](
+                        summary="Decision: flush should report a blocked fast-forward when the base diverges.",
+                        session_id="memory/activity/2026/03/29/chat-002",
+                    )
+                )
+            )
+
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "refs/heads/alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        session_sha = subprocess.run(
+            ["git", "rev-parse", f"refs/heads/{session_branch}"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        merge = cast(dict[str, Any], payload["new_state"]["merge"])
+
+        self.assertEqual(base_sha, diverged_sha)
+        self.assertNotEqual(base_sha, session_sha)
+        self.assertEqual(merge["status"], "blocked")
+        self.assertEqual(merge["base_branch"], "alex")
+        self.assertEqual(merge["session_branch"], session_branch)
+        self.assertIn("cannot be fast-forwarded", cast(str, merge["reason"]))
+        self.assertTrue(
+            any(
+                "preserved base branch was not advanced" in warning
+                for warning in cast(list[str], payload["warnings"])
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,8 +6,8 @@ current_focus: `concurrent-session-writes` remains the highest-priority follow-o
   The repo-common writer lock is in place, and the latest slice now captures a
   stable startup publication baseline in `SessionState`; the newest follow-on
   now provisions opt-in session branches at MCP startup and preserves their
-  original base metadata across restarts so later merge work can build on
-  isolated per-session refs rather than only shared branches.
+  original base metadata across restarts, and flush now fast-forwards the
+  preserved base branch when that session branch is cleanly ahead.
 last_activity: '2026-04-16'
 open_questions: 12
 origin_session: memory/activity/2026/04/03/chat-001
@@ -100,4 +100,6 @@ The next branch-isolation slice is now in place behind an explicit rollout flag.
 
 The restart-safe base metadata slice is now in place as well. Session-branch startup now persists the original base branch/ref under the repo-common Engram runtime state, reloads that metadata when `create_mcp()` starts on an existing session branch, and fails fast if a branch checkout exists without the metadata needed for later merge decisions. Focused tests now cover both successful restart on an existing session branch and the missing-metadata failure path.
 
-The next unresolved `concurrent-session-writes` step is still `branch-strategy`: decide how to roll this session-branch path beyond the opt-in flag and then wire auto-merge against those isolated refs.
+The next flush-merge slice is now in place too. When a session branch is active, `memory_session_flush` now commits the checkpoint on that session branch and then attempts a lock-aware fast-forward of the preserved base branch ref. Cleanly-ahead session branches advance the base branch in place, while diverged base refs are reported back as blocked without losing the session-branch checkpoint commit. Focused tests now cover both the fast-forwarded and blocked-divergence cases.
+
+The next unresolved `concurrent-session-writes` step is still `branch-strategy`: decide how to roll this session-branch path beyond the opt-in flag, then extend the current flush-only fast-forward behavior into broader merge handling and eventual conflict queue flows.
