@@ -2504,6 +2504,9 @@ declared_gaps = []
         )
         self.assertEqual(payload["properties"]["fetched_date"]["format"], "date")
         self.assertFalse(payload["properties"]["dry_run"]["default"])
+        reflects_schema = payload["properties"]["reflects_upstream_as_of"]
+        self.assertEqual(reflects_schema["oneOf"][0]["type"], "string")
+        self.assertEqual(reflects_schema["oneOf"][1]["type"], "null")
 
     def test_memory_tool_schema_returns_run_eval_contract(self) -> None:
         repo_root = self._init_repo({"README.md": "# Test\n"})
@@ -12111,6 +12114,73 @@ trust: high
 
         self.assertFalse(payload["staged"])
         self.assertFalse((repo_root / payload["target_path"]).exists())
+
+    def test_memory_stage_external_writes_snapshot_freshness_frontmatter(self) -> None:
+        repo_root = self._init_repo(self._phase9_project_files())
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_stage_external"](
+                project="example",
+                filename="snapshot-default.md",
+                content="External note\n",
+                source_url="https://example.com/snapshot-default",
+                fetched_date="2026-03-27",
+                source_label="example-article",
+            )
+        )
+        payload = json.loads(raw)
+
+        target = repo_root / payload["target_path"]
+        body = target.read_text(encoding="utf-8")
+        self.assertIn("snapshot_taken_at: '2026-03-27'", body)
+        self.assertNotIn("reflects_upstream_as_of", body)
+
+        preview = payload["frontmatter_preview"]
+        self.assertEqual(preview["snapshot_taken_at"], "2026-03-27")
+        self.assertNotIn("reflects_upstream_as_of", preview)
+
+    def test_memory_stage_external_records_reflects_upstream_when_provided(self) -> None:
+        repo_root = self._init_repo(self._phase9_project_files())
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_stage_external"](
+                project="example",
+                filename="snapshot-upstream.md",
+                content="External note with upstream marker\n",
+                source_url="https://example.com/snapshot-upstream",
+                fetched_date="2026-03-27",
+                source_label="example-article",
+                reflects_upstream_as_of="abc1234",
+            )
+        )
+        payload = json.loads(raw)
+
+        target = repo_root / payload["target_path"]
+        body = target.read_text(encoding="utf-8")
+        self.assertIn("snapshot_taken_at: '2026-03-27'", body)
+        self.assertIn("reflects_upstream_as_of: abc1234", body)
+
+        preview = payload["frontmatter_preview"]
+        self.assertEqual(preview["reflects_upstream_as_of"], "abc1234")
+
+    def test_memory_stage_external_rejects_empty_reflects_upstream(self) -> None:
+        repo_root = self._init_repo(self._phase9_project_files())
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_stage_external"](
+                    project="example",
+                    filename="snapshot-bad.md",
+                    content="External note\n",
+                    source_url="https://example.com/snapshot-bad",
+                    fetched_date="2026-03-27",
+                    source_label="example-article",
+                    reflects_upstream_as_of="   ",
+                )
+            )
 
     def test_memory_scan_drop_zone_returns_scan_report(self) -> None:
         drop_folder = Path(self._tmpdir.name) / "external-drop"

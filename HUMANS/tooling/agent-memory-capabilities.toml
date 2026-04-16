@@ -1210,7 +1210,14 @@ owns_review_queue = []
 result_fields = ["target_path", "content_hash", "status"]
 fallback_tools = []
 error_kinds = ["DuplicateContentError", "NotFoundError", "ValidationError"]
-notes = "Direct project-inbox write; stages external research without creating a git commit."
+notes = """
+Direct project-inbox write; stages external research without creating a git commit.
+Frontmatter records `snapshot_taken_at` (derived from `fetched_date`) so readers have a
+stable name for snapshot age independent of caller-supplied `fetched_date` semantics.
+Optional `reflects_upstream_as_of` (commit sha, release tag, or ISO date) describes the
+upstream state the snapshot reflects; when omitted the field is dropped from frontmatter
+and readers degrade gracefully.
+"""
 
 [operations.memory_scan_drop_zone]
 group = "project"

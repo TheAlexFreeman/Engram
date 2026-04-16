@@ -2915,13 +2915,16 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
         fetched_date: str,
         source_label: str,
         dry_run: bool = False,
+        reflects_upstream_as_of: str | None = None,
     ) -> str:
         """Stage external content into a project's IN/ directory.
 
         content must be non-empty, fetched_date must be YYYY-MM-DD, and dry_run
-        returns the staging envelope without writing files. Call
-        memory_tool_schema with tool_name="memory_stage_external" for the full
-        input contract.
+        returns the staging envelope without writing files. reflects_upstream_as_of
+        is an optional marker (commit sha, release tag, or ISO date) describing
+        the upstream state the snapshot reflects; it is written verbatim into
+        frontmatter when provided. Call memory_tool_schema with
+        tool_name="memory_stage_external" for the full input contract.
         """
         import json as _json
         import os as _os
@@ -2938,6 +2941,7 @@ def register_tools(mcp: "FastMCP", get_repo, get_root) -> dict[str, object]:
             root=root,
             session_id=env_session_id,
             dry_run=bool(dry_run),
+            reflects_upstream_as_of=reflects_upstream_as_of,
         )
         if env_session_id is not None:
             record_trace(

@@ -961,6 +961,7 @@ def stage_external_input_schema() -> dict[str, Any]:
             "content must be a non-empty string and is size-limited by the staging helper.",
             "fetched_date must be an ISO date in YYYY-MM-DD format.",
             "dry_run returns the staging envelope without writing the IN/ file or staged-hash registry.",
+            "snapshot_taken_at is derived automatically from fetched_date; reflects_upstream_as_of is an optional caller-supplied upstream marker written verbatim into frontmatter.",
         ],
         properties={
             "project": {
@@ -987,7 +988,7 @@ def stage_external_input_schema() -> dict[str, Any]:
                 "type": "string",
                 "pattern": r"^\d{4}-\d{2}-\d{2}$",
                 "format": "date",
-                "description": "ISO date recorded in the staged frontmatter.",
+                "description": "ISO date recorded in the staged frontmatter; also used as snapshot_taken_at.",
             },
             "source_label": {
                 "type": "string",
@@ -998,6 +999,13 @@ def stage_external_input_schema() -> dict[str, Any]:
                 "type": "boolean",
                 "default": False,
                 "description": "When true, return the staging envelope without writing files.",
+            },
+            "reflects_upstream_as_of": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional upstream state marker (commit sha, tag, or ISO date) describing what the snapshot reflects. Omitted from frontmatter when null.",
             },
         },
     )
