@@ -6,9 +6,9 @@ current_focus: `concurrent-session-writes` remains the highest-priority follow-o
   The repo-common writer lock is in place, and the latest slice now captures a
   stable startup publication baseline in `SessionState`; the newest follow-on
   now provisions opt-in session branches at MCP startup and preserves their
-  original base metadata across restarts, and the explicit session publish
-  paths, ACCESS logging, and scratchpad commits now fast-forward the
-  preserved base branch when that session branch is cleanly ahead.
+  original base metadata across restarts, and the commit-producing semantic
+  write tools now fast-forward the preserved base branch when that session
+  branch is cleanly ahead.
 last_activity: '2026-04-16'
 open_questions: 12
 origin_session: memory/activity/2026/04/03/chat-001
@@ -101,6 +101,6 @@ The next branch-isolation slice is now in place behind an explicit rollout flag.
 
 The restart-safe base metadata slice is now in place as well. Session-branch startup now persists the original base branch/ref under the repo-common Engram runtime state, reloads that metadata when `create_mcp()` starts on an existing session branch, and fails fast if a branch checkout exists without the metadata needed for later merge decisions. Focused tests now cover both successful restart on an existing session branch and the missing-metadata failure path.
 
-The next explicit publish slices are now in place too. When a session branch is active, `memory_session_flush`, `memory_record_session`, `memory_record_chat_summary`, `memory_record_reflection`, `memory_log_access`, `memory_log_access_batch`, and `memory_append_scratchpad` now commit on that session branch and then attempt a lock-aware fast-forward of the preserved base branch ref. Cleanly-ahead session branches advance the base branch in place, while diverged base refs are reported back as blocked without losing the underlying session-branch commit. Focused tests now cover both the fast-forwarded and blocked-divergence cases for each path.
+The preserved-base publish extension now covers the remaining semantic write tools too. When a session branch is active, `memory_session_flush`, `memory_append_scratchpad`, `memory_record_chat_summary`, `memory_record_reflection`, `memory_log_access`, `memory_log_access_batch`, `memory_record_session`, `memory_flag_for_review`, `memory_resolve_review_item`, `memory_run_aggregation`, `memory_record_periodic_review`, and `memory_revert_commit` now commit on that session branch and then attempt a lock-aware fast-forward of the preserved base branch ref. Cleanly-ahead session branches advance the base branch in place, while diverged base refs are reported back as blocked without losing the underlying session-branch commit. Focused tests now cover both the fast-forwarded and blocked-divergence cases for each newly extended path.
 
-The next unresolved `concurrent-session-writes` step is still `branch-strategy`: decide how to roll this session-branch path beyond the opt-in flag, then extend the current explicit-publish fast-forward behavior into the remaining merge boundaries and eventual conflict queue flows.
+The next unresolved `concurrent-session-writes` step is still `branch-strategy`: decide how to roll this session-branch path beyond the opt-in flag, then move from blocked-status reporting into explicit conflict-handling and queue flows.

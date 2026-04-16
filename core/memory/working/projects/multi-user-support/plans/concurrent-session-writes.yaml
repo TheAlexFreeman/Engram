@@ -197,6 +197,24 @@ work:
         - memory_append_scratchpad advances the preserved base branch when the session branch is ahead by a clean fast-forward
         - Diverged base branches are reported as blocked without losing the scratchpad commit on the session branch
 
+    - id: governance-maintenance-fast-forward
+      title: Fast-forward the preserved base branch on remaining semantic write commits.
+      status: completed
+      commit: null
+      blockers:
+        - scratchpad-fast-forward
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: Reuse the explicit publish fast-forward path for the remaining governance and maintenance commit flows
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: Apply the preserved-base fast-forward helper to review-queue writes, ACCESS aggregation, periodic review apply, and revert confirm so the remaining semantic write commits publish the same structured merge outcome.
+      postconditions:
+        - memory_flag_for_review, memory_resolve_review_item, memory_run_aggregation, memory_record_periodic_review, and memory_revert_commit advance the preserved base branch when the session branch is ahead by a clean fast-forward
+        - Diverged base branches are reported as blocked without losing the underlying semantic write commit on the session branch
+
     - id: branch-strategy
       title: Implement branch-per-session write isolation.
       status: pending

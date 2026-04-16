@@ -1852,12 +1852,20 @@ def register_tools(
 
         commit_msg = f"[curation] Flag {path} for review ({priority})"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch review flag",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=[review_queue_rel],
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state={"flagged_path": path, "priority": priority, "item_id": item_id},
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -1956,13 +1964,21 @@ def register_tools(
         )
         repo.add(review_queue_rel)
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch review resolve",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=[review_queue_rel],
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state=new_state,
+            warnings=merge_warnings,
             preview=preview_payload,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -2503,12 +2519,20 @@ def register_tools(
 
         commit_msg = f"[curation] Aggregate ACCESS logs ({aggregation_date})"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch aggregation",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=changed_files,
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state=preview_state,
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -2743,13 +2767,21 @@ def register_tools(
             abs_review_queue.write_text(updated_review_queue, encoding="utf-8")
             repo.add(review_queue_rel)
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch periodic review",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=files_changed,
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state=new_state,
+            warnings=merge_warnings,
             preview=preview_payload,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -2841,6 +2873,11 @@ def register_tools(
 
         resolved_sha = str(preview["resolved_sha"])
         commit_result = repo.revert(resolved_sha)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch revert",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=cast(list[str], preview["files_changed"]),
             commit_result=commit_result,
@@ -2851,8 +2888,11 @@ def register_tools(
                 "new_sha": commit_result.sha,
                 "preview_token": preview_token,
             },
+            warnings=merge_warnings,
             preview=preview_payload,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(

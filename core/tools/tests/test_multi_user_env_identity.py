@@ -101,6 +101,204 @@ class MultiUserEnvIdentityTests(unittest.TestCase):
             return cast(dict[str, Any], payload["result"])
         return payload
 
+    def _git_root(self, repo_root: Path) -> Path:
+        return repo_root.parent
+
+    def _rename_branch(self, repo_root: Path, name: str = "alex") -> Path:
+        git_root = self._git_root(repo_root)
+        subprocess.run(
+            ["git", "branch", "-M", name],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return git_root
+
+    def _rev_parse(self, git_root: Path, ref: str) -> str:
+        return subprocess.run(
+            ["git", "rev-parse", ref],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+    def _diverge_base_branch(self, git_root: Path, branch: str = "alex") -> str:
+        base_ref = f"refs/heads/{branch}"
+        base_sha_before = self._rev_parse(git_root, base_ref)
+        base_tree = self._rev_parse(git_root, f"{base_ref}^{{tree}}")
+        diverged_sha = subprocess.run(
+            ["git", "commit-tree", base_tree, "-p", base_sha_before, "-m", "diverged base"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subprocess.run(
+            ["git", "update-ref", base_ref, diverged_sha, base_sha_before],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return diverged_sha
+
+    def _write_and_commit(self, repo_root: Path, rel_path: str, content: str, message: str) -> str:
+        target = repo_root / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        git_root = self._git_root(repo_root)
+        subprocess.run(
+            ["git", "add", "."],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", message],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return self._rev_parse(git_root, "HEAD")
+
+    def _session_branch_env(
+        self, session_id: str = "memory/activity/2026/03/29/chat-002"
+    ) -> dict[str, str]:
+        return {
+            "MEMORY_USER_ID": "alex",
+            "MEMORY_SESSION_ID": session_id,
+            "MEMORY_ENABLE_SESSION_BRANCHES": "1",
+        }
+
+    def _aggregation_fixture_files(self) -> dict[str, str]:
+        return {
+            "memory/knowledge/topic.md": "# Topic\n",
+            "memory/working/projects/demo.md": "# Demo\n",
+            "memory/skills/session-start/SKILL.md": "# Session Start\n",
+            "memory/knowledge/SUMMARY.md": "# Knowledge\n\n## Usage patterns\n\n_No access data yet._\n",
+            "memory/working/projects/SUMMARY.md": "# Plans\n\n## Usage patterns\n\n_No access data yet._\n",
+            "memory/skills/SUMMARY.md": "# Skills\n\n## Usage patterns\n\n_No access data yet._\n",
+            "memory/knowledge/ACCESS.jsonl": "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "date": "2026-03-18",
+                            "session_id": "memory/activity/2026/03/18/chat-001",
+                            "file": "memory/knowledge/topic.md",
+                            "helpfulness": 0.8,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "date": "2026-03-19",
+                            "file": "memory/knowledge/topic.md",
+                            "helpfulness": 0.8,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "date": "2026-03-20",
+                            "session_id": "memory/activity/2026/03/20/chat-001",
+                            "file": "memory/knowledge/topic.md",
+                            "helpfulness": 0.8,
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            "memory/working/projects/ACCESS.jsonl": "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "date": "2026-03-18",
+                            "session_id": "memory/activity/2026/03/18/chat-001",
+                            "file": "memory/working/projects/demo.md",
+                            "helpfulness": 0.7,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "date": "2026-03-19",
+                            "file": "memory/working/projects/demo.md",
+                            "helpfulness": 0.7,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "date": "2026-03-20",
+                            "session_id": "memory/activity/2026/03/20/chat-001",
+                            "file": "memory/working/projects/demo.md",
+                            "helpfulness": 0.7,
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            "memory/skills/ACCESS.jsonl": "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "date": "2026-03-18",
+                            "session_id": "memory/activity/2026/03/18/chat-001",
+                            "file": "memory/skills/session-start/SKILL.md",
+                            "helpfulness": 0.9,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "date": "2026-03-19",
+                            "file": "memory/skills/session-start/SKILL.md",
+                            "helpfulness": 0.9,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "date": "2026-03-20",
+                            "session_id": "memory/activity/2026/03/20/chat-001",
+                            "file": "memory/skills/session-start/SKILL.md",
+                            "helpfulness": 0.9,
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+        }
+
+    def _periodic_review_fixture_files(self) -> dict[str, str]:
+        return {
+            "core/INIT.md": """# Home
+
+## Current active stage: Exploration
+
+_Last assessed: 2026-03-01 — Exploration retained_
+
+## Last periodic review
+
+**Date:** 2026-03-01
+
+| Parameter | Active value | Stage |
+|---|---|---|
+| Low-trust retirement threshold | 120 days | Exploration |
+| Medium-trust flagging threshold | 180 days | Exploration |
+| Staleness trigger (no access) | 120 days | Exploration |
+| Aggregation trigger | 15 entries | Exploration |
+| Identity churn alarm | 5 traits/session | Exploration |
+| Knowledge flooding alarm | 5 files/day | Exploration |
+| Task similarity method | Session co-occurrence | Exploration |
+| Cluster co-retrieval threshold | 3 sessions | Exploration |
+
+## Active task similarity method
+
+**Method:** Session co-occurrence
+""",
+            "core/governance/belief-diff-log.md": "# Belief Diff Log\n",
+            "core/governance/review-queue.md": "# Review Queue\n\n_No pending items._\n",
+        }
+
     def test_session_state_snapshot_includes_user_id_and_reset_preserves_it(self) -> None:
         start = datetime(2026, 3, 28, 12, 0, tzinfo=timezone.utc)
         reset_time = start + timedelta(minutes=9)
@@ -1656,6 +1854,415 @@ class MultiUserEnvIdentityTests(unittest.TestCase):
         ).stdout.strip()
         merge = cast(dict[str, Any], payload["new_state"]["merge"])
 
+        self.assertEqual(base_sha, diverged_sha)
+        self.assertNotEqual(base_sha, session_sha)
+        self.assertEqual(merge["status"], "blocked")
+        self.assertEqual(merge["base_branch"], "alex")
+        self.assertEqual(merge["session_branch"], session_branch)
+        self.assertIn("cannot be fast-forwarded", cast(str, merge["reason"]))
+        self.assertTrue(
+            any(
+                "preserved base branch was not advanced" in warning
+                for warning in cast(list[str], payload["warnings"])
+            )
+        )
+
+    def test_memory_flag_for_review_fast_forwards_preserved_base_branch(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "governance/review-queue.md": "# Review Queue\n\n_No pending items._\n",
+                "memory/working/projects/demo.md": "# Demo\n",
+            }
+        )
+        git_root = self._rename_branch(repo_root)
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(os.environ, self._session_branch_env(), clear=False):
+            tools = self._create_tools(repo_root)
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_flag_for_review"](
+                        path="memory/working/projects/demo.md",
+                        reason="Needs human review before promotion.",
+                        priority="urgent",
+                    )
+                )
+            )
+
+        base_sha = self._rev_parse(git_root, "refs/heads/alex")
+        session_sha = self._rev_parse(git_root, f"refs/heads/{session_branch}")
+        merge = cast(dict[str, Any], payload["new_state"]["merge"])
+
+        self.assertEqual(base_sha, session_sha)
+        self.assertEqual(merge["status"], "fast-forwarded")
+        self.assertEqual(merge["base_branch"], "alex")
+        self.assertEqual(merge["session_branch"], session_branch)
+        self.assertEqual(merge["target_ref"], "refs/heads/alex")
+        self.assertEqual(merge["source_ref"], f"refs/heads/{session_branch}")
+        self.assertEqual(merge["applied_sha"], base_sha)
+
+    def test_memory_flag_for_review_reports_blocked_fast_forward_when_base_diverged(
+        self,
+    ) -> None:
+        repo_root = self._init_repo(
+            {
+                "governance/review-queue.md": "# Review Queue\n\n_No pending items._\n",
+                "memory/working/projects/demo.md": "# Demo\n",
+            }
+        )
+        git_root = self._rename_branch(repo_root)
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(os.environ, self._session_branch_env(), clear=False):
+            tools = self._create_tools(repo_root)
+            diverged_sha = self._diverge_base_branch(git_root)
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_flag_for_review"](
+                        path="memory/working/projects/demo.md",
+                        reason="Needs human review before promotion.",
+                        priority="urgent",
+                    )
+                )
+            )
+
+        base_sha = self._rev_parse(git_root, "refs/heads/alex")
+        session_sha = self._rev_parse(git_root, f"refs/heads/{session_branch}")
+        merge = cast(dict[str, Any], payload["new_state"]["merge"])
+
+        self.assertEqual(base_sha, diverged_sha)
+        self.assertNotEqual(base_sha, session_sha)
+        self.assertEqual(merge["status"], "blocked")
+        self.assertEqual(merge["base_branch"], "alex")
+        self.assertEqual(merge["session_branch"], session_branch)
+        self.assertIn("cannot be fast-forwarded", cast(str, merge["reason"]))
+        self.assertTrue(
+            any(
+                "preserved base branch was not advanced" in warning
+                for warning in cast(list[str], payload["warnings"])
+            )
+        )
+
+    def test_memory_resolve_review_item_fast_forwards_preserved_base_branch(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "governance/review-queue.md": """# Review Queue
+
+### [2026-03-20] Review memory/working/projects/demo.md
+**Item ID:** 2026-03-20-review-memory-working-projects-demo-md
+**Type:** proposed
+**File:** memory/working/projects/demo.md
+**Priority:** normal
+**Reason:** Review it.
+**Status:** pending
+""",
+            }
+        )
+        git_root = self._rename_branch(repo_root)
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(os.environ, self._session_branch_env(), clear=False):
+            tools = self._create_tools(repo_root)
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_resolve_review_item"](
+                        item_id="2026-03-20-review-memory-working-projects-demo-md",
+                        resolution_note="Handled during maintenance.",
+                    )
+                )
+            )
+
+        base_sha = self._rev_parse(git_root, "refs/heads/alex")
+        session_sha = self._rev_parse(git_root, f"refs/heads/{session_branch}")
+        merge = cast(dict[str, Any], payload["new_state"]["merge"])
+
+        self.assertEqual(base_sha, session_sha)
+        self.assertEqual(merge["status"], "fast-forwarded")
+        self.assertEqual(merge["base_branch"], "alex")
+        self.assertEqual(merge["session_branch"], session_branch)
+        self.assertEqual(merge["target_ref"], "refs/heads/alex")
+        self.assertEqual(merge["source_ref"], f"refs/heads/{session_branch}")
+        self.assertEqual(merge["applied_sha"], base_sha)
+
+    def test_memory_resolve_review_item_reports_blocked_fast_forward_when_base_diverged(
+        self,
+    ) -> None:
+        repo_root = self._init_repo(
+            {
+                "governance/review-queue.md": """# Review Queue
+
+### [2026-03-20] Review memory/working/projects/demo.md
+**Item ID:** 2026-03-20-review-memory-working-projects-demo-md
+**Type:** proposed
+**File:** memory/working/projects/demo.md
+**Priority:** normal
+**Reason:** Review it.
+**Status:** pending
+""",
+            }
+        )
+        git_root = self._rename_branch(repo_root)
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(os.environ, self._session_branch_env(), clear=False):
+            tools = self._create_tools(repo_root)
+            diverged_sha = self._diverge_base_branch(git_root)
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_resolve_review_item"](
+                        item_id="2026-03-20-review-memory-working-projects-demo-md",
+                        resolution_note="Handled during maintenance.",
+                    )
+                )
+            )
+
+        base_sha = self._rev_parse(git_root, "refs/heads/alex")
+        session_sha = self._rev_parse(git_root, f"refs/heads/{session_branch}")
+        merge = cast(dict[str, Any], payload["new_state"]["merge"])
+
+        self.assertEqual(base_sha, diverged_sha)
+        self.assertNotEqual(base_sha, session_sha)
+        self.assertEqual(merge["status"], "blocked")
+        self.assertEqual(merge["base_branch"], "alex")
+        self.assertEqual(merge["session_branch"], session_branch)
+        self.assertIn("cannot be fast-forwarded", cast(str, merge["reason"]))
+        self.assertTrue(
+            any(
+                "preserved base branch was not advanced" in warning
+                for warning in cast(list[str], payload["warnings"])
+            )
+        )
+
+    def test_memory_run_aggregation_fast_forwards_preserved_base_branch(self) -> None:
+        repo_root = self._init_repo(self._aggregation_fixture_files())
+        git_root = self._rename_branch(repo_root)
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(os.environ, self._session_branch_env(), clear=False):
+            tools = self._create_tools(repo_root)
+            payload = self._load_tool_payload(
+                asyncio.run(tools["memory_run_aggregation"](dry_run=False))
+            )
+
+        base_sha = self._rev_parse(git_root, "refs/heads/alex")
+        session_sha = self._rev_parse(git_root, f"refs/heads/{session_branch}")
+        merge = cast(dict[str, Any], payload["new_state"]["merge"])
+
+        self.assertEqual(base_sha, session_sha)
+        self.assertEqual(payload["new_state"]["entries_processed"], 9)
+        self.assertEqual(merge["status"], "fast-forwarded")
+        self.assertEqual(merge["base_branch"], "alex")
+        self.assertEqual(merge["session_branch"], session_branch)
+        self.assertEqual(merge["target_ref"], "refs/heads/alex")
+        self.assertEqual(merge["source_ref"], f"refs/heads/{session_branch}")
+        self.assertEqual(merge["applied_sha"], base_sha)
+
+    def test_memory_run_aggregation_reports_blocked_fast_forward_when_base_diverged(
+        self,
+    ) -> None:
+        repo_root = self._init_repo(self._aggregation_fixture_files())
+        git_root = self._rename_branch(repo_root)
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(os.environ, self._session_branch_env(), clear=False):
+            tools = self._create_tools(repo_root)
+            diverged_sha = self._diverge_base_branch(git_root)
+            payload = self._load_tool_payload(
+                asyncio.run(tools["memory_run_aggregation"](dry_run=False))
+            )
+
+        base_sha = self._rev_parse(git_root, "refs/heads/alex")
+        session_sha = self._rev_parse(git_root, f"refs/heads/{session_branch}")
+        merge = cast(dict[str, Any], payload["new_state"]["merge"])
+
+        self.assertEqual(base_sha, diverged_sha)
+        self.assertNotEqual(base_sha, session_sha)
+        self.assertEqual(merge["status"], "blocked")
+        self.assertEqual(merge["base_branch"], "alex")
+        self.assertEqual(merge["session_branch"], session_branch)
+        self.assertIn("cannot be fast-forwarded", cast(str, merge["reason"]))
+        self.assertTrue(
+            any(
+                "preserved base branch was not advanced" in warning
+                for warning in cast(list[str], payload["warnings"])
+            )
+        )
+
+    def test_memory_record_periodic_review_fast_forwards_preserved_base_branch(self) -> None:
+        repo_root = self._init_repo(self._periodic_review_fixture_files())
+        git_root = self._rename_branch(repo_root)
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(os.environ, self._session_branch_env(), clear=False):
+            tools = self._create_tools(repo_root)
+            preview = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_record_periodic_review"](
+                        review_date="2026-03-19",
+                        assessment_summary="Exploration retained after review.",
+                        belief_diff_entry="## [2026-03-19] Periodic review\n",
+                        review_queue_entries="### [2026-03-19] Follow-up\n**Status:** pending\n",
+                        preview=True,
+                    )
+                )
+            )
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_record_periodic_review"](
+                        review_date="2026-03-19",
+                        assessment_summary="Exploration retained after review.",
+                        belief_diff_entry="## [2026-03-19] Periodic review\n",
+                        review_queue_entries="### [2026-03-19] Follow-up\n**Status:** pending\n",
+                        approval_token=preview["new_state"]["approval_token"],
+                    )
+                )
+            )
+
+        base_sha = self._rev_parse(git_root, "refs/heads/alex")
+        session_sha = self._rev_parse(git_root, f"refs/heads/{session_branch}")
+        merge = cast(dict[str, Any], payload["new_state"]["merge"])
+
+        self.assertEqual(base_sha, session_sha)
+        self.assertEqual(payload["new_state"]["review_date"], "2026-03-19")
+        self.assertEqual(merge["status"], "fast-forwarded")
+        self.assertEqual(merge["base_branch"], "alex")
+        self.assertEqual(merge["session_branch"], session_branch)
+        self.assertEqual(merge["target_ref"], "refs/heads/alex")
+        self.assertEqual(merge["source_ref"], f"refs/heads/{session_branch}")
+        self.assertEqual(merge["applied_sha"], base_sha)
+
+    def test_memory_record_periodic_review_reports_blocked_fast_forward_when_base_diverged(
+        self,
+    ) -> None:
+        repo_root = self._init_repo(self._periodic_review_fixture_files())
+        git_root = self._rename_branch(repo_root)
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(os.environ, self._session_branch_env(), clear=False):
+            tools = self._create_tools(repo_root)
+            preview = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_record_periodic_review"](
+                        review_date="2026-03-19",
+                        assessment_summary="Exploration retained after review.",
+                        belief_diff_entry="## [2026-03-19] Periodic review\n",
+                        review_queue_entries="### [2026-03-19] Follow-up\n**Status:** pending\n",
+                        preview=True,
+                    )
+                )
+            )
+            diverged_sha = self._diverge_base_branch(git_root)
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_record_periodic_review"](
+                        review_date="2026-03-19",
+                        assessment_summary="Exploration retained after review.",
+                        belief_diff_entry="## [2026-03-19] Periodic review\n",
+                        review_queue_entries="### [2026-03-19] Follow-up\n**Status:** pending\n",
+                        approval_token=preview["new_state"]["approval_token"],
+                    )
+                )
+            )
+
+        base_sha = self._rev_parse(git_root, "refs/heads/alex")
+        session_sha = self._rev_parse(git_root, f"refs/heads/{session_branch}")
+        merge = cast(dict[str, Any], payload["new_state"]["merge"])
+
+        self.assertEqual(base_sha, diverged_sha)
+        self.assertNotEqual(base_sha, session_sha)
+        self.assertEqual(merge["status"], "blocked")
+        self.assertEqual(merge["base_branch"], "alex")
+        self.assertEqual(merge["session_branch"], session_branch)
+        self.assertIn("cannot be fast-forwarded", cast(str, merge["reason"]))
+        self.assertTrue(
+            any(
+                "preserved base branch was not advanced" in warning
+                for warning in cast(list[str], payload["warnings"])
+            )
+        )
+
+    def test_memory_revert_commit_fast_forwards_preserved_base_branch(self) -> None:
+        repo_root = self._init_repo({"memory/working/projects/demo.md": "# Demo\n\nOriginal\n"})
+        git_root = self._rename_branch(repo_root)
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(os.environ, self._session_branch_env(), clear=False):
+            tools = self._create_tools(repo_root)
+            target_sha = self._write_and_commit(
+                repo_root,
+                "memory/working/projects/demo.md",
+                "# Demo\n\nUpdated\n",
+                "[plan] Update demo plan",
+            )
+            preview = self._load_tool_payload(
+                asyncio.run(tools["memory_revert_commit"](sha=target_sha))
+            )
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_revert_commit"](
+                        sha=target_sha,
+                        confirm=True,
+                        preview_token=preview["new_state"]["preview_token"],
+                    )
+                )
+            )
+
+        restored = (repo_root / "memory" / "working" / "projects" / "demo.md").read_text(
+            encoding="utf-8"
+        )
+        base_sha = self._rev_parse(git_root, "refs/heads/alex")
+        session_sha = self._rev_parse(git_root, f"refs/heads/{session_branch}")
+        merge = cast(dict[str, Any], payload["new_state"]["merge"])
+
+        self.assertIn("Original", restored)
+        self.assertNotIn("Updated", restored)
+        self.assertEqual(base_sha, session_sha)
+        self.assertEqual(payload["new_state"]["reverted_sha"], target_sha)
+        self.assertEqual(merge["status"], "fast-forwarded")
+        self.assertEqual(merge["base_branch"], "alex")
+        self.assertEqual(merge["session_branch"], session_branch)
+        self.assertEqual(merge["target_ref"], "refs/heads/alex")
+        self.assertEqual(merge["source_ref"], f"refs/heads/{session_branch}")
+        self.assertEqual(merge["applied_sha"], base_sha)
+
+    def test_memory_revert_commit_reports_blocked_fast_forward_when_base_diverged(
+        self,
+    ) -> None:
+        repo_root = self._init_repo({"memory/working/projects/demo.md": "# Demo\n\nOriginal\n"})
+        git_root = self._rename_branch(repo_root)
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(os.environ, self._session_branch_env(), clear=False):
+            tools = self._create_tools(repo_root)
+            target_sha = self._write_and_commit(
+                repo_root,
+                "memory/working/projects/demo.md",
+                "# Demo\n\nUpdated\n",
+                "[plan] Update demo plan",
+            )
+            preview = self._load_tool_payload(
+                asyncio.run(tools["memory_revert_commit"](sha=target_sha))
+            )
+            diverged_sha = self._diverge_base_branch(git_root)
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_revert_commit"](
+                        sha=target_sha,
+                        confirm=True,
+                        preview_token=preview["new_state"]["preview_token"],
+                    )
+                )
+            )
+
+        restored = (repo_root / "memory" / "working" / "projects" / "demo.md").read_text(
+            encoding="utf-8"
+        )
+        base_sha = self._rev_parse(git_root, "refs/heads/alex")
+        session_sha = self._rev_parse(git_root, f"refs/heads/{session_branch}")
+        merge = cast(dict[str, Any], payload["new_state"]["merge"])
+
+        self.assertIn("Original", restored)
+        self.assertNotIn("Updated", restored)
         self.assertEqual(base_sha, diverged_sha)
         self.assertNotEqual(base_sha, session_sha)
         self.assertEqual(merge["status"], "blocked")
