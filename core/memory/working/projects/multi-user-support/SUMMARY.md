@@ -2,8 +2,10 @@
 active_plans: 5
 cognitive_mode: planning
 created: 2026-04-03
-current_focus: Designing multi-user support for shared team memory repos.
-last_activity: '2026-04-03'
+current_focus: Highest-priority active project. Start with `user-identity-and-namespacing`
+  at `env-identity`: add `MEMORY_USER_ID`, thread `user_id` into SessionState,
+  and establish the identity foundation that every other multi-user plan depends on.
+last_activity: '2026-04-15'
 open_questions: 12
 origin_session: memory/activity/2026/04/03/chat-001
 plans: 5
@@ -62,3 +64,7 @@ makes it concrete.
 - Plan 1 (identity/namespacing) is the foundation — all others depend on it
 - Plans 2 and 3 can proceed in parallel after Plan 1's env-identity phase
 - Plans 4 and 5 depend on both identity and visibility being in place
+
+## Priority update (2026-04-15)
+
+`multi-user-support` is now the top active project. `skills-expansion` has been closed out, so the next engineering priority is the identity foundation in `user-identity-and-namespacing.yaml`, starting with the `env-identity` phase.

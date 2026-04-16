@@ -2,7 +2,7 @@ id: gitignore-deployment-modes
 project: skills-expansion
 created: '2026-04-08'
 origin_session: memory/activity/2026/04/08/chat-001
-status: active
+status: completed
 budget:
   max_sessions: 2
 purpose:
@@ -75,7 +75,7 @@ work:
         \ lockfile on install, not committed"
   - id: clone-experience
     title: Ensure clean experience on fresh clone with gitignored skills
-    status: in-progress
+    status: completed
     commit: null
     blockers: []
     postconditions:

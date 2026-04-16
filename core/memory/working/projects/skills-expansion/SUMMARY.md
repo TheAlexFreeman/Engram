@@ -1,17 +1,16 @@
 ---
-active_plans: 3
-cognitive_mode: planning
+active_plans: 0
+cognitive_mode: execution
 created: '2026-04-08'
-current_focus: Multi-agent-distribution is now implementation-complete. Distribution
-  targets are manifest-integrated, memory_skill_list reports per-skill distribution
-  health, and memory_skill_sync verifies, repairs, and prunes target projections
-  with focused lifecycle and distributor tests passing.
-last_activity: '2026-04-16'
-open_questions: 3
+current_focus: The original six-workstream roadmap is now complete. Future skill-system
+  changes should be opened as follow-on enhancement plans rather than continued under
+  this project.
+last_activity: '2026-04-15'
+open_questions: 0
 origin_session: memory/activity/2026/04/08/chat-001
 plans: 6
 source: agent-generated
-status: active
+status: completed
 trust: medium
 type: project
 ---
@@ -41,3 +40,5 @@ Execution note (2026-04-15): the original roadmap had `lifecycle-cli-decompositi
 4. **lifecycle-cli-decomposition** — Completed. The decomposed lifecycle surface (`memory_skill_list`, add/remove flows, sync support, and the lifecycle spec) is implemented and the plan metadata now matches that shipped state.
 5. **gitignore-deployment-modes** — Implemented and verified. Deployment-mode spec, managed `.gitignore` reconciliation, install/sync semantics, and the fresh-clone recovery rule are in place; that stabilized contract now feeds the distribution work.
 6. **multi-agent-distribution** — Completed. Built-in target ids (`engram`, `generic`, `claude`, `cursor`, `codex`) are specified, the adapter-backed distributor and CLI landed, lifecycle tools validate and persist manifest `targets`, `memory_skill_list` reports distribution health, and `memory_skill_sync` now verifies stale projections, repairs rendered outputs, and prunes obsolete target entries. Focused distributor, lifecycle, integration, and CLI tests are green.
+
+Project closure note (2026-04-15): all six planned workstreams are complete. Any additional skills work should be scoped as a new follow-on project or a targeted maintenance plan instead of extending this closed roadmap.
