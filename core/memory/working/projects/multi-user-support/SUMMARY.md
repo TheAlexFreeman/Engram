@@ -2,9 +2,9 @@
 active_plans: 4
 cognitive_mode: planning
 created: 2026-04-03
-current_focus: `user-identity-and-namespacing` is complete. Next decision:
-  choose between `frontmatter-visibility` and `concurrent-session-writes`,
-  which are now both unblocked by the identity foundation.
+current_focus: `concurrent-session-writes` is now the highest-priority follow-on.
+  The first implementation slice moves publication locking into the shared git
+  common dir so linked worktrees cannot publish concurrently into the same repo.
 last_activity: '2026-04-16'
 open_questions: 12
 origin_session: memory/activity/2026/04/03/chat-001
@@ -81,4 +81,14 @@ makes it concrete.
 
 `backward-compat-tests` is complete. A focused compat suite now locks in the flat single-user layout when `MEMORY_USER_ID` is unset, and the targeted multi-user plus legacy regressions for working memory, context loading, and ACCESS analytics are passing.
 
-The `user-identity-and-namespacing` foundation plan is now complete. The next project decision is which newly unblocked plan to execute first: `frontmatter-visibility` or `concurrent-session-writes`.
+The `user-identity-and-namespacing` foundation plan is now complete.
+
+## Priority refresh
+
+`multi-user-support` remains the top active project after reprioritization, but the next plan is now `concurrent-session-writes`, not `frontmatter-visibility`.
+
+The reason is practical: `frontmatter-visibility` starts with approval-gated schema changes, while `concurrent-session-writes` addresses the larger operational risk for real multi-user use. Before this pass, publication locking was still scoped to a single worktree, so linked worktrees attached to the same repository could publish concurrently without coordinating.
+
+The first `concurrent-session-writes` slice is now in place. `GitRepo` resolves the repository common git dir, uses that shared state location for Engram runtime state, and publishes through a repo-common writer lock. Focused linked-worktree tests now verify that two worktrees share the same Engram state directory, that a publish from one worktree blocks when the shared lock is held by another, and that publication metadata reflects the repo-common lock mode. Existing single-worktree lock coverage still passes.
+
+`frontmatter-visibility` remains the next major follow-on after the concurrency foundation is safer.

@@ -7604,7 +7604,8 @@ Load compact context.
             )
         )
 
-        lock_path = repo.git_dir / getattr(self.git_repo_module, "_WRITE_LOCK_NAME")
+        lock_path = repo._write_lock_path()
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
         lock_path.write_text("pid=999\npurpose=test\n", encoding="utf-8")
         original_timeout = getattr(self.git_repo_module, "_WRITE_LOCK_TIMEOUT_SECONDS")
         setattr(self.git_repo_module, "_WRITE_LOCK_TIMEOUT_SECONDS", 0.0)

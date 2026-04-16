@@ -87,7 +87,7 @@ class GitPublicationResult:
             "operation": self.operation,
             "mode": self.mode,
             "degraded": self.degraded,
-            "writer_lock": "exclusive-worktree",
+            "writer_lock": "exclusive-repo-common-dir",
             "warnings": list(self.warnings),
         }
 
@@ -118,11 +118,34 @@ class GitRepo:
         if git_dir_result.returncode != 0:
             raise ValueError(f"Not a git repository: {candidate_root}")
 
+        git_common_dir_result = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=str(candidate_root),
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+        )
+        if git_common_dir_result.returncode != 0:
+            git_common_dir_result = subprocess.run(
+                ["git", "rev-parse", "--git-common-dir"],
+                cwd=str(candidate_root),
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
+            )
+        if git_common_dir_result.returncode != 0:
+            raise ValueError(f"Not a git repository: {candidate_root}")
+
         self.root = _preserve_input_root_spelling(
             candidate_root,
             Path(result.stdout.strip()),
         )
         self.git_dir = Path(git_dir_result.stdout.strip()).resolve()
+        git_common_dir_raw = git_common_dir_result.stdout.strip()
+        git_common_dir_path = Path(git_common_dir_raw)
+        if not git_common_dir_path.is_absolute():
+            git_common_dir_path = (self.root / git_common_dir_path).resolve()
+        self.git_common_dir = git_common_dir_path
         # Content prefix: when set, all content-relative paths are resolved
         # under root / content_prefix (e.g., root / "core"). For older test
         # fixtures and legacy layouts that do not include that folder, fall
@@ -137,8 +160,8 @@ class GitRepo:
             self.content_root = self.root
 
     def engram_state_dir(self, *parts: str, create: bool = False) -> Path:
-        """Return a path under the repo-local untracked Engram state directory."""
-        path = self.git_dir / "engram"
+        """Return a path under the repo-common untracked Engram state directory."""
+        path = self.git_common_dir / "engram"
         if parts:
             path = path.joinpath(*parts)
         if create:
@@ -425,7 +448,7 @@ class GitRepo:
         return mode, object_id
 
     def _write_lock_path(self) -> Path:
-        return self.git_dir / _WRITE_LOCK_NAME
+        return self.engram_state_dir() / _WRITE_LOCK_NAME
 
     def _head_lock_path(self) -> Path:
         return self.git_dir / _HEAD_LOCK_NAME
@@ -533,6 +556,7 @@ class GitRepo:
     def write_lock(self, purpose: str):
         """Serialize publication so each worktree has a single active writer."""
         lock_path = self._write_lock_path()
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
         deadline = time.monotonic() + _WRITE_LOCK_TIMEOUT_SECONDS
         lock_payload = f"pid={os.getpid()}\npurpose={purpose}\nstarted_at={time.time()}\n"
 
@@ -1012,6 +1036,7 @@ class GitRepo:
         report: dict = {
             "root": str(self.root),
             "git_dir": str(self.git_dir),
+            "git_common_dir": str(self.git_common_dir),
             "locks": {},
             "repo_valid": False,
             "head_valid": False,
