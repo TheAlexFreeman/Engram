@@ -1390,6 +1390,49 @@ def register_tools(
 ) -> dict[str, object]:
     """Register session and governance semantic tools."""
 
+    def _maybe_fast_forward_publication_base(
+        repo,
+        *,
+        commit_sha: str | None,
+        blocked_action: str,
+    ) -> tuple[dict[str, object] | None, list[str]]:
+        if (
+            session_state is None
+            or not session_state.publication_base_ref
+            or not session_state.publication_session_branch_ref
+            or session_state.publication_base_ref == session_state.publication_session_branch_ref
+        ):
+            return None, []
+
+        try:
+            merge_result = repo.fast_forward_ref(
+                target_ref=session_state.publication_base_ref,
+                source_ref=session_state.publication_session_branch_ref,
+            )
+            merge_payload = merge_result.to_dict()
+        except Exception as merge_error:
+            merge_payload = {
+                "operation": "fast-forward",
+                "status": "blocked",
+                "target_ref": session_state.publication_base_ref,
+                "source_ref": session_state.publication_session_branch_ref,
+                "target_sha": None,
+                "source_sha": commit_sha,
+                "applied_sha": None,
+                "reason": str(merge_error),
+                "warnings": [],
+            }
+
+        merge_payload["base_branch"] = session_state.publication_base_branch
+        merge_payload["session_branch"] = session_state.publication_session_branch
+        merge_warnings = list(cast(list[str], merge_payload.get("warnings", [])))
+        if merge_payload.get("status") == "blocked":
+            merge_warnings.append(
+                f"{blocked_action} was committed, but the preserved base branch was not advanced: "
+                f"{merge_payload.get('reason', 'fast-forward was blocked')}"
+            )
+        return merge_payload, merge_warnings
+
     @mcp.tool(
         name="memory_checkpoint",
         annotations=_tool_annotations(
@@ -1537,42 +1580,11 @@ def register_tools(
             session_state.record_write(checkpoint_rel)
             session_state.record_checkpoint()
             session_state.record_flush()
-        merge_state: dict[str, object] | None = None
-        merge_warnings: list[str] = []
-        if (
-            session_state is not None
-            and session_state.publication_base_ref
-            and session_state.publication_session_branch_ref
-            and session_state.publication_base_ref != session_state.publication_session_branch_ref
-        ):
-            merge_payload: dict[str, object]
-            try:
-                merge_result = repo.fast_forward_ref(
-                    target_ref=session_state.publication_base_ref,
-                    source_ref=session_state.publication_session_branch_ref,
-                )
-                merge_payload = merge_result.to_dict()
-            except Exception as merge_error:
-                merge_payload = {
-                    "operation": "fast-forward",
-                    "status": "blocked",
-                    "target_ref": session_state.publication_base_ref,
-                    "source_ref": session_state.publication_session_branch_ref,
-                    "target_sha": None,
-                    "source_sha": commit_result.sha,
-                    "applied_sha": None,
-                    "reason": str(merge_error),
-                    "warnings": [],
-                }
-            merge_payload["base_branch"] = session_state.publication_base_branch
-            merge_payload["session_branch"] = session_state.publication_session_branch
-            merge_warnings.extend(cast(list[str], merge_payload.get("warnings", [])))
-            if merge_payload.get("status") == "blocked":
-                merge_warnings.append(
-                    "Session branch flush was committed, but the preserved base branch was not advanced: "
-                    f"{merge_payload.get('reason', 'fast-forward was blocked')}"
-                )
-            merge_state = merge_payload
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch flush",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=[checkpoint_rel],
             commit_result=commit_result,
@@ -1643,13 +1655,21 @@ def register_tools(
         repo.add(rel_path)
         commit_msg = f"[scratchpad] Append to {rel_path}"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch scratchpad append",
+        )
 
         result = MemoryWriteResult.from_commit(
             files_changed=[rel_path],
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state={"target": rel_path},
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -1743,6 +1763,11 @@ def register_tools(
 
         commit_msg = f"[chat] Record summary for {resolved_session_id}"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch chat summary",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=files_changed,
             commit_result=commit_result,
@@ -1753,8 +1778,10 @@ def register_tools(
                 recording_outcome="recorded",
                 user_id=resolved_user_id,
             ),
-            warnings=warnings,
+            warnings=warnings + merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -2000,6 +2027,11 @@ def register_tools(
 
         commit_msg = f"[access] Log retrieval of {Path(file).name} (h={float(helpfulness):.1f})"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch access log",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=changed_files,
             commit_result=commit_result,
@@ -2009,7 +2041,10 @@ def register_tools(
                 "entry_count": 1,
                 "scan_entry_count": scan_entry_count,
             },
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -2079,6 +2114,11 @@ def register_tools(
         label = "entry" if entry_count == 1 else "entries"
         commit_msg = f"[access] Log {entry_count} access {label}"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch access batch",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=changed_files,
             commit_result=commit_result,
@@ -2088,7 +2128,10 @@ def register_tools(
                 "entry_count": entry_count,
                 "scan_entry_count": scan_entry_count,
             },
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -2276,6 +2319,11 @@ def register_tools(
 
         commit_msg = f"[chat] Record session {resolved_session_id}"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch session record",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=files_changed,
             commit_result=commit_result,
@@ -2288,7 +2336,10 @@ def register_tools(
                 access_jsonls=access_files_changed,
                 user_id=resolved_user_id,
             ),
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -2519,12 +2570,20 @@ def register_tools(
         repo.add(reflection_rel)
         commit_msg = f"[chat] Add session reflection for {resolved_session_id}"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch reflection",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=[reflection_rel],
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state={"reflection_path": reflection_rel},
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(

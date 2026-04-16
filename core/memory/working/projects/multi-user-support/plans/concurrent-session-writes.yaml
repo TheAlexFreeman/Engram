@@ -125,6 +125,78 @@ work:
         - memory_session_flush advances the preserved base branch when the session branch is ahead by a clean fast-forward
         - Diverged base branches are reported as blocked without losing the session-branch checkpoint commit
 
+    - id: session-record-fast-forward
+      title: Fast-forward the preserved base branch on full session record.
+      status: completed
+      commit: null
+      blockers:
+        - session-flush-fast-forward
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: Reuse the explicit publish fast-forward path for memory_record_session commits
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: Share the preserved-base fast-forward helper between memory_session_flush and memory_record_session so full session wrap-up commits publish the same structured merge outcome.
+      postconditions:
+        - memory_record_session advances the preserved base branch when the session branch is ahead by a clean fast-forward
+        - Diverged base branches are reported as blocked without losing the session-branch session record commit
+
+    - id: split-wrapup-fast-forward
+      title: Fast-forward the preserved base branch on split session wrap-up commits.
+      status: completed
+      commit: null
+      blockers:
+        - session-record-fast-forward
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: Reuse the explicit publish fast-forward path for memory_record_chat_summary and memory_record_reflection commits
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: Apply the preserved-base fast-forward helper to memory_record_chat_summary and memory_record_reflection so split wrap-up commits publish the same structured merge outcome as flush and full session recording.
+      postconditions:
+        - memory_record_chat_summary and memory_record_reflection advance the preserved base branch when the session branch is ahead by a clean fast-forward
+        - Diverged base branches are reported as blocked without losing the split wrap-up commit on the session branch
+
+    - id: access-log-fast-forward
+      title: Fast-forward the preserved base branch on ACCESS logging commits.
+      status: completed
+      commit: null
+      blockers:
+        - split-wrapup-fast-forward
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: Reuse the explicit publish fast-forward path for memory_log_access and memory_log_access_batch commits
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: Apply the preserved-base fast-forward helper to memory_log_access and memory_log_access_batch so ACCESS commits publish the same structured merge outcome as the session wrap-up tools.
+      postconditions:
+        - memory_log_access and memory_log_access_batch advance the preserved base branch when the session branch is ahead by a clean fast-forward
+        - Diverged base branches are reported as blocked without losing the ACCESS commit on the session branch
+
+    - id: scratchpad-fast-forward
+      title: Fast-forward the preserved base branch on scratchpad commits.
+      status: completed
+      commit: null
+      blockers:
+        - access-log-fast-forward
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: Reuse the explicit publish fast-forward path for memory_append_scratchpad commits
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: Apply the preserved-base fast-forward helper to memory_append_scratchpad so direct USER/CURRENT and working-note commits publish the same structured merge outcome as the other explicit session writes.
+      postconditions:
+        - memory_append_scratchpad advances the preserved base branch when the session branch is ahead by a clean fast-forward
+        - Diverged base branches are reported as blocked without losing the scratchpad commit on the session branch
+
     - id: branch-strategy
       title: Implement branch-per-session write isolation.
       status: pending
