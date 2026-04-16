@@ -30,7 +30,13 @@ from core.tools.agent_memory_mcp.server import create_mcp  # noqa: E402
 def _parse_context_response(payload: str) -> tuple[dict[str, object], str]:
     prefix = "```json\n"
     assert payload.startswith(prefix)
-    metadata_text, body = payload[len(prefix) :].split("\n```\n\n", 1)
+    trailer = payload[len(prefix) :]
+    # When every section is skipped (e.g. the time-budget degradation path)
+    # the body is empty and the payload ends with the closing fence directly.
+    if "\n```\n\n" in trailer:
+        metadata_text, body = trailer.split("\n```\n\n", 1)
+    else:
+        metadata_text, _, body = trailer.partition("\n```\n")
     return json.loads(metadata_text), body
 
 
@@ -353,6 +359,107 @@ work:
         finally:
             tmp.cleanup()
 
+    def test_response_metadata_includes_per_section_timings(self) -> None:
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project"])
+            payload = asyncio.run(tool(project="demo-project"))
+            metadata, _ = _parse_context_response(payload)
+
+            timings = metadata.get("timings")
+            self.assertIsInstance(timings, dict)
+            timings_dict = cast(dict[str, Any], timings)
+            self.assertIn("total_ms", timings_dict)
+            self.assertIsInstance(timings_dict["total_ms"], (int, float))
+            self.assertGreaterEqual(timings_dict["total_ms"], 0.0)
+
+            spans = timings_dict.get("spans")
+            self.assertIsInstance(spans, list)
+            span_names = {cast(dict[str, Any], span)["name"] for span in spans}
+            # Sections that always run on the demo repo (plan + IN + current)
+            self.assertIn("plan_selection", span_names)
+            self.assertIn("project_summary", span_names)
+            self.assertIn("in_manifest", span_names)
+            for span in spans:
+                span_dict = cast(dict[str, Any], span)
+                self.assertIn("name", span_dict)
+                self.assertIn("duration_ms", span_dict)
+                self.assertIn("status", span_dict)
+                self.assertGreaterEqual(span_dict["duration_ms"], 0.0)
+                self.assertEqual(span_dict["status"], "ok")
+        finally:
+            tmp.cleanup()
+
+    def test_response_metadata_defaults_truncated_false_under_budget(self) -> None:
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project"])
+            payload = asyncio.run(tool(project="demo-project"))
+            metadata, _ = _parse_context_response(payload)
+
+            self.assertEqual(metadata.get("truncated"), False)
+            self.assertEqual(metadata.get("sections_omitted"), [])
+            timings = cast(dict[str, Any], metadata.get("timings"))
+            # Default budget is the module-level constant, surfaced verbatim.
+            self.assertIsInstance(timings.get("budget_ms"), int)
+            self.assertGreater(timings["budget_ms"], 0)
+        finally:
+            tmp.cleanup()
+
+    def test_zero_time_budget_skips_sections_after_plan_selection(self) -> None:
+        """A near-zero budget forces every post-plan-selection section to bail.
+
+        ``time_budget_ms=1`` gets exhausted immediately inside ``plan_selection``
+        itself (which always runs — it is load-bearing for metadata), so every
+        subsequent section should be recorded as skipped with reason
+        ``time_budget_exceeded`` and the response should carry ``truncated:
+        true``.
+        """
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project"])
+            payload = asyncio.run(
+                tool(project="demo-project", time_budget_ms=1, include_user_profile=True)
+            )
+            metadata, body = _parse_context_response(payload)
+
+            self.assertTrue(metadata["truncated"])
+            sections_omitted = cast(list[str], metadata["sections_omitted"])
+            # Sections skipped by the time budget. Plan sources iterate per
+            # source, so we only require the major sections here.
+            for expected in (
+                "User Profile",
+                "Project Summary",
+                "IN Staging",
+            ):
+                self.assertIn(expected, sections_omitted)
+
+            dropped_reasons = {
+                cast(dict[str, Any], item)["name"]: cast(dict[str, Any], item)["reason"]
+                for item in metadata["budget_report"]["sections_dropped"]
+            }
+            self.assertEqual(dropped_reasons.get("Project Summary"), "time_budget_exceeded")
+            self.assertEqual(dropped_reasons.get("IN Staging"), "time_budget_exceeded")
+            # The skipped sections must not appear in the rendered body.
+            self.assertNotIn("## Project Summary", body)
+            self.assertNotIn("## IN Staging", body)
+        finally:
+            tmp.cleanup()
+
+    def test_disabled_time_budget_runs_every_section(self) -> None:
+        """``time_budget_ms=0`` disables the budget (matches coercion contract)."""
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project"])
+            payload = asyncio.run(tool(project="demo-project", time_budget_ms=0))
+            metadata, _ = _parse_context_response(payload)
+
+            self.assertFalse(metadata["truncated"])
+            self.assertEqual(metadata["sections_omitted"], [])
+            self.assertEqual(metadata["timings"]["budget_ms"], 0)
+        finally:
+            tmp.cleanup()
+
     def test_current_notes_only_include_relevant_project(self) -> None:
         tmp, tools = self._create_tools(current_mentions_project=False)
         try:
@@ -367,5 +474,233 @@ work:
                     for item in metadata["budget_report"]["sections_dropped"]
                 )
             )
+        finally:
+            tmp.cleanup()
+
+    def test_plan_sources_count_cap_excludes_extras(self) -> None:
+        """More than 10 internal plan-sources → extras recorded as capped.
+
+        Builds a plan with 12 internal sources (each small enough that the char
+        cap isn't what trips first) and verifies the first 10 inline, the
+        remaining 2 are recorded with reason ``plan_sources_cap``, and
+        ``more_plan_sources`` == 2 in the response metadata.
+        """
+        tmp = tempfile.TemporaryDirectory()
+        root = Path(tmp.name)
+        try:
+            _init_git_repo(root)
+            project_id = "capped-project"
+            _write(
+                root,
+                "core/memory/users/SUMMARY.md",
+                "# User\n\nAgent partner profile.",
+            )
+            _write(
+                root,
+                f"core/memory/working/projects/{project_id}/SUMMARY.md",
+                "# Project\n\nProject summary content.",
+            )
+            source_count = 12
+            source_specs: list[SourceSpec] = []
+            for index in range(source_count):
+                rel = f"core/tools/sources/source-{index:02d}.md"
+                _write(root, rel, f"# Source {index}\n\nBody {index}.")
+                source_specs.append(
+                    SourceSpec(path=rel, type="internal", intent=f"Read source {index}")
+                )
+
+            plan = PlanDocument(
+                id="project-plan",
+                project=project_id,
+                created="2026-03-28",
+                origin_session="memory/activity/2026/03/28/chat-001",
+                status="active",
+                purpose=PlanPurpose(
+                    summary="Cap test plan",
+                    context="Exercises the plan_sources count cap.",
+                ),
+                phases=[
+                    PlanPhase(
+                        id="phase-one",
+                        title="Implement feature",
+                        status="pending",
+                        requires_approval=False,
+                        sources=source_specs,
+                        postconditions=[
+                            PostconditionSpec(
+                                description="Tests pass",
+                                type="test",
+                                target="pytest -q",
+                            )
+                        ],
+                        changes=[
+                            ChangeSpec(
+                                path=(f"memory/working/projects/{project_id}/notes/outcome.md"),
+                                action="create",
+                                description="Record outcome.",
+                            )
+                        ],
+                    )
+                ],
+                review=None,
+            )
+            plan_path = (
+                root
+                / "core"
+                / "memory"
+                / "working"
+                / "projects"
+                / project_id
+                / "plans"
+                / "project-plan.yaml"
+            )
+            plan_path.parent.mkdir(parents=True, exist_ok=True)
+            save_plan(plan_path, plan)
+
+            _, tools, _, _ = create_mcp(root)
+            tool = cast(Any, tools["memory_context_project"])
+            # Disable char budget and time budget so the only thing that trips
+            # is the explicit source count cap.
+            payload = asyncio.run(
+                tool(
+                    project=project_id,
+                    max_context_chars=0,
+                    time_budget_ms=0,
+                )
+            )
+            metadata, body = _parse_context_response(payload)
+
+            self.assertEqual(metadata.get("more_plan_sources"), 2)
+            capped = [
+                cast(dict[str, Any], item)
+                for item in metadata["budget_report"]["sections_dropped"]
+                if cast(dict[str, Any], item).get("reason") == "plan_sources_cap"
+            ]
+            self.assertEqual(len(capped), 2)
+            # The first 10 sources should appear in the rendered body; the
+            # last two should be absent.
+            for index in range(10):
+                self.assertIn(f"## Source: core/tools/sources/source-{index:02d}.md", body)
+            for index in (10, 11):
+                self.assertNotIn(f"## Source: core/tools/sources/source-{index:02d}.md", body)
+        finally:
+            tmp.cleanup()
+
+    def test_plan_sources_char_cap_excludes_extras(self) -> None:
+        """Cumulative source chars over 8KB trip the cap before count does.
+
+        Builds 5 internal sources, each ~3KB, so the 3rd source brings the
+        cumulative total above 8KB and the remaining 2 are capped. Verifies
+        ``more_plan_sources`` == 2.
+        """
+        tmp = tempfile.TemporaryDirectory()
+        root = Path(tmp.name)
+        try:
+            _init_git_repo(root)
+            project_id = "char-capped-project"
+            _write(
+                root,
+                "core/memory/users/SUMMARY.md",
+                "# User\n\nAgent partner profile.",
+            )
+            _write(
+                root,
+                f"core/memory/working/projects/{project_id}/SUMMARY.md",
+                "# Project\n\nProject summary content.",
+            )
+            big_body = "x" * 3200  # each source ~3.2KB of inlined content
+            source_specs: list[SourceSpec] = []
+            for index in range(5):
+                rel = f"core/tools/big-sources/source-{index}.md"
+                _write(root, rel, f"# Source {index}\n\n{big_body}")
+                source_specs.append(SourceSpec(path=rel, type="internal", intent=f"Read {index}"))
+
+            plan = PlanDocument(
+                id="project-plan",
+                project=project_id,
+                created="2026-03-28",
+                origin_session="memory/activity/2026/03/28/chat-001",
+                status="active",
+                purpose=PlanPurpose(
+                    summary="Char cap test plan",
+                    context="Exercises the plan_sources char cap.",
+                ),
+                phases=[
+                    PlanPhase(
+                        id="phase-one",
+                        title="Implement feature",
+                        status="pending",
+                        requires_approval=False,
+                        sources=source_specs,
+                        postconditions=[
+                            PostconditionSpec(
+                                description="Tests pass",
+                                type="test",
+                                target="pytest -q",
+                            )
+                        ],
+                        changes=[
+                            ChangeSpec(
+                                path=(f"memory/working/projects/{project_id}/notes/outcome.md"),
+                                action="create",
+                                description="Record outcome.",
+                            )
+                        ],
+                    )
+                ],
+                review=None,
+            )
+            plan_path = (
+                root
+                / "core"
+                / "memory"
+                / "working"
+                / "projects"
+                / project_id
+                / "plans"
+                / "project-plan.yaml"
+            )
+            plan_path.parent.mkdir(parents=True, exist_ok=True)
+            save_plan(plan_path, plan)
+
+            _, tools, _, _ = create_mcp(root)
+            tool = cast(Any, tools["memory_context_project"])
+            payload = asyncio.run(
+                tool(
+                    project=project_id,
+                    max_context_chars=0,
+                    time_budget_ms=0,
+                )
+            )
+            metadata, _ = _parse_context_response(payload)
+
+            # 3 sources fit under 8KB (3 * ~3.2KB = ~9.6KB — the 3rd source
+            # pushes the cumulative total over the cap, so on the next
+            # iteration the cap trips). Remaining 2 are capped.
+            self.assertEqual(metadata.get("more_plan_sources"), 2)
+            capped_paths = {
+                cast(dict[str, Any], item).get("path")
+                for item in metadata["budget_report"]["sections_dropped"]
+                if cast(dict[str, Any], item).get("reason") == "plan_sources_cap"
+            }
+            self.assertEqual(
+                capped_paths,
+                {
+                    "core/tools/big-sources/source-3.md",
+                    "core/tools/big-sources/source-4.md",
+                },
+            )
+        finally:
+            tmp.cleanup()
+
+    def test_plan_sources_under_cap_reports_zero_more(self) -> None:
+        """Default small plan (1 source) → ``more_plan_sources`` is 0."""
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project"])
+            payload = asyncio.run(tool(project="demo-project"))
+            metadata, _ = _parse_context_response(payload)
+
+            self.assertEqual(metadata.get("more_plan_sources"), 0)
         finally:
             tmp.cleanup()

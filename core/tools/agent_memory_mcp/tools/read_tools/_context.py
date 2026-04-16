@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import re
+import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Iterator, cast
 
 import yaml  # type: ignore[import-untyped]
 
@@ -16,6 +18,52 @@ from ...plan_utils import budget_status, load_plan, next_action, phase_payload, 
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
+
+
+class _TimingCollector:
+    """Accumulate per-section duration samples for context-injector tools.
+
+    Each recorded span carries a stable name (the section label) and its
+    measured wall-clock duration in milliseconds. The collector is intended to
+    be short-lived — one per tool invocation — and is threading-naive by
+    design: callers serialize through the injector already.
+    """
+
+    __slots__ = ("_spans", "_started_at_ns")
+
+    def __init__(self) -> None:
+        self._spans: list[dict[str, Any]] = []
+        self._started_at_ns: int = time.perf_counter_ns()
+
+    def record(self, name: str, duration_ms: float, *, status: str = "ok") -> None:
+        self._spans.append(
+            {
+                "name": name,
+                "duration_ms": round(duration_ms, 3),
+                "status": status,
+            }
+        )
+
+    def spans(self) -> list[dict[str, Any]]:
+        return list(self._spans)
+
+    def total_ms(self) -> float:
+        return round((time.perf_counter_ns() - self._started_at_ns) / 1_000_000, 3)
+
+
+@contextmanager
+def _span(collector: _TimingCollector, name: str) -> Iterator[None]:
+    """Time a code block and append the result to ``collector``."""
+    start_ns = time.perf_counter_ns()
+    status = "ok"
+    try:
+        yield
+    except Exception:
+        status = "error"
+        raise
+    finally:
+        duration_ms = (time.perf_counter_ns() - start_ns) / 1_000_000
+        collector.record(name, duration_ms, status=status)
 
 
 _PLACEHOLDER_MARKERS = (
@@ -66,6 +114,45 @@ def _coerce_max_context_chars(value: object) -> int:
     if max_context_chars < 0:
         raise ValidationError("max_context_chars must be >= 0")
     return max_context_chars
+
+
+# Default server-side time budget for ``memory_context_project``. Chosen to
+# finish well inside the 60s MCP transport timeout so cold-start callers get a
+# partial-but-useful response rather than a hard timeout. See cold-start
+# roadmap P0-A step 3 for rationale.
+_DEFAULT_TIME_BUDGET_MS = 5000
+
+
+def _coerce_time_budget_ms(value: object) -> int:
+    """Normalize the ``time_budget_ms`` parameter.
+
+    Semantics:
+    - ``None`` → use the module default (currently 5000ms).
+    - ``0`` or a negative integer → disable the budget entirely; the tool
+      runs until completion regardless of elapsed time. Useful for offline
+      regeneration paths that don't mind waiting.
+    - Positive integer → enforce that many milliseconds.
+    """
+    if value is None:
+        return _DEFAULT_TIME_BUDGET_MS
+    try:
+        coerced = int(cast(Any, value))
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(
+            "time_budget_ms must be an integer, 0/negative to disable, or null"
+        ) from exc
+    return coerced
+
+
+def _is_time_exhausted(collector: _TimingCollector, budget_ms: int) -> bool:
+    """Return True when the time budget has been consumed.
+
+    A non-positive ``budget_ms`` disables the budget and always returns False,
+    matching the coercion contract above.
+    """
+    if budget_ms <= 0:
+        return False
+    return collector.total_ms() >= budget_ms
 
 
 def _resolve_repo_relative_path(root: Path, repo_relative_path: str) -> Path | None:
@@ -589,17 +676,70 @@ def _select_current_plan(
     return plan_path, plan_context
 
 
-def _render_in_manifest(project_root: Path, root: Path) -> tuple[str, list[str]]:
+# Cap the IN/ manifest at this many rows. Cold-start callers want a quick
+# recency survey, not a full listing — full listings belong to
+# ``memory_list_folder``. Projects with hundreds of staged files (e.g.,
+# ``rate-my-set`` which snapshots an entire external codebase) were reading
+# and YAML-parsing every file on every context_project call before this cap.
+_IN_MANIFEST_MAX_ITEMS = 20
+
+# Plan-sources caps. A plan can list arbitrarily many internal sources, and
+# each is inlined as its own context section. Without a cap, a plan with 50
+# referenced files would blow the time budget and the per-call char budget.
+# Whichever limit trips first stops the loop; additional sources are recorded
+# in ``section_records`` with reason ``"plan_sources_cap"`` and counted in
+# ``more_plan_sources`` on the response metadata. See cold-start roadmap
+# P0-A step 4.
+_PLAN_SOURCES_MAX_COUNT = 10
+_PLAN_SOURCES_MAX_CHARS = 8 * 1024
+
+
+def _render_in_manifest(project_root: Path, root: Path) -> tuple[str, list[str], int]:
+    """Render an ``IN/`` manifest capped at the most recent files.
+
+    Returns a ``(markdown, loaded_files, more_count)`` triple where:
+    - ``markdown`` is the rendered manifest, including a trailing row with
+      the count of omitted items when truncated.
+    - ``loaded_files`` lists only the files whose frontmatter was actually
+      read (the kept top-N), so callers can track read coverage.
+    - ``more_count`` is the number of additional ``IN/`` files not shown;
+      always ``0`` when the staging folder has ``<= _IN_MANIFEST_MAX_ITEMS``
+      entries.
+
+    Ordering is newest-first by file mtime. mtime is chosen over frontmatter
+    ``created`` because mtime is always present and reflects actual staging
+    recency; ``created`` is informational and may lag the real snapshot date.
+    """
     in_root = project_root / "IN"
     if not in_root.is_dir():
-        return "No staged files.", []
+        return "No staged files.", [], 0
+
+    # Enumerate once, sort by mtime descending. Using mtime_ns for stable
+    # comparisons on filesystems with low-resolution timestamps.
+    candidates: list[tuple[int, Path]] = []
+    for file_path in in_root.rglob("*"):
+        if not file_path.is_file():
+            continue
+        try:
+            mtime_ns = file_path.stat().st_mtime_ns
+        except OSError:
+            continue
+        candidates.append((mtime_ns, file_path))
+
+    if not candidates:
+        return "No staged files.", [], 0
+
+    candidates.sort(key=lambda item: (-item[0], str(item[1])))
+    total_count = len(candidates)
+    kept = candidates[:_IN_MANIFEST_MAX_ITEMS]
+    more_count = max(total_count - len(kept), 0)
 
     rows: list[str] = [
         "| Path | Trust | Source | Created |",
         "|---|---|---|---|",
     ]
     loaded_files: list[str] = []
-    for file_path in sorted(path for path in in_root.rglob("*") if path.is_file()):
+    for _, file_path in kept:
         try:
             frontmatter, _ = read_with_frontmatter(file_path)
         except Exception:
@@ -614,9 +754,11 @@ def _render_in_manifest(project_root: Path, root: Path) -> tuple[str, list[str]]
                 created=frontmatter.get("created", ""),
             )
         )
-    if len(rows) == 2:
-        return "No staged files.", []
-    return "\n".join(rows), loaded_files
+    if more_count > 0:
+        rows.append(
+            f"| _…{more_count} more — use memory_list_folder for the full IN/ listing_ |  |  |  |"
+        )
+    return "\n".join(rows), loaded_files, more_count
 
 
 def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
@@ -734,6 +876,7 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
         max_context_chars: int = 24000,
         include_plan_sources: bool = True,
         include_user_profile: bool | None = None,
+        time_budget_ms: int | None = None,
     ) -> str:
         """Load project-focused context in one Markdown response with JSON metadata."""
         project_id = validate_slug(project, field_name="project")
@@ -743,6 +886,11 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
             include_user_profile,
             field_name="include_user_profile",
         )
+        effective_time_budget_ms = _coerce_time_budget_ms(time_budget_ms)
+
+        timings = _TimingCollector()
+        sections_omitted: list[str] = []
+        more_plan_sources = 0
 
         root = get_root()
         projects_root = root / "memory" / "working" / "projects"
@@ -753,7 +901,8 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                 f"Unknown project '{project_id}'. Available projects: {available}"
             )
 
-        selected_plan_path, plan_context = _select_current_plan(project_root, root)
+        with _span(timings, "plan_selection"):
+            selected_plan_path, plan_context = _select_current_plan(project_root, root)
         effective_include_profile = (
             include_profile_preference
             if include_profile_preference is not None
@@ -789,12 +938,24 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                         "reason": "over_budget",
                     }
                 )
-            else:
-                content, chars_used, reason = _read_section_status(
-                    root,
-                    "memory/users/SUMMARY.md",
-                    remaining_chars,
+            elif _is_time_exhausted(timings, effective_time_budget_ms):
+                sections_omitted.append("User Profile")
+                section_records.append(
+                    {
+                        "name": "User Profile",
+                        "path": "memory/users/SUMMARY.md",
+                        "chars": 0,
+                        "included": False,
+                        "reason": "time_budget_exceeded",
+                    }
                 )
+            else:
+                with _span(timings, "user_profile"):
+                    content, chars_used, reason = _read_section_status(
+                        root,
+                        "memory/users/SUMMARY.md",
+                        remaining_chars,
+                    )
                 if content is None:
                     section_records.append(
                         {
@@ -852,12 +1013,24 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                     "reason": "over_budget",
                 }
             )
-        else:
-            project_summary, chars_used, reason = _read_section_status(
-                root,
-                project_summary_path,
-                remaining_chars,
+        elif _is_time_exhausted(timings, effective_time_budget_ms):
+            sections_omitted.append("Project Summary")
+            section_records.append(
+                {
+                    "name": "Project Summary",
+                    "path": project_summary_path,
+                    "chars": 0,
+                    "included": False,
+                    "reason": "time_budget_exceeded",
+                }
             )
+        else:
+            with _span(timings, "project_summary"):
+                project_summary, chars_used, reason = _read_section_status(
+                    root,
+                    project_summary_path,
+                    remaining_chars,
+                )
             if project_summary is None:
                 section_records.append(
                     {
@@ -901,6 +1074,17 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                     "reason": "over_budget",
                 }
             )
+        elif _is_time_exhausted(timings, effective_time_budget_ms):
+            sections_omitted.append("Plan State")
+            section_records.append(
+                {
+                    "name": "Plan State",
+                    "path": f"memory/working/projects/{project_id}/plans/",
+                    "chars": 0,
+                    "included": False,
+                    "reason": "time_budget_exceeded",
+                }
+            )
         elif plan_context is None or selected_plan_path is None:
             remaining_chars, reason = _append_section(
                 sections,
@@ -935,63 +1119,103 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                 budget_exhausted = True
 
             if include_sources:
-                for source in cast(list[dict[str, Any]], plan_context.get("sources") or []):
-                    source_path = str(source.get("path") or "")
-                    name = f"Source: {source_path}"
-                    if budget_exhausted and max_chars > 0:
+                plan_sources = cast(list[dict[str, Any]], plan_context.get("sources") or [])
+                # Caps apply to *included* sources only. Non-internal and
+                # missing sources are free — they do not inline content, so
+                # they don't consume the budget we're trying to bound.
+                sources_included = 0
+                sources_chars_used = 0
+                cap_tripped = False
+                with _span(timings, "plan_sources"):
+                    for source in plan_sources:
+                        source_path = str(source.get("path") or "")
+                        name = f"Source: {source_path}"
+                        if cap_tripped:
+                            section_records.append(
+                                {
+                                    "name": name,
+                                    "path": source_path,
+                                    "chars": 0,
+                                    "included": False,
+                                    "reason": "plan_sources_cap",
+                                }
+                            )
+                            more_plan_sources += 1
+                            continue
+                        if budget_exhausted and max_chars > 0:
+                            section_records.append(
+                                {
+                                    "name": name,
+                                    "path": source_path,
+                                    "chars": 0,
+                                    "included": False,
+                                    "reason": "over_budget",
+                                }
+                            )
+                            continue
+                        if _is_time_exhausted(timings, effective_time_budget_ms):
+                            sections_omitted.append(name)
+                            section_records.append(
+                                {
+                                    "name": name,
+                                    "path": source_path,
+                                    "chars": 0,
+                                    "included": False,
+                                    "reason": "time_budget_exceeded",
+                                }
+                            )
+                            continue
+                        if source.get("type") != "internal":
+                            section_records.append(
+                                {
+                                    "name": name,
+                                    "path": source_path,
+                                    "chars": 0,
+                                    "included": False,
+                                    "reason": "not_internal",
+                                }
+                            )
+                            continue
+                        content, source_chars, source_reason = _read_section_status(
+                            root,
+                            source_path,
+                            remaining_chars,
+                        )
+                        if content is None:
+                            section_records.append(
+                                {
+                                    "name": name,
+                                    "path": source_path,
+                                    "chars": 0,
+                                    "included": False,
+                                    "reason": source_reason,
+                                }
+                            )
+                            if source_reason == "over_budget":
+                                budget_exhausted = True
+                            continue
+                        sections.append({"name": name, "path": source_path, "content": content})
                         section_records.append(
                             {
                                 "name": name,
                                 "path": source_path,
-                                "chars": 0,
-                                "included": False,
-                                "reason": "over_budget",
+                                "chars": source_chars,
+                                "included": True,
+                                "reason": "included",
                             }
                         )
-                        continue
-                    if source.get("type") != "internal":
-                        section_records.append(
-                            {
-                                "name": name,
-                                "path": source_path,
-                                "chars": 0,
-                                "included": False,
-                                "reason": "not_internal",
-                            }
-                        )
-                        continue
-                    content, source_chars, source_reason = _read_section_status(
-                        root,
-                        source_path,
-                        remaining_chars,
-                    )
-                    if content is None:
-                        section_records.append(
-                            {
-                                "name": name,
-                                "path": source_path,
-                                "chars": 0,
-                                "included": False,
-                                "reason": source_reason,
-                            }
-                        )
-                        if source_reason == "over_budget":
-                            budget_exhausted = True
-                        continue
-                    sections.append({"name": name, "path": source_path, "content": content})
-                    section_records.append(
-                        {
-                            "name": name,
-                            "path": source_path,
-                            "chars": source_chars,
-                            "included": True,
-                            "reason": "included",
-                        }
-                    )
-                    loaded_files.append(source_path)
-                    if remaining_chars > 0:
-                        remaining_chars = max(remaining_chars - source_chars, 0)
+                        loaded_files.append(source_path)
+                        sources_included += 1
+                        sources_chars_used += source_chars
+                        if remaining_chars > 0:
+                            remaining_chars = max(remaining_chars - source_chars, 0)
+                        if (
+                            sources_included >= _PLAN_SOURCES_MAX_COUNT
+                            or sources_chars_used >= _PLAN_SOURCES_MAX_CHARS
+                        ):
+                            cap_tripped = True
 
+        more_in_items = 0
         if budget_exhausted and max_chars > 0:
             section_records.append(
                 {
@@ -1002,8 +1226,20 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                     "reason": "over_budget",
                 }
             )
+        elif _is_time_exhausted(timings, effective_time_budget_ms):
+            sections_omitted.append("IN Staging")
+            section_records.append(
+                {
+                    "name": "IN Staging",
+                    "path": f"memory/working/projects/{project_id}/IN/",
+                    "chars": 0,
+                    "included": False,
+                    "reason": "time_budget_exceeded",
+                }
+            )
         else:
-            in_manifest, manifest_files = _render_in_manifest(project_root, root)
+            with _span(timings, "in_manifest"):
+                in_manifest, manifest_files, more_in_items = _render_in_manifest(project_root, root)
             remaining_chars, reason = _append_section(
                 sections,
                 section_records,
@@ -1028,8 +1264,20 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                     "reason": "over_budget",
                 }
             )
+        elif _is_time_exhausted(timings, effective_time_budget_ms):
+            sections_omitted.append("Current Session Notes")
+            section_records.append(
+                {
+                    "name": "Current Session Notes",
+                    "path": current_path,
+                    "chars": 0,
+                    "included": False,
+                    "reason": "time_budget_exceeded",
+                }
+            )
         else:
-            current_content = _read_file_content(root, current_path)
+            with _span(timings, "session_notes"):
+                current_content = _read_file_content(root, current_path)
             if current_content is None:
                 section_records.append(
                     {
@@ -1072,6 +1320,10 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                 if reason == "included":
                     loaded_files.append(current_path)
 
+        # Snapshot timings before rendering: the render span itself is not
+        # tracked (it would need to be included in the very JSON it produces),
+        # but consumers can still compute render self-time as
+        # ``total_ms - sum(spans[*].duration_ms)`` after receiving the response.
         metadata = {
             "tool": "memory_context_project",
             "project": project_id,
@@ -1086,6 +1338,15 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
             "next_action": next_action_metadata,
             "loaded_files": loaded_files,
             "budget_report": _build_budget_report(section_records, max_context_chars=max_chars),
+            "timings": {
+                "total_ms": timings.total_ms(),
+                "spans": timings.spans(),
+                "budget_ms": effective_time_budget_ms,
+            },
+            "truncated": bool(sections_omitted),
+            "sections_omitted": sections_omitted,
+            "more_in_items": more_in_items,
+            "more_plan_sources": more_plan_sources,
         }
         return _assemble_markdown_response(metadata, sections)
 
