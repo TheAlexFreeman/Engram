@@ -26,7 +26,7 @@ def load_server_module() -> ModuleType:
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
     try:
-        return importlib.import_module("engram_mcp.agent_memory_mcp.server")
+        return importlib.import_module("core.tools.agent_memory_mcp.server")
     except ModuleNotFoundError as exc:
         raise unittest.SkipTest(f"agent_memory_mcp dependencies unavailable: {exc.name}") from exc
 
@@ -40,11 +40,11 @@ class AgentMemoryWriteToolTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.server = load_server_module()
-        cls.errors = importlib.import_module("engram_mcp.agent_memory_mcp.errors")
-        cls.git_repo_module = importlib.import_module("engram_mcp.agent_memory_mcp.git_repo")
+        cls.errors = importlib.import_module("core.tools.agent_memory_mcp.errors")
+        cls.git_repo_module = importlib.import_module("core.tools.agent_memory_mcp.git_repo")
         try:
             cls.frontmatter_utils = importlib.import_module(
-                "engram_mcp.agent_memory_mcp.frontmatter_utils"
+                "core.tools.agent_memory_mcp.frontmatter_utils"
             )
         except ModuleNotFoundError as exc:
             raise unittest.SkipTest(
@@ -2896,6 +2896,77 @@ declared_gaps = []
 
         self.assertEqual(payload["recommended_operation"]["operation"], "promote_knowledge_subtree")
         self.assertIn("dry_run=True", payload["workflow_hint"])
+
+    def test_memory_route_intent_briefing_routes_to_context_project(self) -> None:
+        seed = self._policy_contract_seed_files()
+        seed["memory/working/projects/rate-my-set/SUMMARY.md"] = "# Rate My Set\n"
+        repo_root = self._init_repo(seed)
+        tools = self._create_tools(repo_root)
+
+        payload = self._load_tool_payload(
+            asyncio.run(
+                tools["memory_route_intent"](
+                    intent=(
+                        "I am cold-starting work on the rate-my-set project and need a "
+                        "briefing on its current state"
+                    ),
+                )
+            )
+        )
+
+        recommended = payload["recommended_operation"]
+        self.assertIsNotNone(recommended)
+        self.assertEqual(recommended["operation"], "memory_context_project")
+        self.assertEqual(recommended["arguments"], {"project": "rate-my-set"})
+        self.assertFalse(payload["ambiguous"])
+
+    def test_memory_route_intent_list_projects_routes_to_navigator(self) -> None:
+        seed = self._policy_contract_seed_files()
+        seed["memory/working/projects/SUMMARY.md"] = "# Projects\n"
+        repo_root = self._init_repo(seed)
+        tools = self._create_tools(repo_root)
+
+        payload = self._load_tool_payload(
+            asyncio.run(
+                tools["memory_route_intent"](intent="what projects are active right now"),
+            )
+        )
+
+        recommended = payload["recommended_operation"]
+        self.assertIsNotNone(recommended)
+        self.assertEqual(recommended["operation"], "memory_read_file")
+        self.assertEqual(
+            recommended["arguments"],
+            {"path": "memory/working/projects/SUMMARY.md"},
+        )
+
+    def test_memory_route_intent_resume_routes_to_session_bootstrap(self) -> None:
+        repo_root = self._init_repo(self._policy_contract_seed_files())
+        tools = self._create_tools(repo_root)
+
+        payload = self._load_tool_payload(
+            asyncio.run(
+                tools["memory_route_intent"](intent="resume work where I left off"),
+            )
+        )
+
+        recommended = payload["recommended_operation"]
+        self.assertIsNotNone(recommended)
+        self.assertEqual(recommended["operation"], "memory_session_bootstrap")
+
+    def test_memory_route_intent_briefing_without_project_falls_back_to_bootstrap(self) -> None:
+        repo_root = self._init_repo(self._policy_contract_seed_files())
+        tools = self._create_tools(repo_root)
+
+        payload = self._load_tool_payload(
+            asyncio.run(
+                tools["memory_route_intent"](intent="get me up to speed on the current work"),
+            )
+        )
+
+        recommended = payload["recommended_operation"]
+        self.assertIsNotNone(recommended)
+        self.assertEqual(recommended["operation"], "memory_session_bootstrap")
 
     def test_memory_route_intent_recommends_plan_creation(self) -> None:
         repo_root = self._init_repo(self._policy_contract_seed_files())
@@ -11334,7 +11405,7 @@ trust: high
         self.assertIn("re-request", followup_payload["new_state"]["message"])
 
     def test_memory_plan_execute_start_with_expired_approval_blocks_and_moves_file(self) -> None:
-        from engram_mcp.agent_memory_mcp.plan_utils import ApprovalDocument, save_approval
+        from core.tools.agent_memory_mcp.plan_utils import ApprovalDocument, save_approval
 
         plan_yaml = self._plan_yaml_with_budget()
         repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
@@ -11866,7 +11937,7 @@ trust: high
             }
         )
         tools = self._create_tools(repo_root, enable_raw_write_tools=True)
-        plan_utils = importlib.import_module("engram_mcp.agent_memory_mcp.plan_utils")
+        plan_utils = importlib.import_module("core.tools.agent_memory_mcp.plan_utils")
 
         run_state = plan_utils.RunState(
             plan_id="tracked-plan",
