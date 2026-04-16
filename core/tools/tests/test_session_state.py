@@ -230,7 +230,9 @@ class CreateMcpSessionStateWiringTests(unittest.TestCase):
         self.assertEqual(state.publication_base_branch, "alex")
         self.assertEqual(state.publication_base_ref, "refs/heads/alex")
         self.assertEqual(Path(state.publication_worktree_root).resolve(), git_root.resolve())
-        self.assertEqual(Path(state.publication_git_common_dir).resolve(), (git_root / ".git").resolve())
+        self.assertEqual(
+            Path(state.publication_git_common_dir).resolve(), (git_root / ".git").resolve()
+        )
 
 
 if __name__ == "__main__":
