@@ -15,6 +15,7 @@ Design notes:
 from __future__ import annotations
 
 import errno
+import json
 import logging
 import os
 import subprocess
@@ -167,6 +168,75 @@ class GitRepo:
         if create:
             path.mkdir(parents=True, exist_ok=True)
         return path
+
+    def session_branch_metadata_path(self, branch_name: str) -> Path:
+        """Return the repo-common runtime metadata path for a session branch."""
+        normalized_branch = branch_name.strip().strip("/")
+        if not normalized_branch:
+            raise StagingError("branch_name must be a non-empty git branch name")
+        branch_path = self.engram_state_dir("session-branches", *normalized_branch.split("/"))
+        return Path(str(branch_path) + ".json")
+
+    def load_session_branch_metadata(self, branch_name: str) -> dict[str, str] | None:
+        """Load persisted original-base metadata for a session branch."""
+        metadata_path = self.session_branch_metadata_path(branch_name)
+        if not metadata_path.is_file():
+            return None
+        try:
+            payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise StagingError(
+                f"Session branch metadata is unreadable for '{branch_name}': {metadata_path}",
+                stderr=str(exc),
+            ) from exc
+        if not isinstance(payload, dict):
+            raise StagingError(
+                f"Session branch metadata must be a JSON object for '{branch_name}': {metadata_path}"
+            )
+        base_branch = payload.get("base_branch")
+        base_ref = payload.get("base_ref")
+        if not isinstance(base_branch, str) or not base_branch.strip():
+            raise StagingError(
+                f"Session branch metadata is missing base_branch for '{branch_name}': {metadata_path}"
+            )
+        if not isinstance(base_ref, str) or not base_ref.strip():
+            raise StagingError(
+                f"Session branch metadata is missing base_ref for '{branch_name}': {metadata_path}"
+            )
+        return {
+            "base_branch": base_branch.strip(),
+            "base_ref": base_ref.strip(),
+        }
+
+    def ensure_session_branch_metadata(
+        self,
+        branch_name: str,
+        *,
+        base_branch: str,
+        base_ref: str,
+    ) -> dict[str, str]:
+        """Persist original-base metadata for a session branch if it is absent."""
+        existing = self.load_session_branch_metadata(branch_name)
+        if existing is not None:
+            return existing
+
+        normalized_base_branch = base_branch.strip()
+        normalized_base_ref = base_ref.strip()
+        if not normalized_base_branch:
+            raise StagingError("base_branch must be a non-empty git branch name")
+        if not normalized_base_ref:
+            raise StagingError("base_ref must be a non-empty git ref")
+
+        metadata_path = self.session_branch_metadata_path(branch_name)
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "base_branch": normalized_base_branch,
+            "base_ref": normalized_base_ref,
+        }
+        metadata_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        return payload
 
     # ------------------------------------------------------------------
     # Path translation (content-relative <-> git-relative)

@@ -93,8 +93,17 @@ def _maybe_enable_session_branching(repo: GitRepo, session_state) -> None:
         resolved_session_id=resolved_session_id,
     )
     session_branch_ref = f"refs/heads/{session_branch}"
+    persisted_metadata = repo.load_session_branch_metadata(session_branch)
+    if persisted_metadata is not None:
+        session_state.publication_base_branch = persisted_metadata["base_branch"]
+        session_state.publication_base_ref = persisted_metadata["base_ref"]
 
     if repo.current_branch_name() == session_branch:
+        if persisted_metadata is None:
+            raise StagingError(
+                "Session branch isolation found an existing session branch checkout without persisted base metadata. "
+                "Switch back to the original base branch and re-enable MEMORY_ENABLE_SESSION_BRANCHES, or recreate the session branch."
+            )
         session_state.publication_session_branch = session_branch
         session_state.publication_session_branch_ref = session_branch_ref
         return
@@ -109,6 +118,13 @@ def _maybe_enable_session_branching(repo: GitRepo, session_state) -> None:
         session_branch,
         start_point=session_state.publication_base_ref,
     )
+    persisted_metadata = repo.ensure_session_branch_metadata(
+        session_branch,
+        base_branch=session_state.publication_base_branch,
+        base_ref=session_state.publication_base_ref,
+    )
+    session_state.publication_base_branch = persisted_metadata["base_branch"]
+    session_state.publication_base_ref = persisted_metadata["base_ref"]
     session_state.publication_session_branch = session_branch
     session_state.publication_session_branch_ref = checked_out_ref
 

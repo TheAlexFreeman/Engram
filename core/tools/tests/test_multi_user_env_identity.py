@@ -442,6 +442,92 @@ class MultiUserEnvIdentityTests(unittest.TestCase):
         self.assertNotEqual(session_sha, seed_sha)
         self.assertEqual(session_subject, "[knowledge] session branch note")
 
+    def test_create_mcp_restores_original_base_branch_on_session_branch_restart(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        git_root = repo_root.parent
+        subprocess.run(
+            ["git", "branch", "-M", "alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        captured: dict[str, object] = {}
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "MEMORY_USER_ID": "alex",
+                "MEMORY_SESSION_ID": "memory/activity/2026/03/29/chat-002",
+                "MEMORY_ENABLE_SESSION_BRANCHES": "1",
+            },
+            clear=False,
+        ):
+            _, _, _, first_repo = self.server.create_mcp(repo_root=repo_root)
+
+            def fake_read_register(mcp, get_repo, get_root, session_state=None):
+                captured["read"] = session_state
+                return {}
+
+            def fake_semantic_register(mcp, get_repo, get_root, session_state=None):
+                captured["semantic"] = session_state
+                return {}
+
+            with (
+                mock.patch.object(
+                    self.server.read_tools, "register", side_effect=fake_read_register
+                ),
+                mock.patch.object(
+                    self.server.semantic, "register", side_effect=fake_semantic_register
+                ),
+            ):
+                _, _, _, restarted_repo = self.server.create_mcp(repo_root=repo_root)
+
+        metadata = json.loads(
+            first_repo.session_branch_metadata_path(session_branch).read_text(encoding="utf-8")
+        )
+        state = cast(Any, captured["read"])
+        self.assertIs(captured["read"], captured["semantic"])
+        self.assertEqual(restarted_repo.current_branch_name(), session_branch)
+        self.assertEqual(metadata["base_branch"], "alex")
+        self.assertEqual(metadata["base_ref"], "refs/heads/alex")
+        self.assertEqual(state.publication_base_branch, "alex")
+        self.assertEqual(state.publication_base_ref, "refs/heads/alex")
+        self.assertEqual(state.publication_session_branch, session_branch)
+        self.assertEqual(state.publication_session_branch_ref, f"refs/heads/{session_branch}")
+
+    def test_create_mcp_rejects_session_branch_restart_without_persisted_base_metadata(
+        self,
+    ) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        git_root = repo_root.parent
+        subprocess.run(
+            ["git", "branch", "-M", "alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "MEMORY_USER_ID": "alex",
+                "MEMORY_SESSION_ID": "memory/activity/2026/03/29/chat-002",
+                "MEMORY_ENABLE_SESSION_BRANCHES": "1",
+            },
+            clear=False,
+        ):
+            _, _, _, repo = self.server.create_mcp(repo_root=repo_root)
+            repo.session_branch_metadata_path(session_branch).unlink()
+
+            with self.assertRaises(self.errors.StagingError) as ctx:
+                self.server.create_mcp(repo_root=repo_root)
+
+        self.assertIn("without persisted base metadata", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

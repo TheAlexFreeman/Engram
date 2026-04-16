@@ -77,6 +77,30 @@ work:
         - Opt-in multi-user sessions can start on isolated engram/sessions/... branches without changing the default single-user path
         - Dirty tracked worktrees and detached linked-worktree checkouts fail fast instead of silently switching to ambiguous branch state
 
+    - id: session-branch-base-metadata
+      title: Preserve original base metadata across session-branch restarts.
+      status: completed
+      commit: null
+      blockers:
+        - session-branch-startup
+      sources:
+        - path: core/tools/agent_memory_mcp/git_repo.py
+          type: internal
+          intent: Persist per-session-branch runtime metadata in the repo-common Engram state area
+        - path: core/tools/agent_memory_mcp/server.py
+          type: internal
+          intent: Restore the original base branch/ref when startup resumes on an existing session branch
+      changes:
+        - path: core/tools/agent_memory_mcp/git_repo.py
+          action: update
+          description: Store and load original base branch/ref metadata for session branches under git_common_dir/engram/session-branches/.
+        - path: core/tools/agent_memory_mcp/server.py
+          action: update
+          description: Apply persisted base metadata before startup snapshots an existing session branch as its own base, and fail fast if that metadata is missing.
+      postconditions:
+        - Repeated create_mcp() calls on an already-provisioned session branch retain the original base branch/ref instead of treating the session branch as its own base
+        - Existing session-branch checkouts without persisted base metadata fail explicitly instead of silently corrupting later merge assumptions
+
     - id: branch-strategy
       title: Implement branch-per-session write isolation.
       status: pending
