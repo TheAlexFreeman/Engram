@@ -4,11 +4,11 @@ cognitive_mode: planning
 created: '2026-04-08'
 current_focus: Gitignore-deployment-modes workstream — deployment-mode spec, managed
   .gitignore handling, and install/sync integration are implemented and verified;
-  clone-experience follow-through is in progress. Remote/path gitignored skills
-  now materialize on demand, while q-009 tracks the remaining local-source
-  recovery decision before multi-agent distribution.
+  clone-experience follow-through is in progress. Remote/path gitignored skills now
+  materialize on demand, while q-009 tracks the remaining local-source recovery decision
+  before multi-agent distribution.
 last_activity: '2026-04-15'
-open_questions: 4
+open_questions: 3
 origin_session: memory/activity/2026/04/08/chat-001
 plans: 6
 source: agent-generated

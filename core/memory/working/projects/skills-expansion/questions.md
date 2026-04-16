@@ -23,9 +23,6 @@ Narrative-specified behavior can't be validated with `assert output == expected`
 
 ---
 
-## q-009: How should fresh-clone recovery handle gitignored skills whose manifest source is `local` (including template-created low-trust skills), given that `SKILLS.lock` records hashes and refs but not the skill contents needed to reconstruct them?
-**Asked:** 2026-04-15 | **Last touched:** 2026-04-15
-
 ---
 
 # Resolved Questions
@@ -49,3 +46,9 @@ Narrative-specified behavior can't be validated with `assert output == expected`
 ## q-005: Should the skill registry be centralized (like npm) or federated (like git remotes)?
 **Asked:** 2026-04-08 | **Last touched:** 2026-04-15
 **Resolved:** 2026-04-15 | **Resolution:** Prefer a federated model rooted in git and local path sources, not a centralized registry. The manifest now supports `github:`, `git:`, `path:`, and `local` sources, with lockfile capture for reproducibility. That keeps publishing and consumption aligned with Engram’s git-native design while still allowing a future registry layer to exist as an optional convenience rather than a required authority.
+
+## q-009: How should fresh-clone recovery handle gitignored skills whose manifest source is `local` (including template-created low-trust skills), given that `SKILLS.lock` records hashes and refs but not the skill contents needed to reconstruct them?
+**Asked:** 2026-04-15 | **Last touched:** 2026-04-15
+
+---
+**Resolved:** 2026-04-15 | **Resolution:** Adopt a source-aware deployment rule: manifest entries with source `local` must remain `checked` because their contents are not reconstructible from `SKILLS.lock` on a fresh clone. Explicit `deployment_mode: gitignored` is invalid for `source: local`; use `path:`, `git:`, or `github:` sources when a skill should be restored on demand instead of committed.
