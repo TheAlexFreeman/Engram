@@ -1,10 +1,10 @@
 ---
-active_plans: 5
+active_plans: 4
 cognitive_mode: planning
 created: 2026-04-03
-current_focus: `user-identity-and-namespacing` cleared `session-namespace`. Next
-  up is `working-namespace`: scope `memory/working` per user while keeping
-  shared project plans readable across the repo.
+current_focus: `user-identity-and-namespacing` is complete. Next decision:
+  choose between `frontmatter-visibility` and `concurrent-session-writes`,
+  which are now both unblocked by the identity foundation.
 last_activity: '2026-04-16'
 open_questions: 12
 origin_session: memory/activity/2026/04/03/chat-001
@@ -31,7 +31,7 @@ covering the full workstream from identity foundations through governance.
 
 | Plan | Status | Primary dependency |
 |---|---|---|
-| `user-identity-and-namespacing.yaml` | active | None (foundation) |
+| `user-identity-and-namespacing.yaml` | completed | None (foundation) |
 | `frontmatter-visibility.yaml` | active | Identity plan (env-identity) |
 | `concurrent-session-writes.yaml` | active | Identity plan (env-identity) |
 | `team-activity-feed.yaml` | active | Identity + Visibility plans |
@@ -74,3 +74,11 @@ makes it concrete.
 `env-identity` is complete. `MEMORY_USER_ID` now resolves at MCP startup, persists on shared `SessionState`, and is written into session metadata plus ACCESS entries. The next implementation phase is `session-namespace`.
 
 `session-namespace` is also complete. Session summaries, checkpoints, reflections, dialogue logs, and session-linked ACCESS entries now route to `memory/activity/{user_id}/...` when `MEMORY_USER_ID` is set, and the existing flat layout remains valid when it is not.
+
+`working-namespace` is complete. USER.md, CURRENT.md, and scratchpad notes now resolve under `memory/working/{user_id}/...` when `MEMORY_USER_ID` is set, while `memory/working/projects/...` remains shared so project registries and plans stay readable across the repo.
+
+`access-log-scoping` is complete. ACCESS writers continue to stamp `user_id`, and the read-side analytics now accept optional `user_id` filters for aggregation, curation analytics, and file provenance summaries.
+
+`backward-compat-tests` is complete. A focused compat suite now locks in the flat single-user layout when `MEMORY_USER_ID` is unset, and the targeted multi-user plus legacy regressions for working memory, context loading, and ACCESS analytics are passing.
+
+The `user-identity-and-namespacing` foundation plan is now complete. The next project decision is which newly unblocked plan to execute first: `frontmatter-visibility` or `concurrent-session-writes`.

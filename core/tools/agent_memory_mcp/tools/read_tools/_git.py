@@ -7,6 +7,7 @@ import subprocess
 from datetime import date
 from typing import TYPE_CHECKING, Any, cast
 
+from ...identity_paths import is_working_scratchpad_path
 from ...response_envelope import dump_tool_result
 
 if TYPE_CHECKING:
@@ -33,6 +34,7 @@ def register_git(
     _get_git_repo_for_log = H._get_git_repo_for_log
     _git_file_history = H._git_file_history
     _load_access_entries = H._load_access_entries
+    _normalize_user_id = H.normalize_user_id
     _normalize_git_log_path_filter = H._normalize_git_log_path_filter
     _parse_iso_date = H._parse_iso_date
     _recognized_commit_prefix = H._recognized_commit_prefix
@@ -167,10 +169,7 @@ def register_git(
                 category = "skills"
             elif visible_path.startswith("memory/activity/"):
                 category = "chats"
-            elif visible_path in (
-                "memory/working/USER.md",
-                "memory/working/CURRENT.md",
-            ) or visible_path.startswith("memory/working/notes/"):
+            elif is_working_scratchpad_path(visible_path):
                 category = "scratchpad"
             elif visible_path.startswith(("governance/", "meta/", "HUMANS/")):
                 category = "meta"
@@ -363,13 +362,18 @@ def register_git(
             openWorldHint=False,
         ),
     )
-    async def memory_get_file_provenance(path: str, history_limit: int = 10) -> str:
+    async def memory_get_file_provenance(
+        path: str,
+        history_limit: int = 10,
+        user_id: str = "",
+    ) -> str:
         """Return provenance, ACCESS history, and git history for one file."""
         from ...errors import NotFoundError
         from ...frontmatter_utils import read_with_frontmatter
 
         root = get_root()
         repo = get_repo()
+        resolved_user_id = _normalize_user_id(user_id)
         abs_path = repo.abs_path(path)
         if not abs_path.exists() or not abs_path.is_file():
             raise NotFoundError(f"File not found: {path}")
@@ -377,7 +381,11 @@ def register_git(
         frontmatter, _ = read_with_frontmatter(abs_path)
         version_token = repo.hash_object(path)
         access_entries, _ = _load_access_entries(root)
-        access_summary = _build_access_summary_for_file(access_entries, path)
+        access_summary = _build_access_summary_for_file(
+            access_entries,
+            path,
+            user_id=resolved_user_id,
+        )
         commit_history = _git_file_history(repo, path, limit=history_limit)
         latest_commit = commit_history[0] if commit_history else None
         first_tracked_date = repo.first_tracked_author_date(path)
@@ -397,6 +405,7 @@ def register_git(
             "provenance_fields": provenance_fields,
             "lineage_summary": lineage_summary,
             "requires_provenance_pause": _requires_provenance_pause(path, frontmatter),
+            "access_filter_user_id": resolved_user_id,
             "access_summary": access_summary,
             "latest_commit": latest_commit,
             "commit_history": commit_history,

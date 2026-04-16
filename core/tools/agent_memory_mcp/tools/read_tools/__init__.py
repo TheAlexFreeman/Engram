@@ -46,7 +46,7 @@ def register(
     result.update(
         register_health(mcp, get_repo, get_root, H, tools=result, session_state=session_state)
     )
-    result.update(register_context(mcp, get_repo, get_root, H))
+    result.update(register_context(mcp, get_repo, get_root, H, session_state))
     register_resources(mcp, get_repo, get_root, H, tools=result)
     # Strip private cross-module helpers that were shared via the tools dict but
     # should not be visible as public MCP tool exports.

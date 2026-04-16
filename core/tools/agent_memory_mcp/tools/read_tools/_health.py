@@ -45,6 +45,7 @@ def register_health(
     _load_access_entries = H._load_access_entries
     _load_capabilities_manifest = H._load_capabilities_manifest
     _load_content_files = H._load_content_files
+    _normalize_user_id = H.normalize_user_id
     _normalize_repo_relative_path = H._normalize_repo_relative_path
     _parse_aggregation_trigger = H._parse_aggregation_trigger
     _parse_current_stage = H._parse_current_stage
@@ -226,6 +227,7 @@ def register_health(
         file_prefix: str = "",
         start_date: str = "",
         end_date: str = "",
+        user_id: str = "",
         min_helpfulness: float | None = None,
         max_helpfulness: float | None = None,
     ) -> str:
@@ -243,12 +245,14 @@ def register_health(
         root = get_root()
         trigger = _parse_aggregation_trigger(root)
         all_entries, access_counts = _load_access_entries(root)
+        resolved_user_id = _normalize_user_id(user_id)
         filtered_entries = _filter_access_entries(
             all_entries,
             folder=folder,
             file_prefix=file_prefix,
             start_date=start_date,
             end_date=end_date,
+            user_id=resolved_user_id,
             min_helpfulness=min_helpfulness,
             max_helpfulness=max_helpfulness,
         )
@@ -271,7 +275,24 @@ def register_health(
         ]
 
         archive_targets: list[str] = []
-        if folder:
+        if resolved_user_id is not None:
+            scoped_archive_counts: dict[str, int] = {}
+            archive_scope_entries = _filter_access_entries(
+                all_entries,
+                folder=folder,
+                user_id=resolved_user_id,
+            )
+            for entry in archive_scope_entries:
+                access_file = str(entry.get("_access_file", "")).strip()
+                if not access_file:
+                    continue
+                scoped_archive_counts[access_file] = scoped_archive_counts.get(access_file, 0) + 1
+            archive_targets = [
+                access_file
+                for access_file, entry_count in sorted(scoped_archive_counts.items())
+                if entry_count >= trigger
+            ]
+        elif folder:
             normalized_folder = folder.rstrip("/")
             archive_targets = [
                 cast(str, item["access_file"])
@@ -321,6 +342,7 @@ def register_health(
                 "file_prefix": file_prefix or None,
                 "start_date": start_date or None,
                 "end_date": end_date or None,
+                "user_id": resolved_user_id,
                 "min_helpfulness": min_helpfulness,
                 "max_helpfulness": max_helpfulness,
             },

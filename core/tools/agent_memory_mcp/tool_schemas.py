@@ -698,13 +698,13 @@ def checkpoint_input_schema() -> dict[str, Any]:
         title="memory_checkpoint input schema",
         required=["content"],
         notes=[
-            "Writes a timestamped entry to memory/working/CURRENT.md and stages the file without creating a commit.",
+            "Writes a timestamped entry to memory/working/CURRENT.md, or memory/working/{user_id}/CURRENT.md when MEMORY_USER_ID is set, and stages the file without creating a commit.",
             "session_id is optional but must be canonical when supplied.",
         ],
         properties={
             "content": {
                 "type": "string",
-                "description": "Checkpoint body appended under a timestamped heading in memory/working/CURRENT.md.",
+                "description": "Checkpoint body appended under a timestamped heading in the active CURRENT.md scratchpad for the resolved user scope.",
             },
             "label": {
                 "type": "string",
@@ -725,7 +725,7 @@ def append_scratchpad_input_schema() -> dict[str, Any]:
         title="memory_append_scratchpad input schema",
         required=["target", "content"],
         notes=[
-            "target accepts the aliases user/current or a governed memory/working/notes/{slug}.md scratchpad path.",
+            "target accepts the aliases user/current or a governed memory/working/notes/{slug}.md scratchpad path; when MEMORY_USER_ID is set, writes resolve under memory/working/{user_id}/... while the flat targets remain valid aliases.",
             "When section is supplied, the runtime creates the H2 heading if it does not already exist.",
         ],
         properties={
@@ -740,7 +740,7 @@ def append_scratchpad_input_schema() -> dict[str, Any]:
                         "pattern": r"^memory/working/notes/[a-z0-9]+(?:-[a-z0-9]+)*\.md$",
                     },
                 ],
-                "description": "Scratchpad target alias or governed notes path.",
+                "description": "Scratchpad target alias or governed notes path, resolved against the active user-scoped working root when applicable.",
             },
             "content": {
                 "type": "string",

@@ -10,6 +10,11 @@ from datetime import date, datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, cast
 
+from ...identity_paths import (
+    normalize_user_id,
+    resolve_working_scratchpad_target,
+    working_file_path,
+)
 from ...path_policy import (
     KNOWN_COMMIT_PREFIXES,
     namespace_session_id,
@@ -658,10 +663,7 @@ def _resolve_access_session_id(
 def _resolved_user_id(session_state: SessionState | None) -> str | None:
     if session_state is None:
         return None
-    if not isinstance(session_state.user_id, str):
-        return None
-    normalized = session_state.user_id.strip()
-    return normalized or None
+    return normalize_user_id(session_state.user_id)
 
 
 def _normalize_access_entry(
@@ -1112,26 +1114,8 @@ def _archive_target_for_access_file(access_file: str, entries: list[dict[str, An
     return f"{access_file.rsplit('/', 1)[0]}/{_archive_segment_name(entries)}"
 
 
-def _resolve_scratchpad_target(target: str) -> str:
-    target_map = {
-        "user": "memory/working/USER.md",
-        "current": "memory/working/CURRENT.md",
-    }
-    if target in target_map:
-        return target_map[target]
-    if (
-        isinstance(target, str)
-        and target.startswith("memory/working/notes/")
-        and target.endswith(".md")
-    ):
-        slug = target[len("memory/working/notes/") : -len(".md")]
-        validate_slug(slug, field_name="target")
-        return f"memory/working/notes/{slug}.md"
-    from ...errors import ValidationError
-
-    raise ValidationError(
-        "target must be 'user', 'current', or 'memory/working/notes/{slug}.md' with a bare kebab-case slug"
-    )
+def _resolve_scratchpad_target(target: str, *, user_id: str | None) -> str:
+    return resolve_working_scratchpad_target(target, user_id=user_id)
 
 
 def _format_checkpoint_entry(
@@ -1417,7 +1401,7 @@ def register_tools(
         ),
     )
     async def memory_checkpoint(content: str, label: str = "", session_id: str = "") -> str:
-        """Append a timestamped checkpoint entry to memory/working/CURRENT.md.
+        """Append a timestamped checkpoint entry to the active CURRENT.md scratchpad.
 
         label and session_id are optional. The write is staged but not
         committed, so use memory_tool_schema with tool_name="memory_checkpoint"
@@ -1435,7 +1419,7 @@ def register_tools(
             _resolve_session_id_for_user(session_id, resolved_user_id) if session_id else ""
         )
 
-        rel_path = "memory/working/CURRENT.md"
+        rel_path = working_file_path("CURRENT.md", user_id=resolved_user_id)
         abs_path = root / rel_path
         abs_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1580,7 +1564,7 @@ def register_tools(
     async def memory_append_scratchpad(
         target: str, content: str, section: str | None = None
     ) -> str:
-        """Append content to USER.md, CURRENT.md, or a working-notes scratchpad.
+        """Append content to the active USER/CURRENT scratchpad or a working note.
 
         target must be "user", "current", or memory/working/notes/{slug}.md.
         When section is provided, the runtime creates the H2 heading if needed
@@ -1592,7 +1576,7 @@ def register_tools(
         repo = get_repo()
         root = get_root()
 
-        rel_path = _resolve_scratchpad_target(target)
+        rel_path = _resolve_scratchpad_target(target, user_id=_resolved_user_id(session_state))
         abs_path = root / rel_path
         abs_path.parent.mkdir(parents=True, exist_ok=True)
         existing = abs_path.read_text(encoding="utf-8") if abs_path.exists() else ""

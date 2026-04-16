@@ -11,11 +11,14 @@ import yaml  # type: ignore[import-untyped]
 
 from ...errors import ValidationError
 from ...frontmatter_utils import read_with_frontmatter
+from ...identity_paths import normalize_user_id, working_file_path
 from ...path_policy import validate_slug
 from ...plan_utils import budget_status, load_plan, next_action, phase_payload, resolve_phase
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
+
+    from ...session_state import SessionState
 
 
 _PLACEHOLDER_MARKERS = (
@@ -104,6 +107,12 @@ def _read_file_content(root: Path, repo_relative_path: str) -> str | None:
         except (OSError, UnicodeDecodeError):
             return None
     return body.strip()
+
+
+def _resolved_user_id(session_state: "SessionState | None") -> str | None:
+    if session_state is None:
+        return None
+    return normalize_user_id(getattr(session_state, "user_id", None))
 
 
 def _is_placeholder(content: str) -> bool:
@@ -619,7 +628,13 @@ def _render_in_manifest(project_root: Path, root: Path) -> tuple[str, list[str]]
     return "\n".join(rows), loaded_files
 
 
-def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
+def register_context(
+    mcp: "FastMCP",
+    get_repo,
+    get_root,
+    H,
+    session_state: "SessionState | None" = None,
+) -> dict[str, object]:
     """Register context injector read tools and return their callables."""
     _tool_annotations = H._tool_annotations
 
@@ -649,6 +664,7 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
         include_skills = _coerce_bool(include_skills_index, field_name="include_skills_index")
 
         root = get_root()
+        resolved_user_id = _resolved_user_id(session_state)
         remaining_chars = max_chars
         budget_exhausted = False
         sections: list[dict[str, str]] = []
@@ -661,8 +677,8 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
         home_sections = [
             ("User Summary", "memory/users/SUMMARY.md"),
             ("Recent Activity", "memory/activity/SUMMARY.md"),
-            ("User Priorities", "memory/working/USER.md"),
-            ("Working State", "memory/working/CURRENT.md"),
+            ("User Priorities", working_file_path("USER.md", user_id=resolved_user_id)),
+            ("Working State", working_file_path("CURRENT.md", user_id=resolved_user_id)),
         ]
         if include_project:
             home_sections.append(("Projects Index", "memory/working/projects/SUMMARY.md"))
@@ -745,6 +761,7 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
         )
 
         root = get_root()
+        resolved_user_id = _resolved_user_id(session_state)
         projects_root = root / "memory" / "working" / "projects"
         project_root = projects_root / project_id
         if not project_root.is_dir():
@@ -1017,7 +1034,7 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
             else:
                 loaded_files.extend(manifest_files)
 
-        current_path = "memory/working/CURRENT.md"
+        current_path = working_file_path("CURRENT.md", user_id=resolved_user_id)
         if budget_exhausted and max_chars > 0:
             section_records.append(
                 {

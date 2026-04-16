@@ -36,8 +36,10 @@ def register_generation(
     _display_rel_path = H._display_rel_path
     _extract_heading_and_paragraph = H._extract_heading_and_paragraph
     _format_summary_folder_title = H._format_summary_folder_title
+    _access_user_matches = H._access_user_matches
     _load_access_history_entries = H._load_access_history_entries
     _normalize_access_folder_prefixes = H._normalize_access_folder_prefixes
+    _normalize_user_id = H.normalize_user_id
     _parse_iso_date = H._parse_iso_date
     _resolve_governance_path = H._resolve_governance_path
     _resolve_visible_path = H._resolve_visible_path
@@ -226,6 +228,7 @@ def register_generation(
         folders: str | None = None,
         window_days: int = 90,
         top_n: int = 10,
+        user_id: str = "",
     ) -> str:
         """Classify files using curation-policy ACCESS patterns.
 
@@ -252,12 +255,15 @@ def register_generation(
             if re.match(r"^[A-Za-z]:[/\\]", normalized):
                 raise ValidationError("folders must contain repo-relative paths")
             folder_filters.extend(_normalize_access_folder_prefixes(normalized))
+        resolved_user_id = _normalize_user_id(user_id)
 
         end_date = date.today()
         start_date = end_date - timedelta(days=window_days - 1)
         all_entries = _load_access_history_entries(root)
         filtered_entries: list[dict[str, Any]] = []
         for entry in all_entries:
+            if not _access_user_matches(entry, resolved_user_id):
+                continue
             entry_date = _parse_iso_date(entry.get("date"))
             if entry_date is None or entry_date < start_date or entry_date > end_date:
                 continue
@@ -411,6 +417,7 @@ def register_generation(
                 .as_posix(),
             },
             "folders": folder_filters or None,
+            "user_id": resolved_user_id,
             "total_entries": len(filtered_entries),
             "unique_files": len(file_summaries),
             "categories": {
