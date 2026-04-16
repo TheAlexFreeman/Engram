@@ -3106,11 +3106,34 @@ def read_file_input_schema() -> dict[str, Any]:
         tool_name="memory_read_file",
         title="memory_read_file input schema",
         required=["path"],
+        notes=[
+            "Responses are inline by default. Files larger than the inline limit return a byte-range slice plus pagination metadata (`total_bytes`, `has_more`, `next_call_hint`).",
+            "offset_bytes and limit_bytes slice the raw bytes of the file; UTF-8 boundary errors at the slice edges are replaced rather than raised.",
+            "prefer_temp_file requests a server-side temp path for full-file reads. Ignored when the deployment sets AGENT_MEMORY_CROSS_FILESYSTEM because the path is not resolvable across filesystems.",
+        ],
         properties={
             "path": {
                 "type": "string",
                 "minLength": 1,
                 "description": "Repo-relative content path to read.",
+            },
+            "offset_bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0,
+                "description": "Byte offset to start reading from. Defaults to start of file.",
+            },
+            "limit_bytes": {
+                "oneOf": [
+                    {"type": "integer", "minimum": 1},
+                    {"type": "null"},
+                ],
+                "description": "Maximum bytes to return inline. Defaults to the inline threshold when null; hard-capped at the server's maximum.",
+            },
+            "prefer_temp_file": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true on same-filesystem deployments, also write the full file to a server-side temp path and return it as temp_file. Ignored across filesystems.",
             },
         },
     )

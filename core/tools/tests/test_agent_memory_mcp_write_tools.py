@@ -313,11 +313,11 @@ preview_argument = "preview"
         self.assertTrue(payload["inline"])
         self.assertIn("# Note", payload["content"])
 
-    def test_memory_read_file_uses_temp_file_for_large_payloads(self) -> None:
-        large_body = "A" * 20_100
+    def test_memory_read_file_returns_pagination_metadata_on_full_read(self) -> None:
+        body = "A" * 20_100
         repo_root = self._init_repo(
             {
-                "memory/knowledge/topic/large.md": f"---\ncreated: 2026-03-20\nsource: test\ntrust: medium\n---\n\n{large_body}",
+                "memory/knowledge/topic/large.md": f"---\ncreated: 2026-03-20\nsource: test\ntrust: medium\n---\n\n{body}",
             }
         )
         tools = self._create_tools(repo_root)
@@ -326,12 +326,145 @@ preview_argument = "preview"
             asyncio.run(tools["memory_read_file"](path="memory/knowledge/topic/large.md"))
         )
 
+        # New behavior: inline by default (threshold raised to 64 KB), content
+        # present, pagination metadata populated, no temp_file.
         self.assertEqual(payload["path"], "memory/knowledge/topic/large.md")
-        self.assertFalse(payload["inline"])
+        self.assertTrue(payload["inline"])
         self.assertGreater(payload["size_bytes"], 20_000)
-        self.assertNotIn("content", payload)
+        self.assertEqual(payload["total_bytes"], payload["size_bytes"])
+        self.assertEqual(payload["offset_bytes"], 0)
+        self.assertEqual(payload["returned_bytes"], payload["size_bytes"])
+        self.assertFalse(payload["has_more"])
+        self.assertIsNone(payload["next_call_hint"])
+        self.assertIn("content", payload)
+        self.assertNotIn("temp_file", payload)
+
+    def test_memory_read_file_paginates_when_limit_bytes_is_set(self) -> None:
+        body = "A" * 200_000
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic/oversize.md": body,
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = self._load_tool_payload(
+            asyncio.run(
+                tools["memory_read_file"](
+                    path="memory/knowledge/topic/oversize.md", limit_bytes=50_000
+                )
+            )
+        )
+
+        self.assertTrue(payload["inline"])
+        self.assertEqual(payload["total_bytes"], 200_000)
+        self.assertEqual(payload["offset_bytes"], 0)
+        self.assertEqual(payload["returned_bytes"], 50_000)
+        self.assertTrue(payload["has_more"])
+        self.assertEqual(payload["next_call_hint"], {"offset_bytes": 50_000, "limit_bytes": 50_000})
+        # Paginated reads do not populate frontmatter — slice may not cover it.
+        self.assertIsNone(payload["frontmatter"])
+        self.assertEqual(len(payload["content"]), 50_000)
+
+        # Follow-up paginated call using next_call_hint finishes the file.
+        follow_up = self._load_tool_payload(
+            asyncio.run(
+                tools["memory_read_file"](
+                    path="memory/knowledge/topic/oversize.md",
+                    offset_bytes=payload["next_call_hint"]["offset_bytes"],
+                    limit_bytes=payload["next_call_hint"]["limit_bytes"] * 4,
+                )
+            )
+        )
+        self.assertEqual(follow_up["offset_bytes"], 50_000)
+        self.assertEqual(follow_up["returned_bytes"], 150_000)
+        self.assertFalse(follow_up["has_more"])
+        self.assertIsNone(follow_up["next_call_hint"])
+
+    def test_memory_read_file_prefer_temp_file_returns_temp_path(self) -> None:
+        body = "B" * 80_000
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic/huge.md": body,
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        old_val = os.environ.pop("AGENT_MEMORY_CROSS_FILESYSTEM", None)
+        try:
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_read_file"](
+                        path="memory/knowledge/topic/huge.md", prefer_temp_file=True
+                    )
+                )
+            )
+        finally:
+            if old_val is not None:
+                os.environ["AGENT_MEMORY_CROSS_FILESYSTEM"] = old_val
+
+        self.assertTrue(payload["inline"])
         self.assertIn("temp_file", payload)
-        self.assertTrue(Path(payload["temp_file"]).exists())
+        temp_path = Path(payload["temp_file"])
+        try:
+            self.assertTrue(temp_path.exists())
+            self.assertEqual(temp_path.read_bytes(), body.encode("utf-8"))
+        finally:
+            try:
+                temp_path.unlink()
+            except FileNotFoundError:
+                pass
+
+    def test_memory_read_file_suppresses_temp_file_when_cross_filesystem(self) -> None:
+        body = "C" * 80_000
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic/cross-fs.md": body,
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        old_val = os.environ.get("AGENT_MEMORY_CROSS_FILESYSTEM")
+        os.environ["AGENT_MEMORY_CROSS_FILESYSTEM"] = "1"
+        try:
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_read_file"](
+                        path="memory/knowledge/topic/cross-fs.md", prefer_temp_file=True
+                    )
+                )
+            )
+        finally:
+            if old_val is None:
+                os.environ.pop("AGENT_MEMORY_CROSS_FILESYSTEM", None)
+            else:
+                os.environ["AGENT_MEMORY_CROSS_FILESYSTEM"] = old_val
+
+        self.assertTrue(payload["inline"])
+        self.assertNotIn("temp_file", payload)
+
+    def test_memory_read_file_rejects_invalid_pagination_args(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic/small.md": "hello",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_read_file"](path="memory/knowledge/topic/small.md", offset_bytes=-1)
+            )
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_read_file"](path="memory/knowledge/topic/small.md", limit_bytes=0)
+            )
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_read_file"](
+                    path="memory/knowledge/topic/small.md", limit_bytes=10_000_000
+                )
+            )
 
     def test_memory_list_folder_preview_returns_frontmatter_and_preview_for_markdown(self) -> None:
         repo_root = self._init_repo(
@@ -2488,6 +2621,20 @@ declared_gaps = []
         self.assertEqual(payload["required"], ["project_id"])
         self.assertEqual(payload["allOf"][0]["then"]["required"], ["session_id"])
         self.assertFalse(payload["properties"]["preview"]["default"])
+
+    def test_memory_tool_schema_returns_read_file_pagination_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_read_file"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_read_file")
+        self.assertEqual(payload["required"], ["path"])
+        self.assertEqual(payload["properties"]["offset_bytes"]["minimum"], 0)
+        self.assertFalse(payload["properties"]["prefer_temp_file"]["default"])
+        self.assertEqual(payload["properties"]["limit_bytes"]["oneOf"][1]["type"], "null")
 
     def test_memory_tool_schema_returns_stage_external_contract(self) -> None:
         repo_root = self._init_repo({"README.md": "# Test\n"})

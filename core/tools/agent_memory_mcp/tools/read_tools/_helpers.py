@@ -54,7 +54,25 @@ _CURATION_NEAR_MISS_MIN = 0.2
 _CURATION_NEAR_MISS_MAX = 0.4
 _CURATION_FALSE_POSITIVE_MAX = 0.1
 _CURATION_RETIREMENT_MAX = 0.3
-_READ_FILE_INLINE_THRESHOLD_BYTES = 20_000
+_READ_FILE_INLINE_THRESHOLD_BYTES = 64_000
+_READ_FILE_DEFAULT_LIMIT_BYTES = 64_000
+_READ_FILE_MAX_LIMIT_BYTES = 256_000
+
+
+def _cross_filesystem_sandbox_detected() -> bool:
+    """Return True when the deployment indicates the MCP server and agent sandbox
+    sit on different filesystems.
+
+    Detection is explicit-only: reads ``AGENT_MEMORY_CROSS_FILESYSTEM`` from the
+    environment. Anything that parses as a truthy flag (``1``, ``true``, ``yes``,
+    ``on``) suppresses ``temp_file`` returns even when a caller asks for them,
+    because a temp path minted server-side is not resolvable from the sandbox.
+    """
+    import os as _os
+
+    raw = _os.environ.get("AGENT_MEMORY_CROSS_FILESYSTEM", "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
 
 try:
     tomllib = cast(Any, import_module("tomllib"))
