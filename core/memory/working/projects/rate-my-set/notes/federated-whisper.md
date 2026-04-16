@@ -5,6 +5,9 @@ topic: federated-whisper-network
 created: 2026-04-14
 session: memory/activity/2026/04/14/chat-001
 status: exploration
+source: agent-generated
+origin_session: memory/activity/2026/04/14/chat-001
+trust: medium
 ---
 
 # Federated whisper network — design exploration

@@ -5,6 +5,9 @@ topic: account-model-migration-plan
 created: 2026-04-14
 depends-on: better-base-roadmap.md
 status: draft
+source: agent-generated
+origin_session: unknown
+trust: medium
 ---
 
 # Account Model Migration Plan

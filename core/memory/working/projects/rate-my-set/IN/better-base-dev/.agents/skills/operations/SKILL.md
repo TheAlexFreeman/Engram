@@ -1,6 +1,10 @@
 ---
 name: operations
 description: Apply the Django Operations layer pattern for business logic in this repository. Use when editing or reviewing `backend/**/ops.py` and `backend/**/ops/**/*.py`, or when asked about "ops", "operations", or `validate_can_*` workflows.
+source: external-research
+origin_session: unknown
+created: 2026-04-14
+trust: low
 ---
 
 Use this skill for backend operations-layer implementation and code review.

@@ -937,6 +937,12 @@ def validate_chat_leaf_sessions(root: Path, result: ValidationResult) -> None:
         return
 
     for session_dir in sorted(chats_root.glob("*/*/*/chat-*")):
+        # The sidecar feature writes chat-NNN.traces.jsonl files alongside the
+        # chat-NNN/ session directories. The glob matches both, so skip anything
+        # that isn't actually a session directory or this validator would
+        # complain that a JSONL trace file is "missing" its SUMMARY.md.
+        if not session_dir.is_dir():
+            continue
         summary_path = session_dir / "SUMMARY.md"
         reflection_path = session_dir / "reflection.md"
         session_id = session_dir.relative_to(root).as_posix()

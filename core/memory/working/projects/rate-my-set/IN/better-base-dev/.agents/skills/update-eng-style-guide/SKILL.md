@@ -1,6 +1,10 @@
 ---
 name: update-eng-style-guide
 description: Update and normalize engineering guidance docs when the user asks to "update style guide", "update eng style guide", or "update engineering style guide". Keeps AGENTS and docs/engineering aligned across Codex, Cursor, Claude Code, OpenCode, and Pi.
+source: external-research
+origin_session: unknown
+created: 2026-04-14
+trust: low
 ---
 
 Use this skill when the user gives broad feedback about coding style, review process,
