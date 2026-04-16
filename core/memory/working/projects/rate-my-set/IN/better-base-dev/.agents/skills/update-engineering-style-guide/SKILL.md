@@ -1,6 +1,10 @@
 ---
 name: update-engineering-style-guide
 description: Alias trigger for update-eng-style-guide. Use when asked to "update engineering style guide".
+source: external-research
+origin_session: unknown
+created: 2026-04-14
+trust: low
 ---
 
 Alias of `update-eng-style-guide`.

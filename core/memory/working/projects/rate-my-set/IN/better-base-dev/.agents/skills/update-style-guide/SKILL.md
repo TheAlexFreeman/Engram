@@ -1,6 +1,10 @@
 ---
 name: update-style-guide
 description: Alias trigger for update-eng-style-guide. Use when asked to "update style guide" or similar broad guidance updates.
+source: external-research
+origin_session: unknown
+created: 2026-04-14
+trust: low
 ---
 
 Alias of `update-eng-style-guide`.

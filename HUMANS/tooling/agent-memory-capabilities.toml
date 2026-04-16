@@ -56,6 +56,12 @@ read_support = [
   "memory_session_bootstrap",
   "memory_context_home",
   "memory_context_project",
+  # memory_context_project_lite: strictly-bounded fast-path for the enriched
+  # bundle. Reads SUMMARY.md + plan IDs/status only; skips IN/ manifest,
+  # plan sources, session notes, user profile, and the on-disk cache.
+  # Use as a safety valve when the enriched path has tripped its time budget
+  # or when bootstrap needs guaranteed-responsive latency.
+  "memory_context_project_lite",
   "memory_prepare_unverified_review",
   "memory_prepare_promotion_batch",
   "memory_prepare_periodic_review",
@@ -410,6 +416,9 @@ span_id = "Trace Span"
 trace_file = "Trace File"
 total_matched = "Matched Spans"
 aggregates = "Trace Aggregates"
+entries = "Dialogue Entries"
+limit = "Result Limit"
+offset = "Result Offset"
 results = "Eval Results"
 runs = "Eval Runs"
 trends = "Metric Trends"
@@ -992,7 +1001,7 @@ owns_review_queue = []
 result_fields = ["project_id", "status", "open_questions", "cognitive_mode"]
 fallback_tools = ["memory_write", "memory_update_frontmatter", "memory_commit"]
 error_kinds = ["ValidationError", "StagingError"]
-notes = "Scaffolds a project (SUMMARY, navigator) with optional questions.md and optional first plan in one commit."
+notes = "Scaffolds a project (SUMMARY, navigator) with optional questions.md and optional first plan in one commit. SUMMARY.md body carries Description plus three cold-start subsections — Layout, Canonical source (optional, from the `canonical_source` parameter), and How to continue — that memory_context_project preserves even under budget pressure."
 
 [operations.memory_project_add_questions]
 group = "plan"
@@ -1204,7 +1213,14 @@ owns_review_queue = []
 result_fields = ["target_path", "content_hash", "status"]
 fallback_tools = []
 error_kinds = ["DuplicateContentError", "NotFoundError", "ValidationError"]
-notes = "Direct project-inbox write; stages external research without creating a git commit."
+notes = """
+Direct project-inbox write; stages external research without creating a git commit.
+Frontmatter records `snapshot_taken_at` (derived from `fetched_date`) so readers have a
+stable name for snapshot age independent of caller-supplied `fetched_date` semantics.
+Optional `reflects_upstream_as_of` (commit sha, release tag, or ISO date) describes the
+upstream state the snapshot reflects; when omitted the field is dropped from frontmatter
+and readers degrade gracefully.
+"""
 
 [operations.memory_scan_drop_zone]
 group = "project"

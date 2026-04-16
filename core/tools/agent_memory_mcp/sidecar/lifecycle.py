@@ -214,9 +214,7 @@ def _coerce_tool_response(raw_payload: Any) -> dict[str, Any]:
     return {"raw": raw_payload}
 
 
-def build_session_summary(
-    session: ParsedSession, *, metrics: dict[str, Any] | None = None
-) -> str:
+def build_session_summary(session: ParsedSession, *, metrics: dict[str, Any] | None = None) -> str:
     """Create a compact deterministic summary for a completed session."""
 
     task = _last_non_empty(session.user_messages)
@@ -230,7 +228,9 @@ def build_session_summary(
     if metrics:
         breakdown = metrics.get("tool_call_breakdown") or {}
         top_tools = sorted(breakdown.items(), key=lambda kv: (-kv[1], kv[0]))[:3]
-        top_line = ", ".join(f"{name} ({count})" for name, count in top_tools) if top_tools else "none"
+        top_line = (
+            ", ".join(f"{name} ({count})" for name, count in top_tools) if top_tools else "none"
+        )
         char = str(metrics.get("session_characterization") or "").strip()
         if char:
             lines.append(f"Activity: {char}. Top tools: {top_line}.")

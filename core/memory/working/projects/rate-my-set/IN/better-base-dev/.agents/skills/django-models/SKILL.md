@@ -1,6 +1,10 @@
 ---
 name: django-models
 description: Create, update, and review Django models in this repository. Use for requests like "add a model", "update model fields", "change constraints", "queryset methods", or "Django model cleanup".
+source: external-research
+origin_session: unknown
+created: 2026-04-14
+trust: low
 ---
 
 Use this skill when touching `backend/**/models/*.py`.

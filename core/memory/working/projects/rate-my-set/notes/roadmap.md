@@ -5,6 +5,9 @@ topic: roadmap
 created: 2026-04-14
 session: memory/activity/2026/04/14/chat-001
 status: draft
+source: agent-generated
+origin_session: memory/activity/2026/04/14/chat-001
+trust: medium
 ---
 
 # Rate My Set — roadmap

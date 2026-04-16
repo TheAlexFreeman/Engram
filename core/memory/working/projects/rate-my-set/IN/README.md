@@ -1,8 +1,10 @@
 ---
 type: project-inbox
 project: rate-my-set
-source: user-upload
+source: user-stated
 uploaded: 2026-04-14
+created: 2026-04-14
+origin_session: unknown
 trust: medium
 ---
 

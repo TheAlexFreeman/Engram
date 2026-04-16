@@ -26,7 +26,7 @@ def load_server_module() -> ModuleType:
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
     try:
-        return importlib.import_module("engram_mcp.agent_memory_mcp.server")
+        return importlib.import_module("core.tools.agent_memory_mcp.server")
     except ModuleNotFoundError as exc:
         raise unittest.SkipTest(f"agent_memory_mcp dependencies unavailable: {exc.name}") from exc
 
@@ -40,11 +40,11 @@ class AgentMemoryWriteToolTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.server = load_server_module()
-        cls.errors = importlib.import_module("engram_mcp.agent_memory_mcp.errors")
-        cls.git_repo_module = importlib.import_module("engram_mcp.agent_memory_mcp.git_repo")
+        cls.errors = importlib.import_module("core.tools.agent_memory_mcp.errors")
+        cls.git_repo_module = importlib.import_module("core.tools.agent_memory_mcp.git_repo")
         try:
             cls.frontmatter_utils = importlib.import_module(
-                "engram_mcp.agent_memory_mcp.frontmatter_utils"
+                "core.tools.agent_memory_mcp.frontmatter_utils"
             )
         except ModuleNotFoundError as exc:
             raise unittest.SkipTest(
@@ -313,11 +313,11 @@ preview_argument = "preview"
         self.assertTrue(payload["inline"])
         self.assertIn("# Note", payload["content"])
 
-    def test_memory_read_file_uses_temp_file_for_large_payloads(self) -> None:
-        large_body = "A" * 20_100
+    def test_memory_read_file_returns_pagination_metadata_on_full_read(self) -> None:
+        body = "A" * 20_100
         repo_root = self._init_repo(
             {
-                "memory/knowledge/topic/large.md": f"---\ncreated: 2026-03-20\nsource: test\ntrust: medium\n---\n\n{large_body}",
+                "memory/knowledge/topic/large.md": f"---\ncreated: 2026-03-20\nsource: test\ntrust: medium\n---\n\n{body}",
             }
         )
         tools = self._create_tools(repo_root)
@@ -326,12 +326,145 @@ preview_argument = "preview"
             asyncio.run(tools["memory_read_file"](path="memory/knowledge/topic/large.md"))
         )
 
+        # New behavior: inline by default (threshold raised to 64 KB), content
+        # present, pagination metadata populated, no temp_file.
         self.assertEqual(payload["path"], "memory/knowledge/topic/large.md")
-        self.assertFalse(payload["inline"])
+        self.assertTrue(payload["inline"])
         self.assertGreater(payload["size_bytes"], 20_000)
-        self.assertNotIn("content", payload)
+        self.assertEqual(payload["total_bytes"], payload["size_bytes"])
+        self.assertEqual(payload["offset_bytes"], 0)
+        self.assertEqual(payload["returned_bytes"], payload["size_bytes"])
+        self.assertFalse(payload["has_more"])
+        self.assertIsNone(payload["next_call_hint"])
+        self.assertIn("content", payload)
+        self.assertNotIn("temp_file", payload)
+
+    def test_memory_read_file_paginates_when_limit_bytes_is_set(self) -> None:
+        body = "A" * 200_000
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic/oversize.md": body,
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        payload = self._load_tool_payload(
+            asyncio.run(
+                tools["memory_read_file"](
+                    path="memory/knowledge/topic/oversize.md", limit_bytes=50_000
+                )
+            )
+        )
+
+        self.assertTrue(payload["inline"])
+        self.assertEqual(payload["total_bytes"], 200_000)
+        self.assertEqual(payload["offset_bytes"], 0)
+        self.assertEqual(payload["returned_bytes"], 50_000)
+        self.assertTrue(payload["has_more"])
+        self.assertEqual(payload["next_call_hint"], {"offset_bytes": 50_000, "limit_bytes": 50_000})
+        # Paginated reads do not populate frontmatter — slice may not cover it.
+        self.assertIsNone(payload["frontmatter"])
+        self.assertEqual(len(payload["content"]), 50_000)
+
+        # Follow-up paginated call using next_call_hint finishes the file.
+        follow_up = self._load_tool_payload(
+            asyncio.run(
+                tools["memory_read_file"](
+                    path="memory/knowledge/topic/oversize.md",
+                    offset_bytes=payload["next_call_hint"]["offset_bytes"],
+                    limit_bytes=payload["next_call_hint"]["limit_bytes"] * 4,
+                )
+            )
+        )
+        self.assertEqual(follow_up["offset_bytes"], 50_000)
+        self.assertEqual(follow_up["returned_bytes"], 150_000)
+        self.assertFalse(follow_up["has_more"])
+        self.assertIsNone(follow_up["next_call_hint"])
+
+    def test_memory_read_file_prefer_temp_file_returns_temp_path(self) -> None:
+        body = "B" * 80_000
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic/huge.md": body,
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        old_val = os.environ.pop("AGENT_MEMORY_CROSS_FILESYSTEM", None)
+        try:
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_read_file"](
+                        path="memory/knowledge/topic/huge.md", prefer_temp_file=True
+                    )
+                )
+            )
+        finally:
+            if old_val is not None:
+                os.environ["AGENT_MEMORY_CROSS_FILESYSTEM"] = old_val
+
+        self.assertTrue(payload["inline"])
         self.assertIn("temp_file", payload)
-        self.assertTrue(Path(payload["temp_file"]).exists())
+        temp_path = Path(payload["temp_file"])
+        try:
+            self.assertTrue(temp_path.exists())
+            self.assertEqual(temp_path.read_bytes(), body.encode("utf-8"))
+        finally:
+            try:
+                temp_path.unlink()
+            except FileNotFoundError:
+                pass
+
+    def test_memory_read_file_suppresses_temp_file_when_cross_filesystem(self) -> None:
+        body = "C" * 80_000
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic/cross-fs.md": body,
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        old_val = os.environ.get("AGENT_MEMORY_CROSS_FILESYSTEM")
+        os.environ["AGENT_MEMORY_CROSS_FILESYSTEM"] = "1"
+        try:
+            payload = self._load_tool_payload(
+                asyncio.run(
+                    tools["memory_read_file"](
+                        path="memory/knowledge/topic/cross-fs.md", prefer_temp_file=True
+                    )
+                )
+            )
+        finally:
+            if old_val is None:
+                os.environ.pop("AGENT_MEMORY_CROSS_FILESYSTEM", None)
+            else:
+                os.environ["AGENT_MEMORY_CROSS_FILESYSTEM"] = old_val
+
+        self.assertTrue(payload["inline"])
+        self.assertNotIn("temp_file", payload)
+
+    def test_memory_read_file_rejects_invalid_pagination_args(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/knowledge/topic/small.md": "hello",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_read_file"](path="memory/knowledge/topic/small.md", offset_bytes=-1)
+            )
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_read_file"](path="memory/knowledge/topic/small.md", limit_bytes=0)
+            )
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_read_file"](
+                    path="memory/knowledge/topic/small.md", limit_bytes=10_000_000
+                )
+            )
 
     def test_memory_list_folder_preview_returns_frontmatter_and_preview_for_markdown(self) -> None:
         repo_root = self._init_repo(
@@ -2489,6 +2622,20 @@ declared_gaps = []
         self.assertEqual(payload["allOf"][0]["then"]["required"], ["session_id"])
         self.assertFalse(payload["properties"]["preview"]["default"])
 
+    def test_memory_tool_schema_returns_read_file_pagination_contract(self) -> None:
+        repo_root = self._init_repo({"README.md": "# Test\n"})
+        tools = self._create_tools(repo_root)
+
+        payload = self._load_tool_payload(
+            asyncio.run(tools["memory_tool_schema"](tool_name="memory_read_file"))
+        )
+
+        self.assertEqual(payload["tool_name"], "memory_read_file")
+        self.assertEqual(payload["required"], ["path"])
+        self.assertEqual(payload["properties"]["offset_bytes"]["minimum"], 0)
+        self.assertFalse(payload["properties"]["prefer_temp_file"]["default"])
+        self.assertEqual(payload["properties"]["limit_bytes"]["oneOf"][1]["type"], "null")
+
     def test_memory_tool_schema_returns_stage_external_contract(self) -> None:
         repo_root = self._init_repo({"README.md": "# Test\n"})
         tools = self._create_tools(repo_root)
@@ -2504,6 +2651,9 @@ declared_gaps = []
         )
         self.assertEqual(payload["properties"]["fetched_date"]["format"], "date")
         self.assertFalse(payload["properties"]["dry_run"]["default"])
+        reflects_schema = payload["properties"]["reflects_upstream_as_of"]
+        self.assertEqual(reflects_schema["oneOf"][0]["type"], "string")
+        self.assertEqual(reflects_schema["oneOf"][1]["type"], "null")
 
     def test_memory_tool_schema_returns_run_eval_contract(self) -> None:
         repo_root = self._init_repo({"README.md": "# Test\n"})
@@ -2896,6 +3046,77 @@ declared_gaps = []
 
         self.assertEqual(payload["recommended_operation"]["operation"], "promote_knowledge_subtree")
         self.assertIn("dry_run=True", payload["workflow_hint"])
+
+    def test_memory_route_intent_briefing_routes_to_context_project(self) -> None:
+        seed = self._policy_contract_seed_files()
+        seed["memory/working/projects/rate-my-set/SUMMARY.md"] = "# Rate My Set\n"
+        repo_root = self._init_repo(seed)
+        tools = self._create_tools(repo_root)
+
+        payload = self._load_tool_payload(
+            asyncio.run(
+                tools["memory_route_intent"](
+                    intent=(
+                        "I am cold-starting work on the rate-my-set project and need a "
+                        "briefing on its current state"
+                    ),
+                )
+            )
+        )
+
+        recommended = payload["recommended_operation"]
+        self.assertIsNotNone(recommended)
+        self.assertEqual(recommended["operation"], "memory_context_project")
+        self.assertEqual(recommended["arguments"], {"project": "rate-my-set"})
+        self.assertFalse(payload["ambiguous"])
+
+    def test_memory_route_intent_list_projects_routes_to_navigator(self) -> None:
+        seed = self._policy_contract_seed_files()
+        seed["memory/working/projects/SUMMARY.md"] = "# Projects\n"
+        repo_root = self._init_repo(seed)
+        tools = self._create_tools(repo_root)
+
+        payload = self._load_tool_payload(
+            asyncio.run(
+                tools["memory_route_intent"](intent="what projects are active right now"),
+            )
+        )
+
+        recommended = payload["recommended_operation"]
+        self.assertIsNotNone(recommended)
+        self.assertEqual(recommended["operation"], "memory_read_file")
+        self.assertEqual(
+            recommended["arguments"],
+            {"path": "memory/working/projects/SUMMARY.md"},
+        )
+
+    def test_memory_route_intent_resume_routes_to_session_bootstrap(self) -> None:
+        repo_root = self._init_repo(self._policy_contract_seed_files())
+        tools = self._create_tools(repo_root)
+
+        payload = self._load_tool_payload(
+            asyncio.run(
+                tools["memory_route_intent"](intent="resume work where I left off"),
+            )
+        )
+
+        recommended = payload["recommended_operation"]
+        self.assertIsNotNone(recommended)
+        self.assertEqual(recommended["operation"], "memory_session_bootstrap")
+
+    def test_memory_route_intent_briefing_without_project_falls_back_to_bootstrap(self) -> None:
+        repo_root = self._init_repo(self._policy_contract_seed_files())
+        tools = self._create_tools(repo_root)
+
+        payload = self._load_tool_payload(
+            asyncio.run(
+                tools["memory_route_intent"](intent="get me up to speed on the current work"),
+            )
+        )
+
+        recommended = payload["recommended_operation"]
+        self.assertIsNotNone(recommended)
+        self.assertEqual(recommended["operation"], "memory_session_bootstrap")
 
     def test_memory_route_intent_recommends_plan_creation(self) -> None:
         repo_root = self._init_repo(self._policy_contract_seed_files())
@@ -4326,6 +4547,67 @@ Secondary body.
             asyncio.run(
                 tools["memory_generate_summary"](path="memory/knowledge/topic", style="compact")
             )
+
+    def test_memory_generate_summary_detects_project_folder(self) -> None:
+        """Project folders get the cold-start briefing, not the folder listing."""
+        repo_root = self._init_repo(
+            {
+                "memory/working/projects/sample-project/SUMMARY.md": (
+                    "---\n"
+                    "active_plans: 1\n"
+                    "canonical_source: https://example.com/upstream/repo@abc123\n"
+                    "cognitive_mode: planning\n"
+                    "created: 2026-03-28\n"
+                    "current_focus: Sample focus.\n"
+                    "last_activity: 2026-03-28\n"
+                    "open_questions: 0\n"
+                    "origin_session: memory/activity/2026/03/28/chat-001\n"
+                    "plans: 1\n"
+                    "source: agent-generated\n"
+                    "status: active\n"
+                    "trust: medium\n"
+                    "type: project\n"
+                    "---\n"
+                    "\n"
+                    "# Project: Sample Project\n"
+                    "\n"
+                    "## Description\n"
+                    "Sample description body.\n"
+                ),
+                "memory/working/projects/sample-project/plans/main.yaml": (
+                    "id: main\nproject: sample-project\nstatus: active\n"
+                ),
+                "memory/working/projects/sample-project/questions.md": (
+                    "---\nopen_questions: 2\n---\n\n## q-001: First?\n## q-002: Second?\n"
+                ),
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        output = asyncio.run(
+            tools["memory_generate_summary"](path="memory/working/projects/sample-project")
+        )
+
+        # Project-mode output uses the project-briefing layout, not the folder-listing one.
+        self.assertIn("# Project: Sample Project", output)
+        self.assertIn("## Description", output)
+        self.assertIn("## Layout", output)
+        self.assertIn("- [IN/](memory/working/projects/sample-project/IN/)", output)
+        self.assertIn("## Canonical source", output)
+        self.assertIn("- https://example.com/upstream/repo@abc123", output)
+        self.assertIn("## How to continue", output)
+        self.assertIn(
+            "Active plan: [memory/working/projects/sample-project/plans/main.yaml]",
+            output,
+        )
+        self.assertIn(
+            "Open questions: [memory/working/projects/sample-project/questions.md]",
+            output,
+        )
+        self.assertIn("(2 open)", output)
+        self.assertIn("Last activity: 2026-03-28", output)
+        # The generic folder-listing "## Files" section must not appear in project mode.
+        self.assertNotIn("## Files", output)
 
     def test_memory_access_analytics_classifies_policy_buckets(self) -> None:
         repo_root = self._init_repo(
@@ -10908,7 +11190,7 @@ trust: high
             "origin_session: memory/activity/2026/03/26/chat-001\n"
             "status: active\n"
             "budget:\n"
-            "  deadline: '2026-04-15'\n"
+            "  deadline: '2099-12-31'\n"
             "  max_sessions: 3\n"
             f"sessions_used: {sessions_used}\n"
             "purpose:\n"
@@ -10951,7 +11233,7 @@ trust: high
             "origin_session: memory/activity/2026/03/26/chat-001\n"
             "status: active\n"
             "budget:\n"
-            "  deadline: '2026-04-15'\n"
+            "  deadline: '2099-12-31'\n"
             "  max_sessions: 3\n"
             f"sessions_used: {sessions_used}\n"
             "purpose:\n"
@@ -11334,7 +11616,7 @@ trust: high
         self.assertIn("re-request", followup_payload["new_state"]["message"])
 
     def test_memory_plan_execute_start_with_expired_approval_blocks_and_moves_file(self) -> None:
-        from engram_mcp.agent_memory_mcp.plan_utils import ApprovalDocument, save_approval
+        from core.tools.agent_memory_mcp.plan_utils import ApprovalDocument, save_approval
 
         plan_yaml = self._plan_yaml_with_budget()
         repo_root = self._init_repo(self._plan_repo_files(plan_yaml))
@@ -11866,7 +12148,7 @@ trust: high
             }
         )
         tools = self._create_tools(repo_root, enable_raw_write_tools=True)
-        plan_utils = importlib.import_module("engram_mcp.agent_memory_mcp.plan_utils")
+        plan_utils = importlib.import_module("core.tools.agent_memory_mcp.plan_utils")
 
         run_state = plan_utils.RunState(
             plan_id="tracked-plan",
@@ -11979,6 +12261,73 @@ trust: high
 
         self.assertFalse(payload["staged"])
         self.assertFalse((repo_root / payload["target_path"]).exists())
+
+    def test_memory_stage_external_writes_snapshot_freshness_frontmatter(self) -> None:
+        repo_root = self._init_repo(self._phase9_project_files())
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_stage_external"](
+                project="example",
+                filename="snapshot-default.md",
+                content="External note\n",
+                source_url="https://example.com/snapshot-default",
+                fetched_date="2026-03-27",
+                source_label="example-article",
+            )
+        )
+        payload = json.loads(raw)
+
+        target = repo_root / payload["target_path"]
+        body = target.read_text(encoding="utf-8")
+        self.assertIn("snapshot_taken_at: '2026-03-27'", body)
+        self.assertNotIn("reflects_upstream_as_of", body)
+
+        preview = payload["frontmatter_preview"]
+        self.assertEqual(preview["snapshot_taken_at"], "2026-03-27")
+        self.assertNotIn("reflects_upstream_as_of", preview)
+
+    def test_memory_stage_external_records_reflects_upstream_when_provided(self) -> None:
+        repo_root = self._init_repo(self._phase9_project_files())
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        raw = asyncio.run(
+            tools["memory_stage_external"](
+                project="example",
+                filename="snapshot-upstream.md",
+                content="External note with upstream marker\n",
+                source_url="https://example.com/snapshot-upstream",
+                fetched_date="2026-03-27",
+                source_label="example-article",
+                reflects_upstream_as_of="abc1234",
+            )
+        )
+        payload = json.loads(raw)
+
+        target = repo_root / payload["target_path"]
+        body = target.read_text(encoding="utf-8")
+        self.assertIn("snapshot_taken_at: '2026-03-27'", body)
+        self.assertIn("reflects_upstream_as_of: abc1234", body)
+
+        preview = payload["frontmatter_preview"]
+        self.assertEqual(preview["reflects_upstream_as_of"], "abc1234")
+
+    def test_memory_stage_external_rejects_empty_reflects_upstream(self) -> None:
+        repo_root = self._init_repo(self._phase9_project_files())
+        tools = self._create_tools(repo_root, enable_raw_write_tools=True)
+
+        with self.assertRaises(self.errors.ValidationError):
+            asyncio.run(
+                tools["memory_stage_external"](
+                    project="example",
+                    filename="snapshot-bad.md",
+                    content="External note\n",
+                    source_url="https://example.com/snapshot-bad",
+                    fetched_date="2026-03-27",
+                    source_label="example-article",
+                    reflects_upstream_as_of="   ",
+                )
+            )
 
     def test_memory_scan_drop_zone_returns_scan_report(self) -> None:
         drop_folder = Path(self._tmpdir.name) / "external-drop"

@@ -1,6 +1,10 @@
 ---
 name: django-model-factories
 description: Create and update Django test factories using Factory Boy and Faker in this repository. Use for requests like "add factory", "update factory traits", "faker values", "post_generation", or "factory cleanup".
+source: external-research
+origin_session: unknown
+created: 2026-04-14
+trust: low
 ---
 
 Use this skill when touching `backend/**/tests/factories/*.py`.

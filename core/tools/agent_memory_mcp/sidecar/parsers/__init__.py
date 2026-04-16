@@ -18,8 +18,6 @@ PARSER_PRIORITY: tuple[str, ...] = tuple(PARSER_REGISTRY.keys())
 
 def build_parsers_from_registry(platform: str) -> list["TranscriptParser"]:
     """Instantiate parsers for ``auto`` (all registered) or a single platform key."""
-    from ..parser import TranscriptParser
-
     if platform in {"auto", ""}:
         return [PARSER_REGISTRY[key]() for key in PARSER_PRIORITY]
     cls = PARSER_REGISTRY.get(platform)

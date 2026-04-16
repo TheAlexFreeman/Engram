@@ -1,6 +1,10 @@
 ---
 name: consolidate-session-learnings
 description: End-of-session consolidation workflow. Review human feedback and update AGENTS plus engineering guidance docs so conventions stay aligned across Codex, Cursor, Claude Code, OpenCode, and Pi.
+source: external-research
+origin_session: unknown
+created: 2026-04-14
+trust: low
 ---
 
 Use this skill near the end of a session when new standards were learned from human

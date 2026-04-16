@@ -1,6 +1,10 @@
 ---
 name: django-admins
 description: Build or update Django admin classes, forms, and inlines in this repository. Use for requests like "add admin", "improve changelist", "readonly admin view", "admin action", or "admin search/filter".
+source: external-research
+origin_session: unknown
+created: 2026-04-14
+trust: low
 ---
 
 Use this skill when touching `backend/**/admin/**/*.py`.

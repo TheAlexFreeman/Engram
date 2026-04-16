@@ -1,6 +1,10 @@
 ---
 name: update-deps
 description: Run the repository dependency upgrade workflow when the user asks to update dependencies, dependency refreshes, or `/update-deps`. Handles Python, frontend, and pre-commit updates, then researches notable version jumps and fixes resulting breakages.
+source: external-research
+origin_session: unknown
+created: 2026-04-14
+trust: low
 ---
 
 Use this skill for dependency maintenance runs in this repository.

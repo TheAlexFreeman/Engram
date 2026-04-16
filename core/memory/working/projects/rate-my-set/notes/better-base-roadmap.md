@@ -5,6 +5,9 @@ topic: better-base-roadmap
 created: 2026-04-14
 depends-on: roadmap.md
 status: draft
+source: agent-generated
+origin_session: unknown
+trust: medium
 ---
 
 # Better Base → Rate My Set — concrete build roadmap
