@@ -119,6 +119,7 @@ core/governance/review-queue.md
 core/governance/scratchpad-guidelines.md
 core/governance/security-signals.md
 core/governance/session-checklists.md
+core/governance/skill-distribution-spec.md
 core/governance/skill-lifecycle-spec.md
 core/governance/skill-manifest-spec.md
 core/governance/skill-trigger-spec.md
@@ -131,6 +132,7 @@ core/memory/activity/2026/04/02/chat-001/SUMMARY.md
 core/memory/activity/2026/04/02/chat-001/traces.jsonl
 core/memory/activity/2026/04/08/traces-chat-001.jsonl
 core/memory/activity/2026/04/08/traces-chat-002.jsonl
+core/memory/activity/2026/04/15/chat-001.traces.jsonl
 core/memory/activity/ACCESS.jsonl
 core/memory/activity/SUMMARY.md
 core/memory/knowledge/ACCESS.jsonl
@@ -787,6 +789,7 @@ core/memory/working/projects/session-management/SUMMARY.md
 core/memory/working/projects/session-management/plans/checkpoint-tool.yaml
 core/memory/working/projects/session-management/plans/enriched-mcp-server.yaml
 core/memory/working/projects/session-management/plans/optional-proxy.yaml
+core/memory/working/projects/session-management/plans/sidecar-comprehensive-capture.yaml
 core/memory/working/projects/session-management/plans/sidecar-observer.yaml
 core/memory/working/projects/skills-expansion/SUMMARY.md
 core/memory/working/projects/skills-expansion/operations.jsonl
@@ -844,6 +847,7 @@ core/tools/agent_memory_mcp/frontmatter_policy.py
 core/tools/agent_memory_mcp/frontmatter_utils.py
 core/tools/agent_memory_mcp/git_repo.py
 core/tools/agent_memory_mcp/guard_pipeline.py
+core/tools/agent_memory_mcp/identity_paths.py
 core/tools/agent_memory_mcp/knowledge_ingestion.py
 core/tools/agent_memory_mcp/models.py
 core/tools/agent_memory_mcp/path_policy.py
@@ -868,12 +872,16 @@ core/tools/agent_memory_mcp/session_state.py
 core/tools/agent_memory_mcp/sidecar/__init__.py
 core/tools/agent_memory_mcp/sidecar/access_logger.py
 core/tools/agent_memory_mcp/sidecar/cli.py
+core/tools/agent_memory_mcp/sidecar/dialogue_logger.py
 core/tools/agent_memory_mcp/sidecar/estimator.py
 core/tools/agent_memory_mcp/sidecar/lifecycle.py
+core/tools/agent_memory_mcp/sidecar/metrics.py
 core/tools/agent_memory_mcp/sidecar/parser.py
 core/tools/agent_memory_mcp/sidecar/parsers/__init__.py
 core/tools/agent_memory_mcp/sidecar/parsers/claude_code.py
+core/tools/agent_memory_mcp/sidecar/trace_logger.py
 core/tools/agent_memory_mcp/skill_distributor.py
+core/tools/agent_memory_mcp/skill_gitignore.py
 core/tools/agent_memory_mcp/skill_hash.py
 core/tools/agent_memory_mcp/skill_resolver.py
 core/tools/agent_memory_mcp/skill_trigger.py
@@ -942,6 +950,11 @@ core/tools/tests/test_helpfulness_estimator.py
 core/tools/tests/test_link_scoring.py
 core/tools/tests/test_link_tools_engine.py
 core/tools/tests/test_memory_mcp.py
+core/tools/tests/test_multi_user_access_log_scoping.py
+core/tools/tests/test_multi_user_compat.py
+core/tools/tests/test_multi_user_concurrent_write_lock.py
+core/tools/tests/test_multi_user_env_identity.py
+core/tools/tests/test_multi_user_working_namespace.py
 core/tools/tests/test_plan_schema_extensions.py
 core/tools/tests/test_plan_validation.py
 core/tools/tests/test_proxy_checkpoint.py
@@ -954,7 +967,9 @@ core/tools/tests/test_semantic_search.py
 core/tools/tests/test_server_main.py
 core/tools/tests/test_session_lifecycle.py
 core/tools/tests/test_session_state.py
+core/tools/tests/test_sidecar_capture.py
 core/tools/tests/test_sidecar_cli.py
+core/tools/tests/test_skill_distribution_integration.py
 core/tools/tests/test_skill_distributor.py
 core/tools/tests/test_skill_install_tool.py
 core/tools/tests/test_skill_resolver.py
