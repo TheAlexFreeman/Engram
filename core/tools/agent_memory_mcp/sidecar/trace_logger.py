@@ -47,7 +47,9 @@ def _args_summary(args: Any) -> dict[str, Any] | None:
 
 
 def _anon_dedupe_key(call: ToolCall) -> str:
-    payload = f"{call.name}\0{call.timestamp and call.timestamp.isoformat()}\0{repr(call.args)[:500]}"
+    payload = (
+        f"{call.name}\0{call.timestamp and call.timestamp.isoformat()}\0{repr(call.args)[:500]}"
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:24]
 
 

@@ -1264,9 +1264,7 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
             if effective_include_profile:
                 extra_hash_paths.append(root / "memory" / "users" / "SUMMARY.md")
             if include_sources and plan_context is not None:
-                plan_sources = cast(
-                    list[dict[str, Any]], plan_context.get("sources") or []
-                )
+                plan_sources = cast(list[dict[str, Any]], plan_context.get("sources") or [])
                 for source in plan_sources:
                     if source.get("type") != "internal":
                         continue
@@ -1280,12 +1278,8 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                     # the bundle would inline — or a stable "missing" marker
                     # when the source doesn't resolve.
                     resolved = _resolve_repo_relative_path(root, source_rel)
-                    extra_hash_paths.append(
-                        resolved if resolved is not None else root / source_rel
-                    )
-            content_hash = _compute_project_content_hash(
-                project_root, extra_paths=extra_hash_paths
-            )
+                    extra_hash_paths.append(resolved if resolved is not None else root / source_rel)
+            content_hash = _compute_project_content_hash(project_root, extra_paths=extra_hash_paths)
             params_key = _compute_params_key(
                 max_chars=max_chars,
                 include_sources=include_sources,
