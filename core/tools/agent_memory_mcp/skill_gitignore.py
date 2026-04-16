@@ -22,6 +22,37 @@ def _normalize_deployment_mode(value: object, *, field_name: str) -> str:
     return value
 
 
+def _source_type(source: object) -> str | None:
+    if not isinstance(source, str):
+        return None
+    normalized = source.strip()
+    if normalized == "local":
+        return "local"
+    if normalized.startswith("github:"):
+        return "github"
+    if normalized.startswith("git:"):
+        return "git"
+    if normalized.startswith("path:"):
+        return "path"
+    return None
+
+
+def _recoverable_deployment_mode(
+    mode: str,
+    *,
+    source: object,
+    field_name: str,
+    strict: bool,
+) -> str:
+    if _source_type(source) != "local" or mode != "gitignored":
+        return mode
+    if strict:
+        raise ValidationError(
+            f"{field_name} cannot be 'gitignored' when source is 'local'; local skills cannot be restored on a fresh clone, so use deployment_mode='checked' or publish the skill via path:, git:, or github:."
+        )
+    return "checked"
+
+
 def deployment_mode_for_trust(trust: object) -> str:
     if isinstance(trust, str):
         return _TRUST_DEFAULTS.get(trust.strip(), "checked")
@@ -38,26 +69,48 @@ def resolve_skill_deployment_mode(
     1. skills.{slug}.deployment_mode
     2. defaults.deployment_mode
     3. trust-aware fallback from trust
+
+    Recoverability override:
+    - source=local always resolves to checked unless a per-skill override explicitly
+      asks for gitignored, which is rejected because fresh-clone recovery would be
+      impossible.
     """
+
+    source = skill_entry.get("source") if isinstance(skill_entry, Mapping) else None
 
     if isinstance(skill_entry, Mapping):
         explicit = skill_entry.get("deployment_mode")
         if explicit is not None:
-            return _normalize_deployment_mode(
-                explicit,
+            return _recoverable_deployment_mode(
+                _normalize_deployment_mode(
+                    explicit,
+                    field_name="skills.{slug}.deployment_mode",
+                ),
+                source=source,
                 field_name="skills.{slug}.deployment_mode",
+                strict=True,
             )
 
     if isinstance(defaults, Mapping):
         default_mode = defaults.get("deployment_mode")
         if default_mode is not None:
-            return _normalize_deployment_mode(
-                default_mode,
+            return _recoverable_deployment_mode(
+                _normalize_deployment_mode(
+                    default_mode,
+                    field_name="defaults.deployment_mode",
+                ),
+                source=source,
                 field_name="defaults.deployment_mode",
+                strict=False,
             )
 
     trust = skill_entry.get("trust") if isinstance(skill_entry, Mapping) else None
-    return deployment_mode_for_trust(trust)
+    return _recoverable_deployment_mode(
+        deployment_mode_for_trust(trust),
+        source=source,
+        field_name="trust-derived deployment_mode",
+        strict=False,
+    )
 
 
 class SkillGitignoreManager:

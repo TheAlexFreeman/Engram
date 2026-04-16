@@ -8,6 +8,9 @@ defaults:
   deployment_mode: checked        # checked | gitignored
   targets: [engram]               # distribution targets
 
+# Fresh-clone rule: source: local skills always stay checked.
+# Use path:, git:, or github: if you want gitignored/on-demand recovery.
+
 # Skill declarations. Each key is the skill slug (kebab-case, matches directory name).
 skills:
 

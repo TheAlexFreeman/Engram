@@ -208,7 +208,17 @@ def build_report(repo_root: Path) -> tuple[dict[str, Any], int]:
             continue
         ref = entry.get("ref") if isinstance(entry.get("ref"), str) else None
         lock_entry = lock_entries.get(slug)
-        effective_deployment_mode = resolve_skill_deployment_mode(entry, manifest_defaults)
+        try:
+            effective_deployment_mode = resolve_skill_deployment_mode(entry, manifest_defaults)
+        except ValidationError as exc:
+            failed.append(
+                {
+                    "slug": slug,
+                    "source": source,
+                    "reason": str(exc),
+                }
+            )
+            continue
         canonical_skill_dir = repo_root / "core" / "memory" / "skills" / slug
 
         if effective_deployment_mode == "gitignored" and not canonical_skill_dir.is_dir():

@@ -3,10 +3,10 @@ active_plans: 3
 cognitive_mode: planning
 created: '2026-04-08'
 current_focus: Gitignore-deployment-modes workstream — deployment-mode spec, managed
-  .gitignore handling, and install/sync integration are implemented and verified;
-  clone-experience follow-through is in progress. Remote/path gitignored skills now
-  materialize on demand, while q-009 tracks the remaining local-source recovery decision
-  before multi-agent distribution.
+  .gitignore handling, install/sync integration, and fresh-clone recovery policy
+  are implemented and verified. Remote/path gitignored skills now materialize on
+  demand, local sources resolve to checked for clone safety, and explicit local
+  gitignored overrides are rejected before multi-agent distribution.
 last_activity: '2026-04-15'
 open_questions: 3
 origin_session: memory/activity/2026/04/08/chat-001
@@ -40,5 +40,5 @@ Execution note (2026-04-15): the original roadmap had `lifecycle-cli-decompositi
 2. **skill-manifest-and-versioning** — Complete.
 3. **multi-source-resolution** — Complete. Source parsing rules, `SkillResolver`, `memory_skill_install`, and `skill_install_frozen.py` landed with focused resolver/install/frozen tests.
 4. **lifecycle-cli-decomposition** — Completed. The decomposed lifecycle surface (`memory_skill_list`, add/remove flows, sync support, and the lifecycle spec) is implemented and the plan metadata now matches that shipped state.
-5. **gitignore-deployment-modes** — Active current focus. Deployment-mode spec, managed `.gitignore` reconciliation, and install/sync semantics are implemented and verified. Clone-experience follow-through is now in progress: the frozen installer materializes missing gitignored path/git skills, and q-009 tracks the remaining policy decision for unrecoverable `source: local` cases.
-6. **multi-agent-distribution** — Active but queued behind the remaining clone-experience phase in `gitignore-deployment-modes`. The target/distribution spec is drafted, but implementation should proceed after local install semantics are finished end to end.
+5. **gitignore-deployment-modes** — Active current focus. Deployment-mode spec, managed `.gitignore` reconciliation, and install/sync semantics are implemented and verified. Clone-experience follow-through now includes a source-aware recovery rule: the frozen installer materializes missing gitignored path/git skills, `source: local` resolves to checked for fresh-clone safety, and explicit local gitignored overrides fail with a clear recovery error.
+6. **multi-agent-distribution** — Active and now unblocked by the resolved local-source clone policy in `gitignore-deployment-modes`. The target/distribution spec is drafted, and implementation can proceed from the stabilized deployment contract.

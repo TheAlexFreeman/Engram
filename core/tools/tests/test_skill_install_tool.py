@@ -438,7 +438,7 @@ trust: high
 """,
                 "memory/skills/low-skill/SKILL.md": """---
 name: low-skill
-description: Low trust gitignored skill.
+description: Low trust local skill.
 source: agent-generated
 origin_session: manual
 created: 2026-04-09
@@ -464,7 +464,7 @@ trust: low
         gitignore_path = self._repo_file(repo_root, "core/memory/skills/.gitignore")
         first_text = gitignore_path.read_text(encoding="utf-8")
         self.assertIn("# BEGIN ENGRAM MANAGED SKILL DEPLOYMENT", first_text)
-        self.assertIn("/low-skill/", first_text)
+        self.assertNotIn("/low-skill/", first_text)
         self.assertNotIn("/high-skill/", first_text)
 
         second = self._load_payload(
@@ -478,7 +478,7 @@ trust: low
         self.assertFalse(second["actions_taken"]["deployment_gitignore_refreshed"])
         self.assertEqual(first_text, gitignore_path.read_text(encoding="utf-8"))
 
-    def test_memory_skill_add_leaves_gitignored_template_skill_untracked(self) -> None:
+    def test_memory_skill_add_keeps_local_template_skill_checked_for_fresh_clone(self) -> None:
         repo_root = self._init_repo(
             {
                 "HUMANS/tooling/scripts/generate_skill_catalog.py": CATALOG_SCRIPT,
@@ -512,11 +512,11 @@ trust: low
             )
         )
 
-        self.assertEqual(payload["effective_deployment_mode"], "gitignored")
+        self.assertEqual(payload["effective_deployment_mode"], "checked")
         self.assertTrue(
             self._repo_file(repo_root, "core/memory/skills/draft-skill/SKILL.md").is_file()
         )
-        self.assertIn(
+        self.assertNotIn(
             "/draft-skill/",
             self._repo_file(repo_root, "core/memory/skills/.gitignore").read_text(encoding="utf-8"),
         )
@@ -528,7 +528,31 @@ trust: low
             capture_output=True,
             text=True,
         )
-        self.assertNotEqual(tracked.returncode, 0)
+        self.assertEqual(tracked.returncode, 0)
+
+    def test_memory_skill_add_rejects_gitignored_template_skill(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "HUMANS/tooling/scripts/generate_skill_catalog.py": CATALOG_SCRIPT,
+                "memory/skills/SKILLS.yaml": "schema_version: 1\ndefaults: {}\nskills: {}\n",
+                "memory/skills/SUMMARY.md": "# Skills Summary\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaisesRegex(Exception, "cannot be 'gitignored' when source is 'local'"):
+            asyncio.run(
+                tools["memory_skill_add"](
+                    preview=True,
+                    slug="draft-skill",
+                    title="Draft Skill",
+                    description="Draft skill.",
+                    source="template",
+                    trust="low",
+                    origin_session=TEST_SESSION_ID,
+                    deployment_mode="gitignored",
+                )
+            )
 
     def test_memory_skill_add_allows_checked_override_for_low_trust_skill(self) -> None:
         repo_root = self._init_repo(
@@ -616,15 +640,89 @@ trust: low
             )
         )
 
-        self.assertEqual(payload["new_state"]["effective_deployment_mode"], "gitignored")
+        self.assertEqual(payload["new_state"]["effective_deployment_mode"], "checked")
         self.assertIn(
             "memory/skills/.gitignore",
             payload["files_changed"],
         )
-        self.assertIn(
+        self.assertNotIn(
             "/manifest-only-skill/",
             self._repo_file(repo_root, "core/memory/skills/.gitignore").read_text(encoding="utf-8"),
         )
+
+    def test_memory_skill_manifest_write_rejects_gitignored_local_entry(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "memory/skills/SKILLS.yaml": "schema_version: 1\ndefaults: {}\nskills: {}\n",
+            }
+        )
+        tools = self._create_tools(repo_root)
+
+        with self.assertRaisesRegex(Exception, "cannot be 'gitignored' when source is 'local'"):
+            asyncio.run(
+                tools["memory_skill_manifest_write"](
+                    preview=True,
+                    slug="manifest-only-skill",
+                    source="local",
+                    trust="low",
+                    description="Manifest-only low trust skill.",
+                    deployment_mode="gitignored",
+                )
+            )
+
+    def test_memory_skill_install_keeps_local_skill_checked_for_fresh_clone(self) -> None:
+        repo_root = self._init_repo(
+            {
+                "HUMANS/tooling/scripts/generate_skill_catalog.py": CATALOG_SCRIPT,
+                "memory/skills/SKILLS.yaml": "schema_version: 1\ndefaults: {}\nskills: {}\n",
+                "memory/skills/SUMMARY.md": "# Skills Summary\n",
+                "memory/skills/local-skill/SKILL.md": """---
+name: local-skill
+description: Local skill.
+source: user-stated
+origin_session: manual
+created: 2026-04-15
+trust: high
+---
+
+# Local Skill
+""",
+            }
+        )
+        tools = self._create_tools(repo_root)
+        approval_token, _ = self._approval_token_for(
+            tools,
+            "memory_skill_install",
+            source="local",
+            slug="local-skill",
+            trust="low",
+        )
+
+        payload = self._load_payload(
+            asyncio.run(
+                tools["memory_skill_install"](
+                    source="local",
+                    slug="local-skill",
+                    trust="low",
+                    approval_token=approval_token,
+                )
+            )
+        )
+
+        self.assertEqual(payload["effective_deployment_mode"], "checked")
+        self.assertNotIn(
+            "/local-skill/",
+            self._repo_file(repo_root, "core/memory/skills/.gitignore").read_text(encoding="utf-8"),
+        )
+
+        tracked = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", "--", "core/memory/skills/local-skill/SKILL.md"],
+            cwd=self._git_root(repo_root),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(tracked.returncode, 0)
 
     def test_memory_skill_remove_reconciles_gitignore_and_archives_skill(self) -> None:
         repo_root = self._init_repo(

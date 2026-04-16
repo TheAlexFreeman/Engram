@@ -2583,6 +2583,7 @@ def skill_manifest_write_input_schema() -> dict[str, Any]:
             "source must match one of: 'local', 'github:owner/repo', 'git:url', or 'path:./relative'",
             "trust must be one of: high, medium, low",
             "ref is only valid with github: or git: sources and is ignored for source: local",
+            "source: local entries always resolve to checked deployment; an explicit gitignored override is invalid.",
         ],
         properties={
             "slug": {
@@ -2617,7 +2618,7 @@ def skill_manifest_write_input_schema() -> dict[str, Any]:
                     {"type": "string", "enum": ["checked", "gitignored"]},
                     {"type": "null"},
                 ],
-                "description": "Optional override for deployment mode. Inherits from defaults if omitted.",
+                "description": "Optional override for deployment mode. Inherits from defaults if omitted. source: local cannot use gitignored.",
             },
             "enabled": {
                 "oneOf": [
@@ -2830,6 +2831,7 @@ def skill_install_input_schema() -> dict[str, Any]:
             "Installs a skill from local, path:./..., path:../..., github:owner/repo, or git:url sources.",
             "When slug is omitted, the resolver derives it from the resolved skill directory name.",
             "trust, when provided, rewrites the installed SKILL.md frontmatter to keep manifest and content aligned.",
+            "source: local installs always resolve to checked deployment so the skill remains available after clone.",
         ],
         properties={
             "source": {
@@ -2905,6 +2907,7 @@ def skill_add_input_schema() -> dict[str, Any]:
             "source must be 'template' or path:./relative/path within the repository.",
             "Remote sources (github:, git:) are not supported yet.",
             "deployment_mode is optional; when omitted, the effective mode falls back to defaults.deployment_mode or the trust-aware mapping.",
+            "Template-backed skills register as source: local, so they always resolve to checked deployment.",
         ],
         properties={
             "slug": {
@@ -2955,7 +2958,7 @@ def skill_add_input_schema() -> dict[str, Any]:
                     {"type": "string", "enum": ["checked", "gitignored"]},
                     {"type": "null"},
                 ],
-                "description": "Optional override for deployment mode. Inherits from defaults if omitted.",
+                "description": "Optional override for deployment mode. Inherits from defaults if omitted. Template/local skills cannot use gitignored.",
             },
             "preview": {
                 "type": "boolean",
