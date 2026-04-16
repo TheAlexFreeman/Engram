@@ -3,10 +3,10 @@ active_plans: 3
 cognitive_mode: planning
 created: '2026-04-08'
 current_focus: Multi-agent-distribution workstream — the distribution-targets
-  specification now defines built-in target profiles, metadata-mapping rules,
-  and the adapter contract. The next implementation slice is the
-  distribution-engine that materializes those target views.
-last_activity: '2026-04-15'
+  specification and distribution-engine are now implemented. The next
+  implementation slice is manifest-integration so target selection and
+  validation become part of the canonical SKILLS.yaml lifecycle.
+last_activity: '2026-04-16'
 open_questions: 3
 origin_session: memory/activity/2026/04/08/chat-001
 plans: 6
@@ -40,4 +40,4 @@ Execution note (2026-04-15): the original roadmap had `lifecycle-cli-decompositi
 3. **multi-source-resolution** — Complete. Source parsing rules, `SkillResolver`, `memory_skill_install`, and `skill_install_frozen.py` landed with focused resolver/install/frozen tests.
 4. **lifecycle-cli-decomposition** — Completed. The decomposed lifecycle surface (`memory_skill_list`, add/remove flows, sync support, and the lifecycle spec) is implemented and the plan metadata now matches that shipped state.
 5. **gitignore-deployment-modes** — Implemented and verified. Deployment-mode spec, managed `.gitignore` reconciliation, install/sync semantics, and the fresh-clone recovery rule are in place; that stabilized contract now feeds the distribution work.
-6. **multi-agent-distribution** — Active current focus. The distribution-targets phase now defines built-in target ids (`engram`, `generic`, `claude`, `cursor`, `codex`), concrete output profiles, metadata-mapping rules, and the adapter interface. The next implementation slice is `distribution-engine`.
+6. **multi-agent-distribution** — Active current focus. The distribution-targets phase and distribution-engine are now implemented: built-in target ids (`engram`, `generic`, `claude`, `cursor`, `codex`) are specified, the adapter-backed distributor and CLI landed, and focused tests cover rendering, missing-install handling, and idempotent copy fallback. The next implementation slice is `manifest-integration`.

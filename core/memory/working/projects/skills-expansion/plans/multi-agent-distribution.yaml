@@ -37,7 +37,7 @@ work:
         target''s expected file format, naming conventions, and metadata requirements.'
   - id: distribution-engine
     title: Build the distribution engine that generates tool-specific views
-    status: pending
+    status: completed
     commit: null
     blockers:
     - distribution-targets

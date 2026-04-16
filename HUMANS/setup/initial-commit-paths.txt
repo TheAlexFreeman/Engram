@@ -57,6 +57,7 @@ HUMANS/tooling/agent-memory-capabilities.toml
 HUMANS/tooling/agent-task-readiness.toml
 HUMANS/tooling/mcp-config-example.json
 HUMANS/tooling/onboard-export-template.md
+HUMANS/tooling/scripts/distribute_skills.py
 HUMANS/tooling/scripts/extract_names.py
 HUMANS/tooling/scripts/generate_initial_commit_manifest.py
 HUMANS/tooling/scripts/generate_skill_catalog.py
@@ -77,6 +78,7 @@ HUMANS/tooling/tests-js/view-smoke.test.js
 HUMANS/tooling/tests/__init__.py
 HUMANS/tooling/tests/test_access_logging_batch.py
 HUMANS/tooling/tests/test_bootstrap_resolver.py
+HUMANS/tooling/tests/test_distribute_skills.py
 HUMANS/tooling/tests/test_generate_skill_catalog.py
 HUMANS/tooling/tests/test_memory_capabilities.py
 HUMANS/tooling/tests/test_onboard_export.py
@@ -871,6 +873,7 @@ core/tools/agent_memory_mcp/sidecar/lifecycle.py
 core/tools/agent_memory_mcp/sidecar/parser.py
 core/tools/agent_memory_mcp/sidecar/parsers/__init__.py
 core/tools/agent_memory_mcp/sidecar/parsers/claude_code.py
+core/tools/agent_memory_mcp/skill_distributor.py
 core/tools/agent_memory_mcp/skill_hash.py
 core/tools/agent_memory_mcp/skill_resolver.py
 core/tools/agent_memory_mcp/skill_trigger.py
@@ -952,6 +955,7 @@ core/tools/tests/test_server_main.py
 core/tools/tests/test_session_lifecycle.py
 core/tools/tests/test_session_state.py
 core/tools/tests/test_sidecar_cli.py
+core/tools/tests/test_skill_distributor.py
 core/tools/tests/test_skill_install_tool.py
 core/tools/tests/test_skill_resolver.py
 core/tools/tests/test_skill_trigger_router.py
