@@ -194,6 +194,32 @@ class MultiUserConcurrentWriteLockTests(unittest.TestCase):
         self.assertEqual(state.publication_worktree_root, str(linked_repo.root))
         self.assertEqual(state.publication_git_common_dir, str(linked_repo.git_common_dir))
 
+    def test_create_mcp_rejects_session_branching_for_detached_linked_worktree(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        git_root = self._git_root(repo_root)
+        subprocess.run(
+            ["git", "branch", "-M", "alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        linked_repo_root = self._add_linked_worktree(repo_root, "linked")
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "MEMORY_USER_ID": "alex",
+                "MEMORY_SESSION_ID": "memory/activity/2026/04/15/chat-001",
+                "MEMORY_ENABLE_SESSION_BRANCHES": "1",
+            },
+            clear=False,
+        ):
+            with self.assertRaises(StagingError) as ctx:
+                server_module.create_mcp(repo_root=linked_repo_root)
+
+        self.assertIn("attached base branch at startup", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

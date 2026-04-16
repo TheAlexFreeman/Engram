@@ -4,8 +4,9 @@ cognitive_mode: planning
 created: 2026-04-03
 current_focus: `concurrent-session-writes` remains the highest-priority follow-on.
   The repo-common writer lock is in place, and the latest slice now captures a
-  stable startup publication baseline in `SessionState` so later branch
-  isolation and auto-merge work can rely on fixed branch/worktree metadata.
+  stable startup publication baseline in `SessionState`; the newest follow-on
+  now provisions opt-in session branches at MCP startup so later merge work can
+  build on isolated per-session refs rather than only shared branches.
 last_activity: '2026-04-16'
 open_questions: 12
 origin_session: memory/activity/2026/04/03/chat-001
@@ -94,4 +95,6 @@ The first `concurrent-session-writes` slice is now in place. `GitRepo` resolves 
 
 The next groundwork slice is also in place. `SessionState` now captures the startup publication branch/ref plus the originating worktree root and shared git common dir, and `create_mcp()` seeds those values when the MCP session boots. This keeps a stable publication baseline available even if later branch-per-session flows change the live checkout state, and it also records detached linked-worktree sessions without inventing a branch that does not exist.
 
-The next unresolved `concurrent-session-writes` step is still `branch-strategy`: create isolated per-session branches from that captured startup baseline and route writes onto them before tackling auto-merge.
+The next branch-isolation slice is now in place behind an explicit rollout flag. When `MEMORY_ENABLE_SESSION_BRANCHES` is enabled for a multi-user session, startup resolves a deterministic `engram/sessions/{user_id}/...` branch from `MEMORY_SESSION_ID` or the current-session sentinel, records that branch on `SessionState`, and creates or checks it out before raw writes begin. Focused tests now cover successful startup checkout, commit isolation onto the session branch, dirty tracked worktree refusal, and detached linked-worktree refusal.
+
+The next unresolved `concurrent-session-writes` step is still `branch-strategy`: decide how to roll this session-branch path beyond the opt-in flag, preserve the original base branch across repeated startup on an existing session branch, and then wire auto-merge against those isolated refs.

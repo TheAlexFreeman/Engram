@@ -110,6 +110,8 @@ class SessionStateTests(unittest.TestCase):
             publication_base_ref="refs/heads/main",
             publication_worktree_root="/tmp/repo",
             publication_git_common_dir="/tmp/repo/.git",
+            publication_session_branch="engram/sessions/alex/2026-03-28-chat-001",
+            publication_session_branch_ref="refs/heads/engram/sessions/alex/2026-03-28-chat-001",
         )
 
         with mock.patch.object(self.module, "_utcnow", return_value=reset_time):
@@ -119,10 +121,25 @@ class SessionStateTests(unittest.TestCase):
         self.assertEqual(state.publication_base_ref, "refs/heads/main")
         self.assertEqual(state.publication_worktree_root, "/tmp/repo")
         self.assertEqual(state.publication_git_common_dir, "/tmp/repo/.git")
+        self.assertEqual(
+            state.publication_session_branch, "engram/sessions/alex/2026-03-28-chat-001"
+        )
+        self.assertEqual(
+            state.publication_session_branch_ref,
+            "refs/heads/engram/sessions/alex/2026-03-28-chat-001",
+        )
         self.assertEqual(payload["publication_base_branch"], "main")
         self.assertEqual(payload["publication_base_ref"], "refs/heads/main")
         self.assertEqual(payload["publication_worktree_root"], "/tmp/repo")
         self.assertEqual(payload["publication_git_common_dir"], "/tmp/repo/.git")
+        self.assertEqual(
+            payload["publication_session_branch"],
+            "engram/sessions/alex/2026-03-28-chat-001",
+        )
+        self.assertEqual(
+            payload["publication_session_branch_ref"],
+            "refs/heads/engram/sessions/alex/2026-03-28-chat-001",
+        )
 
 
 class CreateMcpSessionStateWiringTests(unittest.TestCase):

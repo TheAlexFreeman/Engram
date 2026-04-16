@@ -27,12 +27,14 @@ def _load_module(name: str) -> ModuleType:
 class MultiUserEnvIdentityTests(unittest.TestCase):
     server: ModuleType
     session_state_module: ModuleType
+    errors: ModuleType
 
     @classmethod
     def setUpClass(cls) -> None:
         try:
             cls.server = _load_module("engram_mcp.agent_memory_mcp.server")
             cls.session_state_module = _load_module("engram_mcp.agent_memory_mcp.session_state")
+            cls.errors = _load_module("engram_mcp.agent_memory_mcp.errors")
         except ModuleNotFoundError as exc:
             raise unittest.SkipTest(
                 f"agent_memory_mcp dependencies unavailable: {exc.name}"
@@ -300,6 +302,145 @@ class MultiUserEnvIdentityTests(unittest.TestCase):
         self.assertEqual(
             payload["entries"][0]["session_id"], "memory/activity/alex/2026/03/21/chat-003"
         )
+
+    def test_create_mcp_records_and_checks_out_session_branch_when_enabled(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        git_root = repo_root.parent
+        subprocess.run(
+            ["git", "branch", "-M", "alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        captured: dict[str, object] = {}
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        def fake_read_register(mcp, get_repo, get_root, session_state=None):
+            captured["read"] = session_state
+            return {}
+
+        def fake_semantic_register(mcp, get_repo, get_root, session_state=None):
+            captured["semantic"] = session_state
+            return {}
+
+        with (
+            mock.patch.dict(
+                os.environ,
+                {
+                    "MEMORY_USER_ID": "alex",
+                    "MEMORY_SESSION_ID": "memory/activity/2026/03/29/chat-002",
+                    "MEMORY_ENABLE_SESSION_BRANCHES": "1",
+                },
+                clear=False,
+            ),
+            mock.patch.object(self.server.read_tools, "register", side_effect=fake_read_register),
+            mock.patch.object(self.server.semantic, "register", side_effect=fake_semantic_register),
+        ):
+            _, _, _, repo = self.server.create_mcp(repo_root=repo_root)
+
+        state = cast(Any, captured["read"])
+        self.assertIs(captured["read"], captured["semantic"])
+        self.assertEqual(repo.current_branch_name(), session_branch)
+        self.assertEqual(state.publication_base_branch, "alex")
+        self.assertEqual(state.publication_base_ref, "refs/heads/alex")
+        self.assertEqual(state.publication_session_branch, session_branch)
+        self.assertEqual(state.publication_session_branch_ref, f"refs/heads/{session_branch}")
+
+    def test_create_mcp_rejects_dirty_worktree_when_session_branching_enabled(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        git_root = repo_root.parent
+        subprocess.run(
+            ["git", "branch", "-M", "alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        (repo_root / "INIT.md").write_text("# Dirty init\n", encoding="utf-8")
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "MEMORY_USER_ID": "alex",
+                "MEMORY_SESSION_ID": "memory/activity/2026/03/29/chat-002",
+                "MEMORY_ENABLE_SESSION_BRANCHES": "1",
+            },
+            clear=False,
+        ):
+            with self.assertRaises(self.errors.StagingError) as ctx:
+                self.server.create_mcp(repo_root=repo_root)
+
+        self.assertIn("staged or unstaged tracked changes", str(ctx.exception))
+
+    def test_memory_commit_uses_session_branch_when_enabled(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        git_root = repo_root.parent
+        subprocess.run(
+            ["git", "branch", "-M", "alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        seed_sha = subprocess.run(
+            ["git", "rev-parse", "refs/heads/alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        session_branch = "engram/sessions/alex/2026-03-29-chat-002"
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "MEMORY_USER_ID": "alex",
+                "MEMORY_SESSION_ID": "memory/activity/2026/03/29/chat-002",
+                "MEMORY_ENABLE_SESSION_BRANCHES": "1",
+            },
+            clear=False,
+        ):
+            _, tools, _, repo = self.server.create_mcp(
+                repo_root=repo_root,
+                enable_raw_write_tools=True,
+            )
+            asyncio.run(
+                cast(Any, tools["memory_write"])(
+                    path="memory/knowledge/_unverified/session-branch-note.md",
+                    content="# Session branch note\n",
+                )
+            )
+            asyncio.run(
+                cast(Any, tools["memory_commit"])(message="[knowledge] session branch note")
+            )
+
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "refs/heads/alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        session_sha = subprocess.run(
+            ["git", "rev-parse", f"refs/heads/{session_branch}"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        session_subject = subprocess.run(
+            ["git", "log", "-1", "--pretty=%s", session_branch],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        self.assertEqual(repo.current_branch_name(), session_branch)
+        self.assertEqual(base_sha, seed_sha)
+        self.assertNotEqual(session_sha, seed_sha)
+        self.assertEqual(session_subject, "[knowledge] session branch note")
 
 
 if __name__ == "__main__":

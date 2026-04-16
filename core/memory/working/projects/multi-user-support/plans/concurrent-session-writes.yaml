@@ -47,6 +47,36 @@ work:
         - MCP sessions record a stable startup publication baseline before later branch isolation mutates repo state
         - Detached linked-worktree sessions still retain worktree and common-dir identity even when no branch is attached
 
+    - id: session-branch-startup
+      title: Provision opt-in session branches at MCP startup.
+      status: completed
+      commit: null
+      blockers:
+        - startup-baseline
+      sources:
+        - path: core/tools/agent_memory_mcp/server.py
+          type: internal
+          intent: Extend startup flow with a guarded session-branch checkout path
+        - path: core/tools/agent_memory_mcp/git_repo.py
+          type: internal
+          intent: Add safe branch checkout helpers for clean worktrees
+        - path: core/tools/agent_memory_mcp/session_state.py
+          type: internal
+          intent: Persist the chosen session branch alongside the startup publication baseline
+      changes:
+        - path: core/tools/agent_memory_mcp/server.py
+          action: update
+          description: Resolve a startup session branch from MEMORY_SESSION_ID or CURRENT_SESSION, then create or checkout it when MEMORY_ENABLE_SESSION_BRANCHES is enabled.
+        - path: core/tools/agent_memory_mcp/git_repo.py
+          action: update
+          description: Add guarded branch checkout that refuses to switch worktrees with staged or unstaged tracked changes.
+        - path: core/tools/agent_memory_mcp/session_state.py
+          action: update
+          description: Store the active session branch name/ref so later flush and merge flows can reason about the isolated branch.
+      postconditions:
+        - Opt-in multi-user sessions can start on isolated engram/sessions/... branches without changing the default single-user path
+        - Dirty tracked worktrees and detached linked-worktree checkouts fail fast instead of silently switching to ambiguous branch state
+
     - id: branch-strategy
       title: Implement branch-per-session write isolation.
       status: pending

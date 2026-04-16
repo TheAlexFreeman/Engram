@@ -387,6 +387,46 @@ class GitRepo:
             return ref[len(prefix) :]
         return ref
 
+    def ensure_branch_checked_out(
+        self,
+        branch_name: str,
+        *,
+        start_point: str | None = None,
+    ) -> tuple[str, bool]:
+        """Ensure a local branch exists and is the current checkout.
+
+        Returns ``(branch_ref, created)`` where ``created`` is true only when a
+        new local branch had to be created.
+        """
+        normalized_branch = branch_name.strip()
+        if not normalized_branch:
+            raise StagingError("branch_name must be a non-empty git branch name")
+
+        self._run(["git", "check-ref-format", "--branch", normalized_branch])
+        branch_ref = f"refs/heads/{normalized_branch}"
+        current_branch = self.current_branch_name()
+        if current_branch == normalized_branch:
+            return branch_ref, False
+
+        if self.has_staged_changes() or self.has_unstaged_changes():
+            raise StagingError(
+                "Cannot switch to a session branch with staged or unstaged tracked changes in the worktree. "
+                "Commit, stash, or discard those edits before enabling session branch isolation."
+            )
+
+        exists_result = self._run(
+            ["git", "show-ref", "--verify", "--quiet", branch_ref], check=False
+        )
+        if exists_result.returncode == 0:
+            self._run(["git", "checkout", "--quiet", normalized_branch])
+            return branch_ref, False
+
+        cmd = ["git", "checkout", "--quiet", "-b", normalized_branch]
+        if start_point:
+            cmd.append(start_point)
+        self._run(cmd)
+        return branch_ref, True
+
     def _current_branch_ref(self) -> str:
         ref = self.current_branch_ref()
         if ref is None:
