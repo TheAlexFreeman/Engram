@@ -54,10 +54,14 @@ def compute_session_metrics(
     session_duration_ms = int((end - start).total_seconds() * 1000)
 
     total_tool_calls = int(sum(tool_counter.values())) if tool_counter else len(session.tool_calls)
-    unique_tools_used = len(tool_counter) if tool_counter else len({c.name for c in session.tool_calls})
+    unique_tools_used = (
+        len(tool_counter) if tool_counter else len({c.name for c in session.tool_calls})
+    )
 
     ratio = (
-        total_tool_calls / max(1, user_turns + assistant_turns) if (user_turns + assistant_turns) else 0.0
+        total_tool_calls / max(1, user_turns + assistant_turns)
+        if (user_turns + assistant_turns)
+        else 0.0
     )
     if total_tool_calls >= 15 or ratio >= 2.5:
         session_characterization = "heavy tool use session"

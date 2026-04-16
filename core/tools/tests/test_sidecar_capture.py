@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib
-import json
 import sys
 import tempfile
 import unittest
@@ -117,7 +116,9 @@ class DialogueLoggerTests(unittest.TestCase):
             end_time=ts,
             dialogue_turns=[DialogueTurn("assistant", "  \n", ts, ())],
         )
-        empty_rows = self.dialogue_mod.DialogueLogger(Path(".")).build_dialogue_entries(empty_session)
+        empty_rows = self.dialogue_mod.DialogueLogger(Path(".")).build_dialogue_entries(
+            empty_session
+        )
         self.assertTrue(empty_rows[0]["is_empty"])
 
 

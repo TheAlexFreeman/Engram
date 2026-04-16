@@ -17,16 +17,16 @@ from ...preview_contract import (
     preview_target,
     require_approval_token,
 )
-from ...skill_gitignore import (
-    DEPLOYMENT_MODES,
-    SkillGitignoreManager,
-    resolve_skill_deployment_mode,
-)
 from ...skill_distributor import (
     BUILTIN_TARGETS,
     SkillDistributor,
     normalize_distribution_targets,
     resolve_skill_distribution_targets,
+)
+from ...skill_gitignore import (
+    DEPLOYMENT_MODES,
+    SkillGitignoreManager,
+    resolve_skill_deployment_mode,
 )
 from ...skill_hash import compute_content_hash, get_dir_stats
 from ...skill_resolver import SkillResolver, parse_skill_source

@@ -937,6 +937,8 @@ def validate_chat_leaf_sessions(root: Path, result: ValidationResult) -> None:
         return
 
     for session_dir in sorted(chats_root.glob("*/*/*/chat-*")):
+        if not session_dir.is_dir():
+            continue
         summary_path = session_dir / "SUMMARY.md"
         reflection_path = session_dir / "reflection.md"
         session_id = session_dir.relative_to(root).as_posix()

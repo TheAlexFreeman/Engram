@@ -16,11 +16,11 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+import core.tools.agent_memory_mcp.git_repo as git_repo_module  # noqa: E402
+from core.tools.agent_memory_mcp import server as server_module  # noqa: E402
 from core.tools.agent_memory_mcp.errors import StagingError  # noqa: E402
 from core.tools.agent_memory_mcp.git_repo import GitRepo  # noqa: E402
 from core.tools.agent_memory_mcp.server import create_mcp  # noqa: E402
-from core.tools.agent_memory_mcp import server as server_module  # noqa: E402
-import core.tools.agent_memory_mcp.git_repo as git_repo_module  # noqa: E402
 
 
 class MultiUserConcurrentWriteLockTests(unittest.TestCase):
