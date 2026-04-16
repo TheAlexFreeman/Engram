@@ -522,6 +522,85 @@ work:
         finally:
             tmp.cleanup()
 
+    def test_cache_invalidates_when_session_notes_change(self) -> None:
+        """Editing memory/working/CURRENT.md busts the cache when include_session_notes is on.
+
+        The bundle inlines CURRENT.md under the *Current Session Notes* section;
+        without folding its mtime into the content hash, an agent could keep
+        reading yesterday's plan after the user edits their notes.
+        """
+        tmp, tools = self._create_tools()
+        try:
+            root = Path(tmp.name)
+            tool = cast(Any, tools["memory_context_project"])
+
+            asyncio.run(tool(project="demo-project"))  # populate cache
+
+            current_path = root / "core" / "memory" / "working" / "CURRENT.md"
+            current_path.write_text(
+                "# Current\n\nSwitched focus to something else entirely.",
+                encoding="utf-8",
+            )
+            stat = current_path.stat()
+            os.utime(current_path, ns=(stat.st_atime_ns + 1, stat.st_mtime_ns + 10_000_000))
+
+            payload = asyncio.run(tool(project="demo-project"))
+            meta, _ = _parse_context_response(payload)
+            self.assertFalse(meta["cache_hit"])
+        finally:
+            tmp.cleanup()
+
+    def test_cache_invalidates_when_user_profile_changes(self) -> None:
+        """Editing memory/users/SUMMARY.md busts the cache when the profile section is in scope."""
+        tmp, tools = self._create_tools(include_plan=False)
+        try:
+            root = Path(tmp.name)
+            tool = cast(Any, tools["memory_context_project"])
+
+            # include_plan=False → no active plan → profile is auto-included.
+            asyncio.run(tool(project="demo-project"))  # populate cache
+
+            profile_path = root / "core" / "memory" / "users" / "SUMMARY.md"
+            profile_path.write_text(
+                "# User\n\nBrand new partner profile.",
+                encoding="utf-8",
+            )
+            stat = profile_path.stat()
+            os.utime(profile_path, ns=(stat.st_atime_ns + 1, stat.st_mtime_ns + 10_000_000))
+
+            payload = asyncio.run(tool(project="demo-project"))
+            meta, _ = _parse_context_response(payload)
+            self.assertFalse(meta["cache_hit"])
+        finally:
+            tmp.cleanup()
+
+    def test_cache_invalidates_when_internal_plan_source_changes(self) -> None:
+        """Editing an internal plan-source file busts the cache under include_plan_sources=True."""
+        tmp, tools = self._create_tools()
+        try:
+            root = Path(tmp.name)
+            tool = cast(Any, tools["memory_context_project"])
+
+            # Prime the cache with sources on; the plan references core/tools/context-source.md
+            # as an internal source (see _build_project_repo).
+            first = asyncio.run(tool(project="demo-project", include_plan_sources=True))
+            first_meta, _ = _parse_context_response(first)
+            self.assertFalse(first_meta["cache_hit"])
+
+            source_path = root / "core" / "tools" / "context-source.md"
+            source_path.write_text(
+                "# Source\n\nCompletely rewritten source content.",
+                encoding="utf-8",
+            )
+            stat = source_path.stat()
+            os.utime(source_path, ns=(stat.st_atime_ns + 1, stat.st_mtime_ns + 10_000_000))
+
+            payload = asyncio.run(tool(project="demo-project", include_plan_sources=True))
+            meta, _ = _parse_context_response(payload)
+            self.assertFalse(meta["cache_hit"])
+        finally:
+            tmp.cleanup()
+
     def test_cache_not_written_when_truncated(self) -> None:
         """Partial bundles (time budget exceeded) must not poison the cache."""
         tmp, tools = self._create_tools()

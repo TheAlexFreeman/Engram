@@ -8,7 +8,7 @@ import re
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator, cast
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, cast
 
 import yaml  # type: ignore[import-untyped]
 
@@ -760,22 +760,41 @@ _PLAN_SOURCES_MAX_CHARS = 8 * 1024
 # On-disk cache for memory_context_project. The schema version is bumped
 # whenever the stored payload shape changes (metadata keys, section fields,
 # hash algorithm, etc.) so old caches are treated as misses after a server
-# upgrade. Content hash is derived from (rel_path, mtime_ns) of every file
-# under the project subtree, so any write — committed or uncommitted —
-# invalidates. Params key hashes the shape-affecting parameters (include
-# flags, max_chars, user_profile preference) so two callers with different
-# opt-ins don't share a bundle. See cold-start roadmap P0-A step 6.
-_CONTEXT_CACHE_SCHEMA_VERSION = 1
+# upgrade. Content hash covers (rel_path, mtime_ns) of every file under the
+# project subtree *plus* the external files that can be inlined into the
+# bundle (memory/working/CURRENT.md for session notes, memory/users/SUMMARY.md
+# for the user profile, and each internal plan-source file when
+# include_plan_sources is on). Without folding those extras in the bundle
+# would stay stale after the external files change until some project-local
+# file happened to bump its mtime. Params key hashes the shape-affecting
+# parameters (include flags, max_chars, user_profile preference) so two
+# callers with different opt-ins don't share a bundle. See cold-start
+# roadmap P0-A step 6.
+# Schema version bumped to 2 because the hash algorithm now covers external
+# files; v1 caches would hit incorrectly on an upgraded server.
+_CONTEXT_CACHE_SCHEMA_VERSION = 2
 _CONTEXT_CACHE_FILENAME = ".context-cache.json"
 
 
-def _compute_project_content_hash(project_root: Path) -> str:
+def _compute_project_content_hash(
+    project_root: Path,
+    *,
+    extra_paths: Iterable[Path] = (),
+) -> str:
     """Hash every file under ``project_root`` by (rel_path, mtime_ns).
 
-    Includes the cache file itself is suppressed — otherwise writing the
-    cache would invalidate it on the next read. Symlinks and non-regular
-    files are skipped. Path separators are normalized to ``/`` so the hash
-    is stable across Windows and POSIX.
+    The cache file itself is suppressed — otherwise writing the cache would
+    invalidate it on the next read. Symlinks and non-regular files are
+    skipped. Path separators are normalized to ``/`` so the hash is stable
+    across Windows and POSIX.
+
+    ``extra_paths`` folds in the mtimes of files *outside* the project
+    subtree whose content can end up inlined in the bundle (session notes,
+    user profile, internal plan sources). Missing paths contribute a stable
+    absent-marker so a later appearance invalidates the cache. Paths are
+    de-duplicated by their absolute-resolved form, and the extras block is
+    delimited so it cannot collide with a project-local file of the same
+    relative name.
     """
     hasher = hashlib.sha256()
     entries: list[tuple[str, int]] = []
@@ -796,6 +815,28 @@ def _compute_project_content_hash(project_root: Path) -> str:
         hasher.update(b"\x00")
         hasher.update(str(mtime_ns).encode("ascii"))
         hasher.update(b"\n")
+
+    extras: list[tuple[str, int | None]] = []
+    seen: set[str] = set()
+    for raw_path in extra_paths:
+        key = str(raw_path.resolve() if raw_path.is_absolute() else raw_path).replace("\\", "/")
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            mtime_ns = raw_path.stat().st_mtime_ns
+        except OSError:
+            extras.append((key, None))
+            continue
+        extras.append((key, mtime_ns))
+    if extras:
+        extras.sort()
+        hasher.update(b"\x1fextras\x1f")
+        for key, mtime_ns in extras:
+            hasher.update(key.encode("utf-8"))
+            hasher.update(b"\x00")
+            hasher.update(b"missing" if mtime_ns is None else str(mtime_ns).encode("ascii"))
+            hasher.update(b"\n")
     return hasher.hexdigest()
 
 
@@ -1193,12 +1234,58 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                 f"Unknown project '{project_id}'. Available projects: {available}"
             )
 
+        # ---- Plan selection (runs before cache lookup) ----------------------
+        # The cache hash must cover every file whose content can land in the
+        # bundle, including internal plan sources that live outside the project
+        # subtree. We therefore select the plan first so its source list is
+        # available when we fold extras into the content hash. Plan selection
+        # is a small number of YAML reads from the project's plans/ folder, so
+        # paying this cost on every call (including cache hits) is cheap
+        # relative to a silently stale bundle.
+        with _span(timings, "plan_selection"):
+            selected_plan_path, plan_context = _select_current_plan(project_root, root)
+        effective_include_profile = (
+            include_profile_preference
+            if include_profile_preference is not None
+            else plan_context is None
+        )
+
         # ---- Cache lookup ----------------------------------------------------
-        # Compute the content hash up-front so a hit short-circuits every
-        # section-assembly span below. A miss falls through to the normal
-        # render path and the bundle is persisted at the end of the function.
+        # Content hash folds in external files that can be inlined: session
+        # notes, user profile, and internal plan sources. The conditioning
+        # mirrors what the renderer below actually reads, so we do not bust
+        # the cache on files we never read. A miss falls through to the
+        # normal render path and the bundle is persisted at the end of the
+        # function.
         with _span(timings, "cache_lookup"):
-            content_hash = _compute_project_content_hash(project_root)
+            extra_hash_paths: list[Path] = []
+            if include_notes:
+                extra_hash_paths.append(root / "memory" / "working" / "CURRENT.md")
+            if effective_include_profile:
+                extra_hash_paths.append(root / "memory" / "users" / "SUMMARY.md")
+            if include_sources and plan_context is not None:
+                plan_sources = cast(
+                    list[dict[str, Any]], plan_context.get("sources") or []
+                )
+                for source in plan_sources:
+                    if source.get("type") != "internal":
+                        continue
+                    source_rel = str(source.get("path") or "")
+                    if not source_rel:
+                        continue
+                    # Plan source paths are stored with the content prefix
+                    # (e.g. "core/tools/context-source.md") while `root` is
+                    # already the content root. Reuse the same resolver the
+                    # renderer uses below so the hash tracks the exact file
+                    # the bundle would inline — or a stable "missing" marker
+                    # when the source doesn't resolve.
+                    resolved = _resolve_repo_relative_path(root, source_rel)
+                    extra_hash_paths.append(
+                        resolved if resolved is not None else root / source_rel
+                    )
+            content_hash = _compute_project_content_hash(
+                project_root, extra_paths=extra_hash_paths
+            )
             params_key = _compute_params_key(
                 max_chars=max_chars,
                 include_sources=include_sources,
@@ -1226,14 +1313,6 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                 "budget_ms": effective_time_budget_ms,
             }
             return _assemble_markdown_response(cached_metadata, cached_sections)
-
-        with _span(timings, "plan_selection"):
-            selected_plan_path, plan_context = _select_current_plan(project_root, root)
-        effective_include_profile = (
-            include_profile_preference
-            if include_profile_preference is not None
-            else plan_context is None
-        )
         next_action_metadata = _compact_next_action(
             None
             if plan_context is None
