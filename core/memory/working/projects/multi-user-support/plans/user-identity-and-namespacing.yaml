@@ -19,7 +19,7 @@ work:
   phases:
     - id: env-identity
       title: Add MEMORY_USER_ID env var and resolve identity at MCP startup.
-      status: pending
+      status: completed
       commit: null
       blockers: []
       sources:
@@ -36,9 +36,15 @@ work:
         - path: core/tools/agent_memory_mcp/session_state.py
           action: update
           description: Add user_id field to SessionState; include in all ACCESS log entries and session recordings.
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: Thread resolved user_id into ACCESS logging, checkpoint metadata, and recorded session summaries.
         - path: agent-bootstrap.toml
           action: update
           description: Document MEMORY_USER_ID in the config reference.
+        - path: core/tools/tests/test_multi_user_env_identity.py
+          action: create
+          description: Focused coverage for startup env resolution plus user_id propagation into ACCESS and session artifacts.
       postconditions:
         - description: SessionState.user_id is populated from MEMORY_USER_ID
           type: grep
@@ -47,7 +53,7 @@ work:
 
     - id: session-namespace
       title: Namespace session activity paths per user.
-      status: pending
+      status: completed
       commit: null
       blockers:
         - env-identity
@@ -62,6 +68,24 @@ work:
         - path: core/memory/activity/SUMMARY.md
           action: update
           description: Add user attribution to activity index entries.
+        - path: core/tools/agent_memory_mcp/path_policy.py
+          action: update
+          description: Accept user-scoped canonical session ids and provide helpers for namespaced session routing.
+        - path: core/tools/agent_memory_mcp/sidecar/cli.py
+          action: update
+          description: Allocate user-scoped session ids when MEMORY_USER_ID is set so sidecar-written dialogue and traces land beside the namespaced session summary.
+        - path: core/tools/agent_memory_mcp/proxy/cli.py
+          action: update
+          description: Accept namespaced session ids in proxy request validation.
+        - path: core/tools/tests/test_multi_user_env_identity.py
+          action: update
+          description: Extend focused multi-user tests to verify namespaced session paths, activity index attribution, and dialogue querying.
+        - path: core/tools/tests/test_sidecar_cli.py
+          action: update
+          description: Verify the sidecar allocator emits user-scoped session ids when MEMORY_USER_ID is configured.
+        - path: core/tools/tests/test_proxy_cli.py
+          action: update
+          description: Verify proxy session-id validation accepts user-scoped canonical ids.
       postconditions:
         - Sessions recorded with MEMORY_USER_ID=alex land under memory/activity/alex/
         - Sessions recorded without MEMORY_USER_ID use the existing flat path for backward compat

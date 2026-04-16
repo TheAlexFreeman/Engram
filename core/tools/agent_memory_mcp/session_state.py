@@ -48,6 +48,7 @@ class SessionState:
     """Mutable per-connection MCP session state shared across tool handlers."""
 
     session_start: datetime = field(default_factory=_utcnow)
+    user_id: str | None = None
     files_read: list[str] = field(default_factory=list)
     files_written: list[str] = field(default_factory=list)
     tool_calls: int = 0
@@ -127,6 +128,7 @@ class SessionState:
         advisory = self.get_advisory(now=now)
         return {
             "session_start": self.session_start.isoformat(),
+            "user_id": self.user_id,
             "files_read": list(self.files_read),
             "files_written": list(self.files_written),
             "tool_calls_this_session": self.tool_calls,
@@ -158,8 +160,8 @@ class SessionState:
         return {"reset": True, **self.snapshot(now=self.session_start)}
 
 
-def create_session_state() -> SessionState:
-    return SessionState()
+def create_session_state(*, user_id: str | None = None) -> SessionState:
+    return SessionState(user_id=user_id)
 
 
 __all__ = ["SessionAdvisory", "SessionState", "create_session_state"]

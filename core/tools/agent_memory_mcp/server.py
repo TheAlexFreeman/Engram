@@ -11,6 +11,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from .git_repo import GitRepo
+from .path_policy import validate_slug
 from .session_state import create_session_state
 from .tools import read_tools, semantic, write_tools
 
@@ -20,6 +21,13 @@ DeletePermissionHook = Callable[[str], None]
 def _env_flag_enabled(name: str) -> bool:
     value = os.environ.get(name, "").strip().lower()
     return value in {"1", "true", "yes", "on"}
+
+
+def _resolve_user_id() -> str | None:
+    raw_user_id = os.environ.get("MEMORY_USER_ID", "").strip()
+    if not raw_user_id:
+        return None
+    return validate_slug(raw_user_id, field_name="MEMORY_USER_ID")
 
 
 def resolve_repo_root(explicit_root: str | Path | None = None) -> Path:
@@ -154,7 +162,7 @@ def create_mcp(
     def get_root() -> Path:
         return repo.content_root
 
-    session_state = create_session_state()
+    session_state = create_session_state(user_id=_resolve_user_id())
     tools: dict[str, object] = {}
     tools.update(read_tools.register(mcp, get_repo, get_root, session_state=session_state))
     raw_write_tools_enabled = (

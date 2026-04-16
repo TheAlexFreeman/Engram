@@ -36,7 +36,9 @@ _DEFAULT_IDLE_TIMEOUT = timedelta(minutes=30)
 _DEFAULT_MAINTENANCE_INTERVAL = 30.0
 _SESSION_ID_HEADER = "x-engram-session-id"
 _PROJECT_HEADER = "x-engram-project"
-_CHAT_ID_RE = re.compile(r"^memory/activity/\d{4}/\d{2}/\d{2}/chat-\d{3}$")
+_CHAT_ID_RE = re.compile(
+    r"^memory/activity/(?:[a-z0-9]+(?:-[a-z0-9]+)*/)?\d{4}/\d{2}/\d{2}/chat-\d{3}$"
+)
 
 
 @dataclass(slots=True)

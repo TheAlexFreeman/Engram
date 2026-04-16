@@ -2,10 +2,10 @@
 active_plans: 5
 cognitive_mode: planning
 created: 2026-04-03
-current_focus: Highest-priority active project. Start with `user-identity-and-namespacing`
-  at `env-identity`: add `MEMORY_USER_ID`, thread `user_id` into SessionState,
-  and establish the identity foundation that every other multi-user plan depends on.
-last_activity: '2026-04-15'
+current_focus: `user-identity-and-namespacing` cleared `session-namespace`. Next
+  up is `working-namespace`: scope `memory/working` per user while keeping
+  shared project plans readable across the repo.
+last_activity: '2026-04-16'
 open_questions: 12
 origin_session: memory/activity/2026/04/03/chat-001
 plans: 5
@@ -68,3 +68,9 @@ makes it concrete.
 ## Priority update (2026-04-15)
 
 `multi-user-support` is now the top active project. `skills-expansion` has been closed out, so the next engineering priority is the identity foundation in `user-identity-and-namespacing.yaml`, starting with the `env-identity` phase.
+
+## Progress update (2026-04-16)
+
+`env-identity` is complete. `MEMORY_USER_ID` now resolves at MCP startup, persists on shared `SessionState`, and is written into session metadata plus ACCESS entries. The next implementation phase is `session-namespace`.
+
+`session-namespace` is also complete. Session summaries, checkpoints, reflections, dialogue logs, and session-linked ACCESS entries now route to `memory/activity/{user_id}/...` when `MEMORY_USER_ID` is set, and the existing flat layout remains valid when it is not.
