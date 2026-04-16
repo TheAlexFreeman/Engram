@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, cast
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -18,6 +19,7 @@ if str(REPO_ROOT) not in sys.path:
 from core.tools.agent_memory_mcp.errors import StagingError  # noqa: E402
 from core.tools.agent_memory_mcp.git_repo import GitRepo  # noqa: E402
 from core.tools.agent_memory_mcp.server import create_mcp  # noqa: E402
+from core.tools.agent_memory_mcp import server as server_module  # noqa: E402
 import core.tools.agent_memory_mcp.git_repo as git_repo_module  # noqa: E402
 
 
@@ -76,11 +78,11 @@ class MultiUserConcurrentWriteLockTests(unittest.TestCase):
     def _git_root(self, repo_root: Path) -> Path:
         return repo_root if (repo_root / ".git").exists() else repo_root.parent
 
-    def _add_linked_worktree(self, repo_root: Path, name: str) -> Path:
+    def _add_linked_worktree(self, repo_root: Path, name: str, *, ref: str = "HEAD") -> Path:
         git_root = self._git_root(repo_root)
         worktree_root = self.temp_root / name
         subprocess.run(
-            ["git", "worktree", "add", str(worktree_root), "HEAD"],
+            ["git", "worktree", "add", str(worktree_root), ref],
             cwd=git_root,
             check=True,
             capture_output=True,
@@ -153,6 +155,44 @@ class MultiUserConcurrentWriteLockTests(unittest.TestCase):
         )
 
         self.assertEqual(payload["publication"]["writer_lock"], "exclusive-repo-common-dir")
+
+    def test_create_mcp_captures_publication_baseline_for_linked_worktree(self) -> None:
+        repo_root = self._init_repo({"memory/knowledge/README.md": "# Knowledge\n"})
+        git_root = self._git_root(repo_root)
+        subprocess.run(
+            ["git", "branch", "-M", "alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        linked_repo_root = self._add_linked_worktree(repo_root, "linked")
+        captured: dict[str, object] = {}
+
+        def fake_read_register(mcp, get_repo, get_root, session_state=None):
+            captured["read"] = session_state
+            return {}
+
+        def fake_semantic_register(mcp, get_repo, get_root, session_state=None):
+            captured["semantic"] = session_state
+            return {}
+
+        with (
+            mock.patch.object(server_module.read_tools, "register", side_effect=fake_read_register),
+            mock.patch.object(
+                server_module.semantic, "register", side_effect=fake_semantic_register
+            ),
+        ):
+            server_module.create_mcp(repo_root=linked_repo_root)
+
+        state = cast(Any, captured["read"])
+        linked_repo = GitRepo(linked_repo_root, content_prefix="core")
+
+        self.assertIs(captured["read"], captured["semantic"])
+        self.assertIsNone(state.publication_base_branch)
+        self.assertIsNone(state.publication_base_ref)
+        self.assertEqual(state.publication_worktree_root, str(linked_repo.root))
+        self.assertEqual(state.publication_git_common_dir, str(linked_repo.git_common_dir))
 
 
 if __name__ == "__main__":

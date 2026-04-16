@@ -2,9 +2,10 @@
 active_plans: 4
 cognitive_mode: planning
 created: 2026-04-03
-current_focus: `concurrent-session-writes` is now the highest-priority follow-on.
-  The first implementation slice moves publication locking into the shared git
-  common dir so linked worktrees cannot publish concurrently into the same repo.
+current_focus: `concurrent-session-writes` remains the highest-priority follow-on.
+  The repo-common writer lock is in place, and the latest slice now captures a
+  stable startup publication baseline in `SessionState` so later branch
+  isolation and auto-merge work can rely on fixed branch/worktree metadata.
 last_activity: '2026-04-16'
 open_questions: 12
 origin_session: memory/activity/2026/04/03/chat-001
@@ -91,4 +92,6 @@ The reason is practical: `frontmatter-visibility` starts with approval-gated sch
 
 The first `concurrent-session-writes` slice is now in place. `GitRepo` resolves the repository common git dir, uses that shared state location for Engram runtime state, and publishes through a repo-common writer lock. Focused linked-worktree tests now verify that two worktrees share the same Engram state directory, that a publish from one worktree blocks when the shared lock is held by another, and that publication metadata reflects the repo-common lock mode. Existing single-worktree lock coverage still passes.
 
-`frontmatter-visibility` remains the next major follow-on after the concurrency foundation is safer.
+The next groundwork slice is also in place. `SessionState` now captures the startup publication branch/ref plus the originating worktree root and shared git common dir, and `create_mcp()` seeds those values when the MCP session boots. This keeps a stable publication baseline available even if later branch-per-session flows change the live checkout state, and it also records detached linked-worktree sessions without inventing a branch that does not exist.
+
+The next unresolved `concurrent-session-writes` step is still `branch-strategy`: create isolated per-session branches from that captured startup baseline and route writes onto them before tackling auto-merge.

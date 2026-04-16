@@ -18,6 +18,35 @@ purpose:
     - "How should the system handle merge conflicts in knowledge files? Auto-resolve by keeping both versions in separate sections, or block and require human review?"
 work:
   phases:
+    - id: startup-baseline
+      title: Capture stable startup publication metadata.
+      status: completed
+      commit: null
+      blockers: []
+      sources:
+        - path: core/tools/agent_memory_mcp/session_state.py
+          type: internal
+          intent: Persist a stable publication baseline across the MCP session
+        - path: core/tools/agent_memory_mcp/server.py
+          type: internal
+          intent: Capture startup branch and worktree metadata when the session boots
+        - path: core/tools/agent_memory_mcp/git_repo.py
+          type: internal
+          intent: Expose current branch metadata without forcing an attached HEAD
+      changes:
+        - path: core/tools/agent_memory_mcp/session_state.py
+          action: update
+          description: Store startup publication branch/ref/worktree/common-dir metadata on SessionState and preserve it across reset snapshots.
+        - path: core/tools/agent_memory_mcp/server.py
+          action: update
+          description: Seed SessionState with the repo's startup publication baseline during MCP initialization.
+        - path: core/tools/agent_memory_mcp/git_repo.py
+          action: update
+          description: Add non-throwing branch inspection helpers so startup can capture attached and detached HEAD baselines.
+      postconditions:
+        - MCP sessions record a stable startup publication baseline before later branch isolation mutates repo state
+        - Detached linked-worktree sessions still retain worktree and common-dir identity even when no branch is attached
+
     - id: branch-strategy
       title: Implement branch-per-session write isolation.
       status: pending

@@ -369,14 +369,32 @@ class GitRepo:
         result = self._run(cmd, check=False)
         return result.returncode == 1
 
-    def _current_branch_ref(self) -> str:
+    def current_branch_ref(self) -> str | None:
+        """Return the current HEAD symbolic ref, or None when detached."""
         result = self._run(["git", "symbolic-ref", "--quiet", "HEAD"], check=False)
         if result.returncode != 0:
+            return None
+        ref = result.stdout.strip()
+        return ref or None
+
+    def current_branch_name(self) -> str | None:
+        """Return the current branch name, or None when detached."""
+        ref = self.current_branch_ref()
+        if ref is None:
+            return None
+        prefix = "refs/heads/"
+        if ref.startswith(prefix):
+            return ref[len(prefix) :]
+        return ref
+
+    def _current_branch_ref(self) -> str:
+        ref = self.current_branch_ref()
+        if ref is None:
             raise StagingError(
                 "The memory repository is in detached HEAD state. Attach HEAD to a branch "
                 "before publishing writes."
             )
-        return result.stdout.strip()
+        return ref
 
     def _direct_update_ref(self, ref: str, new_sha: str, expected_old: str) -> None:
         """Write a ref file directly, bypassing git update-ref.

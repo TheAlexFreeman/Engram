@@ -162,7 +162,13 @@ def create_mcp(
     def get_root() -> Path:
         return repo.content_root
 
-    session_state = create_session_state(user_id=_resolve_user_id())
+    session_state = create_session_state(
+        user_id=_resolve_user_id(),
+        publication_base_branch=repo.current_branch_name(),
+        publication_base_ref=repo.current_branch_ref(),
+        publication_worktree_root=str(repo.root),
+        publication_git_common_dir=str(repo.git_common_dir),
+    )
     tools: dict[str, object] = {}
     tools.update(read_tools.register(mcp, get_repo, get_root, session_state=session_state))
     raw_write_tools_enabled = (
