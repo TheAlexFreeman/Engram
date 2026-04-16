@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -435,6 +436,118 @@ work:
             tool = cast(Any, tools["memory_context_project"])
             with self.assertRaises(ValidationError):
                 asyncio.run(tool(project="demo-project", include_in_manifest="bogus"))
+        finally:
+            tmp.cleanup()
+
+    def test_cache_miss_then_hit_on_second_call(self) -> None:
+        """Second identical call returns ``cache_hit: true`` from the on-disk cache."""
+        tmp, tools = self._create_tools()
+        try:
+            root = Path(tmp.name)
+            tool = cast(Any, tools["memory_context_project"])
+
+            first = asyncio.run(tool(project="demo-project"))
+            first_meta, _ = _parse_context_response(first)
+            self.assertFalse(first_meta["cache_hit"])
+
+            cache_file = (
+                root
+                / "core"
+                / "memory"
+                / "working"
+                / "projects"
+                / "demo-project"
+                / ".context-cache.json"
+            )
+            self.assertTrue(cache_file.is_file())
+
+            second = asyncio.run(tool(project="demo-project"))
+            second_meta, _ = _parse_context_response(second)
+            self.assertTrue(second_meta["cache_hit"])
+            # Cache-hit timings reflect *this* call, not the first render.
+            self.assertIn(
+                "cache_lookup", {span["name"] for span in second_meta["timings"]["spans"]}
+            )
+        finally:
+            tmp.cleanup()
+
+    def test_cache_invalidates_when_project_file_changes(self) -> None:
+        """Editing any file under the project subtree busts the cache."""
+        tmp, tools = self._create_tools()
+        try:
+            root = Path(tmp.name)
+            tool = cast(Any, tools["memory_context_project"])
+
+            asyncio.run(tool(project="demo-project"))  # populate cache
+
+            summary_path = (
+                root / "core" / "memory" / "working" / "projects" / "demo-project" / "SUMMARY.md"
+            )
+            # Write new content *and* bump mtime; both signal a change in the hash.
+            summary_path.write_text(
+                "# Project\n\nRevised summary content.",
+                encoding="utf-8",
+            )
+            # On Windows the resolution of mtime can equal the prior write; force
+            # a distinct mtime_ns via os.utime so the hash actually differs.
+            import os
+
+            stat = summary_path.stat()
+            os.utime(summary_path, ns=(stat.st_atime_ns + 1, stat.st_mtime_ns + 10_000_000))
+
+            payload = asyncio.run(tool(project="demo-project"))
+            meta, _ = _parse_context_response(payload)
+            self.assertFalse(meta["cache_hit"])
+        finally:
+            tmp.cleanup()
+
+    def test_cache_differentiates_by_params(self) -> None:
+        """Two calls with different params don't share a cache entry."""
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project"])
+
+            # Prime the default (include_plan_sources=False) cache.
+            first = asyncio.run(tool(project="demo-project"))
+            first_meta, _ = _parse_context_response(first)
+            self.assertFalse(first_meta["cache_hit"])
+
+            # Different params → miss, even though content is unchanged.
+            second = asyncio.run(tool(project="demo-project", include_plan_sources=True))
+            second_meta, _ = _parse_context_response(second)
+            self.assertFalse(second_meta["cache_hit"])
+
+            # Third call mirrors the second — should now hit.
+            third = asyncio.run(tool(project="demo-project", include_plan_sources=True))
+            third_meta, _ = _parse_context_response(third)
+            self.assertTrue(third_meta["cache_hit"])
+        finally:
+            tmp.cleanup()
+
+    def test_cache_not_written_when_truncated(self) -> None:
+        """Partial bundles (time budget exceeded) must not poison the cache."""
+        tmp, tools = self._create_tools()
+        try:
+            root = Path(tmp.name)
+            tool = cast(Any, tools["memory_context_project"])
+
+            payload = asyncio.run(tool(project="demo-project", time_budget_ms=1))
+            meta, _ = _parse_context_response(payload)
+            self.assertTrue(meta["truncated"])
+
+            cache_file = (
+                root
+                / "core"
+                / "memory"
+                / "working"
+                / "projects"
+                / "demo-project"
+                / ".context-cache.json"
+            )
+            # Partial renders must not persist; the next call should miss cleanly
+            # under normal parameters so we do not ship a truncated bundle to
+            # callers who asked for the full path.
+            self.assertFalse(cache_file.is_file())
         finally:
             tmp.cleanup()
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import time
@@ -726,6 +727,136 @@ _IN_MANIFEST_MAX_ITEMS = 20
 _PLAN_SOURCES_MAX_COUNT = 10
 _PLAN_SOURCES_MAX_CHARS = 8 * 1024
 
+# On-disk cache for memory_context_project. The schema version is bumped
+# whenever the stored payload shape changes (metadata keys, section fields,
+# hash algorithm, etc.) so old caches are treated as misses after a server
+# upgrade. Content hash is derived from (rel_path, mtime_ns) of every file
+# under the project subtree, so any write — committed or uncommitted —
+# invalidates. Params key hashes the shape-affecting parameters (include
+# flags, max_chars, user_profile preference) so two callers with different
+# opt-ins don't share a bundle. See cold-start roadmap P0-A step 6.
+_CONTEXT_CACHE_SCHEMA_VERSION = 1
+_CONTEXT_CACHE_FILENAME = ".context-cache.json"
+
+
+def _compute_project_content_hash(project_root: Path) -> str:
+    """Hash every file under ``project_root`` by (rel_path, mtime_ns).
+
+    Includes the cache file itself is suppressed — otherwise writing the
+    cache would invalidate it on the next read. Symlinks and non-regular
+    files are skipped. Path separators are normalized to ``/`` so the hash
+    is stable across Windows and POSIX.
+    """
+    hasher = hashlib.sha256()
+    entries: list[tuple[str, int]] = []
+    for file_path in project_root.rglob("*"):
+        if not file_path.is_file():
+            continue
+        if file_path.name == _CONTEXT_CACHE_FILENAME:
+            continue
+        try:
+            mtime_ns = file_path.stat().st_mtime_ns
+        except OSError:
+            continue
+        rel = file_path.relative_to(project_root).as_posix()
+        entries.append((rel, mtime_ns))
+    entries.sort()
+    for rel, mtime_ns in entries:
+        hasher.update(rel.encode("utf-8"))
+        hasher.update(b"\x00")
+        hasher.update(str(mtime_ns).encode("ascii"))
+        hasher.update(b"\n")
+    return hasher.hexdigest()
+
+
+def _compute_params_key(
+    *,
+    max_chars: int,
+    include_sources: bool,
+    in_manifest_mode: str,
+    include_notes: bool,
+    include_profile_preference: bool | None,
+    time_budget_ms: int,
+) -> str:
+    """Hash the response-shape-affecting parameters.
+
+    ``time_budget_ms`` is included because different budgets can legitimately
+    produce different ``sections_omitted`` lists for the same project state;
+    returning a bundle built under one budget to a caller asking under another
+    would mislabel truncation.
+    """
+    payload = json.dumps(
+        {
+            "max_chars": max_chars,
+            "include_plan_sources": include_sources,
+            "in_manifest_mode": in_manifest_mode,
+            "include_session_notes": include_notes,
+            "include_user_profile": include_profile_preference,
+            "time_budget_ms": time_budget_ms,
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _cache_path_for(project_root: Path) -> Path:
+    return project_root / _CONTEXT_CACHE_FILENAME
+
+
+def _load_cached_bundle(
+    cache_path: Path, *, content_hash: str, params_key: str
+) -> dict[str, Any] | None:
+    """Return cached {metadata, sections} if the cache hits, else None.
+
+    Any IO or parse error is treated as a miss rather than a hard failure —
+    a stale or corrupt cache file must not break the tool.
+    """
+    if not cache_path.is_file():
+        return None
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema_version") != _CONTEXT_CACHE_SCHEMA_VERSION:
+        return None
+    if payload.get("content_hash") != content_hash:
+        return None
+    if payload.get("params_key") != params_key:
+        return None
+    metadata = payload.get("metadata")
+    sections = payload.get("sections")
+    if not isinstance(metadata, dict) or not isinstance(sections, list):
+        return None
+    return {"metadata": metadata, "sections": sections}
+
+
+def _write_cached_bundle(
+    cache_path: Path,
+    *,
+    content_hash: str,
+    params_key: str,
+    metadata: dict[str, Any],
+    sections: list[dict[str, str]],
+) -> None:
+    """Persist the rendered bundle. IO failures are swallowed — caching is
+    best-effort and must never break the tool's primary response."""
+    payload = {
+        "schema_version": _CONTEXT_CACHE_SCHEMA_VERSION,
+        "content_hash": content_hash,
+        "params_key": params_key,
+        "metadata": metadata,
+        "sections": sections,
+    }
+    try:
+        cache_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        return
+
 
 def _render_in_manifest(project_root: Path, root: Path) -> tuple[str, list[str], int]:
     """Render an ``IN/`` manifest capped at the most recent files.
@@ -990,6 +1121,40 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
             raise ValidationError(
                 f"Unknown project '{project_id}'. Available projects: {available}"
             )
+
+        # ---- Cache lookup ----------------------------------------------------
+        # Compute the content hash up-front so a hit short-circuits every
+        # section-assembly span below. A miss falls through to the normal
+        # render path and the bundle is persisted at the end of the function.
+        with _span(timings, "cache_lookup"):
+            content_hash = _compute_project_content_hash(project_root)
+            params_key = _compute_params_key(
+                max_chars=max_chars,
+                include_sources=include_sources,
+                in_manifest_mode=in_manifest_mode,
+                include_notes=include_notes,
+                include_profile_preference=include_profile_preference,
+                time_budget_ms=effective_time_budget_ms,
+            )
+            cache_path = _cache_path_for(project_root)
+            cached = _load_cached_bundle(
+                cache_path, content_hash=content_hash, params_key=params_key
+            )
+        if cached is not None:
+            cached_metadata = cast(dict[str, Any], dict(cached["metadata"]))
+            cached_sections = cast(list[dict[str, str]], cached["sections"])
+            # Runtime-specific fields must be refreshed on every hit so the
+            # caller sees *this* call's timings rather than the original
+            # render's. Everything else (loaded_files, next_action, plan_id,
+            # budget_report) is safe to replay from cache because it's
+            # derived from the content we hashed.
+            cached_metadata["cache_hit"] = True
+            cached_metadata["timings"] = {
+                "total_ms": timings.total_ms(),
+                "spans": timings.spans(),
+                "budget_ms": effective_time_budget_ms,
+            }
+            return _assemble_markdown_response(cached_metadata, cached_sections)
 
         with _span(timings, "plan_selection"):
             selected_plan_path, plan_context = _select_current_plan(project_root, root)
@@ -1474,7 +1639,26 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
             "sections_omitted": sections_omitted,
             "more_in_items": more_in_items,
             "more_plan_sources": more_plan_sources,
+            "cache_hit": False,
         }
+
+        # Persist the cache after a clean render. Writing a partial (truncated)
+        # bundle would mean that subsequent callers under the same params-key
+        # receive truncated content even when the cause (time pressure,
+        # over-budget char limit) is transient. Only cache complete bundles.
+        if not sections_omitted:
+            # Store a timing-stripped copy so cache hits don't mislabel
+            # previously-measured latency as if it were this call's.
+            cacheable_metadata = dict(metadata)
+            cacheable_metadata.pop("timings", None)
+            _write_cached_bundle(
+                cache_path,
+                content_hash=content_hash,
+                params_key=params_key,
+                metadata=cacheable_metadata,
+                sections=sections,
+            )
+
         return _assemble_markdown_response(metadata, sections)
 
     return {
