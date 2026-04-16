@@ -56,6 +56,12 @@ read_support = [
   "memory_session_bootstrap",
   "memory_context_home",
   "memory_context_project",
+  # memory_context_project_lite: strictly-bounded fast-path for the enriched
+  # bundle. Reads SUMMARY.md + plan IDs/status only; skips IN/ manifest,
+  # plan sources, session notes, user profile, and the on-disk cache.
+  # Use as a safety valve when the enriched path has tripped its time budget
+  # or when bootstrap needs guaranteed-responsive latency.
+  "memory_context_project_lite",
   "memory_prepare_unverified_review",
   "memory_prepare_promotion_batch",
   "memory_prepare_periodic_review",

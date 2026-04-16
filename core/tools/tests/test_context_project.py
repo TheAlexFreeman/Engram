@@ -490,8 +490,6 @@ work:
             )
             # On Windows the resolution of mtime can equal the prior write; force
             # a distinct mtime_ns via os.utime so the hash actually differs.
-            import os
-
             stat = summary_path.stat()
             os.utime(summary_path, ns=(stat.st_atime_ns + 1, stat.st_mtime_ns + 10_000_000))
 
@@ -896,5 +894,181 @@ work:
             metadata, _ = _parse_context_response(payload)
 
             self.assertEqual(metadata.get("more_plan_sources"), 0)
+        finally:
+            tmp.cleanup()
+
+    # --- memory_context_project_lite (P0-A step 7) ---
+
+    def test_lite_returns_summary_and_plan_listing(self) -> None:
+        """Lite tool renders SUMMARY body + a plans table, nothing more."""
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project_lite"])
+            payload = asyncio.run(tool(project="demo-project"))
+            metadata, body = _parse_context_response(payload)
+
+            self.assertEqual(metadata["tool"], "memory_context_project_lite")
+            self.assertEqual(metadata["project"], "demo-project")
+            self.assertEqual(metadata["plan_count"], 1)
+            self.assertEqual(metadata["active_plan_count"], 1)
+            self.assertEqual(metadata["active_plan_ids"], ["project-plan"])
+            self.assertEqual(
+                metadata["plans"],
+                [{"id": "project-plan", "status": "active", "file": "project-plan.yaml"}],
+            )
+            # Nothing expensive was loaded — no User Profile, IN staging, sources,
+            # or session notes.
+            self.assertIn("## Project Summary", body)
+            self.assertIn("## Plans", body)
+            self.assertNotIn("## User Profile", body)
+            self.assertNotIn("## IN Staging", body)
+            self.assertNotIn("## Current Session Notes", body)
+            self.assertNotIn("## Source: ", body)
+            # Lite tool never writes a cache file.
+            self.assertNotIn("cache_hit", metadata)
+        finally:
+            tmp.cleanup()
+
+    def test_lite_unknown_project_raises_validation_error(self) -> None:
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project_lite"])
+            with self.assertRaises(ValidationError) as ctx:
+                asyncio.run(tool(project="unknown-project"))
+            self.assertIn("Available projects: demo-project", str(ctx.exception))
+        finally:
+            tmp.cleanup()
+
+    def test_lite_missing_summary_degrades_gracefully(self) -> None:
+        """A project with no SUMMARY.md still returns a (plans-only) response."""
+        tmp, tools = self._create_tools()
+        try:
+            root = Path(tmp.name)
+            # Remove the SUMMARY that _build_project_repo created; plans stay.
+            summary = (
+                root / "core" / "memory" / "working" / "projects" / "demo-project" / "SUMMARY.md"
+            )
+            summary.unlink()
+
+            tool = cast(Any, tools["memory_context_project_lite"])
+            payload = asyncio.run(tool(project="demo-project"))
+            metadata, body = _parse_context_response(payload)
+
+            self.assertNotIn("## Project Summary", body)
+            self.assertIn("## Plans", body)
+            self.assertTrue(
+                any(
+                    cast(dict[str, Any], item).get("name") == "Project Summary"
+                    and cast(dict[str, Any], item).get("reason") == "missing"
+                    for item in metadata["budget_report"]["sections_dropped"]
+                )
+            )
+        finally:
+            tmp.cleanup()
+
+    def test_lite_missing_plans_folder_is_not_an_error(self) -> None:
+        """A project with no plans/ folder still returns the SUMMARY body."""
+        tmp, tools = self._create_tools(include_plan=False)
+        try:
+            tool = cast(Any, tools["memory_context_project_lite"])
+            payload = asyncio.run(tool(project="demo-project"))
+            metadata, body = _parse_context_response(payload)
+
+            self.assertEqual(metadata["plan_count"], 0)
+            self.assertEqual(metadata["active_plan_count"], 0)
+            self.assertEqual(metadata["active_plan_ids"], [])
+            self.assertIn("## Project Summary", body)
+            self.assertNotIn("## Plans", body)
+            self.assertTrue(
+                any(
+                    cast(dict[str, Any], item).get("name") == "Plans"
+                    and cast(dict[str, Any], item).get("reason") == "missing"
+                    for item in metadata["budget_report"]["sections_dropped"]
+                )
+            )
+        finally:
+            tmp.cleanup()
+
+    def test_lite_plan_listing_surfaces_non_active_plans(self) -> None:
+        """Completed/draft plans show up in the listing but not in active_plan_ids."""
+        tmp, tools = self._create_tools(include_plan=True)
+        try:
+            root = Path(tmp.name)
+            # Add a second plan with a different status so the ordering and
+            # active-filter behavior are exercised.
+            _write(
+                root,
+                "core/memory/working/projects/demo-project/plans/draft-plan.yaml",
+                """id: draft-plan
+project: demo-project
+status: draft
+purpose:
+  summary: Draft plan summary
+  context: Draft plan context
+work:
+  phases:
+    - id: phase-a
+      title: Draft phase
+      status: pending
+""",
+            )
+
+            tool = cast(Any, tools["memory_context_project_lite"])
+            payload = asyncio.run(tool(project="demo-project"))
+            metadata, _ = _parse_context_response(payload)
+
+            self.assertEqual(metadata["plan_count"], 2)
+            self.assertEqual(metadata["active_plan_count"], 1)
+            self.assertEqual(metadata["active_plan_ids"], ["project-plan"])
+            # active status (0) sorts before draft status (1).
+            plan_ids_in_order = [cast(dict[str, Any], entry)["id"] for entry in metadata["plans"]]
+            self.assertEqual(plan_ids_in_order, ["project-plan", "draft-plan"])
+        finally:
+            tmp.cleanup()
+
+    def test_lite_skips_no_cache_write(self) -> None:
+        """Lite does not create or consult the .context-cache.json file."""
+        tmp, tools = self._create_tools()
+        try:
+            root = Path(tmp.name)
+            cache_file = (
+                root
+                / "core"
+                / "memory"
+                / "working"
+                / "projects"
+                / "demo-project"
+                / ".context-cache.json"
+            )
+
+            tool = cast(Any, tools["memory_context_project_lite"])
+            # Call twice — cache would materialize by the second call if the
+            # tool were using the cache layer.
+            asyncio.run(tool(project="demo-project"))
+            asyncio.run(tool(project="demo-project"))
+
+            self.assertFalse(cache_file.exists())
+        finally:
+            tmp.cleanup()
+
+    def test_lite_completes_quickly(self) -> None:
+        """Sanity check: lite reports its own wall-clock and it is small.
+
+        The roadmap's <500ms guarantee assumes projects of arbitrary size.
+        On a minimal fixture this should finish in well under 500ms; a large
+        regression would be obvious in the timings field.
+        """
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project_lite"])
+            payload = asyncio.run(tool(project="demo-project"))
+            metadata, _ = _parse_context_response(payload)
+
+            timings = cast(dict[str, Any], metadata["timings"])
+            # Self-reported total_ms must be both present and under a loose
+            # regression ceiling. Keep this well above the actual observed
+            # time to avoid flakiness on slow CI.
+            self.assertIn("total_ms", timings)
+            self.assertLess(float(timings["total_ms"]), 500.0)
         finally:
             tmp.cleanup()

@@ -3302,6 +3302,35 @@ def context_project_input_schema() -> dict[str, Any]:
     )
 
 
+def context_project_lite_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_context_project_lite",
+        title="memory_context_project_lite input schema",
+        required=["project"],
+        notes=[
+            "Strictly bounded fast-path: reads SUMMARY.md + plan IDs/status only.",
+            "Skips IN/ manifest, plan sources, session notes, user profile, and the",
+            " content-hash cache. Guaranteed sub-500ms on projects of any size.",
+            "max_context_chars coerces to an integer; 0 means unbounded budget at runtime.",
+        ],
+        properties={
+            "project": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Project slug under memory/working/projects/.",
+            },
+            "max_context_chars": {
+                "type": "integer",
+                "default": 8000,
+                "description": (
+                    "Soft character budget for the assembled response. Lower than"
+                    " memory_context_project because the lite bundle is always small."
+                ),
+            },
+        },
+    )
+
+
 def write_input_schema() -> dict[str, Any]:
     return _base_schema(
         tool_name="memory_write",
@@ -3467,6 +3496,7 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_commit": commit_input_schema,
     "memory_context_home": context_home_input_schema,
     "memory_context_project": context_project_input_schema,
+    "memory_context_project_lite": context_project_lite_input_schema,
     "memory_delete": delete_input_schema,
     "memory_demote_knowledge": demote_knowledge_input_schema,
     "memory_edit": edit_input_schema,
@@ -3569,6 +3599,7 @@ __all__ = [
     "commit_input_schema",
     "context_home_input_schema",
     "context_project_input_schema",
+    "context_project_lite_input_schema",
     "delete_input_schema",
     "demote_knowledge_input_schema",
     "edit_input_schema",

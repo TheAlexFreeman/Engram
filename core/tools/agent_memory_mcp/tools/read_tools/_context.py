@@ -858,6 +858,47 @@ def _write_cached_bundle(
         return
 
 
+def _lite_plan_listing(project_root: Path) -> list[dict[str, str]]:
+    """Enumerate plans under ``project_root`` by top-level ``id``/``status`` only.
+
+    Used by ``memory_context_project_lite``. Skips the full
+    :func:`load_plan` validation path (which parses phases, blockers, sources,
+    and postconditions) and does a single ``yaml.safe_load`` per file,
+    reading only the top-level keys. Files that fail to parse as a mapping
+    are skipped silently — lite is best-effort and must never raise.
+
+    Returned entries carry ``id``, ``status``, and ``file`` (the plan's basename).
+    Sorted so active plans come first, then alphabetically by ID so the caller
+    sees a stable ordering.
+    """
+    plans_root = project_root / "plans"
+    if not plans_root.is_dir():
+        return []
+
+    results: list[dict[str, str]] = []
+    for plan_file in sorted(plans_root.glob("*.yaml")):
+        try:
+            doc = yaml.safe_load(plan_file.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            continue
+        if not isinstance(doc, dict):
+            continue
+        results.append(
+            {
+                "id": str(doc.get("id") or plan_file.stem),
+                "status": str(doc.get("status") or "unknown"),
+                "file": plan_file.name,
+            }
+        )
+    results.sort(
+        key=lambda entry: (
+            _PROJECT_STATUS_ORDER.get(entry["status"], 99),
+            entry["id"],
+        )
+    )
+    return results
+
+
 def _render_in_manifest(project_root: Path, root: Path) -> tuple[str, list[str], int]:
     """Render an ``IN/`` manifest capped at the most recent files.
 
@@ -1661,7 +1702,143 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
 
         return _assemble_markdown_response(metadata, sections)
 
+    @mcp.tool(
+        name="memory_context_project_lite",
+        annotations=_tool_annotations(
+            title="Project Context Injector (Lite)",
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def memory_context_project_lite(
+        project: str,
+        max_context_chars: int = 8000,
+    ) -> str:
+        """Strictly-bounded project briefing — SUMMARY.md and plan IDs only.
+
+        Safety valve for :func:`memory_context_project`. Does exactly two things:
+        reads ``memory/working/projects/<project>/SUMMARY.md`` and enumerates
+        plans by top-level ``id``/``status`` (no phase/source/blocker expansion).
+        Every expensive step in the enriched tool — IN/ manifest walk, plan
+        sources inlining, session notes, user profile, content-hash cache —
+        is skipped. Intended to run well under 500ms on projects of any size
+        because it touches a bounded, pre-known set of files.
+
+        Use when:
+        - ``memory_session_bootstrap`` needs a guaranteed-responsive briefing,
+        - ``memory_context_project`` has tripped its time budget twice in a
+          row and the caller wants to make forward progress anyway, or
+        - the caller just needs a plan-name directory and can fetch
+          per-plan detail via :func:`memory_plan_briefing` afterward.
+
+        Not a replacement for ``memory_context_project``: it deliberately
+        omits context an agent needs to *do* the work. It only gives you
+        enough to choose the next tool call.
+        """
+        project_id = validate_slug(project, field_name="project")
+        max_chars = _coerce_max_context_chars(max_context_chars)
+
+        timings = _TimingCollector()
+        root = get_root()
+        projects_root = root / "memory" / "working" / "projects"
+        project_root = projects_root / project_id
+        if not project_root.is_dir():
+            available = ", ".join(_list_project_ids(projects_root)) or "none"
+            raise ValidationError(
+                f"Unknown project '{project_id}'. Available projects: {available}"
+            )
+
+        sections: list[dict[str, str]] = []
+        section_records: list[dict[str, Any]] = []
+        loaded_files: list[str] = []
+        remaining_chars = max_chars
+
+        summary_rel = f"memory/working/projects/{project_id}/SUMMARY.md"
+        with _span(timings, "project_summary"):
+            summary_content, summary_chars_used, summary_reason = _read_section_status(
+                root, summary_rel, remaining_chars
+            )
+        if summary_content is None:
+            section_records.append(
+                {
+                    "name": "Project Summary",
+                    "path": summary_rel,
+                    "chars": 0,
+                    "included": False,
+                    "reason": summary_reason,
+                }
+            )
+        else:
+            sections.append(
+                {"name": "Project Summary", "path": summary_rel, "content": summary_content}
+            )
+            section_records.append(
+                {
+                    "name": "Project Summary",
+                    "path": summary_rel,
+                    "chars": summary_chars_used,
+                    "included": True,
+                    "reason": "included",
+                }
+            )
+            loaded_files.append(summary_rel)
+            if remaining_chars > 0:
+                remaining_chars = max(remaining_chars - summary_chars_used, 0)
+
+        with _span(timings, "plan_listing"):
+            plan_entries = _lite_plan_listing(project_root)
+
+        plans_rel = f"memory/working/projects/{project_id}/plans/"
+        if plan_entries:
+            lines = ["| Plan ID | Status | File |", "|---|---|---|"]
+            for entry in plan_entries:
+                lines.append(f"| {entry['id']} | {entry['status']} | {entry['file']} |")
+            plans_content = "\n".join(lines)
+            remaining_chars, reason = _append_section(
+                sections,
+                section_records,
+                name="Plans",
+                path=plans_rel,
+                content=plans_content,
+                remaining_chars=remaining_chars,
+            )
+            # Even when the table overflows the char budget the caller still
+            # gets the machine-readable list in ``metadata.plans``. No further
+            # handling needed.
+            del reason
+        else:
+            section_records.append(
+                {
+                    "name": "Plans",
+                    "path": plans_rel,
+                    "chars": 0,
+                    "included": False,
+                    "reason": "missing",
+                }
+            )
+
+        active_plan_ids = [entry["id"] for entry in plan_entries if entry["status"] == "active"]
+
+        metadata = {
+            "tool": "memory_context_project_lite",
+            "project": project_id,
+            "plan_count": len(plan_entries),
+            "active_plan_count": len(active_plan_ids),
+            "active_plan_ids": active_plan_ids,
+            "plans": plan_entries,
+            "loaded_files": loaded_files,
+            "budget_report": _build_budget_report(section_records, max_context_chars=max_chars),
+            "timings": {
+                "total_ms": timings.total_ms(),
+                "spans": timings.spans(),
+            },
+        }
+        return _assemble_markdown_response(metadata, sections)
+
     return {
         "memory_context_home": memory_context_home,
         "memory_context_project": memory_context_project,
+        "memory_context_project_lite": memory_context_project_lite,
     }
