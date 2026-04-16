@@ -160,7 +160,8 @@ class MemoryContextProjectTests(unittest.TestCase):
         tmp, tools = self._create_tools()
         try:
             tool = cast(Any, tools["memory_context_project"])
-            payload = asyncio.run(tool(project="demo-project"))
+            # Opt into plan sources explicitly; cold-start default is now off.
+            payload = asyncio.run(tool(project="demo-project", include_plan_sources=True))
             metadata, body = _parse_context_response(payload)
 
             self.assertEqual(metadata["tool"], "memory_context_project")
@@ -296,6 +297,7 @@ work:
                 tool(
                     project="demo-project",
                     max_context_chars=240,
+                    include_plan_sources=True,
                 )
             )
             metadata, body = _parse_context_response(payload)
@@ -347,15 +349,92 @@ work:
             tmp.cleanup()
 
     def test_in_listing_shows_metadata_not_body(self) -> None:
+        """Default (summary mode) shows counts and newest hint, not file bodies."""
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project"])
+            payload = asyncio.run(tool(project="demo-project"))
+            metadata, body = _parse_context_response(payload)
+
+            self.assertIn("## IN Staging", body)
+            # Summary-mode default surfaces the count, not the full table.
+            self.assertIn("1 file staged", body)
+            self.assertIn("staged-note.md", body)
+            self.assertNotIn("secret body", body)
+            # Table header is a full-mode marker — should be absent here.
+            self.assertNotIn("| Path | Trust | Source | Created |", body)
+            self.assertEqual(metadata.get("more_in_items"), 1)
+        finally:
+            tmp.cleanup()
+
+    def test_in_manifest_full_mode_renders_table(self) -> None:
+        """Explicit ``include_in_manifest='full'`` shows the original table."""
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project"])
+            payload = asyncio.run(tool(project="demo-project", include_in_manifest="full"))
+            _, body = _parse_context_response(payload)
+
+            self.assertIn("## IN Staging", body)
+            self.assertIn("| Path | Trust | Source | Created |", body)
+            self.assertIn("staged-note.md", body)
+        finally:
+            tmp.cleanup()
+
+    def test_in_manifest_off_omits_section(self) -> None:
+        """``include_in_manifest=False`` skips IN Staging entirely."""
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project"])
+            payload = asyncio.run(tool(project="demo-project", include_in_manifest=False))
+            metadata, body = _parse_context_response(payload)
+
+            self.assertNotIn("## IN Staging", body)
+            dropped_reasons = {
+                cast(dict[str, Any], item)["name"]: cast(dict[str, Any], item)["reason"]
+                for item in metadata["budget_report"]["sections_dropped"]
+            }
+            self.assertEqual(dropped_reasons.get("IN Staging"), "omitted_by_request")
+        finally:
+            tmp.cleanup()
+
+    def test_include_session_notes_false_omits_current_section(self) -> None:
+        """``include_session_notes=False`` skips Current Session Notes."""
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project"])
+            payload = asyncio.run(tool(project="demo-project", include_session_notes=False))
+            metadata, body = _parse_context_response(payload)
+
+            self.assertNotIn("## Current Session Notes", body)
+            dropped_reasons = {
+                cast(dict[str, Any], item)["name"]: cast(dict[str, Any], item)["reason"]
+                for item in metadata["budget_report"]["sections_dropped"]
+            }
+            self.assertEqual(dropped_reasons.get("Current Session Notes"), "omitted_by_request")
+        finally:
+            tmp.cleanup()
+
+    def test_cold_start_default_omits_plan_sources(self) -> None:
+        """Default call renders Plan State but no Source: sections."""
         tmp, tools = self._create_tools()
         try:
             tool = cast(Any, tools["memory_context_project"])
             payload = asyncio.run(tool(project="demo-project"))
             _, body = _parse_context_response(payload)
 
-            self.assertIn("## IN Staging", body)
-            self.assertIn("staged-note.md", body)
-            self.assertNotIn("secret body", body)
+            self.assertIn("## Plan State", body)
+            # Plan-sources are off by default under the cold-start contract.
+            self.assertNotIn("## Source: core/tools/context-source.md", body)
+        finally:
+            tmp.cleanup()
+
+    def test_invalid_include_in_manifest_raises(self) -> None:
+        tmp, tools = self._create_tools()
+        try:
+            tool = cast(Any, tools["memory_context_project"])
+            with self.assertRaises(ValidationError):
+                asyncio.run(tool(project="demo-project", include_in_manifest="bogus"))
         finally:
             tmp.cleanup()
 
@@ -566,6 +645,7 @@ work:
                     project=project_id,
                     max_context_chars=0,
                     time_budget_ms=0,
+                    include_plan_sources=True,
                 )
             )
             metadata, body = _parse_context_response(payload)
@@ -670,6 +750,7 @@ work:
                     project=project_id,
                     max_context_chars=0,
                     time_budget_ms=0,
+                    include_plan_sources=True,
                 )
             )
             metadata, _ = _parse_context_response(payload)

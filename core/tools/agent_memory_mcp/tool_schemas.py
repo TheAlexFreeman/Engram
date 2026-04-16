@@ -3248,6 +3248,9 @@ def context_project_input_schema() -> dict[str, Any]:
         notes=[
             "max_context_chars coerces to an integer; 0 means unbounded budget at runtime.",
             "include_user_profile may be null for auto behavior at runtime.",
+            "include_in_manifest accepts false, 'off', 'summary' (default), 'full', or true.",
+            "Defaults favor the cold-start fast path: include_plan_sources=False,"
+            " include_in_manifest='summary'.",
         ],
         properties={
             "project": {
@@ -3262,8 +3265,31 @@ def context_project_input_schema() -> dict[str, Any]:
             },
             "include_plan_sources": {
                 "type": "boolean",
+                "default": False,
+                "description": (
+                    "Include whole-file sources for the active plan phase when budget allows. "
+                    "Off by default because source reads are the largest per-call cost."
+                ),
+            },
+            "include_in_manifest": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    {"type": "string", "enum": ["off", "summary", "full"]},
+                ],
+                "default": "summary",
+                "description": (
+                    "IN/ staging rendering mode. 'summary' shows a one-line count "
+                    "(cold-start default); 'full' (or true) shows the capped manifest table; "
+                    "'off' (or false) omits the section entirely."
+                ),
+            },
+            "include_session_notes": {
+                "type": "boolean",
                 "default": True,
-                "description": "Include whole-file sources for the active plan phase when budget allows.",
+                "description": (
+                    "Include memory/working/CURRENT.md when it mentions the project. "
+                    "Set false to skip the section outright."
+                ),
             },
             "include_user_profile": {
                 "oneOf": [

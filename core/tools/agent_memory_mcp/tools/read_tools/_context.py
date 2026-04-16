@@ -155,6 +155,39 @@ def _is_time_exhausted(collector: _TimingCollector, budget_ms: int) -> bool:
     return collector.total_ms() >= budget_ms
 
 
+# IN-manifest rendering mode. Cold-start calls want a one-liner ("N files
+# staged, newest is foo.md") rather than a full frontmatter-parsed table,
+# which is the single largest latency source for projects that snapshot
+# whole external codebases. Callers who explicitly want the full manifest
+# pass ``"full"`` (or legacy ``True``). See cold-start roadmap P0-A step 5.
+_IN_MANIFEST_MODES = frozenset({"off", "summary", "full"})
+
+
+def _coerce_in_manifest_flag(value: object) -> str:
+    """Normalize ``include_in_manifest`` into one of ``{off, summary, full}``.
+
+    Accepts:
+    - ``None`` or ``"summary"`` → ``"summary"`` (cold-start default).
+    - ``True`` or ``"full"`` → ``"full"`` (legacy full-table behavior).
+    - ``False``, ``"off"``, ``"none"`` → ``"off"`` (skip the section).
+    """
+    if value is None:
+        return "summary"
+    if isinstance(value, bool):
+        return "full" if value else "off"
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"", "summary"}:
+            return "summary"
+        if normalized in {"full", "true", "yes", "on", "1"}:
+            return "full"
+        if normalized in {"off", "false", "no", "none", "0"}:
+            return "off"
+    raise ValidationError(
+        "include_in_manifest must be one of: false, 'off', 'summary', 'full', true"
+    )
+
+
 def _resolve_repo_relative_path(root: Path, repo_relative_path: str) -> Path | None:
     normalized = repo_relative_path.replace("\\", "/").strip().lstrip("/")
     if not normalized:
@@ -761,6 +794,53 @@ def _render_in_manifest(project_root: Path, root: Path) -> tuple[str, list[str],
     return "\n".join(rows), loaded_files, more_count
 
 
+def _render_in_manifest_summary(project_root: Path, root: Path) -> tuple[str, int]:
+    """Render a one-liner count summary of the ``IN/`` folder.
+
+    Returns ``(markdown, total_count)``. Does **not** parse frontmatter or stat
+    individual files beyond an ``rglob`` count plus a single ``stat()`` on the
+    newest file for the hint line. This is the cold-start default because the
+    full manifest was the single largest latency source on projects that
+    snapshot large external codebases.
+    """
+    in_root = project_root / "IN"
+    if not in_root.is_dir():
+        return "No staged files.", 0
+
+    newest_mtime_ns = -1
+    newest_path: Path | None = None
+    total_count = 0
+    for file_path in in_root.rglob("*"):
+        if not file_path.is_file():
+            continue
+        total_count += 1
+        try:
+            mtime_ns = file_path.stat().st_mtime_ns
+        except OSError:
+            continue
+        if mtime_ns > newest_mtime_ns:
+            newest_mtime_ns = mtime_ns
+            newest_path = file_path
+
+    if total_count == 0:
+        return "No staged files.", 0
+
+    lines: list[str] = [
+        f"**{total_count} file{'s' if total_count != 1 else ''} staged** in "
+        f"`{in_root.relative_to(root).as_posix()}/`.",
+        "",
+        "For the full listing, call `memory_list_folder` on the IN/ path; for "
+        "the previous per-file manifest, call this tool with "
+        '`include_in_manifest="full"`.',
+    ]
+    if newest_path is not None:
+        lines.insert(
+            1,
+            f"Newest: `{newest_path.relative_to(root).as_posix()}`.",
+        )
+    return "\n".join(lines), total_count
+
+
 def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
     """Register context injector read tools and return their callables."""
     _tool_annotations = H._tool_annotations
@@ -874,14 +954,24 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
     async def memory_context_project(
         project: str,
         max_context_chars: int = 24000,
-        include_plan_sources: bool = True,
+        include_plan_sources: bool = False,
+        include_in_manifest: str | bool | None = "summary",
+        include_session_notes: bool = True,
         include_user_profile: bool | None = None,
         time_budget_ms: int | None = None,
     ) -> str:
-        """Load project-focused context in one Markdown response with JSON metadata."""
+        """Load project-focused context in one Markdown response with JSON metadata.
+
+        Cold-start fast path by default: ``include_plan_sources`` is off and
+        ``include_in_manifest`` is ``"summary"`` so the first response is
+        cheap. Callers who need the full bundle opt in explicitly via
+        ``include_plan_sources=True`` and/or ``include_in_manifest="full"``.
+        """
         project_id = validate_slug(project, field_name="project")
         max_chars = _coerce_max_context_chars(max_context_chars)
         include_sources = _coerce_bool(include_plan_sources, field_name="include_plan_sources")
+        in_manifest_mode = _coerce_in_manifest_flag(include_in_manifest)
+        include_notes = _coerce_bool(include_session_notes, field_name="include_session_notes")
         include_profile_preference = _coerce_optional_bool(
             include_user_profile,
             field_name="include_user_profile",
@@ -1216,11 +1306,22 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                             cap_tripped = True
 
         more_in_items = 0
-        if budget_exhausted and max_chars > 0:
+        in_manifest_path = f"memory/working/projects/{project_id}/IN/"
+        if in_manifest_mode == "off":
             section_records.append(
                 {
                     "name": "IN Staging",
-                    "path": f"memory/working/projects/{project_id}/IN/",
+                    "path": in_manifest_path,
+                    "chars": 0,
+                    "included": False,
+                    "reason": "omitted_by_request",
+                }
+            )
+        elif budget_exhausted and max_chars > 0:
+            section_records.append(
+                {
+                    "name": "IN Staging",
+                    "path": in_manifest_path,
                     "chars": 0,
                     "included": False,
                     "reason": "over_budget",
@@ -1231,12 +1332,28 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
             section_records.append(
                 {
                     "name": "IN Staging",
-                    "path": f"memory/working/projects/{project_id}/IN/",
+                    "path": in_manifest_path,
                     "chars": 0,
                     "included": False,
                     "reason": "time_budget_exceeded",
                 }
             )
+        elif in_manifest_mode == "summary":
+            with _span(timings, "in_manifest"):
+                summary_markdown, total_count = _render_in_manifest_summary(project_root, root)
+            # ``more_in_items`` in summary mode is "items not shown as rows",
+            # which is every file — the summary deliberately hides the table.
+            more_in_items = total_count
+            remaining_chars, reason = _append_section(
+                sections,
+                section_records,
+                name="IN Staging",
+                path=in_manifest_path,
+                content=summary_markdown,
+                remaining_chars=remaining_chars,
+            )
+            if reason == "over_budget":
+                budget_exhausted = True
         else:
             with _span(timings, "in_manifest"):
                 in_manifest, manifest_files, more_in_items = _render_in_manifest(project_root, root)
@@ -1244,7 +1361,7 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                 sections,
                 section_records,
                 name="IN Staging",
-                path=f"memory/working/projects/{project_id}/IN/",
+                path=in_manifest_path,
                 content=in_manifest,
                 remaining_chars=remaining_chars,
             )
@@ -1254,7 +1371,17 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
                 loaded_files.extend(manifest_files)
 
         current_path = "memory/working/CURRENT.md"
-        if budget_exhausted and max_chars > 0:
+        if not include_notes:
+            section_records.append(
+                {
+                    "name": "Current Session Notes",
+                    "path": current_path,
+                    "chars": 0,
+                    "included": False,
+                    "reason": "omitted_by_request",
+                }
+            )
+        elif budget_exhausted and max_chars > 0:
             section_records.append(
                 {
                     "name": "Current Session Notes",
