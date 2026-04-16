@@ -22,7 +22,7 @@ work:
   phases:
   - id: distribution-targets
     title: Define supported distribution targets and their skill format requirements
-    status: pending
+    status: completed
     commit: null
     blockers: []
     postconditions:
@@ -31,7 +31,7 @@ work:
     - description: Spec defines a plugin interface for adding new targets
     changes:
     - path: core/governance/skill-distribution-spec.md
-      action: create
+      action: update
       description: 'Specification for distribution targets: claude (.claude/skills/), cursor
         (.cursor/skills/), codex (.codex/skills/), generic (.agents/skills/). Documents each
         target''s expected file format, naming conventions, and metadata requirements.'

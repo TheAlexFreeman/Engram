@@ -2,11 +2,10 @@
 active_plans: 3
 cognitive_mode: planning
 created: '2026-04-08'
-current_focus: Gitignore-deployment-modes workstream — deployment-mode spec, managed
-  .gitignore handling, install/sync integration, and fresh-clone recovery policy
-  are implemented and verified. Remote/path gitignored skills now materialize on
-  demand, local sources resolve to checked for clone safety, and explicit local
-  gitignored overrides are rejected before multi-agent distribution.
+current_focus: Multi-agent-distribution workstream — the distribution-targets
+  specification now defines built-in target profiles, metadata-mapping rules,
+  and the adapter contract. The next implementation slice is the
+  distribution-engine that materializes those target views.
 last_activity: '2026-04-15'
 open_questions: 3
 origin_session: memory/activity/2026/04/08/chat-001
@@ -34,11 +33,11 @@ From analysis of the "Personality and Narrative for AI Agents" transcript:
 
 ## Workstream status and execution sequence
 
-Execution note (2026-04-15): the original roadmap had `lifecycle-cli-decomposition` ahead of both distribution-focused tracks. That implementation has landed and is now formally closed out. The current active plan selection is therefore `gitignore-deployment-modes`, whose deployment contract now informs `multi-agent-distribution`.
+Execution note (2026-04-15): the original roadmap had `lifecycle-cli-decomposition` ahead of both distribution-focused tracks. That implementation has landed and is now formally closed out. The deployment contract from `gitignore-deployment-modes` is now stable enough that active execution has moved to `multi-agent-distribution`, beginning with the completed `distribution-targets` specification.
 
 1. **hook-trigger-metadata** — Complete. Trigger router landed with `memory_skill_route`, explicit frontmatter/manifest precedence, and query-driven catalog fallback for triggerless skills.
 2. **skill-manifest-and-versioning** — Complete.
 3. **multi-source-resolution** — Complete. Source parsing rules, `SkillResolver`, `memory_skill_install`, and `skill_install_frozen.py` landed with focused resolver/install/frozen tests.
 4. **lifecycle-cli-decomposition** — Completed. The decomposed lifecycle surface (`memory_skill_list`, add/remove flows, sync support, and the lifecycle spec) is implemented and the plan metadata now matches that shipped state.
-5. **gitignore-deployment-modes** — Active current focus. Deployment-mode spec, managed `.gitignore` reconciliation, and install/sync semantics are implemented and verified. Clone-experience follow-through now includes a source-aware recovery rule: the frozen installer materializes missing gitignored path/git skills, `source: local` resolves to checked for fresh-clone safety, and explicit local gitignored overrides fail with a clear recovery error.
-6. **multi-agent-distribution** — Active and now unblocked by the resolved local-source clone policy in `gitignore-deployment-modes`. The target/distribution spec is drafted, and implementation can proceed from the stabilized deployment contract.
+5. **gitignore-deployment-modes** — Implemented and verified. Deployment-mode spec, managed `.gitignore` reconciliation, install/sync semantics, and the fresh-clone recovery rule are in place; that stabilized contract now feeds the distribution work.
+6. **multi-agent-distribution** — Active current focus. The distribution-targets phase now defines built-in target ids (`engram`, `generic`, `claude`, `cursor`, `codex`), concrete output profiles, metadata-mapping rules, and the adapter interface. The next implementation slice is `distribution-engine`.
