@@ -56,24 +56,24 @@ work:
       description: CLI script to run distribution for all skills across all configured targets
   - id: manifest-integration
     title: Add distribution targets to SKILLS.yaml manifest entries
-    status: pending
+    status: completed
     commit: null
     blockers:
     - distribution-engine
     postconditions:
     - description: Skills can opt out of specific targets via manifest
-    - description: Default behavior distributes to all targets when field is omitted
+    - description: Omitted per-skill targets inherit defaults.targets and ultimately fall back to [engram]
     - description: Manifest validation rejects unknown target names
     changes:
     - path: core/memory/skills/SKILLS.yaml
       action: update
-      description: 'Add optional targets field to skill entries (default: all configured targets)'
+      description: Add optional targets field to skill entries plus defaults.targets inheritance semantics
     - path: core/governance/skill-manifest-spec.md
       action: update
       description: Document targets field and its interaction with distribution
   - id: sync-integration
     title: Integrate distribution into memory_skill_sync
-    status: pending
+    status: completed
     commit: null
     blockers:
     - manifest-integration
@@ -89,4 +89,7 @@ work:
     - path: core/tools/agent_memory_mcp/skill_distributor.py
       action: update
       description: Add verify mode that checks symlink integrity and reports stale distributions
+    - path: core/tools/tests/test_skill_distribution_integration.py
+      action: create
+      description: Focused lifecycle/distribution integration coverage for manifest targets, list reporting, stale projection repair, and obsolete target pruning
 review: null

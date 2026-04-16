@@ -250,9 +250,20 @@ class GitRepo:
         git_paths = [self._to_git_path(p) for p in rel_paths]
         self._run(["git", "add", "-A", "--"] + git_paths)
 
+    def add_git_paths(self, *git_paths: str) -> None:
+        """Stage one or more git-relative files."""
+        if not git_paths:
+            return
+        self._try_cleanup_stale_index_lock()
+        self._run(["git", "add", "-A", "--"] + list(git_paths))
+
     def is_tracked(self, rel_path: str) -> bool:
         """Return whether a content-relative path is tracked by git."""
         git_path = self._to_git_path(rel_path)
+        return self.is_git_path_tracked(git_path)
+
+    def is_git_path_tracked(self, git_path: str) -> bool:
+        """Return whether a git-relative path is tracked by git."""
         result = self._run(["git", "ls-files", "--error-unmatch", "--", git_path], check=False)
         return result.returncode == 0
 

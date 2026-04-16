@@ -22,6 +22,12 @@ from ...skill_gitignore import (
     SkillGitignoreManager,
     resolve_skill_deployment_mode,
 )
+from ...skill_distributor import (
+    BUILTIN_TARGETS,
+    SkillDistributor,
+    normalize_distribution_targets,
+    resolve_skill_distribution_targets,
+)
 from ...skill_hash import compute_content_hash, get_dir_stats
 from ...skill_resolver import SkillResolver, parse_skill_source
 from ...skill_trigger import summarize_skill_trigger, validate_skill_trigger
@@ -73,6 +79,107 @@ def _resolve_skill_markdown_path(repo: Any, slug: str) -> tuple[str, Path]:
     if flat_abs.exists():
         return flat_rel, flat_abs
     return nested_rel, nested_abs
+
+
+def _distribution_target_state(item: dict[str, Any], *, status: str) -> dict[str, Any]:
+    state: dict[str, Any] = {"status": status}
+    for key in ("target", "profile", "outputs", "index_path", "transport"):
+        value = item.get(key)
+        if value is not None:
+            state[key] = value
+    if status == "issue":
+        state["issues"] = list(item.get("issues", []))
+    if status == "failed":
+        if item.get("reason") is not None:
+            state["reason"] = item["reason"]
+        if item.get("detail") is not None:
+            state["detail"] = item["detail"]
+    return state
+
+
+def _distribution_states_by_slug(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+
+    def ensure(slug: str) -> dict[str, Any]:
+        return grouped.setdefault(slug, {"status": "healthy", "targets": [], "issue_count": 0})
+
+    for item in report.get("verified", []):
+        slug = item.get("slug")
+        if isinstance(slug, str):
+            ensure(slug)["targets"].append(_distribution_target_state(item, status="ok"))
+
+    for item in report.get("issues", []):
+        slug = item.get("slug")
+        if not isinstance(slug, str):
+            continue
+        state = ensure(slug)
+        if state["status"] != "failed":
+            state["status"] = "needs_attention"
+        state["issue_count"] += max(1, len(item.get("issues", [])))
+        state["targets"].append(_distribution_target_state(item, status="issue"))
+
+    for item in report.get("failed", []):
+        slug = item.get("slug")
+        if not isinstance(slug, str):
+            continue
+        state = ensure(slug)
+        state["status"] = "failed"
+        state["issue_count"] += 1
+        state["targets"].append(_distribution_target_state(item, status="failed"))
+
+    for state in grouped.values():
+        state["targets"].sort(
+            key=lambda target: (str(target.get("target") or ""), target["status"])
+        )
+
+    return grouped
+
+
+def _distribution_issue_details(report: dict[str, Any]) -> list[dict[str, Any]]:
+    details: list[dict[str, Any]] = []
+
+    for item in report.get("issues", []):
+        issue_messages = []
+        for issue in item.get("issues", []):
+            if not isinstance(issue, dict):
+                continue
+            detail = issue.get("detail")
+            if isinstance(detail, str):
+                issue_messages.append(detail)
+        details.append(
+            {
+                "type": "distribution_issue",
+                "slug": item.get("slug"),
+                "target": item.get("target"),
+                "issue": "; ".join(issue_messages) or "distribution output requires repair",
+            }
+        )
+
+    for item in report.get("failed", []):
+        details.append(
+            {
+                "type": "distribution_failure",
+                "slug": item.get("slug"),
+                "target": item.get("target"),
+                "issue": item.get("detail")
+                or item.get("reason")
+                or "distribution validation failed",
+            }
+        )
+
+    return details
+
+
+def _distribution_preview_targets(report: dict[str, Any]) -> list[dict[str, Any]]:
+    targets: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in report.get("issues", []):
+        for path in list(item.get("outputs", [])) + [item.get("index_path")]:
+            if not isinstance(path, str) or not path or path in seen:
+                continue
+            seen.add(path)
+            targets.append(preview_target(path, "update"))
+    return targets
 
 
 _KNOWN_SKILL_FRONTMATTER_FIELDS = frozenset(
@@ -600,6 +707,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         description: str,
         ref: str | None = None,
         deployment_mode: str | None = None,
+        targets: list[str] | None = None,
         enabled: bool | None = None,
         preview: bool = False,
         approval_token: str | None = None,
@@ -616,6 +724,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         - description (required): One-line description
         - ref (optional): Version pin for remote sources
         - deployment_mode (optional): checked or gitignored
+        - targets (optional): distribution targets override; [] disables external projections
         - enabled (optional): true or false (default: true)
         - preview (bool): When true, return preview without writing
         - approval_token (string): Required for apply mode (non-preview)
@@ -671,6 +780,11 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             raise ValidationError(
                 f"deployment_mode must be one of {sorted(DEPLOYMENT_MODES)}: {deployment_mode}"
             )
+        normalized_targets = (
+            normalize_distribution_targets(targets, field_name="targets")
+            if targets is not None
+            else None
+        )
 
         skill_entry: dict[str, Any] = {
             "source": source,
@@ -681,9 +795,16 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             skill_entry["ref"] = ref
         if deployment_mode is not None:
             skill_entry["deployment_mode"] = deployment_mode
+        if normalized_targets is not None:
+            skill_entry["targets"] = normalized_targets
         if enabled is not None:
             skill_entry["enabled"] = enabled
         effective_deployment_mode = resolve_skill_deployment_mode(skill_entry, manifest_defaults)
+        effective_targets = resolve_skill_distribution_targets(
+            skill_entry,
+            manifest_defaults,
+            slug=slug,
+        )
 
         preview_manifest = dict(manifest_data)
         preview_skills = dict(skills)
@@ -706,6 +827,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             "description": description,
             "ref": ref,
             "deployment_mode": deployment_mode,
+            "targets": targets,
             "enabled": enabled,
         }
 
@@ -721,6 +843,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             invariant_effects=[
                 f"{'Creates a new' if is_new else 'Updates the'} skill entry '{slug}' with source={source}, trust={trust}.",
                 f"Effective deployment_mode resolves to {effective_deployment_mode}.",
+                f"Effective distribution targets resolve to {effective_targets or []}.",
                 "Preserves all other skill entries and manifest structure.",
                 (
                     "Refreshes the managed core/memory/skills/.gitignore block to match the manifest."
@@ -735,6 +858,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "source": source,
                 "trust": trust,
                 "effective_deployment_mode": effective_deployment_mode,
+                "effective_targets": effective_targets,
             },
         )
 
@@ -756,6 +880,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 new_state={
                     "slug": slug,
                     "effective_deployment_mode": effective_deployment_mode,
+                    "effective_targets": effective_targets,
                     "approval_token": protected_token,
                 },
                 preview=preview_payload,
@@ -821,6 +946,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "source": source,
                 "trust": trust,
                 "effective_deployment_mode": effective_deployment_mode,
+                "effective_targets": effective_targets,
             },
             preview=preview_payload,
         )
@@ -939,6 +1065,12 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             with open(manifest_path, "r") as f:
                 manifest_data = yaml.safe_load(f) or {}
         manifest_defaults = _manifest_defaults(manifest_data)
+        resolve_skill_distribution_targets(None, manifest_defaults)
+        distribution_states = (
+            _distribution_states_by_slug(SkillDistributor(repo.root).inspect_all())
+            if has_manifest
+            else {}
+        )
 
         lock_data: dict[str, Any] = {}
         if lockfile_path.exists():
@@ -980,6 +1112,29 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 entry["effective_deployment_mode"] = resolve_skill_deployment_mode(
                     manifest_entry,
                     manifest_defaults,
+                )
+                if "targets" in manifest_entry:
+                    entry["targets"] = normalize_distribution_targets(
+                        manifest_entry.get("targets"),
+                        field_name=f"skills.{slug}.targets",
+                    )
+                entry["effective_targets"] = resolve_skill_distribution_targets(
+                    manifest_entry,
+                    manifest_defaults,
+                    slug=slug,
+                )
+                distribution_state = distribution_states.get(slug)
+                external_targets = [
+                    target for target in entry["effective_targets"] if target != "engram"
+                ]
+                entry["distribution"] = (
+                    distribution_state
+                    if distribution_state is not None
+                    else (
+                        {"status": "needs_attention", "targets": [], "issue_count": 0}
+                        if external_targets
+                        else {"status": "not_requested", "targets": [], "issue_count": 0}
+                    )
                 )
             trigger_value = fm_dict.get("trigger")
             if trigger_value is not None:
@@ -1042,6 +1197,11 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                             manifest_entry,
                             manifest_defaults,
                         ),
+                        "effective_targets": resolve_skill_distribution_targets(
+                            manifest_entry,
+                            manifest_defaults,
+                            slug=slug,
+                        ),
                         "enabled": manifest_entry.get("enabled", True),
                         "archived": False,
                         "created": None,
@@ -1050,6 +1210,24 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                         "total_bytes": 0,
                         "_missing_directory": True,
                     }
+                    if isinstance(manifest_entry, dict) and "targets" in manifest_entry:
+                        entry["targets"] = normalize_distribution_targets(
+                            manifest_entry.get("targets"),
+                            field_name=f"skills.{slug}.targets",
+                        )
+                    external_targets = [
+                        target for target in entry["effective_targets"] if target != "engram"
+                    ]
+                    distribution_state = distribution_states.get(slug)
+                    entry["distribution"] = (
+                        distribution_state
+                        if distribution_state is not None
+                        else (
+                            {"status": "needs_attention", "targets": [], "issue_count": 0}
+                            if external_targets
+                            else {"status": "not_requested", "targets": [], "issue_count": 0}
+                        )
+                    )
                     if include_lock_info:
                         entry["lock_info"] = None
                     all_skills.append(entry)
@@ -1123,6 +1301,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         ref: str | None = None,
         enabled: bool | None = None,
         deployment_mode: str | None = None,
+        targets: list[str] | None = None,
         preview: bool = False,
         approval_token: str | None = None,
     ) -> str:
@@ -1166,6 +1345,11 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             raise ValidationError(
                 f"deployment_mode must be one of {sorted(DEPLOYMENT_MODES)}: {deployment_mode}"
             )
+        normalized_targets = (
+            normalize_distribution_targets(targets, field_name="targets")
+            if targets is not None
+            else None
+        )
 
         src = source.strip()
         if src in ("github:", "git:") or src.startswith("github:") or src.startswith("git:"):
@@ -1270,7 +1454,14 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         }
         if deployment_mode is not None:
             skill_entry["deployment_mode"] = deployment_mode
+        if normalized_targets is not None:
+            skill_entry["targets"] = normalized_targets
         effective_deployment_mode = resolve_skill_deployment_mode(skill_entry, manifest_defaults)
+        effective_targets = resolve_skill_distribution_targets(
+            skill_entry,
+            manifest_defaults,
+            slug=slug,
+        )
 
         preview_manifest = dict(manifest_data)
         preview_skills = dict(skills_map)
@@ -1288,6 +1479,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             "ref": ref,
             "enabled": enabled,
             "deployment_mode": deployment_mode,
+            "targets": targets,
         }
 
         target_files = [
@@ -1314,6 +1506,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             invariant_effects=[
                 f"Creates {skill_rel}/ with SKILL.md and adds manifest entry.",
                 f"Effective deployment_mode resolves to {effective_deployment_mode}.",
+                f"Effective distribution targets resolve to {effective_targets or []}.",
                 "Refreshes SKILLS.lock, SKILL_TREE.md"
                 + (
                     ", SUMMARY.md, and the managed core/memory/skills/.gitignore block."
@@ -1335,6 +1528,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "slug": slug,
                 "source": source,
                 "effective_deployment_mode": effective_deployment_mode,
+                "effective_targets": effective_targets,
             },
         )
         preview_payload, protected_token = attach_approval_requirement(
@@ -1359,6 +1553,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 new_state={
                     "slug": slug,
                     "effective_deployment_mode": effective_deployment_mode,
+                    "effective_targets": effective_targets,
                     "approval_token": protected_token,
                 },
                 preview=preview_payload,
@@ -1508,6 +1703,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             "location": f"{skill_rel}/",
             "manifest_entry": skill_entry,
             "effective_deployment_mode": effective_deployment_mode,
+            "effective_targets": effective_targets,
             "lock_entry": lock_entry,
             "artifacts_updated": sorted(set(artifacts_updated)),
         }
@@ -1518,6 +1714,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             new_state={
                 "slug": slug,
                 "effective_deployment_mode": effective_deployment_mode,
+                "effective_targets": effective_targets,
             },
             preview=preview_payload,
         )
@@ -1541,6 +1738,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         ref: str | None = None,
         trust: str | None = None,
         enabled: bool | None = None,
+        targets: list[str] | None = None,
         preview: bool = False,
         approval_token: str | None = None,
     ) -> str:
@@ -1580,6 +1778,11 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             raise ValidationError(
                 f"trust must be one of {sorted(SKILL_CREATE_TRUST_LEVELS)}: {trust}"
             )
+        normalized_targets = (
+            normalize_distribution_targets(targets, field_name="targets")
+            if targets is not None
+            else None
+        )
 
         manifest_path = repo.root / "core" / "memory" / "skills" / "SKILLS.yaml"
         lock_path = repo.root / "core" / "memory" / "skills" / "SKILLS.lock"
@@ -1652,7 +1855,14 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         }
         if ref:
             skill_entry["ref"] = ref
+        if normalized_targets is not None:
+            skill_entry["targets"] = normalized_targets
         effective_deployment_mode = resolve_skill_deployment_mode(skill_entry, manifest_defaults)
+        effective_targets = resolve_skill_distribution_targets(
+            skill_entry,
+            manifest_defaults,
+            slug=target_slug,
+        )
 
         preview_manifest = dict(manifest_data)
         preview_skills = dict(skills_map)
@@ -1682,6 +1892,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             "ref": ref,
             "trust": trust,
             "enabled": enabled,
+            "targets": targets,
         }
         commit_msg = f"[skill] Install skill {target_slug}"
         preview_payload = build_governed_preview(
@@ -1695,6 +1906,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     f"Registers {target_slug} in SKILLS.yaml with source={resolved.normalized_source} "
                     f"and effective deployment_mode={effective_deployment_mode}."
                 ),
+                f"Effective distribution targets resolve to {effective_targets or []}.",
                 "Refreshes SKILLS.lock, SKILL_TREE.md"
                 + (
                     ", SUMMARY.md, and the managed core/memory/skills/.gitignore block."
@@ -1722,6 +1934,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "source": resolved.normalized_source,
                 "resolved_ref": resolved.resolved_ref,
                 "effective_deployment_mode": effective_deployment_mode,
+                "effective_targets": effective_targets,
             },
         )
         preview_payload, protected_token = attach_approval_requirement(
@@ -1744,7 +1957,11 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 files_changed=preview_files,
                 commit_sha=None,
                 commit_message=None,
-                new_state={"slug": target_slug, "approval_token": protected_token},
+                new_state={
+                    "slug": target_slug,
+                    "effective_targets": effective_targets,
+                    "approval_token": protected_token,
+                },
                 preview=preview_payload,
             ).to_json()
 
@@ -1905,6 +2122,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             "location": f"{skill_rel}/",
             "manifest_entry": skill_entry,
             "effective_deployment_mode": effective_deployment_mode,
+            "effective_targets": effective_targets,
             "lock_entry": lock_entries[target_slug],
             "resolution": {
                 "source": resolved.normalized_source,
@@ -1934,6 +2152,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "slug": target_slug,
                 "resolved_ref": resolved.resolved_ref,
                 "effective_deployment_mode": effective_deployment_mode,
+                "effective_targets": effective_targets,
             },
             preview=preview_payload,
         )
@@ -2287,8 +2506,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         governed preview + ``approval_token`` flow. Non-destructive refresh (lock
         rebuild, index regeneration) does not require an approval token.
 
-        ``verify_symlinks`` is reserved; symlink checks are reported as zero until
-        distribution symlinks are implemented.
+        ``verify_symlinks`` verifies the current external distribution projections and,
+        in write mode, repairs stale outputs and removes obsolete target entries.
         """
         import json
 
@@ -2309,9 +2528,16 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         with open(manifest_path, "r", encoding="utf-8") as f:
             manifest_data = yaml.safe_load(f) or {}
+        manifest_defaults = _manifest_defaults(manifest_data)
+        resolve_skill_distribution_targets(None, manifest_defaults)
         skills_map: dict[str, Any] = manifest_data.get("skills", {})
         if not isinstance(skills_map, dict):
             skills_map = {}
+
+        for slug, manifest_entry in skills_map.items():
+            if not isinstance(manifest_entry, dict):
+                continue
+            resolve_skill_distribution_targets(manifest_entry, manifest_defaults, slug=slug)
 
         disk_slugs = set(mod.iter_disk_skill_slugs(skills_dir))
         manifest_keys = set(skills_map.keys())
@@ -2392,9 +2618,17 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 }
             )
 
-        symlink_issues = 0
+        distribution_report: dict[str, Any] | None = None
+        distributor = SkillDistributor(repo.root)
+        distribution_issue_count = 0
+        distribution_failure_count = 0
         if verify_symlinks:
-            symlink_issues = 0
+            distribution_report = distributor.inspect_all()
+            distribution_issue_count = int(distribution_report["issue_count"])
+            distribution_failure_count = int(distribution_report["failure_count"])
+            details.extend(_distribution_issue_details(distribution_report))
+
+        symlink_issues = distribution_issue_count + distribution_failure_count
 
         _, gitignore_changed = _render_skill_gitignore(repo.root, manifest_data)
         if gitignore_changed:
@@ -2412,6 +2646,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             "missing_directories": len(missing_dir_slugs),
             "missing_lock_entries": missing_lock_count,
             "symlink_errors": symlink_issues,
+            "distribution_errors": distribution_issue_count,
+            "distribution_failures": distribution_failure_count,
             "deployment_gitignore_drift": 1 if gitignore_changed else 0,
         }
 
@@ -2420,6 +2656,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             and len(orphans) == 0
             and len(missing_dir_slugs) == 0
             and missing_lock_count == 0
+            and symlink_issues == 0
             and not gitignore_changed
         )
         sync_status = "healthy" if healthy else "needs_attention"
@@ -2430,6 +2667,14 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             .isoformat(timespec="seconds")
             .replace("+00:00", "Z"),
             "issues_found": issues_found,
+            "distribution_verification": {
+                "status": distribution_report["status"] if distribution_report else "skipped",
+                "verified_count": distribution_report["verified_count"]
+                if distribution_report
+                else 0,
+                "issue_count": distribution_issue_count,
+                "failure_count": distribution_failure_count,
+            },
             "details": details,
             "check_only": check_only,
         }
@@ -2440,6 +2685,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "orphans_archived": 0,
                 "missing_entries_removed": 0,
                 "symlinks_repaired": 0,
+                "distribution_repaired": 0,
                 "indexes_regenerated": False,
             }
             report_base["approval_required"] = False
@@ -2460,6 +2706,22 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         files_changed: list[str] = []
         commit_msg = "[skill] Sync skill manifest and lockfile"
+        external_distribution_roots = tuple(
+            f"{config['root_relpath']}/"
+            for target_id, config in BUILTIN_TARGETS.items()
+            if target_id != "engram"
+        )
+
+        def _stage_changed_path(rel_path: str) -> None:
+            if rel_path.startswith(external_distribution_roots):
+                abs_path = repo.root / rel_path
+                if not (
+                    abs_path.exists() or abs_path.is_symlink() or repo.is_git_path_tracked(rel_path)
+                ):
+                    return
+                repo.add_git_paths(rel_path)
+                return
+            repo.add(rel_path)
 
         def _apply_lock_and_indexes(
             skills_map_local: dict[str, Any],
@@ -2526,6 +2788,39 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     if "memory/skills/SUMMARY.md" not in files_changed:
                         files_changed.append("memory/skills/SUMMARY.md")
 
+        def _apply_distribution_repairs() -> tuple[dict[str, Any] | None, int]:
+            nonlocal files_changed
+            if not verify_symlinks:
+                return None, 0
+
+            current_report = distributor.inspect_all()
+            repairable_issue_count = int(current_report["issue_count"])
+            changed_paths: list[str] = []
+
+            if repairable_issue_count:
+                distribution_apply = distributor.distribute_all(dry_run=False)
+                for item in distribution_apply["distributed"]:
+                    if item.get("changed", True):
+                        for output in item.get("outputs", []):
+                            if isinstance(output, str):
+                                changed_paths.append(output)
+                    index_path = item.get("index_path")
+                    if isinstance(index_path, str):
+                        changed_paths.append(index_path)
+
+                prune_result = distributor.prune_obsolete_distributions(
+                    cast(dict[str, list[str]], current_report.get("expected_by_target", {}))
+                )
+                changed_paths.extend(prune_result["files_changed"])
+
+            for rel_path in sorted(set(changed_paths)):
+                if rel_path not in files_changed:
+                    files_changed.append(rel_path)
+
+            post_report = distributor.inspect_all()
+            repaired_count = max(0, repairable_issue_count - int(post_report["issue_count"]))
+            return post_report, repaired_count
+
         if destructive:
             target_files: list[dict[str, Any]] = []
             move_staged_paths: set[str] = set()
@@ -2556,6 +2851,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 target_files.append(
                     preview_target("core/memory/skills/_archive/ARCHIVE_INDEX.md", "update")
                 )
+            if distribution_report:
+                target_files.extend(_distribution_preview_targets(distribution_report))
 
             preview_payload = build_governed_preview(
                 mode="preview" if preview else "apply",
@@ -2567,6 +2864,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     "Optional: move orphan skill dirs into _archive/.",
                     "Optional: remove manifest rows with no on-disk SKILL.md.",
                     "Refreshes the managed core/memory/skills/.gitignore block to match effective deployment modes.",
+                    "Repairs stale external skill projections and prunes obsolete distribution entries when verify_symlinks=true.",
                     "Rebuild SKILLS.lock when fix_stale_locks=true.",
                     "Regenerate SKILL_TREE.md / SUMMARY.md when regenerate_indexes=true.",
                 ],
@@ -2664,11 +2962,12 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     files_changed.append("memory/skills/SKILLS.yaml")
 
             _apply_lock_and_indexes(skills_map, manifest_data)
+            _, distribution_repaired = _apply_distribution_repairs()
 
             for rel in files_changed:
                 if rel in move_staged_paths:
                     continue
-                repo.add(rel)
+                _stage_changed_path(rel)
             commit_result = repo.commit(commit_msg)
 
             result_body = {
@@ -2678,7 +2977,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     "locks_refreshed": fix_stale_locks,
                     "orphans_archived": orphans_archived,
                     "missing_entries_removed": removed_missing,
-                    "symlinks_repaired": 0,
+                    "symlinks_repaired": distribution_repaired,
+                    "distribution_repaired": distribution_repaired,
                     "deployment_gitignore_refreshed": "memory/skills/.gitignore" in files_changed,
                     "indexes_regenerated": regenerate_indexes,
                 },
@@ -2697,7 +2997,12 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             return json.dumps(out, indent=2)
 
         # Non-destructive sync
-        if not fix_stale_locks and not regenerate_indexes and not gitignore_changed:
+        if (
+            not fix_stale_locks
+            and not regenerate_indexes
+            and not gitignore_changed
+            and distribution_issue_count == 0
+        ):
             result_body = {
                 **report_base,
                 "actions_taken": {
@@ -2705,6 +3010,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     "orphans_archived": 0,
                     "missing_entries_removed": 0,
                     "symlinks_repaired": 0,
+                    "distribution_repaired": 0,
                     "deployment_gitignore_refreshed": False,
                     "indexes_regenerated": False,
                 },
@@ -2741,14 +3047,17 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     nd_targets.append(preview_target("core/memory/skills/SUMMARY.md", "update"))
             if gitignore_changed:
                 nd_targets.append(preview_target("core/memory/skills/.gitignore", "update"))
+            if distribution_report:
+                nd_targets.extend(_distribution_preview_targets(distribution_report))
             preview_payload_nd = build_governed_preview(
                 mode="preview",
                 change_class="automatic",
-                summary="Refresh SKILLS.lock, the managed skills .gitignore block, and/or skill indexes (non-destructive).",
-                reasoning="Derived lock, gitignore, and catalog artifacts are automatic-tier.",
+                summary="Refresh SKILLS.lock, the managed skills .gitignore block, skill indexes, and/or stale external projections (non-destructive).",
+                reasoning="Derived lock, gitignore, catalog, and distribution artifacts are automatic-tier.",
                 target_files=nd_targets,
                 invariant_effects=[
                     "Refreshes the managed core/memory/skills/.gitignore block when deployment-mode drift is detected.",
+                    "Repairs stale external skill projections and prunes obsolete distribution entries when verify_symlinks=true.",
                     "Rebuilds lock entries from manifest + on-disk skills when fix_stale_locks=true.",
                     "Regenerates SKILL_TREE.md and SUMMARY.md when regenerate_indexes=true.",
                 ],
@@ -2766,6 +3075,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             ).to_json()
 
         _apply_lock_and_indexes(skills_map, manifest_data)
+        _, distribution_repaired = _apply_distribution_repairs()
         unique_changed = sorted(set(files_changed))
         if not unique_changed:
             result_body = {
@@ -2776,6 +3086,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     "orphans_archived": 0,
                     "missing_entries_removed": 0,
                     "symlinks_repaired": 0,
+                    "distribution_repaired": 0,
                     "deployment_gitignore_refreshed": False,
                     "indexes_regenerated": False,
                 },
@@ -2785,7 +3096,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             return json.dumps({"result": result_body})
 
         for rel in unique_changed:
-            repo.add(rel)
+            _stage_changed_path(rel)
         commit_result = repo.commit(commit_msg)
 
         result_body = {
@@ -2795,7 +3106,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "locks_refreshed": fix_stale_locks,
                 "orphans_archived": 0,
                 "missing_entries_removed": 0,
-                "symlinks_repaired": 0,
+                "symlinks_repaired": distribution_repaired,
+                "distribution_repaired": distribution_repaired,
                 "deployment_gitignore_refreshed": gitignore_changed,
                 "indexes_regenerated": regenerate_indexes,
             },

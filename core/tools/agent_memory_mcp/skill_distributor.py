@@ -41,6 +41,7 @@ BUILTIN_TARGETS: dict[str, dict[str, str]] = {
     },
 }
 DEFAULT_TARGETS = ("engram",)
+KNOWN_DISTRIBUTION_TARGETS = frozenset(BUILTIN_TARGETS)
 _GOVERNANCE_FIELDS = frozenset(
     {
         "source",
@@ -71,8 +72,45 @@ def _hash_text(text: str) -> str:
     return _hash_bytes(text.encode("utf-8"))
 
 
+def _hash_file(path: Path) -> str:
+    return _hash_bytes(path.read_bytes())
+
+
 def _json_text(payload: Mapping[str, Any]) -> str:
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def normalize_distribution_targets(raw: object, *, field_name: str) -> list[str]:
+    if not isinstance(raw, list):
+        raise ValidationError(f"{field_name} must be a list of strings")
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, str) or not item.strip():
+            raise ValidationError(f"{field_name} must be a list of strings")
+        target = item.strip()
+        if target not in KNOWN_DISTRIBUTION_TARGETS:
+            raise ValidationError(f"{field_name} contains unknown target: {target}")
+        if target not in seen:
+            seen.add(target)
+            normalized.append(target)
+    return normalized
+
+
+def resolve_skill_distribution_targets(
+    skill_entry: Mapping[str, Any] | None,
+    defaults: Mapping[str, Any] | None = None,
+    *,
+    slug: str | None = None,
+) -> list[str]:
+    if isinstance(skill_entry, Mapping) and "targets" in skill_entry:
+        field_name = f"skills.{slug}.targets" if slug else "skills.{slug}.targets"
+        return normalize_distribution_targets(skill_entry.get("targets"), field_name=field_name)
+    if isinstance(defaults, Mapping) and "targets" in defaults:
+        return normalize_distribution_targets(
+            defaults.get("targets"), field_name="defaults.targets"
+        )
+    return list(DEFAULT_TARGETS)
 
 
 def _repo_relpath(repo_root: Path, path: Path) -> str:
@@ -89,7 +127,7 @@ def _remove_path(path: Path) -> None:
 
 def _write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -383,8 +421,15 @@ class FlatMarkdownAdapter(BaseSkillTargetAdapter):
         if output_path.is_symlink() or output_path.is_dir():
             _remove_path(output_path)
         assert plan.rendered_markdown is not None
+        changed = True
+        if (
+            output_path.is_file()
+            and output_path.read_text(encoding="utf-8") == plan.rendered_markdown
+        ):
+            changed = False
         _write_text(output_path, plan.rendered_markdown)
         return {
+            "changed": changed,
             "mode": "render",
             "rendered_hash": plan.rendered_hash,
         }
@@ -458,14 +503,26 @@ class PromptBundleAdapter(BaseSkillTargetAdapter):
     ) -> dict[str, Any]:
         del transport_capabilities
         bundle_root = plan.output_paths[0].parent
-        if bundle_root.exists() or bundle_root.is_symlink():
-            _remove_path(bundle_root)
-        bundle_root.mkdir(parents=True, exist_ok=True)
         assert plan.rendered_markdown is not None
         assert plan.metadata_payload is not None
+        desired_metadata = _json_text(plan.metadata_payload)
+        changed = True
+        if bundle_root.is_dir() and not bundle_root.is_symlink():
+            existing_entries = {child.name for child in bundle_root.iterdir()}
+            if existing_entries == {"SKILL.md", "metadata.json"}:
+                skill_path, metadata_path = plan.output_paths
+                if skill_path.is_file() and metadata_path.is_file():
+                    changed = not (
+                        skill_path.read_text(encoding="utf-8") == plan.rendered_markdown
+                        and metadata_path.read_text(encoding="utf-8") == desired_metadata
+                    )
+        if changed and (bundle_root.exists() or bundle_root.is_symlink()):
+            _remove_path(bundle_root)
+        bundle_root.mkdir(parents=True, exist_ok=True)
         _write_text(plan.output_paths[0], plan.rendered_markdown)
         _write_json(plan.output_paths[1], plan.metadata_payload)
         return {
+            "changed": changed,
             "mode": "render",
             "rendered_hash": plan.rendered_hash,
             "metadata_hash": plan.metadata_hash,
@@ -510,14 +567,44 @@ class CanonicalBundleAdapter(BaseSkillTargetAdapter):
         output_path = plan.output_paths[0]
         mode = "copy"
         if transport_capabilities.prefer_symlink:
+            if output_path.is_symlink():
+                try:
+                    if output_path.resolve() == plan.canonical_dir.resolve():
+                        return {
+                            "changed": False,
+                            "mode": "symlink",
+                            "bundle_hash": plan.canonical_hash,
+                            "transport": "symlink",
+                        }
+                except OSError:
+                    pass
             try:
                 self._ensure_symlink(output_path, plan.canonical_dir)
                 mode = "symlink"
             except OSError:
+                if (
+                    output_path.is_dir()
+                    and compute_content_hash(output_path) == plan.canonical_hash
+                ):
+                    return {
+                        "changed": False,
+                        "mode": "copy",
+                        "bundle_hash": plan.canonical_hash,
+                        "transport": "copy",
+                    }
                 self._copy_bundle(plan.canonical_dir, output_path)
         else:
+            if output_path.is_dir() and not output_path.is_symlink():
+                if compute_content_hash(output_path) == plan.canonical_hash:
+                    return {
+                        "changed": False,
+                        "mode": "copy",
+                        "bundle_hash": plan.canonical_hash,
+                        "transport": "copy",
+                    }
             self._copy_bundle(plan.canonical_dir, output_path)
         return {
+            "changed": True,
             "mode": mode,
             "bundle_hash": plan.canonical_hash,
             "transport": mode,
@@ -557,7 +644,7 @@ class SkillDistributor:
             "cursor": FlatMarkdownAdapter(target_id="cursor", root_relpath=".cursor/skills"),
             "codex": PromptBundleAdapter(target_id="codex", root_relpath=".codex/skills"),
         }
-        self.known_targets = frozenset(BUILTIN_TARGETS)
+        self.known_targets = KNOWN_DISTRIBUTION_TARGETS
 
     def distribute_all(
         self,
@@ -784,34 +871,7 @@ class SkillDistributor:
         return selected
 
     def _normalize_cli_targets(self, targets: list[str]) -> list[str]:
-        normalized = []
-        seen: set[str] = set()
-        for target in targets:
-            if not isinstance(target, str) or not target.strip():
-                raise ValidationError("target values must be non-empty strings")
-            value = target.strip()
-            if value not in self.known_targets:
-                raise ValidationError(f"Unknown distribution target: {value}")
-            if value not in seen:
-                seen.add(value)
-                normalized.append(value)
-        return normalized
-
-    def _normalize_manifest_targets(self, raw: object, *, field_name: str) -> list[str]:
-        if not isinstance(raw, list):
-            raise ValidationError(f"{field_name} must be a list of strings")
-        normalized = []
-        seen: set[str] = set()
-        for item in raw:
-            if not isinstance(item, str) or not item.strip():
-                raise ValidationError(f"{field_name} must be a list of strings")
-            target = item.strip()
-            if target not in self.known_targets:
-                raise ValidationError(f"{field_name} contains unknown target: {target}")
-            if target not in seen:
-                seen.add(target)
-                normalized.append(target)
-        return normalized
+        return normalize_distribution_targets(targets, field_name="targets")
 
     def _effective_targets(
         self,
@@ -819,15 +879,7 @@ class SkillDistributor:
         entry: Mapping[str, Any],
         defaults: Mapping[str, Any],
     ) -> list[str]:
-        if "targets" in entry:
-            return self._normalize_manifest_targets(
-                entry.get("targets"), field_name=f"skills.{slug}.targets"
-            )
-        if "targets" in defaults:
-            return self._normalize_manifest_targets(
-                defaults.get("targets"), field_name="defaults.targets"
-            )
-        return list(DEFAULT_TARGETS)
+        return resolve_skill_distribution_targets(entry, defaults, slug=slug)
 
     def _filter_targets(
         self,
@@ -860,33 +912,506 @@ class SkillDistributor:
     ) -> dict[str, Any]:
         item = self._planned_item(plan)
         item["mode"] = result.get("mode", plan.transport)
+        if "changed" in result:
+            item["changed"] = bool(result["changed"])
         if "transport" in result:
             item["transport"] = result["transport"]
         if "bundle_hash" in result:
             item["bundle_hash"] = result["bundle_hash"]
         return item
 
-    def _load_index(self, plan: DistributionPlan) -> dict[str, Any]:
-        index_path = self.repo_root / plan.index_relpath
+    def inspect_all(
+        self,
+        *,
+        slugs: list[str] | None = None,
+        targets: list[str] | None = None,
+    ) -> dict[str, Any]:
+        manifest = self._load_manifest()
+        defaults = self._manifest_defaults(manifest)
+        skills = self._manifest_skills(manifest)
+        selected_slugs = self._select_slugs(skills, slugs)
+        target_filter = self._normalize_cli_targets(targets) if targets is not None else None
+
+        verified: list[dict[str, Any]] = []
+        issues: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        failed: list[dict[str, Any]] = []
+        index_cache: dict[str, dict[str, Any]] = {}
+        expected_by_target: dict[str, set[str]] = {target: set() for target in self.adapters}
+
+        for slug in selected_slugs:
+            entry = skills.get(slug)
+            if not isinstance(entry, Mapping):
+                failed.append(
+                    {
+                        "slug": slug,
+                        "reason": "invalid_manifest_entry",
+                        "detail": "manifest entry must be a mapping",
+                    }
+                )
+                continue
+
+            if entry.get("enabled", True) is False:
+                skipped.append(
+                    {
+                        "slug": slug,
+                        "reason": "disabled",
+                        "detail": "disabled skills are not distributed",
+                    }
+                )
+                continue
+
+            effective_targets = self._effective_targets(slug, entry, defaults)
+            selected_targets = self._filter_targets(effective_targets, target_filter)
+            if not selected_targets:
+                skipped.append(
+                    {
+                        "slug": slug,
+                        "reason": "target_filter_excluded",
+                        "detail": "no configured distribution targets matched the requested filter",
+                    }
+                )
+                continue
+
+            if "engram" in selected_targets:
+                skipped.append(
+                    {
+                        "slug": slug,
+                        "target": "engram",
+                        "profile": BUILTIN_TARGETS["engram"]["profile"],
+                        "root_relpath": BUILTIN_TARGETS["engram"]["root_relpath"],
+                        "reason": "canonical_store",
+                        "detail": "engram is the canonical skill store and is not generated",
+                    }
+                )
+
+            external_targets = [target for target in selected_targets if target != "engram"]
+            for target in external_targets:
+                expected_by_target[target].add(slug)
+            if not external_targets:
+                continue
+
+            try:
+                deployment_mode = resolve_skill_deployment_mode(entry, defaults)
+            except ValidationError as exc:
+                for target in external_targets:
+                    failed.append(
+                        {
+                            "slug": slug,
+                            "target": target,
+                            "profile": BUILTIN_TARGETS[target]["profile"],
+                            "reason": "invalid_deployment_mode",
+                            "detail": str(exc),
+                        }
+                    )
+                continue
+
+            canonical_dir = self.skills_dir / slug
+            skill_md = canonical_dir / "SKILL.md"
+            if not skill_md.is_file():
+                reason = (
+                    "missing_local_install"
+                    if deployment_mode == "gitignored"
+                    else "missing_canonical_skill"
+                )
+                detail = (
+                    "gitignored skill is not installed locally; run install or sync before distribution"
+                    if deployment_mode == "gitignored"
+                    else "checked skill is missing locally; checked skills must be present before distribution"
+                )
+                for target in external_targets:
+                    failed.append(
+                        {
+                            "slug": slug,
+                            "target": target,
+                            "profile": BUILTIN_TARGETS[target]["profile"],
+                            "reason": reason,
+                            "detail": detail,
+                        }
+                    )
+                continue
+
+            try:
+                frontmatter, body_markdown = read_with_frontmatter(skill_md)
+            except Exception as exc:  # pragma: no cover - parser errors are environment-driven
+                for target in external_targets:
+                    failed.append(
+                        {
+                            "slug": slug,
+                            "target": target,
+                            "profile": BUILTIN_TARGETS[target]["profile"],
+                            "reason": "invalid_frontmatter",
+                            "detail": str(exc),
+                        }
+                    )
+                continue
+
+            canonical_hash = compute_content_hash(canonical_dir)
+            canonical_path = f"core/memory/skills/{slug}"
+
+            for target in external_targets:
+                adapter = self.adapters[target]
+                try:
+                    plan = adapter.plan(
+                        repo_root=self.repo_root,
+                        skill_slug=slug,
+                        canonical_dir=canonical_dir,
+                        canonical_path=canonical_path,
+                        canonical_hash=canonical_hash,
+                        manifest_entry=entry,
+                        frontmatter=frontmatter,
+                        body_markdown=body_markdown,
+                    )
+                except DistributionFailure as exc:
+                    failed.append(
+                        {
+                            "slug": slug,
+                            "target": target,
+                            "profile": adapter.profile,
+                            "reason": exc.reason,
+                            "detail": str(exc),
+                        }
+                    )
+                    continue
+
+                inspection = self._inspect_plan(plan, index_cache=index_cache)
+                if inspection["status"] == "ok":
+                    verified.append(inspection)
+                else:
+                    issues.append(inspection)
+
+        issues.extend(self._inspect_unexpected_index_entries(expected_by_target, index_cache))
+
+        return {
+            "repo_root": str(self.repo_root),
+            "status": "ok" if not failed and not issues else "needs_attention",
+            "available_targets": sorted(self.known_targets),
+            "skills_selected": selected_slugs,
+            "target_filter": list(target_filter) if target_filter is not None else None,
+            "verified_count": len(verified),
+            "issue_count": len(issues),
+            "failure_count": len(failed),
+            "verified": verified,
+            "issues": issues,
+            "failed": failed,
+            "skipped": skipped,
+            "expected_by_target": {
+                target: sorted(slugs_for_target)
+                for target, slugs_for_target in expected_by_target.items()
+                if slugs_for_target
+            },
+        }
+
+    def prune_obsolete_distributions(
+        self,
+        expected_by_target: Mapping[str, list[str] | set[str]],
+    ) -> dict[str, Any]:
+        removed: list[dict[str, Any]] = []
+        files_changed: list[str] = []
+
+        for target_id, adapter in self.adapters.items():
+            expected = set(expected_by_target.get(target_id, []))
+            index = self._load_index_for_target(target_id)
+            entries = index["entries"]
+            changed = False
+
+            for slug, entry in sorted(list(entries.items())):
+                if slug in expected:
+                    continue
+                outputs = self._entry_outputs(entry)
+                for output_rel in outputs:
+                    output_path = self.repo_root / Path(output_rel)
+                    if output_path.exists() or output_path.is_symlink():
+                        _remove_path(output_path)
+                    if output_rel not in files_changed:
+                        files_changed.append(output_rel)
+                del entries[slug]
+                changed = True
+                removed.append(
+                    {
+                        "slug": slug,
+                        "target": target_id,
+                        "profile": adapter.profile,
+                        "outputs": outputs,
+                        "index_path": adapter.index_relpath,
+                    }
+                )
+
+            if changed:
+                _write_json(self.repo_root / adapter.index_relpath, index)
+                if adapter.index_relpath not in files_changed:
+                    files_changed.append(adapter.index_relpath)
+
+        return {
+            "removed_count": len(removed),
+            "removed": removed,
+            "files_changed": files_changed,
+        }
+
+    def _inspect_plan(
+        self,
+        plan: DistributionPlan,
+        *,
+        index_cache: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
+        item = self._planned_item(plan)
+        issues: list[dict[str, str]] = []
+        transport = self._inspect_outputs(plan, issues)
+        if transport is not None:
+            item["transport"] = transport
+
+        index = index_cache.get(plan.target_id)
+        if index is None:
+            index = self._load_index_for_target(plan.target_id)
+            index_cache[plan.target_id] = index
+
+        index_entry = index["entries"].get(plan.skill_slug)
+        if not isinstance(index_entry, Mapping):
+            issues.append(
+                {
+                    "reason": "missing_index_entry",
+                    "detail": f"distribution index is missing {plan.skill_slug}",
+                }
+            )
+        else:
+            self._inspect_index_entry(plan, index_entry, transport, issues)
+
+        if issues:
+            item["status"] = "issue"
+            item["issues"] = issues
+        else:
+            item["status"] = "ok"
+        return item
+
+    def _inspect_outputs(
+        self,
+        plan: DistributionPlan,
+        issues: list[dict[str, str]],
+    ) -> str | None:
+        if plan.profile == "canonical-bundle":
+            output_path = plan.output_paths[0]
+            if output_path.is_symlink():
+                try:
+                    if output_path.resolve() != plan.canonical_dir.resolve():
+                        issues.append(
+                            {
+                                "reason": "broken_symlink",
+                                "detail": f"{plan.output_relpaths[0]} does not resolve to {plan.canonical_path}",
+                            }
+                        )
+                except OSError as exc:
+                    issues.append(
+                        {
+                            "reason": "broken_symlink",
+                            "detail": f"{plan.output_relpaths[0]} could not be resolved: {exc}",
+                        }
+                    )
+                return "symlink"
+            if output_path.is_dir():
+                if compute_content_hash(output_path) != plan.canonical_hash:
+                    issues.append(
+                        {
+                            "reason": "stale_bundle",
+                            "detail": f"{plan.output_relpaths[0]} does not match {plan.canonical_path}",
+                        }
+                    )
+                return "copy"
+            if output_path.exists():
+                issues.append(
+                    {
+                        "reason": "invalid_output_type",
+                        "detail": f"{plan.output_relpaths[0]} is not a directory or symlinked bundle",
+                    }
+                )
+                return None
+            issues.append(
+                {
+                    "reason": "missing_output",
+                    "detail": f"{plan.output_relpaths[0]} is missing",
+                }
+            )
+            return None
+
+        if plan.profile == "flat-markdown":
+            output_path = plan.output_paths[0]
+            if not output_path.is_file():
+                issues.append(
+                    {
+                        "reason": "missing_output",
+                        "detail": f"{plan.output_relpaths[0]} is missing",
+                    }
+                )
+                return None
+            if plan.rendered_hash is not None and _hash_file(output_path) != plan.rendered_hash:
+                issues.append(
+                    {
+                        "reason": "stale_output",
+                        "detail": f"{plan.output_relpaths[0]} does not match the rendered distribution content",
+                    }
+                )
+            return "render"
+
+        bundle_root = plan.output_paths[0].parent
+        if bundle_root.is_symlink():
+            issues.append(
+                {
+                    "reason": "invalid_output_type",
+                    "detail": f"{_repo_relpath(self.repo_root, bundle_root)} should be a rendered bundle directory",
+                }
+            )
+        for output_path, expected_hash, label in (
+            (plan.output_paths[0], plan.rendered_hash, "rendered prompt"),
+            (plan.output_paths[1], plan.metadata_hash, "metadata"),
+        ):
+            if not output_path.is_file():
+                issues.append(
+                    {
+                        "reason": "missing_output",
+                        "detail": f"{_repo_relpath(self.repo_root, output_path)} is missing",
+                    }
+                )
+                continue
+            if expected_hash is not None and _hash_file(output_path) != expected_hash:
+                issues.append(
+                    {
+                        "reason": "stale_output",
+                        "detail": f"{_repo_relpath(self.repo_root, output_path)} does not match the expected {label}",
+                    }
+                )
+        return "render"
+
+    def _inspect_index_entry(
+        self,
+        plan: DistributionPlan,
+        index_entry: Mapping[str, Any],
+        transport: str | None,
+        issues: list[dict[str, str]],
+    ) -> None:
+        if index_entry.get("canonical_path") != plan.canonical_path:
+            issues.append(
+                {
+                    "reason": "stale_index",
+                    "detail": f"distribution index canonical_path for {plan.skill_slug} is outdated",
+                }
+            )
+        if index_entry.get("canonical_hash") != plan.canonical_hash:
+            issues.append(
+                {
+                    "reason": "stale_index",
+                    "detail": f"distribution index canonical_hash for {plan.skill_slug} is outdated",
+                }
+            )
+        if index_entry.get("profile") != plan.profile:
+            issues.append(
+                {
+                    "reason": "stale_index",
+                    "detail": f"distribution index profile for {plan.skill_slug} is outdated",
+                }
+            )
+        if self._entry_outputs(index_entry) != list(plan.output_relpaths):
+            issues.append(
+                {
+                    "reason": "stale_index",
+                    "detail": f"distribution index outputs for {plan.skill_slug} are outdated",
+                }
+            )
+        if (
+            plan.rendered_hash is not None
+            and index_entry.get("rendered_hash") != plan.rendered_hash
+        ):
+            issues.append(
+                {
+                    "reason": "stale_index",
+                    "detail": f"distribution index rendered_hash for {plan.skill_slug} is outdated",
+                }
+            )
+        if (
+            plan.metadata_hash is not None
+            and index_entry.get("metadata_hash") != plan.metadata_hash
+        ):
+            issues.append(
+                {
+                    "reason": "stale_index",
+                    "detail": f"distribution index metadata_hash for {plan.skill_slug} is outdated",
+                }
+            )
+        if transport is not None and index_entry.get("transport") not in {None, transport}:
+            issues.append(
+                {
+                    "reason": "stale_index",
+                    "detail": f"distribution index transport for {plan.skill_slug} is outdated",
+                }
+            )
+
+    def _inspect_unexpected_index_entries(
+        self,
+        expected_by_target: Mapping[str, set[str]],
+        index_cache: dict[str, dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        issues: list[dict[str, Any]] = []
+        for target_id, adapter in self.adapters.items():
+            index = index_cache.get(target_id)
+            if index is None:
+                index = self._load_index_for_target(target_id)
+                index_cache[target_id] = index
+            expected = expected_by_target.get(target_id, set())
+            for slug, entry in sorted(index["entries"].items()):
+                if slug in expected:
+                    continue
+                issues.append(
+                    {
+                        "slug": slug,
+                        "target": target_id,
+                        "profile": adapter.profile,
+                        "mode": "unexpected",
+                        "outputs": self._entry_outputs(entry),
+                        "index_path": adapter.index_relpath,
+                        "status": "issue",
+                        "issues": [
+                            {
+                                "reason": "unexpected_distribution_entry",
+                                "detail": "distribution index contains a skill that is no longer selected for this target",
+                            }
+                        ],
+                    }
+                )
+        return issues
+
+    def _entry_outputs(self, entry: object) -> list[str]:
+        if not isinstance(entry, Mapping):
+            return []
+        outputs = entry.get("outputs")
+        if not isinstance(outputs, list):
+            return []
+        return [output for output in outputs if isinstance(output, str)]
+
+    def _load_index_for_target(self, target_id: str) -> dict[str, Any]:
+        adapter = self.adapters[target_id]
+        index_path = self.repo_root / adapter.index_relpath
         if not index_path.is_file():
             return {
-                "target": plan.target_id,
-                "adapter_version": plan.adapter_version,
+                "target": target_id,
+                "adapter_version": adapter.adapter_version,
                 "entries": {},
             }
         data = json.loads(index_path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
-            raise ValidationError(f"Distribution index must be a mapping: {plan.index_relpath}")
+            raise ValidationError(f"Distribution index must be a mapping: {adapter.index_relpath}")
         entries = data.get("entries")
         if not isinstance(entries, dict):
             raise ValidationError(
-                f"Distribution index entries must be a mapping: {plan.index_relpath}"
+                f"Distribution index entries must be a mapping: {adapter.index_relpath}"
             )
         return {
-            "target": plan.target_id,
-            "adapter_version": plan.adapter_version,
+            "target": target_id,
+            "adapter_version": data.get("adapter_version", adapter.adapter_version),
             "entries": dict(entries),
         }
+
+    def _load_index(self, plan: DistributionPlan) -> dict[str, Any]:
+        index = self._load_index_for_target(plan.target_id)
+        index["adapter_version"] = plan.adapter_version
+        return index
 
     def _update_index(
         self,
@@ -1025,11 +1550,14 @@ def main(argv: list[str] | None = None) -> int:
 __all__ = [
     "BUILTIN_TARGETS",
     "DistributionPlan",
+    "KNOWN_DISTRIBUTION_TARGETS",
     "SkillDistributor",
     "TransportCapabilities",
     "build_distribution_report",
     "main",
+    "normalize_distribution_targets",
     "parse_args",
+    "resolve_skill_distribution_targets",
 ]
 
 

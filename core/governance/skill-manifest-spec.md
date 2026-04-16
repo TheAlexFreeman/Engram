@@ -26,7 +26,7 @@ defaults:
   # Optional repo-wide override. Omit deployment_mode to use trust-aware fallback:
   # high -> checked, medium -> checked, low -> gitignored.
   deployment_mode: checked        # checked | gitignored
-  targets: [engram]               # distribution targets (future: claude, cursor, codex)
+  targets: [engram]               # distribution targets (engram | generic | claude | cursor | codex)
 
 # Skill declarations. Each key is the skill slug (kebab-case, matches directory name).
 skills:
@@ -65,7 +65,7 @@ skills:
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `deployment_mode` | enum | trust-aware | Optional repo-wide override. If omitted, the effective default is derived from trust: `high -> checked`, `medium -> checked`, `low -> gitignored`. `source: local` entries still resolve to `checked` because they must clone with the repo. |
-| `targets` | list[string] | `[engram]` | Distribution targets. See `core/governance/skill-distribution-spec.md` for target identifiers and adapter rules. |
+| `targets` | list[string] | `[engram]` | Distribution targets. See `core/governance/skill-distribution-spec.md` for target identifiers and adapter rules. Use `[]` to disable external projections by default. |
 
 ### Per-skill fields
 
@@ -76,7 +76,7 @@ skills:
 | `trust` | enum | yes | `high`, `medium`, or `low`. Must match SKILL.md frontmatter `trust` field. |
 | `description` | string | yes | One-line description for catalog display. Should match SKILL.md frontmatter. |
 | `deployment_mode` | enum | no | Override for this skill. If omitted, inherits from `defaults.deployment_mode` when present, otherwise falls back to the trust-aware default. |
-| `targets` | list[string] | no | Override distribution targets for this skill. Inherits from `defaults.targets` if omitted. |
+| `targets` | list[string] | no | Override distribution targets for this skill. Inherits from `defaults.targets` if omitted. Use `[]` to disable external projections for one skill. |
 | `enabled` | boolean | no | Default `true`. Set `false` to disable without removing the entry. |
 | `trigger` | string or mapping | no | Lifecycle trigger binding. Reserved for hook-trigger-metadata plan. |
 
@@ -116,6 +116,8 @@ When resolving a skill, the resolver follows this order:
 - `ref` is only valid when `source` is `github:` or `git:`. Setting `ref` with `source: local` is an error.
 - `path:` sources must stay relative. Absolute filesystem paths are rejected so manifests remain portable across worktrees and machines.
 - `source: local` cannot use `deployment_mode: gitignored`. Local skills must stay checked so fresh clones receive the skill contents; use `path:`, `git:`, or `github:` if you want on-demand install.
+- `targets` entries must use known target ids from the distribution registry. Unknown target names are validation errors.
+- Duplicate target names are normalized away while preserving first-seen order. An empty list is valid and disables external projections for that skill.
 - `enabled: false` skills are excluded from catalog generation and distribution but retained in the manifest for version tracking.
 - Unknown fields at any level produce a validation warning (not an error) to support forward-compatible extensions.
 

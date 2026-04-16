@@ -200,3 +200,69 @@ class SkillDistributorTests(unittest.TestCase):
             )
         )
         self.assertEqual(claude_index["entries"][slug]["transport"], "copy")
+
+    def test_inspect_all_reports_stale_rendered_output(self) -> None:
+        slug = "inspect-skill"
+        self._write_skill(slug, frontmatter={"name": "Inspect Skill"})
+        self._write_yaml(
+            "core/memory/skills/SKILLS.yaml",
+            {
+                "schema_version": 1,
+                "skills": {slug: {"source": "local", "targets": ["cursor"]}},
+            },
+        )
+
+        report, code = self.module.build_distribution_report(
+            self.repo_root,
+            dry_run=False,
+            prefer_symlink=False,
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(report["distributed_count"], 1)
+
+        cursor_path = self.repo_root / ".cursor" / "skills" / f"{slug}.md"
+        cursor_path.write_text("# Drifted Skill\n", encoding="utf-8")
+
+        inspection = self.module.SkillDistributor(self.repo_root).inspect_all()
+
+        self.assertEqual(inspection["status"], "needs_attention")
+        self.assertEqual(inspection["issue_count"], 1)
+        self.assertEqual(inspection["issues"][0]["slug"], slug)
+        self.assertEqual(inspection["issues"][0]["target"], "cursor")
+        self.assertEqual(inspection["issues"][0]["issues"][0]["reason"], "stale_output")
+
+    def test_inspect_all_reports_unexpected_distribution_entry(self) -> None:
+        slug = "opted-out-skill"
+        self._write_skill(slug)
+        self._write_yaml(
+            "core/memory/skills/SKILLS.yaml",
+            {
+                "schema_version": 1,
+                "skills": {slug: {"source": "local", "targets": ["cursor"]}},
+            },
+        )
+
+        report, code = self.module.build_distribution_report(
+            self.repo_root,
+            dry_run=False,
+            prefer_symlink=False,
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(report["distributed_count"], 1)
+
+        self._write_yaml(
+            "core/memory/skills/SKILLS.yaml",
+            {
+                "schema_version": 1,
+                "skills": {slug: {"source": "local", "targets": ["engram"]}},
+            },
+        )
+
+        inspection = self.module.SkillDistributor(self.repo_root).inspect_all()
+
+        self.assertEqual(inspection["status"], "needs_attention")
+        self.assertEqual(inspection["issue_count"], 1)
+        self.assertEqual(
+            inspection["issues"][0]["issues"][0]["reason"],
+            "unexpected_distribution_entry",
+        )

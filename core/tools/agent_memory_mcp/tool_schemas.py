@@ -18,6 +18,7 @@ from .plan_utils import (
     plan_create_input_schema,
     verification_results_item_schema,
 )
+from .skill_distributor import BUILTIN_TARGETS
 from .skill_trigger import SKILL_TRIGGER_EVENTS, skill_trigger_value_schema
 
 ACCESS_MODES = frozenset({"read", "write", "update", "create"})
@@ -28,6 +29,7 @@ REVIEW_VERDICTS = frozenset({"approve", "reject", "defer"})
 SKILL_CREATE_TRUST_LEVELS = frozenset({"high", "medium", "low"})
 UPDATE_MODES = frozenset({"upsert", "append", "replace"})
 PERIODIC_REVIEW_STAGES = frozenset({"Exploration", "Calibration", "Consolidation"})
+SKILL_DISTRIBUTION_TARGETS = sorted(BUILTIN_TARGETS)
 
 ToolSchemaBuilder = Callable[[], dict[str, Any]]
 
@@ -2584,6 +2586,7 @@ def skill_manifest_write_input_schema() -> dict[str, Any]:
             "trust must be one of: high, medium, low",
             "ref is only valid with github: or git: sources and is ignored for source: local",
             "source: local entries always resolve to checked deployment; an explicit gitignored override is invalid.",
+            "targets is optional; when omitted the entry inherits defaults.targets or [engram]. Use targets=[] to disable external projections for one skill.",
         ],
         properties={
             "slug": {
@@ -2619,6 +2622,17 @@ def skill_manifest_write_input_schema() -> dict[str, Any]:
                     {"type": "null"},
                 ],
                 "description": "Optional override for deployment mode. Inherits from defaults if omitted. source: local cannot use gitignored.",
+            },
+            "targets": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "items": {"type": "string", "enum": SKILL_DISTRIBUTION_TARGETS},
+                        "uniqueItems": True,
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional distribution target override. Inherits from defaults.targets if omitted; [] disables external projections.",
             },
             "enabled": {
                 "oneOf": [
@@ -2832,6 +2846,7 @@ def skill_install_input_schema() -> dict[str, Any]:
             "When slug is omitted, the resolver derives it from the resolved skill directory name.",
             "trust, when provided, rewrites the installed SKILL.md frontmatter to keep manifest and content aligned.",
             "source: local installs always resolve to checked deployment so the skill remains available after clone.",
+            "targets is optional; when omitted the installed entry inherits defaults.targets or [engram]. Use targets=[] to disable external projections.",
         ],
         properties={
             "source": {
@@ -2866,6 +2881,17 @@ def skill_install_input_schema() -> dict[str, Any]:
                     {"type": "null"},
                 ],
                 "description": "Optional manifest enabled flag; defaults to true.",
+            },
+            "targets": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "items": {"type": "string", "enum": SKILL_DISTRIBUTION_TARGETS},
+                        "uniqueItems": True,
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional distribution target override. Inherits from defaults.targets if omitted; [] disables external projections.",
             },
             "preview": {
                 "type": "boolean",
@@ -2908,6 +2934,7 @@ def skill_add_input_schema() -> dict[str, Any]:
             "Remote sources (github:, git:) are not supported yet.",
             "deployment_mode is optional; when omitted, the effective mode falls back to defaults.deployment_mode or the trust-aware mapping.",
             "Template-backed skills register as source: local, so they always resolve to checked deployment.",
+            "targets is optional; when omitted the new entry inherits defaults.targets or [engram]. Use targets=[] to disable external projections.",
         ],
         properties={
             "slug": {
@@ -2959,6 +2986,17 @@ def skill_add_input_schema() -> dict[str, Any]:
                     {"type": "null"},
                 ],
                 "description": "Optional override for deployment mode. Inherits from defaults if omitted. Template/local skills cannot use gitignored.",
+            },
+            "targets": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "items": {"type": "string", "enum": SKILL_DISTRIBUTION_TARGETS},
+                        "uniqueItems": True,
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional distribution target override. Inherits from defaults.targets if omitted; [] disables external projections.",
             },
             "preview": {
                 "type": "boolean",
