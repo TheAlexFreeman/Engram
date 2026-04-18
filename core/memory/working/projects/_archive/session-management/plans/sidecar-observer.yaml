@@ -1,0 +1,355 @@
+id: sidecar-observer
+project: session-management
+created: '2026-03-28'
+origin_session: memory/activity/2026/03/28/chat-001
+status: complete
+sessions_used: 0
+budget:
+  deadline: '2026-05-01'
+  max_sessions: 8
+  advisory: true
+purpose:
+  summary: >
+    Build engram-sidecar — a passive observer process that watches
+    conversation transcripts, auto-populates ACCESS.jsonl, manages
+    session lifecycle, and bootstraps Engram's curation feedback loops.
+  context: >
+    Phase 1 of the session management roadmap
+    (working/notes/integrated-roadmap.md). Solves the chicken-and-egg
+    problem gating Engram's designed-but-dormant features: curation
+    algorithms, co-retrieval clustering, helpfulness-weighted retrieval,
+    and knowledge amplification all need ACCESS data flowing. ACCESS.jsonl
+    files are currently empty because logging depends on agent self-report.
+
+    The sidecar watches platform-native transcripts (starting with Claude
+    Code), identifies memory file retrievals, estimates helpfulness from
+    textual similarity between retrieved content and responses, and logs
+    ACCESS entries. It also detects session boundaries and calls MCP tools
+    for session lifecycle management.
+
+    Inspired by OpenClaw's automatic session management, but adapted
+    for Engram's architecture where we don't control the runtime.
+
+    Design constraints:
+    - Passive observer only — no intervention in the conversation
+    - Connects to Engram MCP server as a client
+    - Ships as `engram-sidecar` CLI alongside `engram-mcp`
+    - Sidecar ACCESS entries carry `"estimator": "sidecar"` provenance
+    - Must not interfere with direct agent MCP usage
+    - Platform transcript parsers are pluggable (start with Claude Code)
+  questions:
+    - What is Claude Code's transcript format and file location?
+    - Should the sidecar be a separate process or a mode of the MCP server?
+    - What textual similarity threshold distinguishes helpfulness 0.7+ from 0.2-0.4?
+    - Should the sidecar run continuously or be invoked at session end?
+    - How to handle concurrent sessions (multiple agents, same memory repo)?
+
+work:
+  phases:
+    # ── Phase 1: Transcript parser framework ────────────────────────────
+    - id: transcript-parser-framework
+      title: Build pluggable transcript parser framework
+      status: completed
+      blockers: []
+      requires_approval: false
+      sources:
+        - path: README.md
+          type: internal
+          intent: >
+            Understand Engram's overall architecture and how the sidecar
+            fits as a new component alongside the MCP server.
+        - path: core/governance/curation-algorithms.md
+          type: internal
+          intent: >
+            Understand the ACCESS.jsonl aggregation pipeline the sidecar
+            will feed. Phase 1 co-occurrence, Phase 2 task normalization.
+        - path: core/governance/update-guidelines.md
+          type: internal
+          intent: >
+            ACCESS.jsonl schema and field requirements. Sidecar entries
+            must conform to the same format as agent-reported entries.
+      postconditions:
+        - type: check
+          description: >
+            A transcript parser base class/protocol exists with methods:
+            detect_platform, find_transcripts, parse_session, extract_tool_calls
+        - type: test
+          command: pytest core/tools/tests/ -k transcript_parser
+          description: >
+            Framework tests pass with a mock transcript parser
+      changes:
+        - path: core/tools/agent_memory_mcp/sidecar/__init__.py
+          action: create
+          description: Sidecar package init.
+        - path: core/tools/agent_memory_mcp/sidecar/parser.py
+          action: create
+          description: >
+            Abstract transcript parser protocol:
+
+            class TranscriptParser(Protocol):
+                def platform_name(self) -> str: ...
+                def find_transcripts(self, since: datetime) -> list[TranscriptFile]: ...
+                def parse_session(self, transcript: TranscriptFile) -> ParsedSession: ...
+
+            ParsedSession dataclass: session_id, start_time, end_time,
+            user_messages, assistant_messages, tool_calls (name, args, result),
+            files_referenced (from tool calls like memory_read_file, memory_search).
+
+            TranscriptFile dataclass: path, platform, modified_time.
+        - path: core/tools/tests/test_transcript_parser.py
+          action: create
+          description: >
+            Tests with mock transcript data verifying parse_session
+            extracts tool calls, file references, and session boundaries.
+
+    # ── Phase 2: Claude Code parser ─────────────────────────────────────
+    - id: claude-code-parser
+      title: Implement Claude Code transcript parser
+      status: completed
+      blockers:
+        - transcript-parser-framework
+      requires_approval: false
+      sources:
+        - path: CLAUDE.md
+          type: internal
+          intent: >
+            Understand how Claude Code discovers and reads Engram.
+            The sidecar needs to find Claude Code's transcript storage.
+      postconditions:
+        - type: test
+          command: pytest core/tools/tests/ -k claude_code_parser
+          description: >
+            Parser correctly extracts sessions, tool calls, and file
+            references from Claude Code transcript format
+      changes:
+        - path: core/tools/agent_memory_mcp/sidecar/parsers/claude_code.py
+          action: create
+          description: >
+            Claude Code transcript parser implementing TranscriptParser.
+            Discovers transcript files from Claude Code's storage location,
+            parses JSONL conversation format, extracts MCP tool calls
+            (memory_read_file, memory_search, memory_list_folder),
+            identifies file paths from tool arguments and results.
+        - path: core/tools/tests/test_claude_code_parser.py
+          action: create
+          description: >
+            Tests with sample Claude Code transcript fixtures.
+
+    # ── Phase 3: Helpfulness estimator ──────────────────────────────────
+    - id: helpfulness-estimator
+      title: Build helpfulness estimation from transcript analysis
+      status: completed
+      blockers:
+        - transcript-parser-framework
+      requires_approval: false
+      sources:
+        - path: README.md
+          type: internal
+          intent: >
+            ACCESS.jsonl helpfulness scale (0.0-1.0) with specific
+            semantics per range. Sidecar estimates must approximate
+            these semantics.
+      postconditions:
+        - type: test
+          command: pytest core/tools/tests/ -k helpfulness_estimator
+          description: >
+            Estimator assigns appropriate scores: high when response
+            quotes retrieved content, low when retrieved but not used,
+            mid-range for paraphrase or partial use
+      changes:
+        - path: core/tools/agent_memory_mcp/sidecar/estimator.py
+          action: create
+          description: >
+            Helpfulness estimator module:
+
+            estimate_helpfulness(
+                retrieved_content: str,
+                response_text: str,
+                task_description: str,
+            ) -> float
+
+            Heuristics:
+            - 0.7-0.9: Response quotes or closely paraphrases retrieved
+              content (high token overlap after normalization)
+            - 0.5-0.6: Response references concepts from retrieved content
+              but doesn't quote directly (semantic keyword overlap)
+            - 0.2-0.4: File was retrieved but response doesn't reference
+              it (no significant overlap)
+            - 0.0-0.1: Not assigned by sidecar (sidecar only logs files
+              that were actually retrieved via tool calls)
+
+            Uses simple token overlap / Jaccard similarity — no embedding
+            model required. Keeps the sidecar dependency-light.
+        - path: core/tools/tests/test_helpfulness_estimator.py
+          action: create
+          description: >
+            Tests with paired (retrieved_content, response) examples
+            covering each helpfulness range.
+
+    # ── Phase 4: ACCESS logger ──────────────────────────────────────────
+    - id: access-logger
+      title: Implement automatic ACCESS.jsonl logging via MCP
+      status: completed
+      blockers:
+        - helpfulness-estimator
+        - claude-code-parser
+      requires_approval: false
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: >
+            Existing memory_log_access and memory_log_access_batch tools.
+            Sidecar should use these MCP tools rather than writing files
+            directly, to enforce path policies and validation.
+        - path: core/INIT.md
+          type: internal
+          intent: >
+            Active aggregation trigger threshold (currently 15). Sidecar
+            should call memory_check_aggregation_triggers after batches.
+      postconditions:
+        - type: test
+          command: pytest core/tools/tests/ -k access_logger
+          description: >
+            Logger produces valid ACCESS.jsonl entries with all required
+            fields (file, date, task, helpfulness, note) plus estimator
+            provenance, and batches them via memory_log_access_batch
+      changes:
+        - path: core/tools/agent_memory_mcp/sidecar/access_logger.py
+          action: create
+          description: >
+            ACCESS logger that converts ParsedSession + helpfulness
+            estimates into ACCESS.jsonl entries:
+
+            1. For each file retrieved via MCP tool calls in the session:
+               - Extract repo-relative path from tool args
+               - Extract task description from surrounding user message
+               - Estimate helpfulness via estimator module
+               - Build ACCESS entry with estimator: "sidecar" provenance
+            2. Batch entries via memory_log_access_batch MCP call
+            3. After logging, call memory_check_aggregation_triggers
+            4. If aggregation triggered, call memory_run_aggregation
+        - path: core/tools/tests/test_access_logger.py
+          action: create
+          description: >
+            Integration tests with mocked MCP client verifying correct
+            ACCESS entry format, batching, and aggregation triggering.
+
+    # ── Phase 5: Session lifecycle manager ──────────────────────────────
+    - id: session-lifecycle
+      title: Implement automatic session recording
+      status: completed
+      blockers:
+        - access-logger
+      requires_approval: false
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: >
+            Existing memory_record_session and memory_record_chat_summary
+            tools. Sidecar calls these at session boundaries.
+      postconditions:
+        - type: test
+          command: pytest core/tools/tests/ -k session_lifecycle
+          description: >
+            Lifecycle manager detects session end and calls
+            memory_record_session with correct summary
+      changes:
+        - path: core/tools/agent_memory_mcp/sidecar/lifecycle.py
+          action: create
+          description: >
+            Session lifecycle manager:
+            - Detect session start: new transcript file or gap > 30min
+            - Detect session end: transcript file closed or inactivity
+            - On session end: call memory_record_session via MCP
+            - On session end: call memory_record_chat_summary via MCP
+            - Track checkpoint calls: log warning if long session (>20
+              tool calls) had zero memory_checkpoint calls
+
+    # ── Phase 6: CLI entry point and config ─────────────────────────────
+    - id: sidecar-cli
+      title: Create engram-sidecar CLI entry point and configuration
+      status: completed
+      blockers:
+        - session-lifecycle
+      requires_approval: true
+      sources:
+        - path: core/tools/agent_memory_mcp/server_main.py
+          type: internal
+          intent: >
+            Reference CLI entry point pattern for engram-mcp.
+            engram-sidecar should follow the same conventions.
+        - path: pyproject.toml
+          type: internal
+          intent: >
+            Add engram-sidecar as a console_scripts entry point.
+      postconditions:
+        - type: check
+          description: >
+            `engram-sidecar` CLI starts, discovers transcripts, and
+            processes them without error on a test fixture
+        - type: test
+          command: pytest core/tools/tests/ -k sidecar_cli
+          description: CLI argument parsing and config loading tests pass
+      changes:
+        - path: core/tools/agent_memory_mcp/sidecar/cli.py
+          action: create
+          description: >
+            CLI entry point for engram-sidecar:
+
+            engram-sidecar                    # watch mode (continuous)
+            engram-sidecar --once             # process recent, then exit
+            engram-sidecar --platform claude-code
+            engram-sidecar --since 2026-03-28
+
+            Config via environment variables:
+            - MEMORY_REPO_ROOT (shared with engram-mcp)
+            - SIDECAR_PLATFORM (default: auto-detect)
+            - SIDECAR_POLL_INTERVAL (default: 30s)
+            - SIDECAR_MCP_URL (default: stdio to engram-mcp)
+        - path: pyproject.toml
+          action: modify
+          description: >
+            Add engram-sidecar to [project.scripts]:
+            engram-sidecar = "engram_mcp.agent_memory_mcp.sidecar.cli:main"
+
+    # ── Phase 7: Documentation ──────────────────────────────────────────
+    - id: sidecar-docs
+      title: Document sidecar setup and usage
+      status: completed
+      blockers:
+        - sidecar-cli
+      requires_approval: true
+      sources:
+        - path: HUMANS/docs/QUICKSTART.md
+          type: internal
+          intent: Add sidecar setup to getting started guide.
+        - path: README.md
+          type: internal
+          intent: Mention sidecar in repository structure and MCP section.
+      postconditions:
+        - type: manual
+          description: >
+            HUMANS/docs/SIDECAR.md exists with setup instructions,
+            supported platforms, configuration reference, and
+            troubleshooting guide
+      changes:
+        - path: HUMANS/docs/SIDECAR.md
+          action: create
+          description: >
+            Sidecar documentation: purpose, setup instructions per
+            platform, configuration reference, how it feeds curation,
+            troubleshooting, and relationship to the proxy (Phase 2).
+        - path: HUMANS/docs/QUICKSTART.md
+          action: modify
+          description: >
+            Add optional sidecar setup step after MCP server setup.
+        - path: README.md
+          action: modify
+          description: >
+            Add sidecar to repository structure and mention in MCP section.
+        - path: CHANGELOG.md
+          action: modify
+          description: >
+            Add entry for engram-sidecar.
+
+review: null

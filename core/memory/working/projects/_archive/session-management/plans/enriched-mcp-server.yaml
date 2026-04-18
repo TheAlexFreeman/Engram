@@ -1,0 +1,309 @@
+id: enriched-mcp-server
+project: session-management
+created: '2026-03-28'
+origin_session: memory/activity/2026/03/28/chat-001
+status: active
+sessions_used: 0
+budget:
+  deadline: '2026-07-01'
+  max_sessions: 12
+  advisory: true
+purpose:
+  summary: >
+    Enrich the MCP server with persistent session state tracking,
+    advisory metadata in tool responses, composite context tools,
+    and automatic ACCESS logging from tool calls — absorbing the best
+    capabilities of the sidecar and proxy into the core server.
+  context: >
+    Phase 3 of the session management roadmap
+    (working/notes/integrated-roadmap.md). The long-term play: as the
+    MCP protocol gains richer session semantics, capabilities that
+    required the sidecar or proxy migrate into the MCP server itself.
+
+    The enriched server maintains a session model across tool calls
+    (files read, files written, checkpoint history, time since last
+    flush), embeds advisory signals in tool responses, provides
+    composite context tools (memory_context_query), and automatically
+    logs ACCESS entries for read operations.
+
+    This phase does not replace the sidecar or proxy — it reduces the
+    surface they need to cover. The sidecar shifts to helpfulness
+    estimation and session boundary detection. The proxy shifts to
+    transparent enhancement for supporting platforms. Each component
+    does less; the integrated system does more.
+
+    Design constraints:
+    - Backward compatible: existing tools continue to work identically
+    - Advisory signals are metadata, not behavioral changes
+    - Session state is per-connection (MCP session), not global
+    - Composite tools are additive (new tools, not changed signatures)
+    - No dependency on sidecar or proxy being present
+    - Prepare for MCP server-initiated messages (when protocol supports)
+
+    Implementation snapshot (2026-04-03): session_state.py and server wiring are
+    complete; advisories ship via response_envelope.py (_session on JSON tool
+    bodies) with read tools mostly covered and many semantic write paths still
+    returning bare to_json() without _session. memory_session_health_check uses
+    the same envelope; the health result body is still repo-maintenance-only
+    (checkpoint/files-read lists not merged into result or _session metadata).
+    auto_access and memory_context_query are not implemented (context query
+    deferred per HUMANS/docs/MCP.md). Phase 6 documentation pass remains open.
+  questions:
+    - What session state should persist across MCP reconnections?
+    - Should advisory signals be opt-in (tool parameter) or always-on?
+    - When MCP gains server-initiated messages, what events should push?
+    - How to handle session state when multiple agents share one MCP server?
+    - Should memory_context_query require the semantic search optional dep?
+
+work:
+  phases:
+    # ── Phase 1: Session state model ────────────────────────────────────
+    - id: session-state-model
+      title: Build in-memory session state tracking across tool calls
+      status: completed
+      blockers: []
+      requires_approval: false
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_health.py
+          type: internal
+          intent: >
+            Existing memory_session_health_check. Extend its data model
+            to track cumulative session state, not just point-in-time
+            health checks.
+        - path: core/tools/agent_memory_mcp/server.py
+          type: internal
+          intent: >
+            Server initialization and tool registration. Session state
+            must be initialized at MCP connection start and accessible
+            to all tool handlers.
+      postconditions:
+        - type: test
+          target: pytest core/tools/tests/ -k session_state
+          description: >
+            Session state tracks: files_read, files_written,
+            checkpoints_count, tool_call_count, session_start_time,
+            last_checkpoint_time, last_flush_time
+      changes:
+        - path: core/tools/agent_memory_mcp/session_state.py
+          action: update
+          description: >
+            Session state module (implemented):
+
+            SessionState holds session_start, files_read, files_written,
+            tool_calls, checkpoints, last_checkpoint, last_flush,
+            flush_recommended, unread_relevant, identity_updates.
+
+            Methods include record_read/write/checkpoint/flush/tool_call,
+            get_advisory(), should_recommend_flush(), mark/clear unread
+            relevant paths, and reset() for memory_reset_session_state.
+        - path: core/tools/agent_memory_mcp/server.py
+          action: update
+          description: >
+            create_mcp initializes one SessionState and passes it into
+            read_tools.register and semantic.register.
+
+    # ── Phase 2: Advisory responses ─────────────────────────────────────
+    - id: advisory-responses
+      title: Embed session advisory metadata in tool responses
+      status: in-progress
+      blockers: []
+      requires_approval: true
+      sources:
+        - path: core/memory/skills/session-start/SKILL.md
+          type: internal
+          intent: >
+            Session skills must instruct agents to check and act on
+            advisory signals in tool responses.
+      postconditions:
+        - type: test
+          target: pytest core/tools/tests/ -k advisory_response
+          description: >
+            (Not yet present.) Tool responses should include _session
+            metadata; when flush/checkpoint thresholds trip, signals
+            should list flush_recommended and/or checkpoint_stale.
+      changes:
+        - path: core/tools/agent_memory_mcp/response_envelope.py
+          action: update
+          description: >
+            build_session_response_metadata(), envelope_tool_result(),
+            dump_tool_result() — attach compact _session block derived
+            from SessionState.get_advisory().
+        - path: core/tools/agent_memory_mcp/models.py
+          action: update
+          description: >
+            MemoryWriteResult.to_json(session_state=...) wraps payload
+            with envelope_tool_result when session_state is passed.
+        - path: core/memory/skills/session-start/SKILL.md
+          action: modify
+          description: >
+            Add section: '## Session advisories' — instruct agents
+            to parse JSON tool bodies for _session and act on signals
+            (flush_recommended, checkpoint_stale, unread_relevant_files).
+
+    # ── Phase 3: Automatic ACCESS from read tools ───────────────────────
+    - id: auto-access-from-reads
+      title: Auto-log ACCESS entries from memory_read_file and memory_search
+      status: pending
+      blockers: []
+      requires_approval: true
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_helpers.py
+          type: internal
+          intent: >
+            Read tool implementations. Need to intercept successful
+            reads of files in ACCESS-tracked namespaces.
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: >
+            Existing memory_log_access tool. Auto-logging should use
+            the same code path for consistency.
+      postconditions:
+        - type: test
+          target: pytest core/tools/tests/ -k auto_access
+          description: >
+            memory_read_file on ACCESS-tracked paths auto-logs entries.
+            Entries have estimator=server. SUMMARY.md and governance
+            reads are not logged.
+      changes:
+        - path: core/tools/agent_memory_mcp/auto_access.py
+          action: create
+          description: >
+            Auto-ACCESS module:
+
+            1. After memory_read_file succeeds on a path in an
+               ACCESS-tracked namespace, create a provisional ACCESS
+               entry with: file, date, task="auto-read", helpfulness=0.5
+               (neutral default), note="auto-logged from tool call",
+               estimator="server"
+            2. The agent can later update helpfulness via
+               memory_log_access with the same file+session, which
+               overwrites the provisional entry
+            3. Reads of SUMMARY.md, governance files, and scratchpad
+               are excluded (matching existing ACCESS policy)
+            4. Batch provisional entries and commit at session end
+               or when flush triggers
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_helpers.py
+          action: modify
+          description: >
+            Wrap memory_read_file to call auto_access.record_read()
+            after successful file reads.
+
+    # ── Phase 4: Composite context tool — memory_context_query ──────────
+    - id: context-query-tool
+      title: Implement memory_context_query for natural language retrieval
+      status: pending
+      blockers: []
+      requires_approval: true
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/search_tools.py
+          type: internal
+          intent: >
+            Existing memory_semantic_search. memory_context_query wraps
+            this with context assembly — returning not just search
+            results but assembled context with metadata.
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_health.py
+          type: internal
+          intent: >
+            Context injector registration pattern. memory_context_query
+            is the third member of the context injector family.
+      postconditions:
+        - type: grep
+          target: memory_context_query::core/tools/agent_memory_mcp/tools/read_tools/_health.py
+          description: Tool is registered
+        - type: test
+          target: pytest core/tools/tests/ -k context_query
+          description: >
+            Tool returns assembled context for a natural language query:
+            relevant knowledge files, applicable skills, related session
+            history, within budget
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_health.py
+          action: modify
+          description: >
+            Register memory_context_query as Tier 0 read-only tool.
+
+            Signature:
+              async def memory_context_query(
+                  query: str,
+                  max_context_chars: int = 12000,
+                  include_session_history: bool = True,
+                  include_skills: bool = True,
+              ) -> str
+
+            Implementation:
+            1. Run memory_semantic_search (if available) or
+               memory_search (fallback) with the query
+            2. For top-k results, load file content within budget
+            3. If include_skills, check if any skills match the query
+            4. If include_session_history, check recent session
+               summaries for related context
+            5. Assemble with metadata header and budget report
+
+    # ── Phase 5: Session health enrichment ──────────────────────────────
+    - id: health-enrichment
+      title: Enrich memory_session_health_check with session state
+      status: in-progress
+      blockers: []
+      requires_approval: false
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_health.py
+          type: internal
+          intent: >
+            Existing memory_session_health_check to extend with session
+            state data and advisory summary.
+      postconditions:
+        - type: test
+          target: pytest core/tools/tests/ -k session_health
+          description: >
+            Health check includes session state summary: duration,
+            tool calls, checkpoint count, flush status, advisory signals
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_health.py
+          action: modify
+          description: >
+            Extend memory_session_health_check result and/or _session
+            metadata to include:
+            - Session duration and tool call count (partially in _session)
+            - Checkpoint count and time since last
+            - Flush status and recommendation
+            - Active advisory signals
+            - Files read/written this session
+            Goal: single place for agents to read full session picture.
+
+    # ── Phase 6: Documentation and capabilities ─────────────────────────
+    - id: enriched-server-docs
+      title: Document enriched session capabilities
+      status: pending
+      blockers:
+        - advisory-responses
+        - auto-access-from-reads
+        - context-query-tool
+        - health-enrichment
+      requires_approval: true
+      sources:
+        - path: HUMANS/docs/MCP.md
+          type: internal
+          intent: Document new tools and advisory system.
+      postconditions:
+        - type: manual
+          description: >
+            MCP.md documents: session state model, advisory system,
+            auto-ACCESS logging, memory_context_query, and enriched
+            health check. Capabilities manifest updated.
+      changes:
+        - path: HUMANS/docs/MCP.md
+          action: modify
+          description: >
+            Add 'Session state and advisories' section. Document
+            memory_context_query when shipped. Update session tools
+            section with enriched health check.
+        - path: HUMANS/tooling/agent-memory-capabilities.toml
+          action: modify
+          description: >
+            Add memory_context_query: tier=0, read_only=true.
+            Update memory_session_health_check description.
+        - path: CHANGELOG.md
+          action: modify
+          description: Add entries for session state, advisories, auto-ACCESS, memory_context_query.
+
+review: null

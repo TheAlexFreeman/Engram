@@ -1,0 +1,154 @@
+id: cli-v3-plan-commands
+project: cli-expansion
+created: '2026-04-03'
+origin_session: memory/activity/2026/04/02/chat-001
+status: completed
+sessions_used: 1
+budget:
+  deadline: '2026-10-01'
+  max_sessions: 8
+purpose:
+  summary: Add plan list/show/create/advance commands to the engram CLI.
+  context: >
+    The Active Plans system already exists through MCP tools, but shell-native
+    agents and humans still need a terminal surface for inspecting plans,
+    authoring new ones, and advancing execution without a browser or chat-hosted
+    MCP integration.
+
+    This plan covers four plan-related subcommands:
+    - engram plan list
+    - engram plan show <plan-id>
+    - engram plan create
+    - engram plan advance
+
+    It depends on the schema-foundation work so that create/help flows can reuse
+    discoverable nested schemas instead of duplicating fragile hand-written help.
+  questions: []
+work:
+  phases:
+    - id: plan-read-surfaces
+      title: Implement read-only plan list and show terminal views
+      status: completed
+      commit: null
+      blockers:
+        - cli-v3-schema-foundations:foundation-verification
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          type: internal
+          intent: Reuse the existing plan inspection and next-phase logic.
+        - path: core/memory/working/projects/cli-expansion/notes/cli-roadmap.md
+          type: internal
+          intent: Keep plan CLI scope aligned with the roadmap contract.
+        - path: HUMANS/docs/CLI.md
+          type: internal
+          intent: Preserve consistency with the existing command-reference style.
+      postconditions:
+        - description: engram plan list renders active and draft plans in a terminal-friendly format.
+        - description: engram plan show renders the current phase with sources, blockers, and postconditions.
+        - description: Tests cover list and show output in human and JSON modes.
+          type: test
+          target: core/tools/tests/test_cli_plan.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_plan.py
+          action: create
+          description: Plan subcommand with list and show surfaces.
+        - path: core/tools/agent_memory_mcp/cli/main.py
+          action: update
+          description: Register the plan command group.
+        - path: core/tools/tests/test_cli_plan.py
+          action: create
+          description: Tests for plan list and show rendering.
+    - id: plan-create-flow
+      title: Implement schema-backed plan create from file or stdin
+      status: completed
+      commit: null
+      blockers:
+        - plan-read-surfaces
+      sources:
+        - path: core/tools/agent_memory_mcp/plan_utils.py
+          type: internal
+          intent: Reuse the canonical plan schema and validation rules.
+        - path: core/memory/working/projects/cli-expansion/notes/plan-tool-ux-improvements.md
+          type: internal
+          intent: Avoid the retry-heavy authoring failures already observed in MCP usage.
+        - path: core/memory/working/projects/cli-expansion/notes/mcp-schema-discoverability-audit.md
+          type: internal
+          intent: Reuse the schema-discoverability findings when designing CLI help and validation output.
+      postconditions:
+        - description: engram plan create accepts YAML from stdin or a file and surfaces aggregated validation errors.
+        - description: CLI help or inspect output can render the nested schema needed for plan authoring.
+        - description: Tests cover valid creation, invalid creation, and preview/help flows.
+          type: test
+          target: core/tools/tests/test_cli_plan.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_plan.py
+          action: update
+          description: Add create support with stdin/file ingestion, schema-backed help, and error rendering.
+        - path: core/tools/tests/test_cli_plan.py
+          action: update
+          description: Add tests for create success, validation failures, and help output.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document plan authoring and creation workflows.
+    - id: plan-advance-flow
+      title: Implement current-phase advancement and next-step rendering
+      status: completed
+      commit: null
+      blockers:
+        - plan-read-surfaces
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          type: internal
+          intent: Reuse plan execution semantics and next-action computation.
+        - path: core/tools/agent_memory_mcp/plan_trace.py
+          type: internal
+          intent: Preserve trace and run-state expectations when phases advance.
+      postconditions:
+        - description: engram plan advance can complete the current phase and print the next action.
+        - description: The command surfaces blockers and review requirements before attempting a state change.
+        - description: Tests cover successful advancement, blocked phases, and review payload handling.
+          type: test
+          target: core/tools/tests/test_cli_plan.py
+      requires_approval: true
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_plan.py
+          action: update
+          description: Add plan advance support with blocker checks, review input, and next-action rendering.
+        - path: core/tools/tests/test_cli_plan.py
+          action: update
+          description: Add tests for phase advancement, blockers, and review handling.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document plan advancement and review-aware behavior.
+    - id: plan-command-verification
+      title: Verify plan command docs, integration flows, and readiness metadata
+      status: completed
+      commit: null
+      blockers:
+        - plan-create-flow
+        - plan-advance-flow
+      sources:
+        - path: core/tools/tests/test_cli_integration.py
+          type: internal
+          intent: Extend subprocess coverage to plan subcommands.
+        - path: HUMANS/tooling/agent-task-readiness.toml
+          type: internal
+          intent: Keep CLI-readiness metadata aligned with terminal plan workflows.
+      postconditions:
+        - description: Plan command tests and subprocess coverage pass.
+          type: test
+          target: core/tools/tests/
+        - description: Readiness metadata reflects terminal plan-authoring support.
+        - description: CLI docs explain when terminal plan flows can replace direct MCP use.
+      requires_approval: true
+      changes:
+        - path: core/tools/tests/test_cli_integration.py
+          action: update
+          description: Add subprocess coverage for the plan command group.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document the plan command group end-to-end.
+        - path: HUMANS/tooling/agent-task-readiness.toml
+          action: update
+          description: Reflect terminal plan workflows in the readiness metadata.
+review: null

@@ -1,0 +1,139 @@
+id: cli-v2-maintenance-dry-run
+project: cli-expansion
+created: '2026-04-03'
+origin_session: memory/activity/2026/04/02/chat-001
+status: completed
+sessions_used: 1
+budget:
+  deadline: '2026-08-01'
+  max_sessions: 7
+purpose:
+  summary: Add review and aggregate dry-run maintenance surfaces to the engram CLI.
+  context: >
+    Before lifecycle commands can safely mutate review queues and archive state,
+    the CLI needs high-quality preview surfaces for maintenance work. This plan
+    covers the dry-run half of v2:
+
+    - engram review in shell-friendly, no-TUI form first
+    - engram aggregate --dry-run style preview and reporting
+
+    Optional TUI work is explicitly out of scope until the shell flow exists and
+    proves insufficient.
+  questions: []
+work:
+  phases:
+    - id: candidate-enumeration
+      title: Enumerate review, stale-content, and aggregation candidates
+      status: completed
+      commit: null
+      blockers:
+        - cli-v1-read-surfaces:log-command
+        - cli-v1-write-ingestion:write-surface-verification
+      sources:
+        - path: core/governance/review-queue.md
+          type: internal
+          intent: Reuse the review queue as the primary maintenance input.
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_health.py
+          type: internal
+          intent: Reuse stale-content and aggregation heuristics already used by read tools.
+        - path: core/memory/working/projects/cli-expansion/notes/cli-roadmap.md
+          type: internal
+          intent: Keep dry-run scope aligned with the roadmap's maintenance commands.
+      postconditions:
+        - description: Candidate enumeration covers review queue items, stale content, and ACCESS aggregation opportunities.
+        - description: Candidate output has a stable JSON schema that later lifecycle commands can consume.
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_review.py
+          action: create
+          description: Shared candidate enumeration helpers for review and aggregate flows.
+        - path: core/tools/agent_memory_mcp/cli/cmd_aggregate.py
+          action: create
+          description: Shared preview contracts and argument parsing for aggregate dry-run behavior.
+    - id: review-shell-flow
+      title: Implement shell-first review walkthrough with defer and decision capture
+      status: completed
+      commit: null
+      blockers:
+        - candidate-enumeration
+      sources:
+        - path: core/governance/review-queue.md
+          type: internal
+          intent: Preserve the semantics of approve, reject, and defer when rendering items in the terminal.
+        - path: HUMANS/docs/HELP.md
+          type: internal
+          intent: Keep review guidance understandable for non-TUI terminal users.
+      postconditions:
+        - description: engram review lists actionable items in a shell-friendly workflow without a TUI dependency.
+        - description: The command supports explicit approve, reject, and defer responses in terminal and JSON modes.
+        - description: Tests cover empty queues, numbered item rendering, and scripted responses.
+          type: test
+          target: core/tools/tests/test_cli_review.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_review.py
+          action: update
+          description: Implement shell-first review rendering and response parsing.
+        - path: core/tools/tests/test_cli_review.py
+          action: create
+          description: Tests for review queue rendering, scripted decisions, and JSON output.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document no-TUI review usage and examples.
+    - id: aggregate-dry-run
+      title: Implement aggregate preview and dry-run reporting
+      status: completed
+      commit: null
+      blockers:
+        - candidate-enumeration
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_health.py
+          type: internal
+          intent: Reuse ACCESS aggregation thresholds and reporting logic.
+        - path: core/INIT.md
+          type: internal
+          intent: Preserve configured aggregation trigger semantics.
+      postconditions:
+        - description: engram aggregate --dry-run reports what would change without mutating the repo.
+        - description: The dry-run report includes namespace filters, candidate counts, and expected summary updates.
+        - description: Tests cover dry-run output, namespace filtering, and aggregation threshold reporting.
+          type: test
+          target: core/tools/tests/test_cli_aggregate.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_aggregate.py
+          action: update
+          description: Implement aggregate dry-run and preview reporting.
+        - path: core/tools/tests/test_cli_aggregate.py
+          action: create
+          description: Tests for aggregate preview output, filters, and JSON rendering.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document aggregate dry-run usage and limitations.
+    - id: maintenance-verification
+      title: Verify maintenance previews, docs, and subprocess behavior
+      status: completed
+      commit: null
+      blockers:
+        - review-shell-flow
+        - aggregate-dry-run
+      sources:
+        - path: core/tools/tests/test_cli_integration.py
+          type: internal
+          intent: Extend subprocess coverage to maintenance preview commands.
+        - path: HUMANS/docs/QUICKSTART.md
+          type: internal
+          intent: Add maintenance-oriented examples for terminal workflows.
+      postconditions:
+        - description: Review and aggregate preview tests and integration coverage pass.
+          type: test
+          target: core/tools/tests/
+        - description: Docs clearly distinguish dry-run preview surfaces from mutating lifecycle commands.
+      changes:
+        - path: core/tools/tests/test_cli_integration.py
+          action: update
+          description: Add subprocess coverage for review and aggregate dry-run flows.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Clarify maintenance preview commands and their output contracts.
+        - path: HUMANS/docs/QUICKSTART.md
+          action: update
+          description: Add maintenance preview examples.
+review: null

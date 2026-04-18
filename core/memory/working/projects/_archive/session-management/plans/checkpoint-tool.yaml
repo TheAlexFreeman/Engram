@@ -1,0 +1,211 @@
+id: checkpoint-tool
+project: session-management
+created: '2026-03-28'
+origin_session: memory/activity/2026/03/28/chat-001
+status: complete
+sessions_used: 0
+budget:
+  deadline: '2026-04-15'
+  max_sessions: 3
+  advisory: true
+purpose:
+  summary: >
+    Implement memory_checkpoint — a low-ceremony append-only tool for
+    persisting working state incrementally during sessions, as the first
+    line of defense against context compaction data loss.
+  context: >
+    The compaction flush design (working/notes/compaction-flush-design.md)
+    identifies five defense layers against context data loss. Point 1 is a
+    checkpoint tool agents call frequently — after decisions, discoveries,
+    and task completions. Must have near-zero ceremony for habitual use.
+
+    The existing memory_append_scratchpad writes to CURRENT.md but isn't
+    framed as a checkpoint mechanism. The session-sync skill describes a
+    heavier mid-session checkpoint with full commit. memory_checkpoint
+    fills the gap — lightweight enough for dozens of calls per session,
+    structured enough for compaction recovery.
+
+    Design constraints:
+    - Automatic-tier (no approval, no CHANGELOG)
+    - Append-only with timestamped entries
+    - Session-aware (tagged with session_id for distillation)
+    - Scratchpad-compatible (CURRENT.md, not ACCESS-logged)
+    - Distinct from session-sync (micro-persist vs macro-persist)
+  questions:
+    - Should memory_checkpoint be a new tool or a mode/flag on memory_append_scratchpad?
+    - Should checkpoints write to CURRENT.md or a separate CHECKPOINT.md?
+    - Should the tool auto-commit or accumulate writes for batch commit at session end?
+
+work:
+  phases:
+    # ── Phase 1: Implement the tool ─────────────────────────────────────
+    - id: checkpoint-tool-impl
+      title: Implement memory_checkpoint tool
+      status: completed
+      blockers: []
+      requires_approval: false
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: >
+            Existing memory_append_scratchpad implementation and session
+            tool registration pattern. memory_checkpoint may extend or
+            wrap this tool's append logic.
+        - path: core/governance/scratchpad-guidelines.md
+          type: internal
+          intent: >
+            CURRENT.md write protocol, what belongs in scratchpad vs
+            formal memory, and the rule that scratchpad writes are not
+            ACCESS-logged.
+        - path: core/memory/skills/session-sync/SKILL.md
+          type: internal
+          intent: >
+            The heavier mid-session checkpoint protocol that
+            memory_checkpoint complements but does not replace.
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_health.py
+          type: internal
+          intent: >
+            Reference memory_session_health_check for session state
+            tracking. Checkpoint call counts should feed session health
+            metrics (Phase 3 enrichment).
+      postconditions:
+        - type: grep
+          pattern: "memory_checkpoint"
+          path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          description: Tool is registered in session_tools.py
+        - type: test
+          command: pytest core/tools/tests/ -k checkpoint
+          description: >
+            Tests pass: append-only semantics, timestamp tagging,
+            session_id inclusion, no frontmatter, no git commit, creates
+            file if missing, appends after existing content
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: modify
+          description: >
+            Register memory_checkpoint as a Tier 1 semantic tool.
+
+            Signature:
+              async def memory_checkpoint(
+                  content: str,
+                  label: str = "",
+                  session_id: str = "",
+              ) -> str
+
+            Behavior:
+            1. Format entry: `### [YYYY-MM-DDTHH:MM] {label}\n{content}\n`
+            2. Append to core/memory/working/CURRENT.md
+            3. If session_id provided, include as HTML comment
+            4. Do NOT commit — writes accumulate for batch commit
+            5. Return confirmation with running entry count
+
+            Annotations: readOnlyHint=False, destructiveHint=False,
+            idempotentHint=False, openWorldHint=False.
+
+        - path: core/tools/tests/test_checkpoint.py
+          action: create
+          description: >
+            Unit tests for memory_checkpoint:
+            - Basic append: content appears in CURRENT.md with timestamp
+            - Label: optional label appears in heading
+            - Session ID: included as HTML comment when provided
+            - Accumulation: multiple calls append without overwriting
+            - No commit: working tree dirty after call, no new git commit
+            - File creation: creates CURRENT.md if missing
+            - Existing content: appends after existing scratchpad content
+
+    # ── Phase 2: Update session skills ──────────────────────────────────
+    - id: checkpoint-skill-updates
+      title: Update session skills with checkpoint habit instructions
+      status: completed
+      blockers:
+        - checkpoint-tool-impl
+      requires_approval: true
+      sources:
+        - path: core/memory/skills/session-start/SKILL.md
+          type: internal
+          intent: Add checkpoint guidance to session start instructions.
+        - path: core/memory/skills/session-sync/SKILL.md
+          type: internal
+          intent: >
+            Clarify relationship: checkpoint is micro-persist,
+            session-sync is macro-persist with commit.
+        - path: core/governance/session-checklists.md
+          type: internal
+          intent: Add checkpoint to mid-session maintenance checklist.
+      postconditions:
+        - type: grep
+          pattern: "memory_checkpoint"
+          path: core/memory/skills/session-start/SKILL.md
+          description: session-start.md mentions memory_checkpoint
+        - type: grep
+          pattern: "checkpoint"
+          path: core/memory/skills/session-sync/SKILL.md
+          description: session-sync.md references checkpoint as alternative
+        - type: manual
+          description: >
+            Session checklists include checkpoint triggers: after
+            decisions, discoveries, and task completions
+      changes:
+        - path: core/memory/skills/session-start/SKILL.md
+          action: modify
+          description: >
+            Add section: '## Incremental persistence' — instruct agents
+            to call memory_checkpoint after: completing a major task,
+            learning something new about the user, making a decision with
+            non-obvious reasoning, or noticing a pattern worth preserving.
+            Frame as habit, not emergency.
+        - path: core/memory/skills/session-sync/SKILL.md
+          action: modify
+          description: >
+            Add note in 'When to use this skill': 'For lightweight
+            in-progress saves, use memory_checkpoint instead. Session-sync
+            is for comprehensive checkpoints with commit and chat folder
+            creation.'
+        - path: core/governance/session-checklists.md
+          action: modify
+          description: >
+            Add memory_checkpoint to mid-session maintenance triggers in
+            the compact returning session checklist.
+
+    # ── Phase 3: Docs and registration ──────────────────────────────────
+    - id: checkpoint-docs
+      title: Update capabilities manifest and MCP docs
+      status: completed
+      blockers:
+        - checkpoint-tool-impl
+      requires_approval: true
+      sources:
+        - path: HUMANS/tooling/agent-memory-capabilities.toml
+          type: internal
+          intent: Add memory_checkpoint to the Tier 1 session section.
+        - path: HUMANS/docs/MCP.md
+          type: internal
+          intent: Document memory_checkpoint in the session tools section.
+      postconditions:
+        - type: grep
+          pattern: "memory_checkpoint"
+          path: HUMANS/tooling/agent-memory-capabilities.toml
+          description: Tool appears in capabilities manifest
+        - type: grep
+          pattern: "memory_checkpoint"
+          path: HUMANS/docs/MCP.md
+          description: Tool documented in MCP.md
+      changes:
+        - path: HUMANS/tooling/agent-memory-capabilities.toml
+          action: modify
+          description: >
+            Add memory_checkpoint: tier=1, approval=automatic,
+            cost_tier=low, idempotent=false.
+        - path: HUMANS/docs/MCP.md
+          action: modify
+          description: >
+            Document memory_checkpoint in session tools section: purpose,
+            parameters, relationship to session-sync, compaction defense.
+        - path: CHANGELOG.md
+          action: modify
+          description: >
+            Add entry: 'memory_checkpoint — lightweight incremental
+            persistence tool for compaction defense.'
+
+review: null

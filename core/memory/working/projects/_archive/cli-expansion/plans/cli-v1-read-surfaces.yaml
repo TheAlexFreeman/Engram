@@ -1,0 +1,148 @@
+id: cli-v1-read-surfaces
+project: cli-expansion
+created: '2026-04-03'
+origin_session: memory/activity/2026/04/02/chat-001
+status: completed
+sessions_used: 1
+budget:
+  deadline: '2026-06-15'
+  max_sessions: 6
+purpose:
+  summary: Add contextual recall and ACCESS log read surfaces to the engram CLI.
+  context: >
+    v0 proved the engram CLI scaffold with search, status, and validate. The
+    next read-only surfaces should make terminal inspection richer without
+    introducing write risk:
+
+    - engram recall <path-or-query> for frontmatter-aware file and namespace
+      inspection
+    - engram log for recent ACCESS activity with namespace and time filters
+
+    This plan should extract shared formatting and lookup helpers instead of
+    duplicating rendering logic across commands.
+  questions: []
+work:
+  phases:
+    - id: formatting-core
+      title: Extract shared formatting and lookup helpers for read commands
+      status: completed
+      commit: null
+      blockers: []
+      sources:
+        - path: core/tools/agent_memory_mcp/cli/main.py
+          type: internal
+          intent: Reuse parser registration and repo-root resolution patterns.
+        - path: core/tools/agent_memory_mcp/cli/cmd_search.py
+          type: internal
+          intent: Reuse the v0 result rendering and JSON output conventions.
+        - path: core/memory/working/projects/cli-expansion/notes/cli-roadmap.md
+          type: internal
+          intent: Keep helper extraction aligned with the roadmap's read-side contract.
+      postconditions:
+        - description: Shared CLI formatting and path/query helper modules exist for read commands.
+        - description: Existing v0 read commands can reuse the helper surface without changing their JSON contracts.
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/formatting.py
+          action: create
+          description: Shared table, summary, and JSON rendering helpers for CLI commands.
+        - path: core/tools/agent_memory_mcp/cli/main.py
+          action: update
+          description: Reuse shared parser helpers while registering the new read commands.
+        - path: core/tools/agent_memory_mcp/cli/cmd_search.py
+          action: update
+          description: Move common read-side rendering into shared helpers without regressing search behavior.
+    - id: recall-command
+      title: Implement engram recall for contextual memory inspection
+      status: completed
+      commit: null
+      blockers:
+        - formatting-core
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_inspection.py
+          type: internal
+          intent: Reuse memory inspection helpers for file previews and listings.
+        - path: core/tools/agent_memory_mcp/cli/cmd_status.py
+          type: internal
+          intent: Reuse frontmatter-aware health rendering patterns.
+        - path: HUMANS/docs/CLI.md
+          type: internal
+          intent: Keep new command help and examples consistent with the existing CLI docs.
+      postconditions:
+        - description: engram recall renders file content with trust, provenance, and verification context.
+        - description: Namespace recall surfaces SUMMARY context and file listings instead of raw cat-style output.
+        - description: Tests cover path-based recall, query-based recall, and JSON output.
+          type: test
+          target: core/tools/tests/test_cli_recall.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_recall.py
+          action: create
+          description: Recall subcommand with file lookup, namespace listing, and contextual rendering.
+        - path: core/tools/tests/test_cli_recall.py
+          action: create
+          description: Tests for file recall, namespace recall, query fallback, and JSON output.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document recall usage for humans and shell-based agents.
+    - id: log-command
+      title: Implement engram log for ACCESS timeline inspection
+      status: completed
+      commit: null
+      blockers:
+        - formatting-core
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_helpers.py
+          type: internal
+          intent: Reuse ACCESS parsing helpers and path normalization utilities.
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: Align ACCESS timeline output with the underlying session and access schema.
+        - path: core/memory/working/projects/cli-expansion/notes/cli-roadmap.md
+          type: internal
+          intent: Keep namespace/date filtering aligned with the roadmap contract.
+      postconditions:
+        - description: engram log prints recent ACCESS entries with namespace and time filters.
+        - description: engram log --json emits structured timeline entries suitable for shell automation.
+        - description: Tests cover namespace filtering, date filtering, and empty-log behavior.
+          type: test
+          target: core/tools/tests/test_cli_log.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_log.py
+          action: create
+          description: Log subcommand for recent ACCESS history with namespace and date filters.
+        - path: core/tools/tests/test_cli_log.py
+          action: create
+          description: Tests for ACCESS timeline rendering, filters, and JSON output.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document log usage and examples.
+    - id: read-surface-verification
+      title: Verify recall and log docs, tests, and integration behavior
+      status: completed
+      commit: null
+      blockers:
+        - recall-command
+        - log-command
+      sources:
+        - path: core/tools/tests/test_cli_integration.py
+          type: internal
+          intent: Extend the subprocess coverage pattern used by v0.
+        - path: HUMANS/docs/QUICKSTART.md
+          type: internal
+          intent: Add read-surface examples to the quick-start docs.
+      postconditions:
+        - description: New read-surface tests and integration coverage pass.
+          type: test
+          target: core/tools/tests/
+        - description: CLI docs include recall and log examples.
+        - description: The shared formatting helpers are used consistently across v0 and v1 read commands.
+      changes:
+        - path: core/tools/tests/test_cli_integration.py
+          action: update
+          description: Add subprocess coverage for recall and log.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Extend the command reference with the new read surfaces.
+        - path: HUMANS/docs/QUICKSTART.md
+          action: update
+          description: Add quick-start examples for recall and log.
+review: null

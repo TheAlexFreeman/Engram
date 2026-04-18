@@ -1,0 +1,112 @@
+id: hook-trigger-metadata
+project: skills-expansion
+created: '2026-04-08'
+origin_session: memory/activity/2026/04/08/chat-001
+status: completed
+budget:
+  max_sessions: 3
+sessions_used: 3
+purpose:
+  summary: Add explicit lifecycle hook triggers to skill frontmatter for deterministic activation
+  context: "Engram skills like session-start and session-wrapup are implicitly lifecycle hooks\
+    \ \u2014 they activate because the agent matches them in the catalog, not because they're\
+    \ formally bound to an event. dotagents treats hooks as first-class with explicit event\
+    \ bindings (PreToolUse, PostToolUse, UserPromptSubmit, Stop) and optional matchers. This\
+    \ plan adds a trigger field to skill frontmatter that declares when a skill should activate,\
+    \ making activation deterministic rather than relying on catalog-based discovery. Catalog\
+    \ matching remains as a fallback for skills without explicit triggers."
+  questions: []
+work:
+  phases:
+  - id: trigger-taxonomy
+    title: Define the trigger event taxonomy and frontmatter schema extension
+    status: completed
+    commit: 13271b9
+    blockers: []
+    sources:
+    - path: dotagents hook system
+      type: external
+      intent: Reference dotagents hook event types and matcher patterns
+      uri: https://docs.sentry.io/ai/dotagents/
+    postconditions:
+    - description: Trigger taxonomy covers all lifecycle events currently handled by session-*
+        skills
+    - description: Matcher syntax allows filtering by tool name, file path pattern, or custom
+        predicate
+    - description: Priority rules define behavior when multiple skills match the same trigger
+        event
+    changes:
+    - path: core/governance/skill-trigger-spec.md
+      action: create
+      description: 'Specification for trigger types: session-start, session-end, session-checkpoint,
+        pre-tool-use, post-tool-use, on-demand, periodic. Each with matcher syntax and priority
+        rules.'
+    - path: core/memory/skills/SUMMARY.md
+      action: update
+      description: Document the new trigger field in the skill format reference
+  - id: frontmatter-extension
+    title: Extend skill frontmatter parser to support trigger field
+    status: completed
+    commit: null
+    blockers:
+    - trigger-taxonomy
+    postconditions:
+    - description: "trigger field is optional \u2014 skills without it continue to use catalog\
+        \ matching"
+    - description: Validation rejects invalid event types and malformed matchers
+    - description: Existing skills still pass frontmatter validation
+      type: grep
+      target: 'trust: high::core/memory/skills/session-start/SKILL.md'
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/semantic/skill_tools.py
+      action: update
+      description: Extend frontmatter validation in memory_update_skill to accept and validate
+        trigger field
+    - path: core/tools/agent_memory_mcp/tool_schemas.py
+      action: update
+      description: Add trigger field to skill frontmatter schema with enum validation for
+        event types
+  - id: annotate-existing-skills
+    title: Add trigger metadata to existing lifecycle skills
+    status: completed
+    commit: null
+    blockers:
+    - frontmatter-extension
+    postconditions:
+    - description: All session-* skills have explicit trigger metadata
+    - description: Onboarding skill has conditional matcher distinguishing it from session-start
+    - description: SKILL_TREE.md regenerated to reflect trigger info
+    requires_approval: true
+    changes:
+    - path: core/memory/skills/session-start/SKILL.md
+      action: update
+      description: 'Add trigger: session-start'
+    - path: core/memory/skills/session-sync/SKILL.md
+      action: update
+      description: 'Add trigger: session-checkpoint'
+    - path: core/memory/skills/session-wrapup/SKILL.md
+      action: update
+      description: 'Add trigger: session-end'
+    - path: core/memory/skills/onboarding/SKILL.md
+      action: update
+      description: 'Add trigger: session-start with matcher: first_session=true'
+  - id: trigger-router
+    title: Build a trigger evaluation engine that routes events to matching skills
+    status: completed
+    commit: null
+    blockers:
+    - annotate-existing-skills
+    postconditions:
+    - description: Router returns skills sorted by priority (explicit trigger > catalog match)
+    - description: memory_skill_route is read-only and returns skill slugs + match reasons
+    - description: Skills without triggers are still discoverable via existing catalog path
+    changes:
+    - path: core/tools/agent_memory_mcp/skill_trigger_router.py
+      action: create
+      description: 'TriggerRouter class: given an event type and context, returns ordered
+        list of matching skills by scanning frontmatter triggers'
+    - path: core/tools/agent_memory_mcp/tools/semantic/skill_tools.py
+      action: update
+      description: 'Add memory_skill_route tool: accepts event type and context, returns matched
+        skills via TriggerRouter'
+review: null

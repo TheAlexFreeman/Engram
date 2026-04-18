@@ -1,0 +1,142 @@
+id: cli-v2-knowledge-lifecycle
+project: cli-expansion
+created: '2026-04-03'
+origin_session: memory/activity/2026/04/02/chat-001
+status: completed
+sessions_used: 1
+budget:
+  deadline: '2026-08-15'
+  max_sessions: 7
+purpose:
+  summary: Add promote and archive lifecycle commands to the engram CLI.
+  context: >
+    Once review and aggregate previews exist, the CLI can safely expose the
+    write side of memory lifecycle management. This plan covers promote and
+    archive operations plus the glue that turns review and aggregate decisions
+    into governed mutations with correct metadata and ACCESS logging.
+  questions: []
+work:
+  phases:
+    - id: lifecycle-contracts
+      title: Define lifecycle mutation contracts and metadata updates
+      status: completed
+      commit: null
+      blockers:
+        - cli-v1-write-ingestion:write-surface-verification
+        - cli-v2-maintenance-dry-run:aggregate-dry-run
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/knowledge_tools.py
+          type: internal
+          intent: Reuse governed promotion and review-adjacent knowledge workflows.
+        - path: core/governance/update-guidelines.md
+          type: internal
+          intent: Keep metadata and trust updates aligned with governance rules.
+        - path: core/memory/working/projects/cli-expansion/notes/cli-roadmap.md
+          type: internal
+          intent: Preserve the roadmap split between dry-run previews and mutating lifecycle actions.
+      postconditions:
+        - description: Promote and archive command contracts specify metadata updates, logging, and safety checks.
+        - description: Lifecycle contracts explicitly define how preview decisions become writes.
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_promote.py
+          action: create
+          description: Initial promote command contract and preview behavior.
+        - path: core/tools/agent_memory_mcp/cli/cmd_archive.py
+          action: create
+          description: Initial archive command contract and preview behavior.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document the lifecycle command intent and safety expectations.
+    - id: promote-command
+      title: Implement promotion flow from _unverified to governed target namespaces
+      status: completed
+      commit: null
+      blockers:
+        - lifecycle-contracts
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/knowledge_tools.py
+          type: internal
+          intent: Reuse promotion semantics, trust transitions, and verification metadata handling.
+        - path: core/governance/review-queue.md
+          type: internal
+          intent: Keep promotion tied to the review queue and human approval flow.
+      postconditions:
+        - description: engram promote moves files from _unverified to the governed target namespace with correct metadata updates.
+        - description: Successful promotions log ACCESS and verification metadata.
+        - description: Tests cover happy-path promotion, bad target handling, and JSON output.
+          type: test
+          target: core/tools/tests/test_cli_promote.py
+      requires_approval: true
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_promote.py
+          action: update
+          description: Implement the promote flow end-to-end with safety checks and preview support.
+        - path: core/tools/tests/test_cli_promote.py
+          action: create
+          description: Tests for promotion behavior, metadata transitions, and output contracts.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document promotion usage and expectations.
+    - id: archive-command
+      title: Implement archive flow with metadata preservation and ACCESS logging
+      status: completed
+      commit: null
+      blockers:
+        - lifecycle-contracts
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/knowledge_tools.py
+          type: internal
+          intent: Reuse archive semantics and metadata handling.
+        - path: core/governance/content-boundaries.md
+          type: internal
+          intent: Preserve correct archive routing and namespace boundaries.
+      postconditions:
+        - description: engram archive moves files into _archive with correct metadata updates.
+        - description: The command records ACCESS metadata for archive operations.
+        - description: Tests cover archive success, protected-path rejection, and JSON output.
+          type: test
+          target: core/tools/tests/test_cli_archive.py
+      requires_approval: true
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_archive.py
+          action: update
+          description: Implement the archive flow end-to-end with preview and safety checks.
+        - path: core/tools/tests/test_cli_archive.py
+          action: create
+          description: Tests for archive behavior, metadata preservation, and JSON output.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document archive usage and expectations.
+    - id: lifecycle-verification
+      title: Wire review and aggregate decisions into lifecycle commands and verify end-to-end behavior
+      status: completed
+      commit: null
+      blockers:
+        - promote-command
+        - archive-command
+        - cli-v2-maintenance-dry-run:review-shell-flow
+      sources:
+        - path: core/memory/working/projects/cli-expansion/plans/cli-v2-maintenance-dry-run.yaml
+          type: internal
+          intent: Reuse the review and aggregate preview contracts that the dry-run plan establishes.
+        - path: core/tools/agent_memory_mcp/tools/semantic/knowledge_tools.py
+          type: internal
+          intent: Reuse governed mutation logic when connecting preview decisions to apply behavior.
+      postconditions:
+        - description: Review and aggregate preview decisions can hand off cleanly to promote and archive operations.
+        - description: Lifecycle command tests and integration coverage pass.
+          type: test
+          target: core/tools/tests/
+        - description: Docs describe the boundary between preview and apply flows.
+      requires_approval: true
+      changes:
+        - path: core/tools/tests/test_cli_integration.py
+          action: update
+          description: Add subprocess coverage for promote and archive flows.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Clarify how review and aggregate previews connect to lifecycle commands.
+        - path: HUMANS/tooling/agent-memory-capabilities.toml
+          action: update
+          description: Record the new lifecycle mutation capabilities.
+review: null

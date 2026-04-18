@@ -1,0 +1,144 @@
+id: cli-v1-write-ingestion
+project: cli-expansion
+created: '2026-04-03'
+origin_session: memory/activity/2026/04/02/chat-001
+status: completed
+sessions_used: 1
+budget:
+  deadline: '2026-06-30'
+  max_sessions: 6
+purpose:
+  summary: Add governed write and ingestion flows to the engram CLI.
+  context: >
+    The first write surface in the CLI roadmap is engram add. It should accept
+    Markdown from a file or stdin, route external content into the correct
+    namespace or _unverified holding area, generate frontmatter and provenance,
+    and preserve the same governance rules as the MCP write tools.
+
+    This plan stays focused on ingestion. Lifecycle commands such as promote and
+    archive are handled separately in v2 after review and aggregate previews
+    exist.
+  questions: []
+work:
+  phases:
+    - id: ingestion-contract
+      title: Define add command input, routing, and preview contract
+      status: completed
+      commit: null
+      blockers: []
+      sources:
+        - path: core/memory/working/projects/cli-expansion/notes/cli-roadmap.md
+          type: internal
+          intent: Keep the add contract aligned with the roadmap scope.
+        - path: core/tools/agent_memory_mcp/cli/main.py
+          type: internal
+          intent: Reuse parser and repo-root conventions already proven in v0.
+        - path: HUMANS/docs/CLI.md
+          type: internal
+          intent: Preserve consistent help and examples across CLI commands.
+      postconditions:
+        - description: The add command contract covers namespace selection, stdin/file input, preview mode, and JSON output.
+        - description: The command contract defines when external content must route to _unverified.
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_add.py
+          action: create
+          description: Initial add command parser contract and preview-oriented argument surface.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document the planned input modes and preview behavior for add.
+    - id: governed-write-adapter
+      title: Reuse governed write helpers for CLI ingestion
+      status: completed
+      commit: null
+      blockers:
+        - ingestion-contract
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/knowledge_tools.py
+          type: internal
+          intent: Reuse governed knowledge-write behavior and provenance defaults.
+        - path: core/tools/agent_memory_mcp/tools/write_tools.py
+          type: internal
+          intent: Follow existing write validation and frontmatter update patterns.
+        - path: core/governance/content-boundaries.md
+          type: internal
+          intent: Keep namespace routing within Engram's content boundary policy.
+      postconditions:
+        - description: CLI ingestion reuses existing governed write logic instead of implementing a parallel path.
+        - description: Preview output shows destination, trust defaults, and provenance before a write occurs.
+      requires_approval: true
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_add.py
+          action: update
+          description: Connect the parser contract to the governed write adapter and preview rendering.
+        - path: core/tools/agent_memory_mcp/cli/formatting.py
+          action: update
+          description: Add preview and confirmation formatting helpers for governed write commands.
+        - path: HUMANS/tooling/agent-memory-capabilities.toml
+          action: update
+          description: Record the CLI write capability and its dependency expectations.
+    - id: add-command
+      title: Implement file and stdin ingestion with ACCESS logging
+      status: completed
+      commit: null
+      blockers:
+        - governed-write-adapter
+        - cli-v1-read-surfaces:formatting-core
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          type: internal
+          intent: Reuse ACCESS logging and session metadata behavior.
+        - path: core/tools/agent_memory_mcp/cli/cmd_status.py
+          type: internal
+          intent: Reuse v0 summary and JSON rendering patterns while the shared formatting module is still future work.
+        - path: core/memory/working/projects/cli-expansion/notes/cli-roadmap.md
+          type: internal
+          intent: Keep file/stdin behavior aligned with the original roadmap description.
+      postconditions:
+        - description: engram add accepts both file input and stdin input.
+        - description: External content receives generated provenance and correct trust defaults.
+        - description: Successful writes emit ACCESS metadata and structured JSON when requested.
+        - description: Tests cover file input, stdin input, preview mode, and namespace routing.
+          type: test
+          target: core/tools/tests/test_cli_add.py
+      requires_approval: true
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_add.py
+          action: update
+          description: Implement the add command end-to-end with preview, stdin support, and ACCESS logging.
+        - path: core/tools/tests/test_cli_add.py
+          action: create
+          description: Tests for file ingestion, stdin ingestion, preview mode, and unverified routing.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Add add-command examples for humans and automation scripts.
+    - id: write-surface-verification
+      title: Verify add docs, subprocess coverage, and capability metadata
+      status: completed
+      commit: null
+      blockers:
+        - add-command
+      sources:
+        - path: core/tools/tests/test_cli_integration.py
+          type: internal
+          intent: Extend subprocess coverage to the new write surface.
+        - path: HUMANS/docs/QUICKSTART.md
+          type: internal
+          intent: Document safe preview-first usage for new users.
+      postconditions:
+        - description: Add command tests and integration coverage pass.
+          type: test
+          target: core/tools/tests/
+        - description: Quick-start and CLI docs explain preview-first write usage.
+        - description: Capability metadata reflects the new CLI ingestion surface.
+      requires_approval: true
+      changes:
+        - path: core/tools/tests/test_cli_integration.py
+          action: update
+          description: Add subprocess coverage for add with preview and write flows.
+        - path: HUMANS/docs/QUICKSTART.md
+          action: update
+          description: Add a preview-first add example for setup and onboarding.
+        - path: HUMANS/tooling/agent-memory-capabilities.toml
+          action: update
+          description: Record read/write capability expectations for the CLI.
+review: null

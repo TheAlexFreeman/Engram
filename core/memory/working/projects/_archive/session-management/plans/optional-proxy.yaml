@@ -1,0 +1,290 @@
+id: optional-proxy
+project: session-management
+created: '2026-03-28'
+origin_session: memory/activity/2026/03/28/chat-001
+status: complete
+sessions_used: 0
+budget:
+  deadline: '2026-06-01'
+  max_sessions: 10
+  advisory: true
+purpose:
+  summary: >
+    Build an optional API proxy that sits between the LLM platform and
+    the model API, enabling pre-query context injection, token-aware
+    compaction flush, and transparent checkpointing.
+  context: >
+    Phase 2 of the session management roadmap
+    (working/notes/integrated-roadmap.md). Moves from the sidecar's
+    passive observation to active intervention in the conversation flow.
+
+    The proxy intercepts API calls (OpenAI/Anthropic format), prepends
+    memory context via context injectors, counts tokens to trigger
+    compaction flushes, and extracts checkpoint-worthy content from
+    responses. It is explicitly opt-in: platforms that don't support
+    custom API base URLs (e.g., ChatGPT hosted) fall back to the
+    sidecar-only mode from Phase 1.
+
+    This plan depends on the sidecar (Phase 1) being operational for
+    ACCESS logging and session lifecycle. It also depends on the
+    context injectors project (memory_context_home, memory_context_project)
+    being implemented, as these are the tools the proxy calls for
+    pre-query injection.
+
+    Design constraints:
+    - Opt-in: never required, well-documented per-platform setup
+    - Transparent: user can see injected context in the proxy's log
+    - Low latency: target <200ms overhead per request
+    - Model-agnostic: supports OpenAI and Anthropic API formats
+    - Graceful degradation: if proxy crashes, platform falls through to
+      direct API access (stateless proxy, no session lock-in)
+    - Sidecar integration: proxy produces cleaner data for the sidecar
+      than platform-native transcripts
+  questions:
+    - What API formats should the proxy support? (OpenAI chat completions, Anthropic messages)
+    - Should the proxy support streaming responses?
+    - How should the proxy authenticate to the upstream API? (pass-through API key)
+    - What is the latency budget for context injection per request?
+    - Should the proxy log full request/response payloads for debugging?
+    - How does the proxy interact with platform-specific features (tool use, system prompts)?
+
+work:
+  phases:
+    # ── Phase 1: Proxy core with API pass-through ───────────────────────
+    - id: proxy-core
+      title: Build HTTP proxy with API format detection and pass-through
+      status: completed
+      blockers: []
+      requires_approval: false
+      sources:
+        - path: core/tools/agent_memory_mcp/server_main.py
+          type: internal
+          intent: >
+            CLI entry point pattern. engram-proxy should follow the
+            same conventions as engram-mcp and engram-sidecar.
+      postconditions:
+        - type: test
+          command: pytest core/tools/tests/ -k proxy_core
+          description: >
+            Proxy starts, detects API format (OpenAI/Anthropic), forwards
+            requests to upstream, returns responses unmodified
+      changes:
+        - path: core/tools/agent_memory_mcp/proxy/__init__.py
+          action: create
+          description: Proxy package init.
+        - path: core/tools/agent_memory_mcp/proxy/server.py
+          action: create
+          description: >
+            HTTP proxy server (aiohttp or similar):
+            - Listen on configurable port (default 8400)
+            - Detect API format from request path and headers
+            - Forward to upstream API (configurable base URL)
+            - Pass-through API keys from request headers
+            - Support both streaming and non-streaming responses
+            - Log request/response metadata (not full payloads by default)
+        - path: core/tools/agent_memory_mcp/proxy/formats.py
+          action: create
+          description: >
+            API format adapters for OpenAI and Anthropic message formats.
+            Extract: system message, user messages, assistant messages,
+            tool calls, token counts. Inject: additional system context.
+        - path: core/tools/tests/test_proxy_core.py
+          action: create
+          description: >
+            Tests with mocked upstream API: pass-through works,
+            format detection correct, streaming preserved.
+
+    # ── Phase 2: Context injection ──────────────────────────────────────
+    - id: proxy-context-injection
+      title: Add pre-query context injection via context injectors
+      status: completed
+      blockers:
+        - proxy-core
+      requires_approval: true
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_health.py
+          type: internal
+          intent: >
+            memory_context_home and memory_context_project tools that
+            produce the context to inject. Proxy calls these via MCP.
+      postconditions:
+        - type: test
+          command: pytest core/tools/tests/ -k proxy_injection
+          description: >
+            Proxy prepends memory context to requests. Context appears
+            in system message. Budget respected. Injection logged.
+      changes:
+        - path: core/tools/agent_memory_mcp/proxy/injection.py
+          action: create
+          description: >
+            Context injection module:
+            1. On each request, call memory_context_home (or
+               memory_context_project if project hint present) via MCP
+            2. Prepend returned Markdown to the system message
+            3. If no system message exists, create one
+            4. Log injected context size for latency monitoring
+            5. Respect max_context_chars based on model's context window
+               minus existing message tokens
+
+    # ── Phase 3: Token-aware compaction flush ───────────────────────────
+    - id: proxy-compaction-flush
+      title: Add token counting and compaction flush triggering
+      status: completed
+      blockers:
+        - proxy-core
+      requires_approval: true
+      sources:
+        - path: core/memory/working/notes/compaction-flush-design.md
+          type: internal
+          intent: >
+            5-point flush design. Proxy implements point 3 (real token
+            counting) and point 4 (memory_session_flush trigger).
+      postconditions:
+        - type: test
+          command: pytest core/tools/tests/ -k proxy_flush
+          description: >
+            Proxy triggers flush when token count approaches threshold.
+            Flush calls memory_session_flush via MCP. One flush per
+            compaction cycle.
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: modify
+          description: >
+            Add memory_session_flush so the proxy has a real mid-session
+            context-pressure checkpoint primitive to call.
+        - path: core/tools/agent_memory_mcp/proxy/compaction.py
+          action: create
+          description: >
+            Compaction defense module:
+            1. Count tokens in each request payload (tiktoken for OpenAI,
+               anthropic tokenizer for Anthropic)
+            2. Track cumulative context size across conversation
+            3. When approaching threshold (configurable, default 85% of
+               model context window), trigger memory_session_flush via MCP
+            4. Track flush-per-compaction to prevent loops (one flush
+               per threshold crossing, reset when context shrinks)
+            5. Log flush events for session health monitoring
+
+    # ── Phase 4: Transparent checkpointing ──────────────────────────────
+    - id: proxy-checkpointing
+      title: Add automatic checkpoint extraction from responses
+      status: completed
+      blockers:
+        - proxy-core
+      requires_approval: true
+      sources:
+        - path: core/memory/working/projects/session-management/plans/checkpoint-tool.yaml
+          type: internal
+          intent: >
+            memory_checkpoint tool specification. Proxy calls this tool
+            to persist extracted content.
+      postconditions:
+        - type: test
+          command: pytest core/tools/tests/ -k proxy_checkpoint
+          description: >
+            Proxy extracts checkpoint-worthy content from responses and
+            calls memory_checkpoint. Does not checkpoint trivial responses.
+      changes:
+        - path: core/tools/agent_memory_mcp/proxy/auto_checkpoint.py
+          action: create
+          description: >
+            Auto-checkpoint module:
+            1. Analyze each model response for checkpoint-worthy content:
+              decisions made, preferences stated, knowledge shared,
+              task completions, error resolutions
+            2. Heuristics: response length > N tokens AND contains
+              decision language ("I'll", "let's", "the approach is")
+              OR user correction ("actually", "no, I meant")
+            3. Call memory_checkpoint with extracted content and label
+            4. Rate-limit: max one checkpoint per 5 tool calls to avoid
+              noise. Err on the side of under-checkpointing.
+        - path: core/tools/agent_memory_mcp/proxy/server.py
+          action: modify
+          description: >
+            Relay non-streaming responses to the client, then run the
+            auto-checkpoint monitor and record checkpoint metadata in
+            the proxy request log.
+
+    # ── Phase 5: CLI, config, and sidecar integration ───────────────────
+    - id: proxy-cli
+      title: Create engram-proxy CLI and integrate with sidecar
+      status: completed
+      blockers:
+        - proxy-context-injection
+        - proxy-compaction-flush
+        - proxy-checkpointing
+      requires_approval: true
+      sources:
+        - path: core/tools/agent_memory_mcp/sidecar/cli.py
+          type: internal
+          intent: >
+            Sidecar CLI pattern. Proxy can optionally run the sidecar
+            in-process, reading from its own session log.
+        - path: pyproject.toml
+          type: internal
+          intent: Add engram-proxy to console_scripts.
+      postconditions:
+        - type: check
+          description: >
+            engram-proxy CLI starts, proxies requests, injects context,
+            and triggers flushes correctly on test fixtures
+      changes:
+        - path: core/tools/agent_memory_mcp/proxy/cli.py
+          action: create
+          description: >
+            CLI entry point:
+            engram-proxy                         # start proxy
+            engram-proxy --port 8400
+            engram-proxy --upstream https://api.anthropic.com
+            engram-proxy --model-context-window 200000
+            engram-proxy --with-sidecar          # run sidecar in-process
+
+            Environment variables:
+            - MEMORY_REPO_ROOT (shared)
+            - PROXY_PORT (default: 8400)
+            - PROXY_UPSTREAM_URL (default: auto-detect from API key)
+            - PROXY_FLUSH_THRESHOLD (default: 0.85)
+            - PROXY_ENABLE_INJECTION (default: true)
+            - PROXY_ENABLE_CHECKPOINTING (default: true)
+        - path: pyproject.toml
+          action: modify
+          description: >
+            Add engram-proxy to [project.scripts]:
+            engram-proxy = "engram_mcp.agent_memory_mcp.proxy.cli:main"
+
+    # ── Phase 6: Documentation ──────────────────────────────────────────
+    - id: proxy-docs
+      title: Document proxy setup per platform
+      status: completed
+      blockers:
+        - proxy-cli
+      requires_approval: true
+      sources:
+        - path: HUMANS/docs/SIDECAR.md
+          type: internal
+          intent: >
+            Cross-reference sidecar docs. Proxy docs should explain
+            the upgrade path from sidecar-only to sidecar+proxy.
+      postconditions:
+        - type: manual
+          description: >
+            HUMANS/docs/PROXY.md exists with per-platform setup
+            (Claude Code, Cursor), configuration reference, latency
+            expectations, and troubleshooting
+      changes:
+        - path: HUMANS/docs/PROXY.md
+          action: create
+          description: >
+            Proxy documentation: purpose, per-platform setup (Claude Code
+            custom base URL, Cursor custom base URL), what you gain over
+            sidecar-only, latency accounting, configuration reference,
+            troubleshooting, and honest limitations (doesn't work with
+            hosted ChatGPT).
+        - path: HUMANS/docs/QUICKSTART.md
+          action: modify
+          description: Add optional proxy setup after sidecar setup.
+        - path: CHANGELOG.md
+          action: modify
+          description: Add entry for engram-proxy.
+
+review: null

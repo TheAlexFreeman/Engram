@@ -1,0 +1,306 @@
+id: sidecar-comprehensive-capture
+project: session-management
+created: '2026-04-10'
+origin_session: unknown
+status: active
+budget:
+  max_sessions: 5
+sessions_used: 0
+purpose:
+  summary: Upgrade sidecar from ACCESS-only capture to comprehensive deterministic activity logging
+  context: >-
+    The sidecar currently extracts memory_read_file calls for ACCESS logging and
+    writes thin session summaries (last user message + last assistant message + 3
+    key_topics from file stems). All other tool calls, prompt/response content,
+    platform metadata, and timing data are discarded. This means the trace system
+    (TRACES.jsonl) is only populated when agents voluntarily call
+    memory_record_trace — which is unreliable and incomplete.
+
+    The goal is to make the sidecar the deterministic Level 1 capture layer for
+    all session activity, so that review agents (overnight automations, periodic
+    review skills) have comprehensive structured data to work with. This is a
+    prerequisite for skill maturity tracking, behavioral evaluation, task cluster
+    detection, and the bidirectional graduation pipeline described in the
+    narrative-vs-formal design framework.
+
+    Design constraint: capture must be deterministic and agent-independent. The
+    sidecar observes transcripts after the fact — it should never require agent
+    cooperation to produce complete logs. Agents may still enrich logs voluntarily
+    (e.g. adding parent_span_id for plan-action trees), but the baseline must be
+    automatic.
+  questions:
+    - How much prompt/response content should be persisted vs. summarized? Full
+      text is expensive on disk and raises privacy concerns; pure token counts
+      lose too much signal for cluster detection.
+    - Should the sidecar write directly to TRACES.jsonl or use a separate
+      sidecar-specific log that review agents merge?
+work:
+  phases:
+  - id: enrich-parsed-session
+    title: Expand ParsedSession and ToolCall models to carry timing and metadata
+    status: complete
+    commit: null
+    blockers: []
+    postconditions:
+    - description: >-
+        ToolCall model includes timestamp, duration_ms, and tool_use_id fields
+        (all optional, populated when platform data is available)
+    - description: >-
+        ParsedSession includes platform_metadata dict for session-level context
+        (git_branch, cwd, model_id, entrypoint — whatever the platform provides)
+    - description: >-
+        ParsedSession includes per-message timestamps as list[datetime] parallel
+        to user_messages and assistant_messages
+    - description: Existing access_logger and lifecycle code still works with the expanded models
+    changes:
+    - path: core/tools/agent_memory_mcp/sidecar/parser.py
+      action: update
+      description: >-
+        Add timestamp (datetime|None), duration_ms (int|None), and
+        tool_use_id (str|None) fields to ToolCall dataclass. Add
+        platform_metadata (dict[str,Any]), user_timestamps (list[datetime]),
+        assistant_timestamps (list[datetime]) to ParsedSession. All new fields
+        default to None/empty so existing code is unaffected.
+    - path: core/tools/agent_memory_mcp/sidecar/parsers/claude_code.py
+      action: update
+      description: >-
+        Populate new ToolCall fields from Claude Code JSONL: timestamp from
+        the enclosing assistant message's timestamp field, tool_use_id from
+        the tool_use block's id field. Populate platform_metadata from
+        first record's cwd, gitBranch, agentId, entrypoint. Populate
+        user_timestamps and assistant_timestamps from per-record timestamps.
+
+  - id: all-tool-trace-spans
+    title: Auto-generate trace spans for every tool call observed in transcripts
+    status: complete
+    commit: null
+    blockers:
+    - enrich-parsed-session
+    postconditions:
+    - description: >-
+        Every tool call in a parsed transcript produces a trace span in the
+        session's TRACES.jsonl, not just memory_read_file calls
+    - description: >-
+        Spans include: tool name, sanitized args summary (not full payload),
+        status (ok/error from result inspection), duration_ms when available,
+        and timestamp
+    - description: >-
+        A span_type of "tool_call" is used, with metadata.source = "sidecar"
+        to distinguish from agent-authored spans
+    - description: >-
+        Existing agent-authored trace spans (memory_record_trace) are preserved;
+        sidecar spans do not duplicate or conflict with them
+    - description: >-
+        Deduplication: if a trace span already exists for a tool_use_id in the
+        session's TRACES.jsonl, the sidecar skips it
+    changes:
+    - path: core/tools/agent_memory_mcp/sidecar/trace_logger.py
+      action: create
+      description: >-
+        New module parallel to access_logger.py. TraceLogger class with
+        build_trace_spans(session: ParsedSession) -> list[TraceSpan] method.
+        Uses plan_trace.record_trace() or direct JSONL append for persistence.
+        Sanitizes tool args via plan_trace._sanitize_metadata(). Inspects
+        tool results for error indicators to set status. Adds
+        metadata.source = "sidecar" to all spans.
+    - path: core/tools/agent_memory_mcp/sidecar/cli.py
+      action: update
+      description: >-
+        Wire TraceLogger into the per-session processing loop alongside
+        AccessLogger. After parsing a session, call trace_logger to generate
+        and persist spans. Add trace_spans_logged counter to SidecarRunResult.
+    - path: core/tools/agent_memory_mcp/sidecar/lifecycle.py
+      action: update
+      description: >-
+        Pass accumulated trace span count to memory_record_session as part of
+        session metrics metadata, so session summaries reflect tool activity
+        volume.
+
+  - id: compressed-dialogue-log
+    title: Persist compressed prompt/response pairs alongside traces
+    status: complete
+    commit: null
+    blockers:
+    - enrich-parsed-session
+    postconditions:
+    - description: >-
+        Each finalized session produces a dialogue.jsonl file in the session's
+        activity folder (memory/activity/YYYY/MM/DD/chat-NNN/dialogue.jsonl)
+    - description: >-
+        Each dialogue entry contains: role (user|assistant), timestamp,
+        first_line (first 200 chars of the message), token_estimate (char
+        count / 4), tool_calls_in_turn (list of tool names invoked in this
+        assistant turn), and is_empty flag
+    - description: >-
+        Full message text is NOT persisted — only the compressed
+        representation. This balances cluster-detection signal against disk
+        and privacy costs.
+    - description: >-
+        The dialogue log is append-only and written by the sidecar, not by
+        the agent. Agents can read it but do not write to it.
+    changes:
+    - path: core/tools/agent_memory_mcp/sidecar/dialogue_logger.py
+      action: create
+      description: >-
+        New module. DialogueLogger class with
+        build_dialogue_entries(session: ParsedSession) -> list[dict] method.
+        Compresses each message to {role, timestamp, first_line, token_estimate,
+        tool_calls_in_turn}. Writes to session_folder/dialogue.jsonl.
+    - path: core/tools/agent_memory_mcp/sidecar/cli.py
+      action: update
+      description: >-
+        Wire DialogueLogger into finalization. After session is finalized and
+        session folder exists, write dialogue.jsonl. Add
+        dialogue_entries_logged counter to SidecarRunResult.
+
+  - id: session-summary-enrichment
+    title: Enrich session summaries with activity statistics from captured data
+    status: complete
+    commit: null
+    blockers:
+    - all-tool-trace-spans
+    - compressed-dialogue-log
+    postconditions:
+    - description: >-
+        memory_record_session receives a metrics dict computed by the sidecar
+        from trace and dialogue data: total_tool_calls, unique_tools_used,
+        tool_call_breakdown (dict of tool_name -> count), user_turn_count,
+        assistant_turn_count, estimated_total_tokens, session_duration_ms,
+        error_count
+    - description: >-
+        Session SUMMARY.md frontmatter includes the metrics dict, making it
+        queryable by review agents without loading trace files
+    - description: >-
+        Lifecycle manager's summary text is improved: includes top 3 tools used
+        and a one-line activity characterization (e.g. "heavy tool use session"
+        vs "conversational session" vs "plan execution session")
+    changes:
+    - path: core/tools/agent_memory_mcp/sidecar/lifecycle.py
+      action: update
+      description: >-
+        Compute session metrics from accumulated trace spans and dialogue
+        entries. Pass metrics dict to memory_record_session. Improve summary
+        text generation to include tool activity characterization.
+    - path: core/tools/agent_memory_mcp/sidecar/metrics.py
+      action: create
+      description: >-
+        New module. compute_session_metrics(traces: list[TraceSpan],
+        dialogue: list[dict], session: ParsedSession) -> dict. Pure function
+        that aggregates span and dialogue data into the metrics schema.
+        Classifies session type from tool/dialogue ratio.
+    - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+      action: update
+      description: >-
+        Ensure memory_record_session accepts and persists optional metrics
+        dict in SUMMARY.md frontmatter. If metrics already present (from a
+        previous sidecar run), merge rather than overwrite.
+
+  - id: query-surface-extensions
+    title: Extend memory_query_traces to support review-agent workflows
+    status: complete
+    commit: null
+    blockers:
+    - all-tool-trace-spans
+    postconditions:
+    - description: >-
+        memory_query_traces supports a group_by parameter (tool_name,
+        span_type, session_id, date) that returns aggregated counts and
+        durations per group — enabling "which tools are used most?" and
+        "what does a typical session look like?" queries
+    - description: >-
+        A new memory_query_dialogue tool reads dialogue.jsonl files across
+        sessions, supporting date range filters and keyword search on
+        first_line — enabling task cluster detection from user intent patterns
+    - description: >-
+        Both tools support a sessions parameter accepting a list of session_ids
+        for targeted review of specific session cohorts
+    changes:
+    - path: core/tools/agent_memory_mcp/plan_trace.py
+      action: update
+      description: >-
+        Add group_by parameter to query_trace_spans(). When set, return
+        aggregated results (count, total_duration_ms, mean_duration_ms,
+        error_rate) per group key instead of individual spans.
+    - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+      action: update
+      description: >-
+        Register memory_query_dialogue tool. Reads dialogue.jsonl files from
+        specified sessions or date range. Returns compressed dialogue entries
+        with optional keyword filter on first_line field. Paginated.
+    - path: core/tools/agent_memory_mcp/tool_schemas.py
+      action: update
+      description: >-
+        Add schemas for memory_query_dialogue input/output and the group_by
+        extension to memory_query_traces.
+
+  - id: platform-parser-extensibility
+    title: Add a parser registry pattern for future platform support
+    status: complete
+    commit: null
+    blockers: []
+    postconditions:
+    - description: >-
+        Parser selection uses a registry dict mapping platform name to parser
+        class, with auto-detection trying each registered parser's
+        discover_transcripts() in priority order
+    - description: >-
+        Adding a new platform parser requires only creating a new module in
+        parsers/ and registering it — no changes to cli.py or lifecycle.py
+    - description: >-
+        Documentation in HUMANS/docs/SIDECAR.md describes how to add a parser
+    changes:
+    - path: core/tools/agent_memory_mcp/sidecar/parsers/__init__.py
+      action: update
+      description: >-
+        Export PARSER_REGISTRY dict mapping platform strings to parser classes.
+        Auto-detection iterates registry in priority order.
+    - path: core/tools/agent_memory_mcp/sidecar/cli.py
+      action: update
+      description: >-
+        Replace hardcoded ClaudeCodeTranscriptParser instantiation with
+        registry lookup. --platform flag selects from registry keys.
+    - path: HUMANS/docs/SIDECAR.md
+      action: update
+      description: >-
+        Add "Adding a new platform parser" section with the interface contract
+        and registration steps.
+
+  - id: tests-and-validation
+    title: Test suite for new capture modules and end-to-end sidecar flow
+    status: complete
+    commit: null
+    blockers:
+    - all-tool-trace-spans
+    - compressed-dialogue-log
+    - session-summary-enrichment
+    postconditions:
+    - description: >-
+        Unit tests for TraceLogger covering: span generation from diverse
+        tool calls, error detection in results, deduplication against existing
+        spans, metadata sanitization, sidecar source tagging
+    - description: >-
+        Unit tests for DialogueLogger covering: compression accuracy, empty
+        message handling, tool_calls_in_turn extraction, token estimation
+    - description: >-
+        Unit tests for compute_session_metrics covering: aggregation math,
+        session type classification, edge cases (zero tools, zero messages)
+    - description: >-
+        Integration test: feed a sample Claude Code JSONL transcript through
+        the full sidecar pipeline and verify all outputs (ACCESS.jsonl,
+        TRACES.jsonl, dialogue.jsonl, SUMMARY.md with metrics)
+    changes:
+    - path: HUMANS/tooling/tests/test_trace_logger.py
+      action: create
+      description: Unit tests for trace_logger module
+    - path: HUMANS/tooling/tests/test_dialogue_logger.py
+      action: create
+      description: Unit tests for dialogue_logger module
+    - path: HUMANS/tooling/tests/test_session_metrics.py
+      action: create
+      description: Unit tests for metrics module
+    - path: HUMANS/tooling/tests/test_sidecar_integration.py
+      action: update
+      description: >-
+        Extend existing sidecar integration tests with end-to-end flow
+        covering new trace, dialogue, and metrics outputs
+review: null

@@ -2095,8 +2095,21 @@ def stage_external_file(
     root: Path,
     session_id: str | None = None,
     dry_run: bool = False,
+    reflects_upstream_as_of: str | None = None,
 ) -> dict[str, Any]:
-    """Stage external content into a project IN/ folder with governed frontmatter."""
+    """Stage external content into a project IN/ folder with governed frontmatter.
+
+    Frontmatter records two freshness axes:
+
+    - ``fetched_date`` / ``snapshot_taken_at`` — when this snapshot was captured
+      into IN/. They are normally the same; ``snapshot_taken_at`` is kept as a
+      distinct field so tooling that reasons about snapshot age has a stable
+      name independent of the callers' ``fetched_date`` semantics.
+    - ``reflects_upstream_as_of`` — optional caller-supplied marker describing
+      the upstream state the snapshot reflects (e.g. a commit sha, release tag,
+      or ISO date). Included verbatim when provided; omitted when absent so
+      legacy readers are not forced to interpret an empty string.
+    """
     import hashlib
 
     if not isinstance(content, str) or not content:
@@ -2109,6 +2122,11 @@ def stage_external_file(
         raise ValidationError("fetched_date must be in YYYY-MM-DD format")
     if not isinstance(source_label, str) or not source_label.strip():
         raise ValidationError("source_label must be a non-empty string")
+    if reflects_upstream_as_of is not None:
+        if not isinstance(reflects_upstream_as_of, str) or not reflects_upstream_as_of.strip():
+            raise ValidationError(
+                "reflects_upstream_as_of must be a non-empty string when provided"
+            )
     if session_id is not None:
         validate_session_id(session_id)
 
@@ -2131,16 +2149,20 @@ def stage_external_file(
     if target_path.exists():
         raise ValidationError(f"target file already exists: {target_path.name}")
 
+    normalized_fetched_date = fetched_date.strip()
     frontmatter_preview: dict[str, Any] = {
         "source": "external-research",
         "trust": "low",
         "origin_url": sanitized_url,
-        "fetched_date": fetched_date.strip(),
+        "fetched_date": normalized_fetched_date,
+        "snapshot_taken_at": normalized_fetched_date,
         "source_label": source_label.strip(),
         "created": date_type.today().isoformat(),
         "origin_session": session_id or "unknown",
         "staged_by": "memory_stage_external",
     }
+    if reflects_upstream_as_of is not None:
+        frontmatter_preview["reflects_upstream_as_of"] = reflects_upstream_as_of.strip()
     envelope = {
         "action": "stage_external",
         "project": validate_slug(project, field_name="project_id"),

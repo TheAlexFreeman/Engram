@@ -1,0 +1,143 @@
+id: cli-v3-schema-foundations
+project: cli-expansion
+created: '2026-04-03'
+origin_session: memory/activity/2026/04/02/chat-001
+status: completed
+sessions_used: 2
+budget:
+  deadline: '2026-07-15'
+  max_sessions: 5
+purpose:
+  summary: Improve MCP schema discoverability and validation ergonomics that unblock plan-oriented CLI commands.
+  context: >
+    The CLI roadmap's v3 plan and approval commands depend on complex, schema-
+    heavy MCP tools. Existing notes identified three cross-cutting gaps that
+    make both agent callers and terminal authorship clumsy:
+
+    - nested schema details are missing from several tool descriptions
+    - validation for nested inputs is still mostly fail-fast
+    - the schema introspection surface is not yet treated as the canonical
+      contract that the CLI can reuse for help and guided authoring
+
+    This plan addresses those prerequisites before the plan/approval/trace CLI
+    commands are attempted.
+  questions: []
+work:
+  phases:
+    - id: tool-docstrings
+      title: Enrich complex MCP tool docstrings with nested schema details
+      status: completed
+      commit: null
+      blockers: []
+      sources:
+        - path: core/memory/working/projects/cli-expansion/notes/plan-tool-ux-improvements.md
+          type: internal
+          intent: Use the recorded retry failures as the concrete problem statement.
+        - path: core/memory/working/projects/cli-expansion/notes/mcp-schema-discoverability-audit.md
+          type: internal
+          intent: Scope which tools need schema-rich descriptions first.
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          type: internal
+          intent: Update the highest-impact plan and approval tool docstrings where callers need them.
+      postconditions:
+        - description: Complex MCP tools document enum values, conditional fields, and nested object shape in their docstrings.
+        - description: Tool descriptions are good enough to power CLI help text for schema-heavy commands.
+      changes:
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          action: update
+          description: Expand plan-related tool docstrings with nested schema and conditional requirement details.
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: Add or fix schema-rich docstrings for structured session/access tools.
+        - path: core/tools/agent_memory_mcp/tools/semantic/knowledge_tools.py
+          action: update
+          description: Document enum values and nested request shapes for governance and lifecycle tools.
+    - id: validation-accumulation
+      title: Accumulate validation errors for nested and batch tool inputs
+      status: completed
+      commit: null
+      blockers:
+        - tool-docstrings
+      sources:
+        - path: core/tools/agent_memory_mcp/plan_utils.py
+          type: internal
+          intent: Refactor plan validation toward multi-error reporting.
+        - path: core/tools/agent_memory_mcp/tools/write_tools.py
+          type: internal
+          intent: Reuse the existing bulk-validation pattern that already accumulates errors.
+      postconditions:
+        - description: Plan creation and similar batch tools return aggregated validation errors instead of only the first failure.
+        - description: Tests cover multi-error validation output for nested tool inputs.
+          type: test
+          target: core/tools/tests/
+      changes:
+        - path: core/tools/agent_memory_mcp/plan_utils.py
+          action: update
+          description: Refactor nested plan validation to accumulate and report multiple errors per call.
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          action: update
+          description: Surface aggregated validation results cleanly to callers.
+        - path: core/tools/tests/test_plan_validation.py
+          action: create
+          description: Tests for multi-error validation on plan-related tool inputs.
+    - id: schema-introspection
+      title: Add a read-only schema introspection surface for complex tools
+      status: completed
+      commit: null
+      blockers:
+        - validation-accumulation
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_capability.py
+          type: internal
+          intent: Reuse the pattern for adding low-risk read-only capability surfaces.
+        - path: core/tools/agent_memory_mcp/plan_utils.py
+          type: internal
+          intent: Reuse the nested schema builders for plan input structures.
+      postconditions:
+        - description: A read-only schema introspection tool exposes nested input shape for complex MCP tools.
+        - description: The CLI can reuse the schema payload for help or guided authoring instead of duplicating hand-written schemas.
+      changes:
+        - path: core/tools/agent_memory_mcp/tool_schemas.py
+          action: update
+          description: Centralize reusable nested input schema builders for complex tool contracts.
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_capability.py
+          action: update
+          description: Expose read-only `memory_tool_schema` and `memory_plan_schema` lookups for CLI help and guided authoring.
+        - path: core/tools/agent_memory_mcp/tools/read_tools/__init__.py
+          action: update
+          description: Register schema introspection alongside the capability read surface.
+        - path: HUMANS/tooling/agent-memory-capabilities.toml
+          action: update
+          description: Advertise the schema-backed read surface in the capability manifest.
+        - path: core/tools/tests/test_agent_memory_mcp_write_tools.py
+          action: update
+          description: Cover structured schema lookup for complex tool inputs.
+    - id: foundation-verification
+      title: Verify schema improvements, docs, and CLI-readiness metadata
+      status: completed
+      commit: null
+      blockers:
+        - schema-introspection
+      sources:
+        - path: HUMANS/tooling/agent-task-readiness.toml
+          type: internal
+          intent: Keep CLI-readiness and discoverability metadata aligned with the new schema surfaces.
+        - path: HUMANS/docs/MCP.md
+          type: internal
+          intent: Document the new schema/discoverability expectations for tool callers.
+      postconditions:
+        - description: Schema-focused tests and repository validation pass.
+          type: test
+          target: core/tools/tests/
+        - description: MCP docs and capability metadata mention the new schema/discoverability surface.
+      changes:
+        - path: HUMANS/docs/MCP.md
+          action: update
+          description: Document the schema-introspection surface and updated expectations for complex tool descriptions.
+        - path: HUMANS/tooling/agent-task-readiness.toml
+          action: update
+          description: Reflect improved CLI and agent readiness for schema-heavy flows.
+        - path: HUMANS/tooling/agent-memory-capabilities.toml
+          action: update
+          description: Record schema discoverability improvements in the capability index.
+review: null

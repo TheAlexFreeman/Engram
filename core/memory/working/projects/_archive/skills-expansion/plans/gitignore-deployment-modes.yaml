@@ -1,0 +1,94 @@
+id: gitignore-deployment-modes
+project: skills-expansion
+created: '2026-04-08'
+origin_session: memory/activity/2026/04/08/chat-001
+status: completed
+budget:
+  max_sessions: 2
+purpose:
+  summary: 'Add configurable deployment modes: git-checked (default) vs gitignored with on-demand
+    install'
+  context: 'dotagents supports two deployment models: skills committed to git (immediate availability
+    on clone) and skills gitignored (fetched on demand via install). Engram currently commits
+    everything. For teams adopting Engram, a gitignore mode for lower-trust or agent-generated
+    skills reduces repo noise while keeping them available via install from the manifest.
+    This plan adds a deployment_mode field to the manifest and the tooling to support both
+    modes, with trust-aware defaults.'
+  questions: []
+work:
+  phases:
+  - id: deployment-mode-spec
+    title: Design deployment mode semantics and trust-aware defaults
+    status: completed
+    commit: null
+    blockers: []
+    postconditions:
+    - description: 'Spec defines clear defaults: trust:high -> checked, trust:medium -> checked,
+        trust:low -> gitignored'
+    - description: Spec documents per-skill override via manifest
+    - description: 'Spec explains .gitignore entry management: which patterns are added/removed'
+    changes:
+    - path: core/governance/skill-manifest-spec.md
+      action: update
+      description: 'Add deployment_mode field spec: checked (default for trust:high), gitignored
+        (default for trust:low/agent-generated). Document override rules and .gitignore management.'
+    - path: core/governance/skill-distribution-spec.md
+      action: update
+      description: Document how deployment mode interacts with distribution targets
+  - id: gitignore-management
+    title: Build .gitignore management for skill directories
+    status: completed
+    commit: null
+    blockers:
+    - deployment-mode-spec
+    postconditions:
+    - description: Managed block in .gitignore is clearly delimited with start/end comments
+    - description: Manager never touches .gitignore entries outside the managed block
+    - description: Running manager twice produces identical .gitignore (idempotent)
+    changes:
+    - path: core/tools/agent_memory_mcp/skill_gitignore.py
+      action: create
+      description: 'SkillGitignoreManager: reads manifest, computes which skill paths should
+        be gitignored, updates .gitignore entries under a managed block comment'
+    - path: core/memory/skills/.gitignore
+      action: create
+      description: Initial .gitignore with managed block for gitignored skills
+  - id: install-mode-integration
+    title: Integrate deployment mode into skill install and sync flows
+    status: completed
+    commit: null
+    blockers:
+    - gitignore-management
+    postconditions:
+    - description: Gitignored skills appear in working directory but not in git staging area
+    - description: memory_skill_sync warns when gitignored skills are missing locally
+    - description: memory_skill_list shows deployment mode per skill
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/semantic/skill_tools.py
+      action: update
+      description: 'memory_skill_install respects deployment_mode: gitignored skills are fetched
+        but not staged for commit. memory_skill_sync checks that gitignored skills are present
+        locally.'
+    - path: core/tools/agent_memory_mcp/skill_resolver.py
+      action: update
+      description: "Resolver aware of deployment mode \u2014 gitignored skills resolved from\
+        \ lockfile on install, not committed"
+  - id: clone-experience
+    title: Ensure clean experience on fresh clone with gitignored skills
+    status: completed
+    commit: null
+    blockers: []
+    postconditions:
+    - description: Fresh clone + install restores all skills (both checked and gitignored)
+    - description: Install script exits cleanly when all checked skills already present
+    - description: Clear error message when gitignored skill source is unreachable
+    requires_approval: true
+    changes:
+    - path: HUMANS/tooling/scripts/skill_install_frozen.py
+      action: update
+      description: 'Script handles gitignored skills: installs from lockfile on fresh clone,
+        verifies all checked skills are present'
+    - path: core/memory/skills/SKILLS.yaml
+      action: update
+      description: Document install-after-clone workflow in manifest comments
+review: null

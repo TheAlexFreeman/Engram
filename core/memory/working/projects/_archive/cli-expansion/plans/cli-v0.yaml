@@ -1,0 +1,171 @@
+id: cli-v0
+project: cli-expansion
+created: '2026-04-02'
+origin_session: memory/activity/2026/04/02/chat-001
+status: completed
+sessions_used: 1
+budget:
+  deadline: '2026-05-01'
+  max_sessions: 8
+purpose:
+  summary: 'Implement the first three engram CLI commands: search, status, and validate.'
+  context: >
+    Engram had no human- or agent-facing CLI for interacting with memory outside
+    the MCP protocol. The three highest-leverage commands were search (query
+    memory from a terminal), status (memory health dashboard), and validate
+    (repo integrity check). All three reuse existing business logic; the CLI is
+    a thin presentation layer on top of functions already implemented in the MCP
+    server and validator script. Design constraints were argparse (matching the
+    existing CLIs), --json on every command, graceful degradation when optional
+    dependencies are missing, and the same repo-root resolution chain as the MCP
+    server.
+  questions: []
+work:
+  phases:
+    - id: scaffold
+      title: CLI scaffold and repo root resolution
+      status: completed
+      commit: null
+      blockers: []
+      sources:
+        - path: core/tools/agent_memory_mcp/server.py
+          type: internal
+          intent: Repo root resolution logic to reuse.
+        - path: core/tools/agent_memory_mcp/sidecar/cli.py
+          type: internal
+          intent: Argparse patterns used by the existing CLIs.
+        - path: pyproject.toml
+          type: internal
+          intent: Entry point registration for the new console script.
+      postconditions:
+        - description: engram --help prints the subcommand list.
+        - description: engram --version prints package version information.
+        - description: pyproject.toml has an engram entry point.
+          type: grep
+          target: pyproject.toml
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/__init__.py
+          action: create
+          description: CLI package init.
+        - path: core/tools/agent_memory_mcp/cli/main.py
+          action: create
+          description: Main entry point with parser construction, repo-root resolution, and subcommand dispatch.
+        - path: pyproject.toml
+          action: update
+          description: Register the engram console script alongside the existing CLI entry points.
+    - id: validate-cmd
+      title: Implement engram validate
+      status: completed
+      commit: null
+      blockers: []
+      sources:
+        - path: HUMANS/tooling/scripts/validate_memory_repo.py
+          type: internal
+          intent: Existing validation logic to wrap as a reusable CLI surface.
+      postconditions:
+        - description: engram validate runs all checks and prints results.
+        - description: engram validate --json outputs structured JSON findings.
+        - description: Exit codes are 0 for clean, 1 for warnings, and 2 for errors.
+        - description: Tests cover the validate subcommand.
+          type: test
+          target: core/tools/tests/test_cli_validate.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_validate.py
+          action: create
+          description: Validate subcommand wrapper with human and JSON rendering and stable exit codes.
+        - path: core/tools/agent_memory_mcp/cli/validators.py
+          action: create
+          description: Importable validation adapter that exposes structured findings from the repository validator.
+        - path: core/tools/tests/test_cli_validate.py
+          action: create
+          description: Deterministic command-level tests for validate output and exit code behavior.
+    - id: status-cmd
+      title: Implement engram status
+      status: completed
+      commit: null
+      blockers: []
+      sources:
+        - path: core/INIT.md
+          type: internal
+          intent: Maturity stage, thresholds, and periodic review metadata.
+        - path: core/governance/review-queue.md
+          type: internal
+          intent: Pending review items to summarize in the dashboard.
+      postconditions:
+        - description: engram status prints stage, review date, ACCESS counts, pending reviews, and active plans.
+        - description: engram status --json outputs structured JSON.
+        - description: Tests cover status output and edge cases.
+          type: test
+          target: core/tools/tests/test_cli_status.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_status.py
+          action: create
+          description: Status subcommand that parses health metadata and renders terminal or JSON summaries.
+        - path: core/tools/tests/test_cli_status.py
+          action: create
+          description: Tests for status output, empty-repo handling, JSON structure, and aggregation warnings.
+    - id: search-cmd
+      title: Implement engram search
+      status: completed
+      commit: null
+      blockers: []
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_search.py
+          type: internal
+          intent: Keyword search implementation to reuse.
+        - path: core/tools/agent_memory_mcp/tools/semantic/search_tools.py
+          type: internal
+          intent: Semantic search implementation and optional dependency behavior.
+      postconditions:
+        - description: engram search query returns matching files with snippets.
+        - description: The command falls back to keyword mode when semantic dependencies are unavailable.
+        - description: engram search --json outputs structured JSON results.
+        - description: Tests cover keyword mode, semantic mode, fallback behavior, and --scope.
+          type: test
+          target: core/tools/tests/test_cli_search.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_search.py
+          action: create
+          description: Search subcommand with semantic auto-detection, keyword fallback, and structured result rendering.
+        - path: core/tools/tests/test_cli_search.py
+          action: create
+          description: Tests for keyword search, semantic fallback, JSON output, and scope/limit behavior.
+    - id: integration
+      title: Integration testing, docs, and package wiring
+      status: completed
+      commit: null
+      blockers: []
+      sources:
+        - path: HUMANS/docs/QUICKSTART.md
+          type: internal
+          intent: Human-facing setup docs to update with CLI usage.
+      postconditions:
+        - description: All targeted CLI tests pass.
+          type: test
+          target: core/tools/tests/
+        - description: CLI usage is documented for humans.
+        - description: The package exposes the engram console script after installation.
+      requires_approval: true
+      changes:
+        - path: core/tools/tests/test_cli_integration.py
+          action: create
+          description: Subprocess integration tests for search, status, and validate.
+        - path: HUMANS/docs/CLI.md
+          action: create
+          description: Human-facing CLI documentation for installation, repo-root resolution, and v0 commands.
+        - path: HUMANS/docs/QUICKSTART.md
+          action: update
+          description: Add quick-start CLI references and example commands.
+review:
+  completed: '2026-04-03'
+  completed_session: memory/activity/2026/04/02/chat-001
+  outcome: partial
+  purpose_assessment: >
+    The v0 foundation shipped successfully: the engram console script is
+    packaged, search/status/validate are implemented, docs landed, and the
+    targeted CLI test suite passed. The plan met its scoped deliverable without
+    creating a parallel implementation path.
+  unresolved:
+    - question: Should the roadmap note keep explicit --semantic and --verbose read-side flags in the foundation contract?
+      note: The shipped CLI auto-detects semantic search and exposes --keyword, while the roadmap note still names explicit --semantic and status --verbose flags. Treat those as v1 read-surface polish or update the roadmap copy.
+  follow_up: cli-v1-read-surfaces

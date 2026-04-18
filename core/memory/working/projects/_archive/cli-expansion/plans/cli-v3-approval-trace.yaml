@@ -1,0 +1,143 @@
+id: cli-v3-approval-trace
+project: cli-expansion
+created: '2026-04-03'
+origin_session: memory/activity/2026/04/02/chat-001
+status: completed
+sessions_used: 4
+budget:
+  deadline: '2026-09-15'
+  max_sessions: 6
+purpose:
+  summary: Add approval and trace inspection commands to the engram CLI.
+  context: >
+    Terminal users need two additional coordination surfaces once schema-heavy
+    tooling is discoverable: approval management and execution trace inspection.
+    This plan exposes pending approvals and trace history without requiring the
+    browser UI.
+  questions: []
+work:
+  phases:
+    - id: approval-listing
+      title: Implement terminal listing for pending approval requests
+      status: completed
+      commit: null
+      blockers:
+        - cli-v3-schema-foundations:foundation-verification
+      sources:
+        - path: core/tools/agent_memory_mcp/plan_approvals.py
+          type: internal
+          intent: Reuse approval storage, lookup, and summary semantics.
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          type: internal
+          intent: Reuse approval-related tool behavior that already exists over MCP.
+        - path: HUMANS/views/approvals.html
+          type: internal
+          intent: Preserve parity with the existing browser approval surface where it makes sense.
+      postconditions:
+        - description: engram approval list renders pending approvals with enough context to act from the terminal.
+        - description: JSON output includes ids, status, scope, and expiry metadata for scripts.
+        - description: Tests cover empty, pending, and expired approval states.
+          type: test
+          target: core/tools/tests/test_cli_approval.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_approval.py
+          action: create
+          description: Approval command group with list support.
+        - path: core/tools/agent_memory_mcp/cli/main.py
+          action: update
+          description: Register the approval command group.
+        - path: core/tools/tests/test_cli_approval.py
+          action: create
+          description: Tests for approval listing in human and JSON modes.
+    - id: approval-resolution
+      title: Implement terminal approval resolution with guardrails
+      status: completed
+      commit: null
+      blockers:
+        - approval-listing
+      sources:
+        - path: core/tools/agent_memory_mcp/plan_approvals.py
+          type: internal
+          intent: Reuse approval resolution logic and expiry handling.
+        - path: core/governance/security-signals.md
+          type: internal
+          intent: Keep approval guardrails aligned with Engram's oversight expectations.
+      postconditions:
+        - description: engram approval resolve records approve and reject decisions from the terminal.
+        - description: The command rejects expired or malformed approval ids with clear diagnostics.
+        - description: Tests cover approval, rejection, and invalid-resolution flows.
+          type: test
+          target: core/tools/tests/test_cli_approval.py
+      requires_approval: true
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_approval.py
+          action: update
+          description: Add approval resolution behavior with safety checks and clear output.
+        - path: core/tools/tests/test_cli_approval.py
+          action: update
+          description: Add tests for approval resolution and error handling.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document terminal approval workflows.
+    - id: trace-query
+      title: Implement terminal trace querying by plan, session, and date range
+      status: completed
+      commit: null
+      blockers:
+        - cli-v3-schema-foundations:foundation-verification
+      sources:
+        - path: core/tools/agent_memory_mcp/plan_trace.py
+          type: internal
+          intent: Reuse canonical trace span storage and filtering semantics.
+        - path: core/tools/agent_memory_mcp/tools/semantic/plan_tools.py
+          type: internal
+          intent: Align CLI trace views with the existing MCP observability surfaces.
+        - path: core/memory/working/projects/cli-expansion/notes/cli-roadmap.md
+          type: internal
+          intent: Keep trace filters aligned with the roadmap contract.
+      postconditions:
+        - description: engram trace filters by plan, session, and date range.
+        - description: Trace output has human and JSON modes that are useful for post-hoc debugging.
+        - description: Tests cover filtering, empty traces, and JSON output.
+          type: test
+          target: core/tools/tests/test_cli_trace.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_trace.py
+          action: create
+          description: Trace command with plan/session/date filtering and JSON output.
+        - path: core/tools/agent_memory_mcp/cli/main.py
+          action: update
+          description: Register the trace command.
+        - path: core/tools/tests/test_cli_trace.py
+          action: create
+          description: Tests for trace filtering and rendering.
+    - id: approval-trace-verification
+      title: Verify approval and trace docs, integration flows, and readiness metadata
+      status: completed
+      commit: null
+      blockers:
+        - approval-resolution
+        - trace-query
+      sources:
+        - path: core/tools/tests/test_cli_integration.py
+          type: internal
+          intent: Extend subprocess coverage to approval and trace commands.
+        - path: HUMANS/tooling/agent-task-readiness.toml
+          type: internal
+          intent: Reflect terminal approval and trace workflows in readiness metadata.
+      postconditions:
+        - description: Approval and trace tests and subprocess coverage pass.
+          type: test
+          target: core/tools/tests/
+        - description: CLI docs explain the boundary between browser and terminal coordination surfaces.
+      changes:
+        - path: core/tools/tests/test_cli_integration.py
+          action: update
+          description: Add subprocess coverage for approval and trace commands.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document approval and trace command usage.
+        - path: HUMANS/tooling/agent-task-readiness.toml
+          action: update
+          description: Reflect approval and trace support in CLI readiness metadata.
+review: null

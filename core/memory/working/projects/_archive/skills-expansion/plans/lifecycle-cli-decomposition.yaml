@@ -1,0 +1,107 @@
+id: lifecycle-cli-decomposition
+project: skills-expansion
+created: '2026-04-08'
+origin_session: memory/activity/2026/04/08/chat-001
+status: completed
+budget:
+  max_sessions: 2
+sessions_used: 3
+purpose:
+  summary: Decompose the monolithic memory_update_skill into discrete lifecycle operations
+  context: 'Engram''s memory_update_skill handles creation, section edits, frontmatter updates,
+    and approval flow in one tool. dotagents has clean separated operations: add, remove,
+    install, update, list, sync. This plan splits the skill lifecycle into composable tools
+    that map to natural user intents, while preserving the existing governance/approval model.
+    The existing memory_update_skill remains for fine-grained section edits, but higher-level
+    operations get dedicated tools.'
+  questions: []
+work:
+  phases:
+  - id: tool-surface-design
+    title: Design the decomposed tool surface and interaction patterns
+    status: completed
+    commit: 13271b9
+    blockers: []
+    postconditions:
+    - description: Each new tool has a clear single responsibility that doesn't overlap with
+        others
+    - description: 'Governance tiers are defined: list is read-only, add/remove are protected,
+        sync is standard'
+    - description: Spec documents backward compatibility with existing memory_update_skill
+    changes:
+    - path: core/governance/skill-lifecycle-spec.md
+      action: create
+      description: "Specification for new lifecycle tools: memory_skill_add, memory_skill_remove,\
+        \ memory_skill_list, memory_skill_sync \u2014 their responsibilities, governance tier,\
+        \ and interaction with memory_update_skill"
+  - id: skill-list-tool
+    title: Implement memory_skill_list as a read-only catalog query
+    status: completed
+    commit: e98a6d2
+    blockers:
+    - tool-surface-design
+    postconditions:
+    - description: memory_skill_list returns structured data, not just SKILL_TREE.md content
+    - description: Supports filtering by trust level, source type, and active/archived status
+    - description: Includes lock status and hash freshness when manifest exists
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/semantic/skill_tools.py
+      action: update
+      description: 'Add memory_skill_list: returns installed skills with status, trust, source,
+        lock state, and last-verified date'
+    - path: core/tools/agent_memory_mcp/tool_schemas.py
+      action: update
+      description: Add input schema for memory_skill_list with optional filters (trust, source
+        type, status)
+  - id: skill-add-remove
+    title: Implement memory_skill_add and memory_skill_remove
+    status: completed
+    commit: null
+    blockers:
+    - skill-list-tool
+    postconditions:
+    - description: memory_skill_add creates directory structure with valid frontmatter and
+        registers in manifest
+    - description: memory_skill_remove moves skill to _archive/ and removes manifest entry
+    - description: Both tools use the governed preview-then-apply pattern
+    requires_approval: true
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/semantic/skill_tools.py
+      action: update
+      description: 'memory_skill_add: create skill from template or source, add to manifest.
+        memory_skill_remove: archive skill, remove from manifest, update catalog'
+    - path: core/tools/agent_memory_mcp/tool_schemas.py
+      action: update
+      description: Input schemas for add and remove tools
+  - id: skill-sync-tool
+    title: Implement memory_skill_sync to reconcile manifest with filesystem
+    status: completed
+    commit: null
+    blockers:
+    - skill-add-remove
+    postconditions:
+    - description: 'Sync detects and reports: orphaned directories (no manifest entry), missing
+        directories (manifest entry but no files), stale locks'
+    - description: Sync can auto-fix in non-preview mode with approval
+    - description: generate_skill_catalog.py still works standalone
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/semantic/skill_tools.py
+      action: update
+      description: 'memory_skill_sync: verify all manifest entries have corresponding directories,
+        all skill directories have manifest entries, regenerate SKILL_TREE.md and SUMMARY.md'
+    - path: HUMANS/tooling/scripts/generate_skill_catalog.py
+      action: update
+      description: Refactor catalog generation into a callable function usable by both the
+        script and the sync tool
+review:
+  completed: '2026-04-15'
+  completed_session: memory/activity/2026/04/15/chat-001
+  outcome: completed
+  purpose_assessment: >
+    The lifecycle decomposition is now functionally landed: the tool-surface
+    spec shipped first, memory_skill_list provides the read-side catalog query,
+    manifest-backed add/remove flows are implemented, and memory_skill_sync now
+    reconciles manifest and filesystem state while preserving
+    generate_skill_catalog.py as a standalone entry point.
+  unresolved: []
+  follow_up: gitignore-deployment-modes

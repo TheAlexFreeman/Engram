@@ -1,0 +1,133 @@
+id: cli-v4-diff
+project: cli-expansion
+created: '2026-04-03'
+origin_session: memory/activity/2026/04/02/chat-001
+status: completed
+sessions_used: 1
+budget:
+  deadline: '2026-11-01'
+  max_sessions: 4
+purpose:
+  summary: Add git-backed memory diff inspection to the engram CLI.
+  context: >
+    The roadmap's diff command is a standalone read surface that can ship once
+    the CLI has stable read-side foundations. It should wrap git history with
+    memory-aware annotations so users can ask what changed by date or namespace
+    without manually composing git commands.
+  questions: []
+work:
+  phases:
+    - id: diff-data-model
+      title: Define memory-aware diff model and host-repo resolution
+      status: completed
+      commit: null
+      blockers:
+        - cli-v1-read-surfaces:read-surface-verification
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_git.py
+          type: internal
+          intent: Reuse git-aware read helpers already present in the tool surface.
+        - path: core/memory/working/projects/cli-expansion/notes/cli-roadmap.md
+          type: internal
+          intent: Preserve the roadmap contract for date and namespace filtering.
+        - path: README.md
+          type: internal
+          intent: Keep host-repository assumptions aligned with the documented repo layout.
+      postconditions:
+        - description: The diff command model defines supported filters, output shape, and host-repo resolution rules.
+        - description: Diff results can annotate frontmatter changes, trust changes, and new files by namespace.
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_diff.py
+          action: create
+          description: Diff command contract and shared annotation helpers.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document the intended filter surface and annotations for diff.
+    - id: diff-rendering
+      title: Implement human-oriented diff rendering with memory annotations
+      status: completed
+      commit: null
+      blockers:
+        - diff-data-model
+      sources:
+        - path: core/tools/agent_memory_mcp/cli/cmd_search.py
+          type: internal
+          intent: Reuse existing read-side result formatting patterns for memory-aware terminal output.
+        - path: core/tools/agent_memory_mcp/cli/cmd_status.py
+          type: internal
+          intent: Reuse concise summary rendering patterns for human-readable output.
+      postconditions:
+        - description: engram diff produces human-readable summaries of changed files and memory annotations.
+        - description: Output highlights frontmatter changes, trust changes, and namespace-level additions.
+        - description: Tests cover representative diff rendering scenarios.
+          type: test
+          target: core/tools/tests/test_cli_diff.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_diff.py
+          action: update
+          description: Implement human-facing diff summaries and memory-aware annotations.
+        - path: core/tools/tests/test_cli_diff.py
+          action: create
+          description: Tests for diff rendering and annotation behavior.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document human-facing diff output and examples.
+    - id: diff-filters-json
+      title: Implement date filters, namespace filters, and JSON output
+      status: completed
+      commit: null
+      blockers:
+        - diff-data-model
+      sources:
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_git.py
+          type: internal
+          intent: Reuse git filtering primitives where possible.
+        - path: core/tools/agent_memory_mcp/cli/main.py
+          type: internal
+          intent: Preserve the global JSON and repo-root behavior used by earlier commands.
+      postconditions:
+        - description: engram diff supports since-date and namespace filtering.
+        - description: engram diff --json emits structured results suitable for automation.
+        - description: Tests cover filter handling, JSON output, and empty-diff behavior.
+          type: test
+          target: core/tools/tests/test_cli_diff.py
+      changes:
+        - path: core/tools/agent_memory_mcp/cli/cmd_diff.py
+          action: update
+          description: Add date filters, namespace filters, and JSON rendering.
+        - path: core/tools/tests/test_cli_diff.py
+          action: update
+          description: Add tests for filters and JSON output.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document filters and JSON usage for diff.
+    - id: diff-verification
+      title: Verify diff docs, subprocess behavior, and release readiness
+      status: completed
+      commit: null
+      blockers:
+        - diff-rendering
+        - diff-filters-json
+      sources:
+        - path: core/tools/tests/test_cli_integration.py
+          type: internal
+          intent: Extend subprocess coverage to the diff command.
+        - path: CHANGELOG.md
+          type: internal
+          intent: Reflect the new inspection surface in release notes when it lands.
+      postconditions:
+        - description: Diff tests and subprocess coverage pass.
+          type: test
+          target: core/tools/tests/
+        - description: CLI docs and release notes describe the diff surface accurately.
+      changes:
+        - path: core/tools/tests/test_cli_integration.py
+          action: update
+          description: Add subprocess coverage for diff.
+        - path: HUMANS/docs/CLI.md
+          action: update
+          description: Document diff usage and annotations.
+        - path: CHANGELOG.md
+          action: update
+          description: Add a release note entry for engram diff.
+review: null

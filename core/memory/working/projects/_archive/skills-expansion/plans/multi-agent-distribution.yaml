@@ -1,0 +1,95 @@
+id: multi-agent-distribution
+project: skills-expansion
+created: '2026-04-08'
+origin_session: memory/activity/2026/04/08/chat-001
+status: completed
+budget:
+  max_sessions: 2
+purpose:
+  summary: Enable Engram skills to be distributed to multiple AI tools via symlinks and tool-specific
+    manifests
+  context: dotagents' core architectural insight is maintaining one canonical skill directory
+    and symlinking into tool-specific config directories (.claude/skills/, .cursor/skills/,
+    etc.). Engram is currently tightly coupled to one agent surface (the MCP server). As Engram
+    vaults may be used in repos alongside Cursor, Codex, or other tools, this plan adds a
+    distribution layer that generates tool-specific skill views from the canonical Engram
+    skill store. This makes Engram the single source of truth for procedural knowledge regardless
+    of which agent consumes it.
+  questions:
+  - Should distribution use symlinks (fast, Unix-only) or file copies (portable, Windows-compatible)?
+  - Should distributed skills include Engram-specific frontmatter or strip it for target compatibility?
+work:
+  phases:
+  - id: distribution-targets
+    title: Define supported distribution targets and their skill format requirements
+    status: completed
+    commit: null
+    blockers: []
+    postconditions:
+    - description: Spec covers at least 3 agent targets with their format differences
+    - description: Spec documents which skill metadata fields map to each target's format
+    - description: Spec defines a plugin interface for adding new targets
+    changes:
+    - path: core/governance/skill-distribution-spec.md
+      action: update
+      description: 'Specification for distribution targets: claude (.claude/skills/), cursor
+        (.cursor/skills/), codex (.codex/skills/), generic (.agents/skills/). Documents each
+        target''s expected file format, naming conventions, and metadata requirements.'
+  - id: distribution-engine
+    title: Build the distribution engine that generates tool-specific views
+    status: completed
+    commit: null
+    blockers:
+    - distribution-targets
+    postconditions:
+    - description: Symlinks are preferred when target format matches Engram format
+    - description: Content adaptation (frontmatter stripping, format conversion) used when
+        target format differs
+    - description: "Distributor is idempotent \u2014 running twice produces same result"
+    changes:
+    - path: core/tools/agent_memory_mcp/skill_distributor.py
+      action: create
+      description: SkillDistributor class with distribute(skill_slug, targets) -> creates
+        symlinks or generates adapted SKILL.md files per target
+    - path: HUMANS/tooling/scripts/distribute_skills.py
+      action: create
+      description: CLI script to run distribution for all skills across all configured targets
+  - id: manifest-integration
+    title: Add distribution targets to SKILLS.yaml manifest entries
+    status: completed
+    commit: null
+    blockers:
+    - distribution-engine
+    postconditions:
+    - description: Skills can opt out of specific targets via manifest
+    - description: Omitted per-skill targets inherit defaults.targets and ultimately fall back to [engram]
+    - description: Manifest validation rejects unknown target names
+    changes:
+    - path: core/memory/skills/SKILLS.yaml
+      action: update
+      description: Add optional targets field to skill entries plus defaults.targets inheritance semantics
+    - path: core/governance/skill-manifest-spec.md
+      action: update
+      description: Document targets field and its interaction with distribution
+  - id: sync-integration
+    title: Integrate distribution into memory_skill_sync
+    status: completed
+    commit: null
+    blockers:
+    - manifest-integration
+    postconditions:
+    - description: memory_skill_sync reports broken or stale distribution links
+    - description: Sync auto-repairs distribution in non-preview mode
+    - description: Distribution state is included in memory_skill_list output
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/semantic/skill_tools.py
+      action: update
+      description: Extend memory_skill_sync to verify and repair distribution symlinks/files
+        alongside manifest reconciliation
+    - path: core/tools/agent_memory_mcp/skill_distributor.py
+      action: update
+      description: Add verify mode that checks symlink integrity and reports stale distributions
+    - path: core/tools/tests/test_skill_distribution_integration.py
+      action: create
+      description: Focused lifecycle/distribution integration coverage for manifest targets, list reporting, stale projection repair, and obsolete target pruning
+review: null

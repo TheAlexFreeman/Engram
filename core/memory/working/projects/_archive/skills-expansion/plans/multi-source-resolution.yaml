@@ -1,0 +1,100 @@
+id: multi-source-resolution
+project: skills-expansion
+created: '2026-04-08'
+origin_session: memory/activity/2026/04/08/chat-001
+status: completed
+budget:
+  max_sessions: 3
+sessions_used: 1
+purpose:
+  summary: 'Enable skills to be resolved from multiple source types: git repos, registries,
+    and local paths'
+  context: "Engram's _external/ directory hints at external skill references but doesn't formalize\
+    \ resolution. dotagents supports four source types (GitHub shorthand, pinned refs, arbitrary\
+    \ git URLs, local paths) with a unified resolution pipeline. This plan extends Engram's\
+    \ existing source provenance field in skill frontmatter to support actual resolvable sources,\
+    \ enabling teams to share skills across vaults without copy-pasting SKILL.md files. Critical\
+    \ for multi-user adoption \u2014 teams need a way to publish and consume shared skills."
+  questions:
+  - Should git clones go to a shared cache directory or be per-vault?
+  - "How should authentication work for private git repos \u2014 env vars, credential helpers,\
+    \ or SSH keys?"
+work:
+  phases:
+  - id: source-format-spec
+    title: Define canonical source format strings and resolution rules
+    status: completed
+    commit: null
+    blockers: []
+    postconditions:
+    - description: Spec covers all four source types with regex patterns for validation
+    - description: 'Resolution precedence is defined: local > locked > remote'
+    - description: Spec documents error handling for unreachable sources
+    changes:
+    - path: core/governance/skill-manifest-spec.md
+      action: update
+      description: 'Add source format specification: github shorthand (org/repo), pinned ref
+        (org/repo@ref), git URL (git:https://...), local path (path:./...), and resolution
+        precedence rules'
+    - path: core/memory/skills/_external/README.md
+      action: update
+      description: Document how _external/ integrates with the new source resolution system
+  - id: resolver-engine
+    title: Implement the source resolver module
+    status: completed
+    commit: null
+    blockers:
+    - source-format-spec
+    postconditions:
+    - description: Resolver handles github shorthand, pinned refs, git URLs, and local paths
+    - description: Failed resolution returns structured error with source, reason, and suggestions
+    - description: Content hash verification against lockfile is implemented
+    changes:
+    - path: core/tools/agent_memory_mcp/skill_resolver.py
+      action: create
+      description: SkillResolver class with resolve(source_string) -> ResolvedSkill, supporting
+        git clone, local copy, and registry lookup
+    - path: core/tools/agent_memory_mcp/skill_resolver.py
+      action: create
+      description: 'Integrity verification: compare resolved content hash against lockfile
+        entry'
+  - id: install-tool
+    title: Build memory_skill_install MCP tool using the resolver
+    status: completed
+    commit: null
+    blockers:
+    - resolver-engine
+    postconditions:
+    - description: memory_skill_install accepts a source string and optional skill slug override
+    - description: Installed skill appears in SKILLS.yaml and SKILLS.lock automatically
+    - description: Trust level defaults to medium for remote sources, high for local paths
+        with user-stated provenance
+    requires_approval: true
+    changes:
+    - path: core/tools/agent_memory_mcp/tools/semantic/skill_tools.py
+      action: update
+      description: 'Add memory_skill_install tool: takes source string, resolves, installs
+        to skills/, updates manifest and lockfile'
+    - path: core/tools/agent_memory_mcp/tool_schemas.py
+      action: update
+      description: Add input schema for memory_skill_install
+  - id: frozen-install
+    title: Add frozen install mode for CI/CD reproducibility
+    status: completed
+    commit: null
+    blockers:
+    - install-tool
+    postconditions:
+    - description: Frozen mode refuses to resolve any skill not in SKILLS.lock
+    - description: Hash mismatch in frozen mode produces clear error with expected vs actual
+        hash
+    - description: Script exits non-zero on any resolution failure
+    changes:
+    - path: core/tools/agent_memory_mcp/skill_resolver.py
+      action: update
+      description: 'Add frozen mode: only resolve from lockfile, fail if any skill is unlocked
+        or hash mismatches'
+    - path: HUMANS/tooling/scripts/skill_install_frozen.py
+      action: create
+      description: CLI script for frozen installs in CI pipelines
+review: null

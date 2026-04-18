@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "plan_id": "lifecycle-cli-decomposition",
+  "project_id": "skills-expansion",
+  "current_phase_id": null,
+  "current_task": null,
+  "next_action_hint": null,
+  "last_checkpoint": "2026-04-15T18:46:55Z",
+  "session_id": "memory/activity/2026/04/15/chat-001",
+  "sessions_consumed": 1,
+  "error_context": null,
+  "phase_states": {
+    "tool-surface-design": {
+      "started_at": null,
+      "completed_at": "2026-04-08T23:36:07Z",
+      "task_position": null,
+      "intermediate_outputs": []
+    }
+  },
+  "created_at": "2026-04-08T23:36:07Z",
+  "updated_at": "2026-04-15T18:46:55Z"
+}
