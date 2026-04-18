@@ -17,11 +17,14 @@ from ...frontmatter_utils import (
     extract_project_cold_start_sections,
     read_with_frontmatter,
 )
+from ...identity_paths import normalize_user_id, working_file_path
 from ...path_policy import validate_slug
 from ...plan_utils import budget_status, load_plan, next_action, phase_payload, resolve_phase
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
+
+    from ...session_state import SessionState
 
 
 class _TimingCollector:
@@ -228,6 +231,12 @@ def _read_file_content(root: Path, repo_relative_path: str) -> str | None:
         except (OSError, UnicodeDecodeError):
             return None
     return body.strip()
+
+
+def _resolved_user_id(session_state: "SessionState | None") -> str | None:
+    if session_state is None:
+        return None
+    return normalize_user_id(getattr(session_state, "user_id", None))
 
 
 def _is_placeholder(content: str) -> bool:
@@ -1084,7 +1093,13 @@ def _render_in_manifest_summary(project_root: Path, root: Path) -> tuple[str, in
     return "\n".join(lines), total_count
 
 
-def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]:
+def register_context(
+    mcp: "FastMCP",
+    get_repo,
+    get_root,
+    H,
+    session_state: "SessionState | None" = None,
+) -> dict[str, object]:
     """Register context injector read tools and return their callables."""
     _tool_annotations = H._tool_annotations
 
@@ -1114,6 +1129,7 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
         include_skills = _coerce_bool(include_skills_index, field_name="include_skills_index")
 
         root = get_root()
+        resolved_user_id = _resolved_user_id(session_state)
         remaining_chars = max_chars
         budget_exhausted = False
         sections: list[dict[str, str]] = []
@@ -1126,8 +1142,8 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
         home_sections = [
             ("User Summary", "memory/users/SUMMARY.md"),
             ("Recent Activity", "memory/activity/SUMMARY.md"),
-            ("User Priorities", "memory/working/USER.md"),
-            ("Working State", "memory/working/CURRENT.md"),
+            ("User Priorities", working_file_path("USER.md", user_id=resolved_user_id)),
+            ("Working State", working_file_path("CURRENT.md", user_id=resolved_user_id)),
         ]
         if include_project:
             home_sections.append(("Projects Index", "memory/working/projects/SUMMARY.md"))
@@ -1226,6 +1242,7 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
         more_plan_sources = 0
 
         root = get_root()
+        resolved_user_id = _resolved_user_id(session_state)
         projects_root = root / "memory" / "working" / "projects"
         project_root = projects_root / project_id
         if not project_root.is_dir():
@@ -1260,7 +1277,11 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
         with _span(timings, "cache_lookup"):
             extra_hash_paths: list[Path] = []
             if include_notes:
-                extra_hash_paths.append(root / "memory" / "working" / "CURRENT.md")
+                cur_rel = working_file_path("CURRENT.md", user_id=resolved_user_id)
+                cur_resolved = _resolve_repo_relative_path(root, cur_rel)
+                extra_hash_paths.append(
+                    cur_resolved if cur_resolved is not None else (root / cur_rel)
+                )
             if effective_include_profile:
                 extra_hash_paths.append(root / "memory" / "users" / "SUMMARY.md")
             if include_sources and plan_context is not None:
@@ -1681,7 +1702,7 @@ def register_context(mcp: "FastMCP", get_repo, get_root, H) -> dict[str, object]
             else:
                 loaded_files.extend(manifest_files)
 
-        current_path = "memory/working/CURRENT.md"
+        current_path = working_file_path("CURRENT.md", user_id=resolved_user_id)
         if not include_notes:
             section_records.append(
                 {

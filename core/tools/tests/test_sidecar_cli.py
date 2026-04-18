@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType
 from typing import Any, ClassVar, cast
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -183,6 +184,33 @@ class SidecarCliTests(unittest.TestCase):
         self.assertEqual(first_id, "memory/activity/2026/03/29/chat-001")
         self.assertEqual(replay_id, first_id)
         self.assertEqual(second_id, "memory/activity/2026/03/29/chat-002")
+
+    def test_session_id_allocator_namespaces_ids_when_memory_user_id_is_set(self) -> None:
+        ParsedSession = self.parser_module.ParsedSession
+        state = self.cli_module.SidecarState()
+        (
+            self.repo_root
+            / "core"
+            / "memory"
+            / "activity"
+            / "alex"
+            / "2026"
+            / "03"
+            / "29"
+            / "chat-001"
+        ).mkdir(parents=True, exist_ok=True)
+
+        with mock.patch.dict(os.environ, {"MEMORY_USER_ID": "alex"}, clear=False):
+            allocator = self.cli_module.SessionIdAllocator(self.repo_root / "core", state)
+            observed = ParsedSession(
+                session_id="observed-namespaced",
+                start_time=datetime(2026, 3, 29, 12, 0, tzinfo=timezone.utc),
+                end_time=datetime(2026, 3, 29, 12, 5, tzinfo=timezone.utc),
+            )
+
+            session_id = allocator.session_id_for(observed, platform="claude-code")
+
+        self.assertEqual(session_id, "memory/activity/alex/2026/03/29/chat-002")
 
     def test_async_main_once_processes_fixture_transcript_without_error(self) -> None:
         transcript_path = self.projects_root / "demo" / "session-001.jsonl"

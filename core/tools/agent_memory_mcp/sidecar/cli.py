@@ -16,6 +16,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Protocol
 
+from ..path_policy import namespace_session_id, validate_slug
 from .access_logger import AccessLogger, MCPToolClient
 from .dialogue_logger import DialogueLogger
 from .lifecycle import SessionLifecycleManager
@@ -28,7 +29,16 @@ _DEFAULT_POLL_INTERVAL = 30.0
 _DEFAULT_LOOKBACK = timedelta(days=1)
 _DEFAULT_MCP_URL = "stdio://engram-mcp"
 _STATE_SCHEMA_VERSION = 1
-_CHAT_ID_RE = re.compile(r"^memory/activity/(?P<day>\d{4}/\d{2}/\d{2})/chat-(?P<number>\d{3})$")
+_CHAT_ID_RE = re.compile(
+    r"^memory/activity/(?:(?P<user_id>[a-z0-9]+(?:-[a-z0-9]+)*)/)?(?P<day>\d{4}/\d{2}/\d{2})/chat-(?P<number>\d{3})$"
+)
+
+
+def _resolve_sidecar_user_id() -> str | None:
+    raw_user_id = os.environ.get("MEMORY_USER_ID", "").strip()
+    if not raw_user_id:
+        return None
+    return validate_slug(raw_user_id, field_name="MEMORY_USER_ID")
 
 
 @dataclass(slots=True)
@@ -140,6 +150,7 @@ class SessionIdAllocator:
     def __init__(self, content_root: Path, state: SidecarState) -> None:
         self._content_root = content_root
         self._state = state
+        self._user_id = _resolve_sidecar_user_id()
         self._assigned_by_day: dict[str, set[int]] = {}
         for session_id in state.session_ids.values():
             parsed = _parse_chat_session_id(session_id)
@@ -162,10 +173,18 @@ class SessionIdAllocator:
         while next_number in assigned:
             next_number += 1
         if next_number > 999:
-            raise RuntimeError(f"No available chat ids remain for memory/activity/{day_key}")
+            activity_scope = (
+                f"memory/activity/{self._user_id}/{day_key}"
+                if self._user_id is not None
+                else f"memory/activity/{day_key}"
+            )
+            raise RuntimeError(f"No available chat ids remain for {activity_scope}")
 
         assigned.add(next_number)
-        session_id = f"memory/activity/{day_key}/chat-{next_number:03d}"
+        session_id = namespace_session_id(
+            f"memory/activity/{day_key}/chat-{next_number:03d}",
+            user_id=self._user_id,
+        )
         self._state.session_ids[allocation_key] = session_id
         return session_id
 
@@ -180,9 +199,10 @@ class SessionIdAllocator:
 
     def _existing_numbers_for_day(self, day_key: str) -> set[int]:
         existing: set[int] = set()
-        activity_day = (
-            self._content_root / PurePosixPath("memory/activity") / PurePosixPath(day_key)
-        )
+        activity_day = self._content_root / PurePosixPath("memory/activity")
+        if self._user_id is not None:
+            activity_day = activity_day / self._user_id
+        activity_day = activity_day / PurePosixPath(day_key)
         if activity_day.exists() and activity_day.is_dir():
             for child in activity_day.iterdir():
                 if not child.is_dir() or not child.name.startswith("chat-"):

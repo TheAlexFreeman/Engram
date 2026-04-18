@@ -138,6 +138,13 @@ class ProxyCliTests(unittest.TestCase):
         self.assertTrue(config.enable_checkpointing)
         self.assertTrue(config.with_sidecar)
 
+    def test_proxy_accepts_namespaced_memory_session_ids(self) -> None:
+        self.assertTrue(
+            self.cli_module._is_canonical_memory_session_id(
+                "memory/activity/alex/2026/03/29/chat-001"
+            )
+        )
+
     def test_sidecar_observer_logs_access_and_finalizes_session(self) -> None:
         state_path = Path(self._tmpdir.name) / "proxy-state.json"
         fake_client = _FakeClient()

@@ -17,6 +17,17 @@ from ...preview_contract import (
     preview_target,
     require_approval_token,
 )
+from ...skill_distributor import (
+    BUILTIN_TARGETS,
+    SkillDistributor,
+    normalize_distribution_targets,
+    resolve_skill_distribution_targets,
+)
+from ...skill_gitignore import (
+    DEPLOYMENT_MODES,
+    SkillGitignoreManager,
+    resolve_skill_deployment_mode,
+)
 from ...skill_hash import compute_content_hash, get_dir_stats
 from ...skill_resolver import SkillResolver, parse_skill_source
 from ...skill_trigger import summarize_skill_trigger, validate_skill_trigger
@@ -68,6 +79,107 @@ def _resolve_skill_markdown_path(repo: Any, slug: str) -> tuple[str, Path]:
     if flat_abs.exists():
         return flat_rel, flat_abs
     return nested_rel, nested_abs
+
+
+def _distribution_target_state(item: dict[str, Any], *, status: str) -> dict[str, Any]:
+    state: dict[str, Any] = {"status": status}
+    for key in ("target", "profile", "outputs", "index_path", "transport"):
+        value = item.get(key)
+        if value is not None:
+            state[key] = value
+    if status == "issue":
+        state["issues"] = list(item.get("issues", []))
+    if status == "failed":
+        if item.get("reason") is not None:
+            state["reason"] = item["reason"]
+        if item.get("detail") is not None:
+            state["detail"] = item["detail"]
+    return state
+
+
+def _distribution_states_by_slug(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+
+    def ensure(slug: str) -> dict[str, Any]:
+        return grouped.setdefault(slug, {"status": "healthy", "targets": [], "issue_count": 0})
+
+    for item in report.get("verified", []):
+        slug = item.get("slug")
+        if isinstance(slug, str):
+            ensure(slug)["targets"].append(_distribution_target_state(item, status="ok"))
+
+    for item in report.get("issues", []):
+        slug = item.get("slug")
+        if not isinstance(slug, str):
+            continue
+        state = ensure(slug)
+        if state["status"] != "failed":
+            state["status"] = "needs_attention"
+        state["issue_count"] += max(1, len(item.get("issues", [])))
+        state["targets"].append(_distribution_target_state(item, status="issue"))
+
+    for item in report.get("failed", []):
+        slug = item.get("slug")
+        if not isinstance(slug, str):
+            continue
+        state = ensure(slug)
+        state["status"] = "failed"
+        state["issue_count"] += 1
+        state["targets"].append(_distribution_target_state(item, status="failed"))
+
+    for state in grouped.values():
+        state["targets"].sort(
+            key=lambda target: (str(target.get("target") or ""), target["status"])
+        )
+
+    return grouped
+
+
+def _distribution_issue_details(report: dict[str, Any]) -> list[dict[str, Any]]:
+    details: list[dict[str, Any]] = []
+
+    for item in report.get("issues", []):
+        issue_messages = []
+        for issue in item.get("issues", []):
+            if not isinstance(issue, dict):
+                continue
+            detail = issue.get("detail")
+            if isinstance(detail, str):
+                issue_messages.append(detail)
+        details.append(
+            {
+                "type": "distribution_issue",
+                "slug": item.get("slug"),
+                "target": item.get("target"),
+                "issue": "; ".join(issue_messages) or "distribution output requires repair",
+            }
+        )
+
+    for item in report.get("failed", []):
+        details.append(
+            {
+                "type": "distribution_failure",
+                "slug": item.get("slug"),
+                "target": item.get("target"),
+                "issue": item.get("detail")
+                or item.get("reason")
+                or "distribution validation failed",
+            }
+        )
+
+    return details
+
+
+def _distribution_preview_targets(report: dict[str, Any]) -> list[dict[str, Any]]:
+    targets: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in report.get("issues", []):
+        for path in list(item.get("outputs", [])) + [item.get("index_path")]:
+            if not isinstance(path, str) or not path or path in seen:
+                continue
+            seen.add(path)
+            targets.append(preview_target(path, "update"))
+    return targets
 
 
 _KNOWN_SKILL_FRONTMATTER_FIELDS = frozenset(
@@ -253,6 +365,24 @@ def _rebuild_skills_lock_data(
         "locked_at": ts,
         "entries": new_entries,
     }
+
+
+_SKILL_GITIGNORE_MANAGER = SkillGitignoreManager()
+
+
+def _manifest_defaults(manifest_data: dict[str, Any]) -> dict[str, Any]:
+    defaults_raw = manifest_data.get("defaults") or {}
+    return defaults_raw if isinstance(defaults_raw, dict) else {}
+
+
+def _render_skill_gitignore(repo_root: Path, manifest_data: dict[str, Any]) -> tuple[str, bool]:
+    gitignore_path = repo_root / "core" / "memory" / "skills" / ".gitignore"
+    existing = gitignore_path.read_text(encoding="utf-8") if gitignore_path.is_file() else None
+    rendered = _SKILL_GITIGNORE_MANAGER.render(
+        existing,
+        _SKILL_GITIGNORE_MANAGER.patterns_for_manifest(manifest_data),
+    )
+    return rendered, existing != rendered
 
 
 def _default_install_trust(frontmatter: dict[str, Any], source_type: str) -> str:
@@ -499,7 +629,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         """
         import json
 
-        import yaml
+        import yaml  # type: ignore[import-untyped]
 
         from ...errors import NotFoundError
 
@@ -511,9 +641,10 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             raise NotFoundError("Skill manifest not found: core/memory/skills/SKILLS.yaml")
 
         with open(manifest_path, "r") as f:
-            manifest_data = yaml.safe_load(f) or {}
+            manifest_data: dict[str, Any] = yaml.safe_load(f) or {}
+        manifest_defaults = _manifest_defaults(manifest_data)
 
-        lock_data = {}
+        lock_data: dict[str, Any] = {}
         if lockfile_path.exists():
             with open(lockfile_path, "r") as f:
                 lock_data = yaml.safe_load(f) or {}
@@ -525,6 +656,10 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         for slug, skill_data in skills_list.items():
             enriched = dict(skill_data) if isinstance(skill_data, dict) else {}
             lock_entry = lock_entries.get(slug, {})
+            enriched["effective_deployment_mode"] = resolve_skill_deployment_mode(
+                enriched,
+                manifest_defaults,
+            )
 
             # Determine lock status
             lock_status = "unlocked"
@@ -572,6 +707,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         description: str,
         ref: str | None = None,
         deployment_mode: str | None = None,
+        targets: list[str] | None = None,
         enabled: bool | None = None,
         preview: bool = False,
         approval_token: str | None = None,
@@ -588,6 +724,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         - description (required): One-line description
         - ref (optional): Version pin for remote sources
         - deployment_mode (optional): checked or gitignored
+        - targets (optional): distribution targets override; [] disables external projections
         - enabled (optional): true or false (default: true)
         - preview (bool): When true, return preview without writing
         - approval_token (string): Required for apply mode (non-preview)
@@ -595,6 +732,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         import yaml  # type: ignore[import-untyped]
 
         from ...errors import ValidationError
+        from ...guard_pipeline import require_guarded_write_pass
         from ...models import MemoryWriteResult
         from ...preview_contract import (
             attach_approval_requirement,
@@ -622,32 +760,61 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             raise ValidationError("description must be non-empty")
 
         manifest_path = repo.root / "core" / "memory" / "skills" / "SKILLS.yaml"
+        manifest_preview_rel = "core/memory/skills/SKILLS.yaml"
+        manifest_stage_rel = "memory/skills/SKILLS.yaml"
+        gitignore_preview_rel = "core/memory/skills/.gitignore"
+        gitignore_stage_rel = "memory/skills/.gitignore"
 
         if not manifest_path.exists():
             raise ValidationError("Skill manifest not found: core/memory/skills/SKILLS.yaml")
 
         with open(manifest_path, "r") as f:
-            manifest_data = yaml.safe_load(f) or {}
+            manifest_data: dict[str, Any] = yaml.safe_load(f) or {}
+        manifest_defaults = _manifest_defaults(manifest_data)
 
-        skills = manifest_data.get("skills", {})
+        skills_raw = manifest_data.get("skills", {})
+        skills: dict[str, Any] = skills_raw if isinstance(skills_raw, dict) else {}
 
         # Build skill entry
-        skill_entry = {
+        if deployment_mode is not None and deployment_mode not in DEPLOYMENT_MODES:
+            raise ValidationError(
+                f"deployment_mode must be one of {sorted(DEPLOYMENT_MODES)}: {deployment_mode}"
+            )
+        normalized_targets = (
+            normalize_distribution_targets(targets, field_name="targets")
+            if targets is not None
+            else None
+        )
+
+        skill_entry: dict[str, Any] = {
             "source": source,
             "trust": trust,
             "description": description.strip(),
         }
         if ref:
             skill_entry["ref"] = ref
-        if deployment_mode:
+        if deployment_mode is not None:
             skill_entry["deployment_mode"] = deployment_mode
+        if normalized_targets is not None:
+            skill_entry["targets"] = normalized_targets
         if enabled is not None:
             skill_entry["enabled"] = enabled
+        effective_deployment_mode = resolve_skill_deployment_mode(skill_entry, manifest_defaults)
+        effective_targets = resolve_skill_distribution_targets(
+            skill_entry,
+            manifest_defaults,
+            slug=slug,
+        )
+
+        preview_manifest = dict(manifest_data)
+        preview_skills = dict(skills)
+        preview_skills[slug] = skill_entry
+        preview_manifest["skills"] = preview_skills
+        _, gitignore_changed = _render_skill_gitignore(repo.root, preview_manifest)
 
         # Check if this is a new skill
         is_new = slug not in skills
 
-        rel_path = "core/memory/skills/SKILLS.yaml"
         commit_msg = (
             f"[skill-manifest] Add skill {slug}"
             if is_new
@@ -660,6 +827,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             "description": description,
             "ref": ref,
             "deployment_mode": deployment_mode,
+            "targets": targets,
             "enabled": enabled,
         }
 
@@ -668,14 +836,30 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             change_class="protected",
             summary=f"{'Add' if is_new else 'Update'} skill entry {slug} in SKILLS.yaml.",
             reasoning="Skill manifest updates are protected because they affect skill resolution and catalog generation.",
-            target_files=[preview_target(rel_path, "create" if is_new else "update")],
+            target_files=[
+                preview_target(manifest_preview_rel, "create" if is_new else "update"),
+                *([preview_target(gitignore_preview_rel, "update")] if gitignore_changed else []),
+            ],
             invariant_effects=[
                 f"{'Creates a new' if is_new else 'Updates the'} skill entry '{slug}' with source={source}, trust={trust}.",
+                f"Effective deployment_mode resolves to {effective_deployment_mode}.",
+                f"Effective distribution targets resolve to {effective_targets or []}.",
                 "Preserves all other skill entries and manifest structure.",
+                (
+                    "Refreshes the managed core/memory/skills/.gitignore block to match the manifest."
+                    if gitignore_changed
+                    else "Leaves the managed core/memory/skills/.gitignore block unchanged."
+                ),
                 "Does not modify SKILLS.lock (lock freshness is checked at read time).",
             ],
             commit_message=commit_msg,
-            resulting_state={"slug": slug, "source": source, "trust": trust},
+            resulting_state={
+                "slug": slug,
+                "source": source,
+                "trust": trust,
+                "effective_deployment_mode": effective_deployment_mode,
+                "effective_targets": effective_targets,
+            },
         )
 
         preview_payload, protected_token = attach_approval_requirement(
@@ -687,11 +871,16 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         if preview:
             result = MemoryWriteResult(
-                files_changed=[rel_path],
+                files_changed=[
+                    manifest_preview_rel,
+                    *([gitignore_preview_rel] if gitignore_changed else []),
+                ],
                 commit_sha=None,
                 commit_message=None,
                 new_state={
                     "slug": slug,
+                    "effective_deployment_mode": effective_deployment_mode,
+                    "effective_targets": effective_targets,
                     "approval_token": protected_token,
                 },
                 preview=preview_payload,
@@ -715,17 +904,50 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             if key in manifest_data:
                 ordered_manifest[key] = manifest_data[key]
 
-        with open(manifest_path, "w") as f:
-            yaml.dump(ordered_manifest, f, default_flow_style=False, sort_keys=False)
+        manifest_yaml = yaml.dump(
+            ordered_manifest,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+        require_guarded_write_pass(
+            path=manifest_preview_rel,
+            operation="write",
+            root=repo.root,
+            content=manifest_yaml,
+        )
+        manifest_path.write_text(manifest_yaml, encoding="utf-8")
 
-        repo.add(rel_path)
+        files_changed = [manifest_stage_rel]
+        gitignore_content, gitignore_changed = _render_skill_gitignore(repo.root, manifest_data)
+        if gitignore_changed:
+            require_guarded_write_pass(
+                path=gitignore_preview_rel,
+                operation="write",
+                root=repo.root,
+                content=gitignore_content,
+            )
+            (repo.root / "core" / "memory" / "skills" / ".gitignore").write_text(
+                gitignore_content,
+                encoding="utf-8",
+            )
+            files_changed.append(gitignore_stage_rel)
+
+        for rel_path in files_changed:
+            repo.add(rel_path)
         commit_result = repo.commit(commit_msg)
 
         result = MemoryWriteResult.from_commit(
-            files_changed=[rel_path],
+            files_changed=files_changed,
             commit_result=commit_result,
             commit_message=commit_msg,
-            new_state={"slug": slug, "source": source, "trust": trust},
+            new_state={
+                "slug": slug,
+                "source": source,
+                "trust": trust,
+                "effective_deployment_mode": effective_deployment_mode,
+                "effective_targets": effective_targets,
+            },
             preview=preview_payload,
         )
         return result.to_json()
@@ -838,12 +1060,19 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         lockfile_path = skills_dir / "SKILLS.lock"
         has_manifest = manifest_path.exists()
 
-        manifest_data = {}
+        manifest_data: dict[str, Any] = {}
         if has_manifest:
             with open(manifest_path, "r") as f:
                 manifest_data = yaml.safe_load(f) or {}
+        manifest_defaults = _manifest_defaults(manifest_data)
+        resolve_skill_distribution_targets(None, manifest_defaults)
+        distribution_states = (
+            _distribution_states_by_slug(SkillDistributor(repo.root).inspect_all())
+            if has_manifest
+            else {}
+        )
 
-        lock_data = {}
+        lock_data: dict[str, Any] = {}
         if lockfile_path.exists():
             with open(lockfile_path, "r") as f:
                 lock_data = yaml.safe_load(f) or {}
@@ -862,7 +1091,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             except Exception:
                 return None
 
-            manifest_entry = manifest_skills.get(slug, {})
+            manifest_entry_raw = manifest_skills.get(slug, {})
+            manifest_entry = manifest_entry_raw if isinstance(manifest_entry_raw, dict) else {}
             lock_entry = lock_entries.get(slug, {})
 
             # Core fields from frontmatter, enriched by manifest
@@ -877,6 +1107,35 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "created": fm_dict.get("created"),
                 "last_verified": fm_dict.get("last_verified"),
             }
+            if manifest_entry:
+                entry["deployment_mode"] = manifest_entry.get("deployment_mode")
+                entry["effective_deployment_mode"] = resolve_skill_deployment_mode(
+                    manifest_entry,
+                    manifest_defaults,
+                )
+                if "targets" in manifest_entry:
+                    entry["targets"] = normalize_distribution_targets(
+                        manifest_entry.get("targets"),
+                        field_name=f"skills.{slug}.targets",
+                    )
+                entry["effective_targets"] = resolve_skill_distribution_targets(
+                    manifest_entry,
+                    manifest_defaults,
+                    slug=slug,
+                )
+                distribution_state = distribution_states.get(slug)
+                external_targets = [
+                    target for target in entry["effective_targets"] if target != "engram"
+                ]
+                entry["distribution"] = (
+                    distribution_state
+                    if distribution_state is not None
+                    else (
+                        {"status": "needs_attention", "targets": [], "issue_count": 0}
+                        if external_targets
+                        else {"status": "not_requested", "targets": [], "issue_count": 0}
+                    )
+                )
             trigger_value = fm_dict.get("trigger")
             if trigger_value is not None:
                 entry["trigger"] = trigger_value
@@ -933,6 +1192,16 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                         "description": manifest_entry.get("description"),
                         "source": manifest_entry.get("source", "local"),
                         "trust": manifest_entry.get("trust"),
+                        "deployment_mode": manifest_entry.get("deployment_mode"),
+                        "effective_deployment_mode": resolve_skill_deployment_mode(
+                            manifest_entry,
+                            manifest_defaults,
+                        ),
+                        "effective_targets": resolve_skill_distribution_targets(
+                            manifest_entry,
+                            manifest_defaults,
+                            slug=slug,
+                        ),
                         "enabled": manifest_entry.get("enabled", True),
                         "archived": False,
                         "created": None,
@@ -941,6 +1210,24 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                         "total_bytes": 0,
                         "_missing_directory": True,
                     }
+                    if isinstance(manifest_entry, dict) and "targets" in manifest_entry:
+                        entry["targets"] = normalize_distribution_targets(
+                            manifest_entry.get("targets"),
+                            field_name=f"skills.{slug}.targets",
+                        )
+                    external_targets = [
+                        target for target in entry["effective_targets"] if target != "engram"
+                    ]
+                    distribution_state = distribution_states.get(slug)
+                    entry["distribution"] = (
+                        distribution_state
+                        if distribution_state is not None
+                        else (
+                            {"status": "needs_attention", "targets": [], "issue_count": 0}
+                            if external_targets
+                            else {"status": "not_requested", "targets": [], "issue_count": 0}
+                        )
+                    )
                     if include_lock_info:
                         entry["lock_info"] = None
                     all_skills.append(entry)
@@ -1013,6 +1300,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         origin_session: str,
         ref: str | None = None,
         enabled: bool | None = None,
+        deployment_mode: str | None = None,
+        targets: list[str] | None = None,
         preview: bool = False,
         approval_token: str | None = None,
     ) -> str:
@@ -1052,6 +1341,15 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             raise ValidationError("title must be non-empty")
         if not description.strip():
             raise ValidationError("description must be non-empty")
+        if deployment_mode is not None and deployment_mode not in DEPLOYMENT_MODES:
+            raise ValidationError(
+                f"deployment_mode must be one of {sorted(DEPLOYMENT_MODES)}: {deployment_mode}"
+            )
+        normalized_targets = (
+            normalize_distribution_targets(targets, field_name="targets")
+            if targets is not None
+            else None
+        )
 
         src = source.strip()
         if src in ("github:", "git:") or src.startswith("github:") or src.startswith("git:"):
@@ -1070,13 +1368,23 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         skill_dir = skills_dir / slug
         skill_rel = f"core/memory/skills/{slug}"
         skill_md_rel = f"{skill_rel}/SKILL.md"
+        skill_content_rel = f"memory/skills/{slug}"
+        skill_md_content_rel = f"{skill_content_rel}/SKILL.md"
+        manifest_stage_rel = "memory/skills/SKILLS.yaml"
+        lock_stage_rel = "memory/skills/SKILLS.lock"
+        tree_stage_rel = "memory/skills/SKILL_TREE.md"
+        summary_stage_rel = "memory/skills/SUMMARY.md"
+        gitignore_preview_rel = "core/memory/skills/.gitignore"
+        gitignore_stage_rel = "memory/skills/.gitignore"
 
         if not manifest_path.is_file():
             raise NotFoundError("Skill manifest not found: core/memory/skills/SKILLS.yaml")
 
         with open(manifest_path, "r", encoding="utf-8") as f:
-            manifest_data = yaml.safe_load(f) or {}
-        skills_map = manifest_data.get("skills", {})
+            manifest_data: dict[str, Any] = yaml.safe_load(f) or {}
+        manifest_defaults = _manifest_defaults(manifest_data)
+        skills_raw = manifest_data.get("skills", {})
+        skills_map: dict[str, Any] = skills_raw if isinstance(skills_raw, dict) else {}
         if slug in skills_map:
             raise ValidationError(
                 f"Skill slug already registered in manifest: {slug}. "
@@ -1138,12 +1446,28 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             )
 
         enabled_flag = True if enabled is None else enabled
-        skill_entry = {
+        skill_entry: dict[str, Any] = {
             "source": manifest_source,
             "trust": trust,
             "description": description.strip(),
             "enabled": enabled_flag,
         }
+        if deployment_mode is not None:
+            skill_entry["deployment_mode"] = deployment_mode
+        if normalized_targets is not None:
+            skill_entry["targets"] = normalized_targets
+        effective_deployment_mode = resolve_skill_deployment_mode(skill_entry, manifest_defaults)
+        effective_targets = resolve_skill_distribution_targets(
+            skill_entry,
+            manifest_defaults,
+            slug=slug,
+        )
+
+        preview_manifest = dict(manifest_data)
+        preview_skills = dict(skills_map)
+        preview_skills[slug] = skill_entry
+        preview_manifest["skills"] = preview_skills
+        _, gitignore_changed = _render_skill_gitignore(repo.root, preview_manifest)
 
         operation_arguments: dict[str, Any] = {
             "slug": slug,
@@ -1154,6 +1478,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             "origin_session": origin_session,
             "ref": ref,
             "enabled": enabled,
+            "deployment_mode": deployment_mode,
+            "targets": targets,
         }
 
         target_files = [
@@ -1162,6 +1488,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             preview_target("core/memory/skills/SKILLS.lock", "update"),
             preview_target("core/memory/skills/SKILL_TREE.md", "update"),
         ]
+        if gitignore_changed:
+            target_files.append(preview_target(gitignore_preview_rel, "update"))
         summary_updated = False
         summary_preview = _append_skill_summary_bullet(repo.root, slug, description)
         if summary_preview is not None:
@@ -1177,11 +1505,31 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             target_files=target_files,
             invariant_effects=[
                 f"Creates {skill_rel}/ with SKILL.md and adds manifest entry.",
+                f"Effective deployment_mode resolves to {effective_deployment_mode}.",
+                f"Effective distribution targets resolve to {effective_targets or []}.",
                 "Refreshes SKILLS.lock, SKILL_TREE.md"
-                + (", SUMMARY.md." if summary_updated else "."),
+                + (
+                    ", SUMMARY.md, and the managed core/memory/skills/.gitignore block."
+                    if summary_updated and gitignore_changed
+                    else ", SUMMARY.md."
+                    if summary_updated
+                    else ", and the managed core/memory/skills/.gitignore block."
+                    if gitignore_changed
+                    else "."
+                ),
+                (
+                    f"Leaves {skill_rel}/ local-only when deployment_mode resolves to gitignored."
+                    if effective_deployment_mode == "gitignored"
+                    else f"Stages {skill_rel}/ for commit when deployment_mode resolves to checked."
+                ),
             ],
             commit_message=commit_msg,
-            resulting_state={"slug": slug, "source": source},
+            resulting_state={
+                "slug": slug,
+                "source": source,
+                "effective_deployment_mode": effective_deployment_mode,
+                "effective_targets": effective_targets,
+            },
         )
         preview_payload, protected_token = attach_approval_requirement(
             preview_payload,
@@ -1197,11 +1545,17 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     "core/memory/skills/SKILLS.yaml",
                     "core/memory/skills/SKILLS.lock",
                     "core/memory/skills/SKILL_TREE.md",
+                    *([gitignore_preview_rel] if gitignore_changed else []),
                     *(["core/memory/skills/SUMMARY.md"] if summary_updated else []),
                 ],
                 commit_sha=None,
                 commit_message=None,
-                new_state={"slug": slug, "approval_token": protected_token},
+                new_state={
+                    "slug": slug,
+                    "effective_deployment_mode": effective_deployment_mode,
+                    "effective_targets": effective_targets,
+                    "approval_token": protected_token,
+                },
                 preview=preview_payload,
             ).to_json()
 
@@ -1254,6 +1608,16 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         )
         manifest_path.write_text(manifest_yaml, encoding="utf-8")
 
+        gitignore_content, gitignore_changed = _render_skill_gitignore(repo.root, manifest_data)
+        if gitignore_changed:
+            require_guarded_write_pass(
+                path=gitignore_preview_rel,
+                operation="write",
+                root=repo.root,
+                content=gitignore_content,
+            )
+            (skills_dir / ".gitignore").write_text(gitignore_content, encoding="utf-8")
+
         lock_data: dict[str, Any] = {}
         if lock_path.is_file():
             with open(lock_path, "r", encoding="utf-8") as f:
@@ -1295,21 +1659,26 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         )
 
         if src == "template":
-            skill_files_staged = [skill_md_rel]
+            local_skill_artifacts = [skill_md_content_rel]
         else:
-            # shutil.copytree may have brought over multiple files; stage them all
-            # so the commit is complete and the worktree is left clean.
-            skill_files_staged = [
-                str(f.relative_to(repo.root)).replace("\\", "/")
+            local_skill_artifacts = [
+                str(f.relative_to(repo.content_root)).replace("\\", "/")
                 for f in sorted(skill_dir.rglob("*"))
                 if f.is_file()
             ]
-        files_changed = [
-            *skill_files_staged,
-            "core/memory/skills/SKILLS.yaml",
-            "core/memory/skills/SKILLS.lock",
-            "core/memory/skills/SKILL_TREE.md",
+        staged_skill_files = (
+            [] if effective_deployment_mode == "gitignored" else list(local_skill_artifacts)
+        )
+        files_to_commit = [
+            *staged_skill_files,
+            manifest_stage_rel,
+            lock_stage_rel,
+            tree_stage_rel,
         ]
+        artifacts_updated = [*local_skill_artifacts, *files_to_commit]
+        if gitignore_changed:
+            files_to_commit.append(gitignore_stage_rel)
+            artifacts_updated.append(gitignore_stage_rel)
         if summary_preview is not None:
             require_guarded_write_pass(
                 path="core/memory/skills/SUMMARY.md",
@@ -1320,9 +1689,10 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             (repo.root / "core" / "memory" / "skills" / "SUMMARY.md").write_text(
                 summary_preview, encoding="utf-8"
             )
-            files_changed.append("core/memory/skills/SUMMARY.md")
+            files_to_commit.append(summary_stage_rel)
+            artifacts_updated.append(summary_stage_rel)
 
-        for rel in files_changed:
+        for rel in sorted(set(files_to_commit)):
             repo.add(rel)
         commit_result = repo.commit(commit_msg)
 
@@ -1332,14 +1702,20 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             "status": "created",
             "location": f"{skill_rel}/",
             "manifest_entry": skill_entry,
+            "effective_deployment_mode": effective_deployment_mode,
+            "effective_targets": effective_targets,
             "lock_entry": lock_entry,
-            "artifacts_updated": files_changed,
+            "artifacts_updated": sorted(set(artifacts_updated)),
         }
         mw = MemoryWriteResult.from_commit(
-            files_changed=files_changed,
+            files_changed=sorted(set(files_to_commit)),
             commit_result=commit_result,
             commit_message=commit_msg,
-            new_state={"slug": slug},
+            new_state={
+                "slug": slug,
+                "effective_deployment_mode": effective_deployment_mode,
+                "effective_targets": effective_targets,
+            },
             preview=preview_payload,
         )
         out = mw.to_dict()
@@ -1362,6 +1738,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         ref: str | None = None,
         trust: str | None = None,
         enabled: bool | None = None,
+        targets: list[str] | None = None,
         preview: bool = False,
         approval_token: str | None = None,
     ) -> str:
@@ -1401,6 +1778,11 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             raise ValidationError(
                 f"trust must be one of {sorted(SKILL_CREATE_TRUST_LEVELS)}: {trust}"
             )
+        normalized_targets = (
+            normalize_distribution_targets(targets, field_name="targets")
+            if targets is not None
+            else None
+        )
 
         manifest_path = repo.root / "core" / "memory" / "skills" / "SKILLS.yaml"
         lock_path = repo.root / "core" / "memory" / "skills" / "SKILLS.lock"
@@ -1411,6 +1793,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         with open(manifest_path, "r", encoding="utf-8") as handle:
             manifest_data: dict[str, Any] = yaml.safe_load(handle) or {}
+        manifest_defaults = _manifest_defaults(manifest_data)
         manifest_skills_raw = manifest_data.get("skills") or {}
         skills_map: dict[str, Any] = (
             manifest_skills_raw if isinstance(manifest_skills_raw, dict) else {}
@@ -1472,6 +1855,20 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         }
         if ref:
             skill_entry["ref"] = ref
+        if normalized_targets is not None:
+            skill_entry["targets"] = normalized_targets
+        effective_deployment_mode = resolve_skill_deployment_mode(skill_entry, manifest_defaults)
+        effective_targets = resolve_skill_distribution_targets(
+            skill_entry,
+            manifest_defaults,
+            slug=target_slug,
+        )
+
+        preview_manifest = dict(manifest_data)
+        preview_skills = dict(skills_map)
+        preview_skills[target_slug] = skill_entry
+        preview_manifest["skills"] = preview_skills
+        _, gitignore_changed = _render_skill_gitignore(repo.root, preview_manifest)
 
         summary_preview = _append_skill_summary_bullet(repo.root, target_slug, manifest_description)
         preview_targets = [
@@ -1479,6 +1876,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             preview_target("core/memory/skills/SKILLS.lock", "update"),
             preview_target("core/memory/skills/SKILL_TREE.md", "update"),
         ]
+        if gitignore_changed:
+            preview_targets.append(preview_target("core/memory/skills/.gitignore", "update"))
         if resolved.source_type == "local":
             if frontmatter_changed:
                 preview_targets.insert(0, preview_target(skill_md_rel, "update"))
@@ -1493,6 +1892,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             "ref": ref,
             "trust": trust,
             "enabled": enabled,
+            "targets": targets,
         }
         commit_msg = f"[skill] Install skill {target_slug}"
         preview_payload = build_governed_preview(
@@ -1502,13 +1902,30 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             reasoning="Installing skills mutates protected skill directories, the manifest, and the lockfile.",
             target_files=preview_targets,
             invariant_effects=[
-                f"Registers {target_slug} in SKILLS.yaml with source={resolved.normalized_source}.",
+                (
+                    f"Registers {target_slug} in SKILLS.yaml with source={resolved.normalized_source} "
+                    f"and effective deployment_mode={effective_deployment_mode}."
+                ),
+                f"Effective distribution targets resolve to {effective_targets or []}.",
                 "Refreshes SKILLS.lock, SKILL_TREE.md"
-                + (", SUMMARY.md." if summary_preview is not None else "."),
+                + (
+                    ", SUMMARY.md, and the managed core/memory/skills/.gitignore block."
+                    if summary_preview is not None and gitignore_changed
+                    else ", SUMMARY.md."
+                    if summary_preview is not None
+                    else ", and the managed core/memory/skills/.gitignore block."
+                    if gitignore_changed
+                    else "."
+                ),
                 (
                     f"Copies resolved skill contents from {resolved.source_type} source into {skill_rel}/."
                     if resolved.source_type != "local"
                     else f"Uses the existing local skill directory {skill_rel}/."
+                ),
+                (
+                    f"Leaves {skill_rel}/ local-only when deployment_mode resolves to gitignored."
+                    if effective_deployment_mode == "gitignored"
+                    else f"Stages {skill_rel}/ for commit when deployment_mode resolves to checked."
                 ),
             ],
             commit_message=commit_msg,
@@ -1516,6 +1933,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "slug": target_slug,
                 "source": resolved.normalized_source,
                 "resolved_ref": resolved.resolved_ref,
+                "effective_deployment_mode": effective_deployment_mode,
+                "effective_targets": effective_targets,
             },
         )
         preview_payload, protected_token = attach_approval_requirement(
@@ -1531,13 +1950,18 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "core/memory/skills/SKILLS.yaml",
                 "core/memory/skills/SKILLS.lock",
                 "core/memory/skills/SKILL_TREE.md",
+                *(["core/memory/skills/.gitignore"] if gitignore_changed else []),
                 *(["core/memory/skills/SUMMARY.md"] if summary_preview is not None else []),
             ]
             return MemoryWriteResult(
                 files_changed=preview_files,
                 commit_sha=None,
                 commit_message=None,
-                new_state={"slug": target_slug, "approval_token": protected_token},
+                new_state={
+                    "slug": target_slug,
+                    "effective_targets": effective_targets,
+                    "approval_token": protected_token,
+                },
                 preview=preview_payload,
             ).to_json()
 
@@ -1585,6 +2009,16 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         )
         manifest_path.write_text(manifest_yaml, encoding="utf-8")
 
+        gitignore_content, gitignore_changed = _render_skill_gitignore(repo.root, manifest_data)
+        if gitignore_changed:
+            require_guarded_write_pass(
+                path="core/memory/skills/.gitignore",
+                operation="write",
+                root=repo.root,
+                content=gitignore_content,
+            )
+            (skills_dir / ".gitignore").write_text(gitignore_content, encoding="utf-8")
+
         ts = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
         content_hash = compute_content_hash(installed_skill_dir)
         file_count, total_bytes = get_dir_stats(installed_skill_dir)
@@ -1625,19 +2059,45 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         skill_content_rel = f"memory/skills/{target_slug}"
         skill_md_content_rel = f"{skill_content_rel}/SKILL.md"
-        files_changed = [
+        local_skill_artifacts: list[str]
+        if resolved.source_type != "local":
+            local_skill_artifacts = [
+                str(path.relative_to(repo.content_root)).replace("\\", "/")
+                for path in sorted(installed_skill_dir.rglob("*"))
+                if path.is_file()
+            ]
+        elif frontmatter_changed:
+            local_skill_artifacts = [skill_md_content_rel]
+        else:
+            local_skill_artifacts = []
+
+        staged_skill_files: list[str]
+        if effective_deployment_mode == "gitignored":
+            if (
+                resolved.source_type == "local"
+                and frontmatter_changed
+                and repo.is_tracked(skill_md_content_rel)
+            ):
+                staged_skill_files = [skill_md_content_rel]
+            else:
+                staged_skill_files = []
+        elif resolved.source_type != "local":
+            staged_skill_files = list(local_skill_artifacts)
+        elif frontmatter_changed:
+            staged_skill_files = [skill_md_content_rel]
+        else:
+            staged_skill_files = []
+
+        files_to_commit = [
+            *staged_skill_files,
             "memory/skills/SKILLS.yaml",
             "memory/skills/SKILLS.lock",
             "memory/skills/SKILL_TREE.md",
         ]
-        if resolved.source_type != "local":
-            files_changed = [
-                str(path.relative_to(repo.content_root)).replace("\\", "/")
-                for path in sorted(installed_skill_dir.rglob("*"))
-                if path.is_file()
-            ] + files_changed
-        elif frontmatter_changed:
-            files_changed = [skill_md_content_rel, *files_changed]
+        artifacts_updated = [*local_skill_artifacts, *files_to_commit]
+        if gitignore_changed:
+            files_to_commit.append("memory/skills/.gitignore")
+            artifacts_updated.append("memory/skills/.gitignore")
 
         if summary_preview is not None:
             require_guarded_write_pass(
@@ -1649,9 +2109,10 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             (repo.root / "core" / "memory" / "skills" / "SUMMARY.md").write_text(
                 summary_preview, encoding="utf-8"
             )
-            files_changed.append("memory/skills/SUMMARY.md")
+            files_to_commit.append("memory/skills/SUMMARY.md")
+            artifacts_updated.append("memory/skills/SUMMARY.md")
 
-        for rel_path in files_changed:
+        for rel_path in sorted(set(files_to_commit)):
             repo.add(rel_path)
         commit_result = repo.commit(commit_msg)
 
@@ -1660,6 +2121,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             "status": "installed",
             "location": f"{skill_rel}/",
             "manifest_entry": skill_entry,
+            "effective_deployment_mode": effective_deployment_mode,
+            "effective_targets": effective_targets,
             "lock_entry": lock_entries[target_slug],
             "resolution": {
                 "source": resolved.normalized_source,
@@ -1679,13 +2142,18 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     else None
                 ),
             },
-            "artifacts_updated": files_changed,
+            "artifacts_updated": sorted(set(artifacts_updated)),
         }
         mw = MemoryWriteResult.from_commit(
-            files_changed=files_changed,
+            files_changed=sorted(set(files_to_commit)),
             commit_result=commit_result,
             commit_message=commit_msg,
-            new_state={"slug": target_slug, "resolved_ref": resolved.resolved_ref},
+            new_state={
+                "slug": target_slug,
+                "resolved_ref": resolved.resolved_ref,
+                "effective_deployment_mode": effective_deployment_mode,
+                "effective_targets": effective_targets,
+            },
             preview=preview_payload,
         )
         out = mw.to_dict()
@@ -1729,15 +2197,28 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         skill_dir = skills_dir / slug
         archive_parent = skills_dir / "_archive"
         archive_dir = archive_parent / slug
-        skill_rel = f"core/memory/skills/{slug}"
-        archive_rel = f"core/memory/skills/_archive/{slug}"
+        skill_preview_rel = f"core/memory/skills/{slug}"
+        archive_preview_rel = f"core/memory/skills/_archive/{slug}"
+        skill_stage_rel = f"memory/skills/{slug}"
+        archive_stage_rel = f"memory/skills/_archive/{slug}"
+        manifest_preview_rel = "core/memory/skills/SKILLS.yaml"
+        manifest_stage_rel = "memory/skills/SKILLS.yaml"
+        lock_preview_rel = "core/memory/skills/SKILLS.lock"
+        lock_stage_rel = "memory/skills/SKILLS.lock"
+        tree_preview_rel = "core/memory/skills/SKILL_TREE.md"
+        tree_stage_rel = "memory/skills/SKILL_TREE.md"
+        summary_preview_rel = "core/memory/skills/SUMMARY.md"
+        summary_stage_rel = "memory/skills/SUMMARY.md"
+        gitignore_preview_rel = "core/memory/skills/.gitignore"
+        gitignore_stage_rel = "memory/skills/.gitignore"
 
         if not manifest_path.is_file():
             raise NotFoundError("Skill manifest not found: core/memory/skills/SKILLS.yaml")
 
         with open(manifest_path, "r", encoding="utf-8") as f:
-            manifest_data = yaml.safe_load(f) or {}
-        skills_map = manifest_data.get("skills", {})
+            manifest_data: dict[str, Any] = yaml.safe_load(f) or {}
+        skills_raw = manifest_data.get("skills", {})
+        skills_map: dict[str, Any] = skills_raw if isinstance(skills_raw, dict) else {}
         in_manifest = slug in skills_map
         had_dir = skill_dir.is_dir() and (skill_dir / "SKILL.md").is_file()
 
@@ -1749,11 +2230,17 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         if had_dir and archive_dir.exists():
             raise ValidationError(
-                f"Archive target already exists: {archive_rel}/. "
+                f"Archive target already exists: {archive_preview_rel}/. "
                 "Remove or rename the archived copy first."
             )
 
         removed_manifest = skills_map.get(slug)
+        preview_manifest = dict(manifest_data)
+        preview_skills = dict(skills_map)
+        if slug in preview_skills:
+            del preview_skills[slug]
+        preview_manifest["skills"] = preview_skills
+        _, gitignore_changed = _render_skill_gitignore(repo.root, preview_manifest)
         operation_arguments: dict[str, Any] = {
             "slug": slug,
             "archive_reason": archive_reason,
@@ -1763,26 +2250,32 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         if had_dir:
             target_files.extend(
                 [
-                    preview_target(skill_rel, "move_from"),
-                    preview_target(archive_rel, "move_to", from_path=skill_rel),
+                    preview_target(skill_preview_rel, "move_from"),
+                    preview_target(
+                        archive_preview_rel,
+                        "move_to",
+                        from_path=skill_preview_rel,
+                    ),
                 ]
             )
         if in_manifest:
-            target_files.append(preview_target("core/memory/skills/SKILLS.yaml", "update"))
+            target_files.append(preview_target(manifest_preview_rel, "update"))
         lock_has_slug = False
         if lock_path.is_file():
             with open(lock_path, "r", encoding="utf-8") as lf:
                 lock_preview = yaml.safe_load(lf) or {}
             lock_has_slug = slug in (lock_preview.get("entries") or {})
         if lock_has_slug:
-            target_files.append(preview_target("core/memory/skills/SKILLS.lock", "update"))
-        target_files.append(preview_target("core/memory/skills/SKILL_TREE.md", "update"))
+            target_files.append(preview_target(lock_preview_rel, "update"))
+        target_files.append(preview_target(tree_preview_rel, "update"))
         summary_path = repo.root / "core" / "memory" / "skills" / "SUMMARY.md"
         summary_changed = summary_path.is_file() and f"({slug}/SKILL.md)" in summary_path.read_text(
             encoding="utf-8"
         )
         if summary_changed:
-            target_files.append(preview_target("core/memory/skills/SUMMARY.md", "update"))
+            target_files.append(preview_target(summary_preview_rel, "update"))
+        if gitignore_changed:
+            target_files.append(preview_target(gitignore_preview_rel, "update"))
         if had_dir:
             target_files.append(
                 preview_target("core/memory/skills/_archive/ARCHIVE_INDEX.md", "update")
@@ -1796,12 +2289,20 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             reasoning="Archival changes the active skill catalog and manifest; protected tier.",
             target_files=target_files,
             invariant_effects=[
-                f"Moves {skill_rel}/ to {archive_rel}/ when a skill directory exists.",
+                f"Moves {skill_preview_rel}/ to {archive_preview_rel}/ when a skill directory exists.",
                 "Removes manifest and lock entries for the slug when present.",
+                (
+                    "Refreshes the managed core/memory/skills/.gitignore block to match the manifest."
+                    if gitignore_changed
+                    else "Leaves the managed core/memory/skills/.gitignore block unchanged."
+                ),
                 "Regenerates SKILL_TREE.md; updates archive index when a directory is archived.",
             ],
             commit_message=commit_msg,
-            resulting_state={"slug": slug},
+            resulting_state={
+                "slug": slug,
+                "deployment_gitignore_refreshed": gitignore_changed,
+            },
         )
         preview_payload, protected_token = attach_approval_requirement(
             preview_payload,
@@ -1810,15 +2311,17 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             operation_arguments=operation_arguments,
         )
 
-        preview_files: list[str] = ["core/memory/skills/SKILL_TREE.md"]
+        preview_files: list[str] = [tree_preview_rel]
         if in_manifest:
-            preview_files.append("core/memory/skills/SKILLS.yaml")
+            preview_files.append(manifest_preview_rel)
         if lock_has_slug:
-            preview_files.append("core/memory/skills/SKILLS.lock")
+            preview_files.append(lock_preview_rel)
         if had_dir:
-            preview_files = [skill_rel, archive_rel, *preview_files]
+            preview_files = [skill_preview_rel, archive_preview_rel, *preview_files]
         if summary_changed:
-            preview_files.append("core/memory/skills/SUMMARY.md")
+            preview_files.append(summary_preview_rel)
+        if gitignore_changed:
+            preview_files.append(gitignore_preview_rel)
         if had_dir:
             preview_files.append("core/memory/skills/_archive/ARCHIVE_INDEX.md")
 
@@ -1840,7 +2343,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         if had_dir:
             archive_parent.mkdir(parents=True, exist_ok=True)
-            repo.mv(skill_rel, archive_rel)
+            repo.mv(skill_stage_rel, archive_stage_rel)
 
         if in_manifest:
             del skills_map[slug]
@@ -1853,12 +2356,22 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 ordered_manifest, default_flow_style=False, sort_keys=False, allow_unicode=True
             )
             require_guarded_write_pass(
-                path="core/memory/skills/SKILLS.yaml",
+                path=manifest_preview_rel,
                 operation="write",
                 root=repo.root,
                 content=manifest_yaml,
             )
             manifest_path.write_text(manifest_yaml, encoding="utf-8")
+
+        gitignore_content, gitignore_changed = _render_skill_gitignore(repo.root, manifest_data)
+        if gitignore_changed:
+            require_guarded_write_pass(
+                path=gitignore_preview_rel,
+                operation="write",
+                root=repo.root,
+                content=gitignore_content,
+            )
+            (skills_dir / ".gitignore").write_text(gitignore_content, encoding="utf-8")
 
         wrote_lock = False
         if lock_path.is_file():
@@ -1874,7 +2387,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     lock_data, default_flow_style=False, sort_keys=False, allow_unicode=True
                 )
                 require_guarded_write_pass(
-                    path="core/memory/skills/SKILLS.lock",
+                    path=lock_preview_rel,
                     operation="write",
                     root=repo.root,
                     content=lock_yaml,
@@ -1884,7 +2397,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         tree_content = _regenerate_skill_tree_content(repo.root)
         require_guarded_write_pass(
-            path="core/memory/skills/SKILL_TREE.md",
+            path=tree_preview_rel,
             operation="write",
             root=repo.root,
             content=tree_content,
@@ -1894,26 +2407,34 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         )
 
         files_changed: list[str] = []
+        paths_needing_add: list[str] = []
         if had_dir:
-            files_changed.extend([skill_rel, archive_rel])
+            files_changed.extend([skill_stage_rel, archive_stage_rel])
         if in_manifest:
-            files_changed.append("core/memory/skills/SKILLS.yaml")
+            files_changed.append(manifest_stage_rel)
+            paths_needing_add.append(manifest_stage_rel)
+        if gitignore_changed:
+            files_changed.append(gitignore_stage_rel)
+            paths_needing_add.append(gitignore_stage_rel)
         if wrote_lock:
-            files_changed.append("core/memory/skills/SKILLS.lock")
-        files_changed.append("core/memory/skills/SKILL_TREE.md")
+            files_changed.append(lock_stage_rel)
+            paths_needing_add.append(lock_stage_rel)
+        files_changed.append(tree_stage_rel)
+        paths_needing_add.append(tree_stage_rel)
 
         if summary_changed:
             new_summary = _remove_skill_summary_bullet(
                 summary_path.read_text(encoding="utf-8"), slug
             )
             require_guarded_write_pass(
-                path="core/memory/skills/SUMMARY.md",
+                path=summary_preview_rel,
                 operation="write",
                 root=repo.root,
                 content=new_summary,
             )
             summary_path.write_text(new_summary, encoding="utf-8")
-            files_changed.append("core/memory/skills/SUMMARY.md")
+            files_changed.append(summary_stage_rel)
+            paths_needing_add.append(summary_stage_rel)
 
         if had_dir:
             arch_rel, arch_text = _append_archive_index_row(repo.root, slug, archive_reason)
@@ -1924,26 +2445,33 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 content=arch_text,
             )
             (repo.root / arch_rel).write_text(arch_text, encoding="utf-8")
-            files_changed.append(arch_rel)
+            archive_index_stage_rel = str(Path(arch_rel).relative_to("core")).replace("\\", "/")
+            files_changed.append(archive_index_stage_rel)
+            paths_needing_add.append(archive_index_stage_rel)
 
-        for rel in files_changed:
+        unique_changed = sorted(set(files_changed))
+        for rel in sorted(set(paths_needing_add)):
             repo.add(rel)
         commit_result = repo.commit(commit_msg)
 
         result_body = {
             "slug": slug,
             "status": "archived",
-            "previous_location": f"{skill_rel}/" if had_dir else None,
-            "archive_location": f"{archive_rel}/" if had_dir else None,
+            "previous_location": f"{skill_preview_rel}/" if had_dir else None,
+            "archive_location": f"{archive_preview_rel}/" if had_dir else None,
             "archive_reason": archive_reason,
             "manifest_entry_removed": removed_manifest,
-            "artifacts_updated": files_changed,
+            "deployment_gitignore_refreshed": gitignore_changed,
+            "artifacts_updated": unique_changed,
         }
         mw = MemoryWriteResult.from_commit(
-            files_changed=files_changed,
+            files_changed=unique_changed,
             commit_result=commit_result,
             commit_message=commit_msg,
-            new_state={"slug": slug},
+            new_state={
+                "slug": slug,
+                "deployment_gitignore_refreshed": gitignore_changed,
+            },
             preview=preview_payload,
         )
         out = mw.to_dict()
@@ -1978,8 +2506,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
         governed preview + ``approval_token`` flow. Non-destructive refresh (lock
         rebuild, index regeneration) does not require an approval token.
 
-        ``verify_symlinks`` is reserved; symlink checks are reported as zero until
-        distribution symlinks are implemented.
+        ``verify_symlinks`` verifies the current external distribution projections and,
+        in write mode, repairs stale outputs and removes obsolete target entries.
         """
         import json
 
@@ -2000,9 +2528,16 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         with open(manifest_path, "r", encoding="utf-8") as f:
             manifest_data = yaml.safe_load(f) or {}
+        manifest_defaults = _manifest_defaults(manifest_data)
+        resolve_skill_distribution_targets(None, manifest_defaults)
         skills_map: dict[str, Any] = manifest_data.get("skills", {})
         if not isinstance(skills_map, dict):
             skills_map = {}
+
+        for slug, manifest_entry in skills_map.items():
+            if not isinstance(manifest_entry, dict):
+                continue
+            resolve_skill_distribution_targets(manifest_entry, manifest_defaults, slug=slug)
 
         disk_slugs = set(mod.iter_disk_skill_slugs(skills_dir))
         manifest_keys = set(skills_map.keys())
@@ -2083,9 +2618,27 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 }
             )
 
-        symlink_issues = 0
+        distribution_report: dict[str, Any] | None = None
+        distributor = SkillDistributor(repo.root)
+        distribution_issue_count = 0
+        distribution_failure_count = 0
         if verify_symlinks:
-            symlink_issues = 0
+            distribution_report = distributor.inspect_all()
+            distribution_issue_count = int(distribution_report["issue_count"])
+            distribution_failure_count = int(distribution_report["failure_count"])
+            details.extend(_distribution_issue_details(distribution_report))
+
+        symlink_issues = distribution_issue_count + distribution_failure_count
+
+        _, gitignore_changed = _render_skill_gitignore(repo.root, manifest_data)
+        if gitignore_changed:
+            details.append(
+                {
+                    "type": "deployment_gitignore_drift",
+                    "slug": None,
+                    "issue": "managed core/memory/skills/.gitignore block does not match manifest deployment modes",
+                }
+            )
 
         issues_found = {
             "stale_locks": stale_lock_count,
@@ -2093,6 +2646,9 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             "missing_directories": len(missing_dir_slugs),
             "missing_lock_entries": missing_lock_count,
             "symlink_errors": symlink_issues,
+            "distribution_errors": distribution_issue_count,
+            "distribution_failures": distribution_failure_count,
+            "deployment_gitignore_drift": 1 if gitignore_changed else 0,
         }
 
         healthy = (
@@ -2100,6 +2656,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             and len(orphans) == 0
             and len(missing_dir_slugs) == 0
             and missing_lock_count == 0
+            and symlink_issues == 0
+            and not gitignore_changed
         )
         sync_status = "healthy" if healthy else "needs_attention"
 
@@ -2109,6 +2667,14 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             .isoformat(timespec="seconds")
             .replace("+00:00", "Z"),
             "issues_found": issues_found,
+            "distribution_verification": {
+                "status": distribution_report["status"] if distribution_report else "skipped",
+                "verified_count": distribution_report["verified_count"]
+                if distribution_report
+                else 0,
+                "issue_count": distribution_issue_count,
+                "failure_count": distribution_failure_count,
+            },
             "details": details,
             "check_only": check_only,
         }
@@ -2119,6 +2685,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "orphans_archived": 0,
                 "missing_entries_removed": 0,
                 "symlinks_repaired": 0,
+                "distribution_repaired": 0,
                 "indexes_regenerated": False,
             }
             report_base["approval_required"] = False
@@ -2139,13 +2706,45 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
 
         files_changed: list[str] = []
         commit_msg = "[skill] Sync skill manifest and lockfile"
+        external_distribution_roots = tuple(
+            f"{config['root_relpath']}/"
+            for target_id, config in BUILTIN_TARGETS.items()
+            if target_id != "engram"
+        )
+
+        def _stage_changed_path(rel_path: str) -> None:
+            if rel_path.startswith(external_distribution_roots):
+                abs_path = repo.root / rel_path
+                if not (
+                    abs_path.exists() or abs_path.is_symlink() or repo.is_git_path_tracked(rel_path)
+                ):
+                    return
+                repo.add_git_paths(rel_path)
+                return
+            repo.add(rel_path)
 
         def _apply_lock_and_indexes(
             skills_map_local: dict[str, Any],
+            manifest_data_local: dict[str, Any],
         ) -> None:
             nonlocal files_changed
+            gitignore_content, should_update_gitignore = _render_skill_gitignore(
+                repo.root,
+                manifest_data_local,
+            )
+            if should_update_gitignore:
+                require_guarded_write_pass(
+                    path="core/memory/skills/.gitignore",
+                    operation="write",
+                    root=repo.root,
+                    content=gitignore_content,
+                )
+                (skills_dir / ".gitignore").write_text(gitignore_content, encoding="utf-8")
+                if "memory/skills/.gitignore" not in files_changed:
+                    files_changed.append("memory/skills/.gitignore")
+
             if fix_stale_locks:
-                prior = {}
+                prior: dict[str, Any] = {}
                 if lock_path.is_file():
                     with open(lock_path, "r", encoding="utf-8") as lf:
                         prior = yaml.safe_load(lf) or {}
@@ -2160,8 +2759,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     content=lock_yaml,
                 )
                 lock_path.write_text(lock_yaml, encoding="utf-8")
-                if "core/memory/skills/SKILLS.lock" not in files_changed:
-                    files_changed.append("core/memory/skills/SKILLS.lock")
+                if "memory/skills/SKILLS.lock" not in files_changed:
+                    files_changed.append("memory/skills/SKILLS.lock")
 
             if regenerate_indexes:
                 tree_content = mod.regenerate_skill_tree_markdown(
@@ -2174,8 +2773,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     content=tree_content,
                 )
                 (skills_dir / "SKILL_TREE.md").write_text(tree_content, encoding="utf-8")
-                if "core/memory/skills/SKILL_TREE.md" not in files_changed:
-                    files_changed.append("core/memory/skills/SKILL_TREE.md")
+                if "memory/skills/SKILL_TREE.md" not in files_changed:
+                    files_changed.append("memory/skills/SKILL_TREE.md")
 
                 new_summary = mod.regenerate_skills_summary_markdown(repo.root)
                 if new_summary is not None:
@@ -2186,11 +2785,45 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                         content=new_summary,
                     )
                     (skills_dir / "SUMMARY.md").write_text(new_summary, encoding="utf-8")
-                    if "core/memory/skills/SUMMARY.md" not in files_changed:
-                        files_changed.append("core/memory/skills/SUMMARY.md")
+                    if "memory/skills/SUMMARY.md" not in files_changed:
+                        files_changed.append("memory/skills/SUMMARY.md")
+
+        def _apply_distribution_repairs() -> tuple[dict[str, Any] | None, int]:
+            nonlocal files_changed
+            if not verify_symlinks:
+                return None, 0
+
+            current_report = distributor.inspect_all()
+            repairable_issue_count = int(current_report["issue_count"])
+            changed_paths: list[str] = []
+
+            if repairable_issue_count:
+                distribution_apply = distributor.distribute_all(dry_run=False)
+                for item in distribution_apply["distributed"]:
+                    if item.get("changed", True):
+                        for output in item.get("outputs", []):
+                            if isinstance(output, str):
+                                changed_paths.append(output)
+                    index_path = item.get("index_path")
+                    if isinstance(index_path, str):
+                        changed_paths.append(index_path)
+
+                prune_result = distributor.prune_obsolete_distributions(
+                    cast(dict[str, list[str]], current_report.get("expected_by_target", {}))
+                )
+                changed_paths.extend(prune_result["files_changed"])
+
+            for rel_path in sorted(set(changed_paths)):
+                if rel_path not in files_changed:
+                    files_changed.append(rel_path)
+
+            post_report = distributor.inspect_all()
+            repaired_count = max(0, repairable_issue_count - int(post_report["issue_count"]))
+            return post_report, repaired_count
 
         if destructive:
             target_files: list[dict[str, Any]] = []
+            move_staged_paths: set[str] = set()
             if archive_orphans and orphans:
                 for slug in orphans:
                     dest = skills_dir / "_archive" / slug
@@ -2212,10 +2845,14 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 target_files.append(preview_target("core/memory/skills/SKILL_TREE.md", "update"))
                 if (skills_dir / "SUMMARY.md").is_file():
                     target_files.append(preview_target("core/memory/skills/SUMMARY.md", "update"))
+            if gitignore_changed or (remove_missing_entries and bool(missing_dir_slugs)):
+                target_files.append(preview_target("core/memory/skills/.gitignore", "update"))
             if archive_orphans and orphans:
                 target_files.append(
                     preview_target("core/memory/skills/_archive/ARCHIVE_INDEX.md", "update")
                 )
+            if distribution_report:
+                target_files.extend(_distribution_preview_targets(distribution_report))
 
             preview_payload = build_governed_preview(
                 mode="preview" if preview else "apply",
@@ -2226,6 +2863,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 invariant_effects=[
                     "Optional: move orphan skill dirs into _archive/.",
                     "Optional: remove manifest rows with no on-disk SKILL.md.",
+                    "Refreshes the managed core/memory/skills/.gitignore block to match effective deployment modes.",
+                    "Repairs stale external skill projections and prunes obsolete distribution entries when verify_symlinks=true.",
                     "Rebuild SKILLS.lock when fix_stale_locks=true.",
                     "Regenerate SKILL_TREE.md / SUMMARY.md when regenerate_indexes=true.",
                 ],
@@ -2275,10 +2914,11 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                         raise ValidationError(
                             f"Cannot archive orphan {slug}: {dest} already exists."
                         )
-                    skill_rel = f"core/memory/skills/{slug}"
-                    archive_rel = f"core/memory/skills/_archive/{slug}"
+                    skill_rel = f"memory/skills/{slug}"
+                    archive_rel = f"memory/skills/_archive/{slug}"
                     repo.mv(skill_rel, archive_rel)
                     files_changed.extend([skill_rel, archive_rel])
+                    move_staged_paths.update({skill_rel, archive_rel})
                     arch_rel, arch_text = _append_archive_index_row(
                         repo.root, slug, "orphaned (memory_skill_sync)"
                     )
@@ -2289,8 +2929,9 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                         content=arch_text,
                     )
                     (repo.root / arch_rel).write_text(arch_text, encoding="utf-8")
-                    if arch_rel not in files_changed:
-                        files_changed.append(arch_rel)
+                    arch_content_rel = str(Path(arch_rel).relative_to("core")).replace("\\", "/")
+                    if arch_content_rel not in files_changed:
+                        files_changed.append(arch_content_rel)
                     orphans_archived += 1
 
             removed_missing = 0
@@ -2317,13 +2958,16 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     content=manifest_yaml,
                 )
                 manifest_path.write_text(manifest_yaml, encoding="utf-8")
-                if "core/memory/skills/SKILLS.yaml" not in files_changed:
-                    files_changed.append("core/memory/skills/SKILLS.yaml")
+                if "memory/skills/SKILLS.yaml" not in files_changed:
+                    files_changed.append("memory/skills/SKILLS.yaml")
 
-            _apply_lock_and_indexes(skills_map)
+            _apply_lock_and_indexes(skills_map, manifest_data)
+            _, distribution_repaired = _apply_distribution_repairs()
 
             for rel in files_changed:
-                repo.add(rel)
+                if rel in move_staged_paths:
+                    continue
+                _stage_changed_path(rel)
             commit_result = repo.commit(commit_msg)
 
             result_body = {
@@ -2333,7 +2977,9 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     "locks_refreshed": fix_stale_locks,
                     "orphans_archived": orphans_archived,
                     "missing_entries_removed": removed_missing,
-                    "symlinks_repaired": 0,
+                    "symlinks_repaired": distribution_repaired,
+                    "distribution_repaired": distribution_repaired,
+                    "deployment_gitignore_refreshed": "memory/skills/.gitignore" in files_changed,
                     "indexes_regenerated": regenerate_indexes,
                 },
                 "approval_required": True,
@@ -2351,7 +2997,12 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             return json.dumps(out, indent=2)
 
         # Non-destructive sync
-        if not fix_stale_locks and not regenerate_indexes:
+        if (
+            not fix_stale_locks
+            and not regenerate_indexes
+            and not gitignore_changed
+            and distribution_issue_count == 0
+        ):
             result_body = {
                 **report_base,
                 "actions_taken": {
@@ -2359,6 +3010,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     "orphans_archived": 0,
                     "missing_entries_removed": 0,
                     "symlinks_repaired": 0,
+                    "distribution_repaired": 0,
+                    "deployment_gitignore_refreshed": False,
                     "indexes_regenerated": False,
                 },
                 "approval_required": False,
@@ -2392,13 +3045,19 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 nd_targets.append(preview_target("core/memory/skills/SKILL_TREE.md", "update"))
                 if (skills_dir / "SUMMARY.md").is_file():
                     nd_targets.append(preview_target("core/memory/skills/SUMMARY.md", "update"))
+            if gitignore_changed:
+                nd_targets.append(preview_target("core/memory/skills/.gitignore", "update"))
+            if distribution_report:
+                nd_targets.extend(_distribution_preview_targets(distribution_report))
             preview_payload_nd = build_governed_preview(
                 mode="preview",
                 change_class="automatic",
-                summary="Refresh SKILLS.lock and/or skill indexes (non-destructive).",
-                reasoning="Lock hash refresh and catalog regeneration are automatic-tier.",
+                summary="Refresh SKILLS.lock, the managed skills .gitignore block, skill indexes, and/or stale external projections (non-destructive).",
+                reasoning="Derived lock, gitignore, catalog, and distribution artifacts are automatic-tier.",
                 target_files=nd_targets,
                 invariant_effects=[
+                    "Refreshes the managed core/memory/skills/.gitignore block when deployment-mode drift is detected.",
+                    "Repairs stale external skill projections and prunes obsolete distribution entries when verify_symlinks=true.",
                     "Rebuilds lock entries from manifest + on-disk skills when fix_stale_locks=true.",
                     "Regenerates SKILL_TREE.md and SUMMARY.md when regenerate_indexes=true.",
                 ],
@@ -2415,7 +3074,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 preview=preview_payload_nd,
             ).to_json()
 
-        _apply_lock_and_indexes(skills_map)
+        _apply_lock_and_indexes(skills_map, manifest_data)
+        _, distribution_repaired = _apply_distribution_repairs()
         unique_changed = sorted(set(files_changed))
         if not unique_changed:
             result_body = {
@@ -2426,6 +3086,8 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                     "orphans_archived": 0,
                     "missing_entries_removed": 0,
                     "symlinks_repaired": 0,
+                    "distribution_repaired": 0,
+                    "deployment_gitignore_refreshed": False,
                     "indexes_regenerated": False,
                 },
                 "approval_required": False,
@@ -2434,7 +3096,7 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
             return json.dumps({"result": result_body})
 
         for rel in unique_changed:
-            repo.add(rel)
+            _stage_changed_path(rel)
         commit_result = repo.commit(commit_msg)
 
         result_body = {
@@ -2444,7 +3106,9 @@ def register_tools(mcp: "FastMCP", get_repo) -> dict[str, object]:
                 "locks_refreshed": fix_stale_locks,
                 "orphans_archived": 0,
                 "missing_entries_removed": 0,
-                "symlinks_repaired": 0,
+                "symlinks_repaired": distribution_repaired,
+                "distribution_repaired": distribution_repaired,
+                "deployment_gitignore_refreshed": gitignore_changed,
                 "indexes_regenerated": regenerate_indexes,
             },
             "approval_required": False,

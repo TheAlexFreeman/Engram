@@ -139,6 +139,7 @@ def test_skill_install_frozen_verifies_enabled_skills(tmp_path: Path) -> None:
     report = json.loads(result.stdout)
     assert report["status"] == "ok"
     assert report["verified_count"] == 1
+    assert report["installed_count"] == 0
     assert report["failure_count"] == 0
     assert report["verified"][0]["slug"] == slug
     assert report["verified"][0]["source"] == "local"
@@ -154,6 +155,7 @@ def test_skill_install_frozen_reports_missing_manifest(tmp_path: Path) -> None:
     assert report["status"] == "error"
     assert report["error"] == "Skill manifest not found: core/memory/skills/SKILLS.yaml"
     assert report["verified"] == []
+    assert report["installed"] == []
     assert report["failed"] == []
 
 
@@ -181,6 +183,7 @@ def test_skill_install_frozen_reports_missing_lockfile(tmp_path: Path) -> None:
     assert report["status"] == "error"
     assert report["error"] == "Skill lockfile not found: core/memory/skills/SKILLS.lock"
     assert report["verified"] == []
+    assert report["installed"] == []
     assert report["failed"] == []
 
 
@@ -210,6 +213,7 @@ def test_skill_install_frozen_reports_non_mapping_manifest_entry(tmp_path: Path)
     report = json.loads(result.stdout)
     assert report["status"] == "failed"
     assert report["verified_count"] == 0
+    assert report["installed_count"] == 0
     assert report["failure_count"] == 1
     assert report["failed"][0]["slug"] == slug
     assert report["failed"][0]["reason"] == "manifest entry must be a mapping"
@@ -243,6 +247,7 @@ def test_skill_install_frozen_reports_missing_source_for_enabled_skill(tmp_path:
     report = json.loads(result.stdout)
     assert report["status"] == "failed"
     assert report["verified_count"] == 0
+    assert report["installed_count"] == 0
     assert report["failure_count"] == 1
     assert report["failed"][0]["slug"] == slug
     assert report["failed"][0]["source"] is None
@@ -281,6 +286,7 @@ def test_skill_install_frozen_reports_invalid_source_format(tmp_path: Path) -> N
     report = json.loads(result.stdout)
     assert report["status"] == "failed"
     assert report["verified_count"] == 0
+    assert report["installed_count"] == 0
     assert report["failure_count"] == 1
     assert report["failed"][0]["slug"] == slug
     assert report["failed"][0]["source"] == "bogus:example"
@@ -327,6 +333,7 @@ def test_skill_install_frozen_reports_non_git_repo_startup_error(tmp_path: Path)
     report = json.loads(result.stdout)
     assert report["status"] == "error"
     assert report["verified"] == []
+    assert report["installed"] == []
     assert report["error"] == report["failed"][0]["reason"]
     assert "not a git repository" in report["error"]
 
@@ -367,6 +374,7 @@ def test_skill_install_frozen_fails_on_hash_mismatch(tmp_path: Path) -> None:
     report = json.loads(result.stdout)
     assert report["status"] == "failed"
     assert report["verified_count"] == 0
+    assert report["installed_count"] == 0
     assert report["failure_count"] == 1
     assert report["failed"][0]["slug"] == slug
     assert report["failed"][0]["expected_hash"] == "sha256:deadbeef"
@@ -428,10 +436,122 @@ def test_skill_install_frozen_verifies_remote_skill_from_locked_copy(tmp_path: P
     report = json.loads(result.stdout)
     assert report["status"] == "ok"
     assert report["verified_count"] == 1
+    assert report["installed_count"] == 0
     assert report["verified"][0]["slug"] == slug
     assert report["verified"][0]["source"] == source
     assert report["verified"][0]["resolved_ref"] == resolved_ref
     assert report["verified"][0]["resolution_mode"] == "locked"
+
+
+def test_skill_install_frozen_materializes_missing_gitignored_remote_skill(tmp_path: Path) -> None:
+    slug = "remote-gitignored"
+    _init_git_repo(tmp_path)
+    remote_skill_text = (
+        "---\n"
+        f"name: {slug}\n"
+        "description: Remote gitignored skill\n"
+        "source: external-research\n"
+        "origin_session: manual\n"
+        "created: 2026-04-15\n"
+        "trust: low\n"
+        "---\n\n"
+        "Remote body.\n"
+    )
+    source_repo = tmp_path / "remote-source-gitignored"
+    resolved_ref = _init_git_source_repo(
+        source_repo,
+        {f"skills/{slug}/SKILL.md": remote_skill_text},
+    )
+    source = f"git:{source_repo.as_uri()}"
+    content_hash = compute_content_hash(source_repo / "skills" / slug)
+    _write_yaml(
+        tmp_path / "core" / "memory" / "skills" / "SKILLS.yaml",
+        {
+            "schema_version": 1,
+            "defaults": {},
+            "skills": {
+                slug: {
+                    "enabled": True,
+                    "source": source,
+                    "trust": "low",
+                    "deployment_mode": "gitignored",
+                    "description": "Remote gitignored skill",
+                }
+            },
+        },
+    )
+    _write_yaml(
+        tmp_path / "core" / "memory" / "skills" / "SKILLS.lock",
+        {
+            "lock_version": 1,
+            "entries": {
+                slug: {
+                    "source": source,
+                    "resolved_path": f"core/memory/skills/{slug}/",
+                    "content_hash": content_hash,
+                    "resolved_ref": resolved_ref,
+                }
+            },
+        },
+    )
+
+    result = _run_script(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["status"] == "ok"
+    assert report["installed_count"] == 1
+    assert report["verified_count"] == 1
+    assert report["failure_count"] == 0
+    assert report["installed"][0]["slug"] == slug
+    assert report["installed"][0]["resolution_mode"] == "remote"
+    installed_skill = tmp_path / "core" / "memory" / "skills" / slug / "SKILL.md"
+    assert installed_skill.is_file()
+
+
+def test_skill_install_frozen_reports_unrecoverable_gitignored_local_skill(tmp_path: Path) -> None:
+    slug = "local-gitignored"
+    _init_git_repo(tmp_path)
+    _write_yaml(
+        tmp_path / "core" / "memory" / "skills" / "SKILLS.yaml",
+        {
+            "schema_version": 1,
+            "defaults": {},
+            "skills": {
+                slug: {
+                    "enabled": True,
+                    "source": "local",
+                    "trust": "low",
+                    "deployment_mode": "gitignored",
+                    "description": "Local gitignored skill",
+                }
+            },
+        },
+    )
+    _write_yaml(
+        tmp_path / "core" / "memory" / "skills" / "SKILLS.lock",
+        {
+            "lock_version": 1,
+            "entries": {
+                slug: {
+                    "source": "local",
+                    "resolved_path": f"core/memory/skills/{slug}/",
+                    "content_hash": "sha256:deadbeef",
+                }
+            },
+        },
+    )
+
+    result = _run_script(tmp_path)
+
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+    assert report["status"] == "failed"
+    assert report["installed_count"] == 0
+    assert report["verified_count"] == 0
+    assert report["failure_count"] == 1
+    assert report["failed"][0]["slug"] == slug
+    assert "cannot be restored on a fresh clone" in report["failed"][0]["reason"]
 
 
 def test_skill_install_frozen_fails_for_remote_source_without_lock_entry(tmp_path: Path) -> None:
@@ -471,6 +591,7 @@ def test_skill_install_frozen_fails_for_remote_source_without_lock_entry(tmp_pat
     report = json.loads(result.stdout)
     assert report["status"] == "failed"
     assert report["verified_count"] == 0
+    assert report["installed_count"] == 0
     assert report["failure_count"] == 1
     assert report["failed"][0]["slug"] == slug
     assert report["failed"][0]["source"] == source
@@ -537,6 +658,7 @@ def test_skill_install_frozen_aggregates_failures_and_skips_disabled_entries(
     report = json.loads(result.stdout)
     assert report["status"] == "failed"
     assert report["verified_count"] == 1
+    assert report["installed_count"] == 0
     assert report["failure_count"] == 1
     assert [item["slug"] for item in report["verified"]] == [good_slug]
     assert [item["slug"] for item in report["failed"]] == [bad_slug]
@@ -598,6 +720,7 @@ def test_skill_install_frozen_fails_when_manifest_ref_differs_from_locked_ref(
     report = json.loads(result.stdout)
     assert report["status"] == "failed"
     assert report["verified_count"] == 0
+    assert report["installed_count"] == 0
     assert report["failure_count"] == 1
     assert report["failed"][0]["slug"] == slug
     assert report["failed"][0]["expected_ref"] == resolved_ref

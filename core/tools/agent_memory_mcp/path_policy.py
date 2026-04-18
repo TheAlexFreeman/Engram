@@ -9,7 +9,9 @@ from typing import Iterable
 from .errors import MemoryPermissionError, ValidationError
 
 _SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-_SESSION_ID_RE = re.compile(r"^memory/activity/\d{4}/\d{2}/\d{2}/chat-\d{3}$")
+_SESSION_ID_RE = re.compile(
+    r"^memory/activity/(?:(?P<user_id>[a-z0-9]+(?:-[a-z0-9]+)*)/)?(?P<year>\d{4})/(?P<month>\d{2})/(?P<day>\d{2})/chat-(?P<number>\d{3})$"
+)
 
 # Shared commit-prefix vocabulary used by both read_tools and write_tools.
 KNOWN_COMMIT_PREFIXES: frozenset[str] = frozenset(
@@ -150,10 +152,49 @@ def validate_slug(value: str, *, field_name: str) -> str:
     return value
 
 
+def session_id_user_id(session_id: str) -> str | None:
+    match = _SESSION_ID_RE.fullmatch(validate_session_id(session_id))
+    if match is None:
+        return None
+    return match.group("user_id")
+
+
+def session_id_day_key(session_id: str) -> str:
+    match = _SESSION_ID_RE.fullmatch(validate_session_id(session_id))
+    if match is None:
+        raise ValidationError("session_id must match memory/activity[/user-id]/YYYY/MM/DD/chat-NNN")
+    return f"{match.group('year')}/{match.group('month')}/{match.group('day')}"
+
+
+def namespace_session_id(session_id: str, *, user_id: str | None) -> str:
+    normalized = validate_session_id(session_id)
+    if user_id is None:
+        return normalized
+
+    stripped_user_id = user_id.strip()
+    if not stripped_user_id:
+        return normalized
+    resolved_user_id = validate_slug(stripped_user_id, field_name="user_id")
+
+    match = _SESSION_ID_RE.fullmatch(normalized)
+    if match is None:
+        raise ValidationError("session_id must match memory/activity[/user-id]/YYYY/MM/DD/chat-NNN")
+
+    existing_user_id = match.group("user_id")
+    if existing_user_id is not None:
+        if existing_user_id != resolved_user_id:
+            raise ValidationError(
+                f"session_id is already namespaced for user '{existing_user_id}', expected '{resolved_user_id}'"
+            )
+        return normalized
+
+    return f"memory/activity/{resolved_user_id}/{match.group('year')}/{match.group('month')}/{match.group('day')}/chat-{match.group('number')}"
+
+
 def validate_session_id(session_id: str) -> str:
-    """Validate canonical session ids: memory/activity/YYYY/MM/DD/chat-NNN."""
+    """Validate canonical session ids: memory/activity[/user-id]/YYYY/MM/DD/chat-NNN."""
     if not isinstance(session_id, str) or not _SESSION_ID_RE.fullmatch(session_id):
-        raise ValidationError("session_id must match memory/activity/YYYY/MM/DD/chat-NNN")
+        raise ValidationError("session_id must match memory/activity[/user-id]/YYYY/MM/DD/chat-NNN")
     return session_id
 
 

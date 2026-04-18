@@ -15,6 +15,7 @@ Design notes:
 from __future__ import annotations
 
 import errno
+import json
 import logging
 import os
 import subprocess
@@ -87,9 +88,36 @@ class GitPublicationResult:
             "operation": self.operation,
             "mode": self.mode,
             "degraded": self.degraded,
-            "writer_lock": "exclusive-worktree",
+            "writer_lock": "exclusive-repo-common-dir",
             "warnings": list(self.warnings),
         }
+
+
+@dataclass(frozen=True)
+class GitFastForwardResult:
+    status: str
+    target_ref: str
+    source_ref: str
+    target_sha: str | None
+    source_sha: str | None
+    applied_sha: str | None = None
+    reason: str | None = None
+    warnings: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "operation": "fast-forward",
+            "status": self.status,
+            "target_ref": self.target_ref,
+            "source_ref": self.source_ref,
+            "target_sha": self.target_sha,
+            "source_sha": self.source_sha,
+            "applied_sha": self.applied_sha,
+            "warnings": list(self.warnings),
+        }
+        if self.reason is not None:
+            payload["reason"] = self.reason
+        return payload
 
 
 class GitRepo:
@@ -118,11 +146,34 @@ class GitRepo:
         if git_dir_result.returncode != 0:
             raise ValueError(f"Not a git repository: {candidate_root}")
 
+        git_common_dir_result = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=str(candidate_root),
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+        )
+        if git_common_dir_result.returncode != 0:
+            git_common_dir_result = subprocess.run(
+                ["git", "rev-parse", "--git-common-dir"],
+                cwd=str(candidate_root),
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
+            )
+        if git_common_dir_result.returncode != 0:
+            raise ValueError(f"Not a git repository: {candidate_root}")
+
         self.root = _preserve_input_root_spelling(
             candidate_root,
             Path(result.stdout.strip()),
         )
         self.git_dir = Path(git_dir_result.stdout.strip()).resolve()
+        git_common_dir_raw = git_common_dir_result.stdout.strip()
+        git_common_dir_path = Path(git_common_dir_raw)
+        if not git_common_dir_path.is_absolute():
+            git_common_dir_path = (self.root / git_common_dir_path).resolve()
+        self.git_common_dir = git_common_dir_path
         # Content prefix: when set, all content-relative paths are resolved
         # under root / content_prefix (e.g., root / "core"). For older test
         # fixtures and legacy layouts that do not include that folder, fall
@@ -137,13 +188,82 @@ class GitRepo:
             self.content_root = self.root
 
     def engram_state_dir(self, *parts: str, create: bool = False) -> Path:
-        """Return a path under the repo-local untracked Engram state directory."""
-        path = self.git_dir / "engram"
+        """Return a path under the repo-common untracked Engram state directory."""
+        path = self.git_common_dir / "engram"
         if parts:
             path = path.joinpath(*parts)
         if create:
             path.mkdir(parents=True, exist_ok=True)
         return path
+
+    def session_branch_metadata_path(self, branch_name: str) -> Path:
+        """Return the repo-common runtime metadata path for a session branch."""
+        normalized_branch = branch_name.strip().strip("/")
+        if not normalized_branch:
+            raise StagingError("branch_name must be a non-empty git branch name")
+        branch_path = self.engram_state_dir("session-branches", *normalized_branch.split("/"))
+        return Path(str(branch_path) + ".json")
+
+    def load_session_branch_metadata(self, branch_name: str) -> dict[str, str] | None:
+        """Load persisted original-base metadata for a session branch."""
+        metadata_path = self.session_branch_metadata_path(branch_name)
+        if not metadata_path.is_file():
+            return None
+        try:
+            payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise StagingError(
+                f"Session branch metadata is unreadable for '{branch_name}': {metadata_path}",
+                stderr=str(exc),
+            ) from exc
+        if not isinstance(payload, dict):
+            raise StagingError(
+                f"Session branch metadata must be a JSON object for '{branch_name}': {metadata_path}"
+            )
+        base_branch = payload.get("base_branch")
+        base_ref = payload.get("base_ref")
+        if not isinstance(base_branch, str) or not base_branch.strip():
+            raise StagingError(
+                f"Session branch metadata is missing base_branch for '{branch_name}': {metadata_path}"
+            )
+        if not isinstance(base_ref, str) or not base_ref.strip():
+            raise StagingError(
+                f"Session branch metadata is missing base_ref for '{branch_name}': {metadata_path}"
+            )
+        return {
+            "base_branch": base_branch.strip(),
+            "base_ref": base_ref.strip(),
+        }
+
+    def ensure_session_branch_metadata(
+        self,
+        branch_name: str,
+        *,
+        base_branch: str,
+        base_ref: str,
+    ) -> dict[str, str]:
+        """Persist original-base metadata for a session branch if it is absent."""
+        existing = self.load_session_branch_metadata(branch_name)
+        if existing is not None:
+            return existing
+
+        normalized_base_branch = base_branch.strip()
+        normalized_base_ref = base_ref.strip()
+        if not normalized_base_branch:
+            raise StagingError("base_branch must be a non-empty git branch name")
+        if not normalized_base_ref:
+            raise StagingError("base_ref must be a non-empty git ref")
+
+        metadata_path = self.session_branch_metadata_path(branch_name)
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "base_branch": normalized_base_branch,
+            "base_ref": normalized_base_ref,
+        }
+        metadata_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        return payload
 
     # ------------------------------------------------------------------
     # Path translation (content-relative <-> git-relative)
@@ -196,6 +316,12 @@ class GitRepo:
             )
         return result
 
+    def _resolve_commit_ref(self, ref: str) -> str | None:
+        result = self._run(["git", "rev-parse", "--verify", f"{ref}^{{commit}}"], check=False)
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip() or None
+
     # ------------------------------------------------------------------
     # Author identity
     # ------------------------------------------------------------------
@@ -209,6 +335,89 @@ class GitRepo:
         email_result = self._run(["git", "config", "--local", "user.email"], check=False)
         if email_result.returncode != 0 or not email_result.stdout.strip():
             self._run(["git", "config", "--local", "user.email", _FALLBACK_AUTHOR_EMAIL])
+
+    def fast_forward_ref(self, *, target_ref: str, source_ref: str) -> GitFastForwardResult:
+        """Advance *target_ref* to *source_ref* when it is a strict fast-forward."""
+        with self.write_lock("fast-forward"):
+            self._try_cleanup_all_stale_locks()
+
+            target_sha = self._resolve_commit_ref(target_ref)
+            if target_sha is None:
+                return GitFastForwardResult(
+                    status="blocked",
+                    target_ref=target_ref,
+                    source_ref=source_ref,
+                    target_sha=None,
+                    source_sha=self._resolve_commit_ref(source_ref),
+                    reason=f"Target ref '{target_ref}' does not resolve to a commit.",
+                )
+
+            source_sha = self._resolve_commit_ref(source_ref)
+            if source_sha is None:
+                return GitFastForwardResult(
+                    status="blocked",
+                    target_ref=target_ref,
+                    source_ref=source_ref,
+                    target_sha=target_sha,
+                    source_sha=None,
+                    reason=f"Source ref '{source_ref}' does not resolve to a commit.",
+                )
+
+            if target_sha == source_sha:
+                return GitFastForwardResult(
+                    status="already-up-to-date",
+                    target_ref=target_ref,
+                    source_ref=source_ref,
+                    target_sha=target_sha,
+                    source_sha=source_sha,
+                    applied_sha=source_sha,
+                )
+
+            ancestor_result = self._run(
+                ["git", "merge-base", "--is-ancestor", target_sha, source_sha],
+                check=False,
+            )
+            if ancestor_result.returncode == 1:
+                return GitFastForwardResult(
+                    status="blocked",
+                    target_ref=target_ref,
+                    source_ref=source_ref,
+                    target_sha=target_sha,
+                    source_sha=source_sha,
+                    reason=(
+                        f"Target ref '{target_ref}' has diverged from '{source_ref}' and cannot be fast-forwarded."
+                    ),
+                )
+            if ancestor_result.returncode != 0:
+                stderr = ancestor_result.stderr.strip()
+                raise StagingError(
+                    f"`git merge-base --is-ancestor` failed (exit {ancestor_result.returncode}): {stderr}",
+                    stderr=stderr,
+                )
+
+            warnings: list[str] = []
+            try:
+                self._run(["git", "update-ref", target_ref, source_sha, target_sha])
+            except StagingError as ref_error:
+                if not self._should_fallback_to_plumbing(ref_error):
+                    raise
+                _log.warning(
+                    "update-ref fast-forward failed (%s), writing ref file directly", ref_error
+                )
+                self._direct_update_ref(target_ref, source_sha, target_sha)
+                warnings.append(
+                    "Target ref updated via direct file write after update-ref could not acquire the git ref lock."
+                )
+
+            return GitFastForwardResult(
+                status="fast-forwarded",
+                target_ref=target_ref,
+                source_ref=source_ref,
+                target_sha=target_sha,
+                source_sha=source_sha,
+                applied_sha=source_sha,
+                warnings=warnings,
+            )
 
     # ------------------------------------------------------------------
     # Object hashing (version tokens)
@@ -250,9 +459,20 @@ class GitRepo:
         git_paths = [self._to_git_path(p) for p in rel_paths]
         self._run(["git", "add", "-A", "--"] + git_paths)
 
+    def add_git_paths(self, *git_paths: str) -> None:
+        """Stage one or more git-relative files."""
+        if not git_paths:
+            return
+        self._try_cleanup_stale_index_lock()
+        self._run(["git", "add", "-A", "--"] + list(git_paths))
+
     def is_tracked(self, rel_path: str) -> bool:
         """Return whether a content-relative path is tracked by git."""
         git_path = self._to_git_path(rel_path)
+        return self.is_git_path_tracked(git_path)
+
+    def is_git_path_tracked(self, git_path: str) -> bool:
+        """Return whether a git-relative path is tracked by git."""
         result = self._run(["git", "ls-files", "--error-unmatch", "--", git_path], check=False)
         return result.returncode == 0
 
@@ -335,14 +555,72 @@ class GitRepo:
         result = self._run(cmd, check=False)
         return result.returncode == 1
 
-    def _current_branch_ref(self) -> str:
+    def current_branch_ref(self) -> str | None:
+        """Return the current HEAD symbolic ref, or None when detached."""
         result = self._run(["git", "symbolic-ref", "--quiet", "HEAD"], check=False)
         if result.returncode != 0:
+            return None
+        ref = result.stdout.strip()
+        return ref or None
+
+    def current_branch_name(self) -> str | None:
+        """Return the current branch name, or None when detached."""
+        ref = self.current_branch_ref()
+        if ref is None:
+            return None
+        prefix = "refs/heads/"
+        if ref.startswith(prefix):
+            return ref[len(prefix) :]
+        return ref
+
+    def ensure_branch_checked_out(
+        self,
+        branch_name: str,
+        *,
+        start_point: str | None = None,
+    ) -> tuple[str, bool]:
+        """Ensure a local branch exists and is the current checkout.
+
+        Returns ``(branch_ref, created)`` where ``created`` is true only when a
+        new local branch had to be created.
+        """
+        normalized_branch = branch_name.strip()
+        if not normalized_branch:
+            raise StagingError("branch_name must be a non-empty git branch name")
+
+        self._run(["git", "check-ref-format", "--branch", normalized_branch])
+        branch_ref = f"refs/heads/{normalized_branch}"
+        current_branch = self.current_branch_name()
+        if current_branch == normalized_branch:
+            return branch_ref, False
+
+        if self.has_staged_changes() or self.has_unstaged_changes():
+            raise StagingError(
+                "Cannot switch to a session branch with staged or unstaged tracked changes in the worktree. "
+                "Commit, stash, or discard those edits before enabling session branch isolation."
+            )
+
+        exists_result = self._run(
+            ["git", "show-ref", "--verify", "--quiet", branch_ref], check=False
+        )
+        if exists_result.returncode == 0:
+            self._run(["git", "checkout", "--quiet", normalized_branch])
+            return branch_ref, False
+
+        cmd = ["git", "checkout", "--quiet", "-b", normalized_branch]
+        if start_point:
+            cmd.append(start_point)
+        self._run(cmd)
+        return branch_ref, True
+
+    def _current_branch_ref(self) -> str:
+        ref = self.current_branch_ref()
+        if ref is None:
             raise StagingError(
                 "The memory repository is in detached HEAD state. Attach HEAD to a branch "
                 "before publishing writes."
             )
-        return result.stdout.strip()
+        return ref
 
     def _direct_update_ref(self, ref: str, new_sha: str, expected_old: str) -> None:
         """Write a ref file directly, bypassing git update-ref.
@@ -414,7 +692,7 @@ class GitRepo:
         return mode, object_id
 
     def _write_lock_path(self) -> Path:
-        return self.git_dir / _WRITE_LOCK_NAME
+        return self.engram_state_dir() / _WRITE_LOCK_NAME
 
     def _head_lock_path(self) -> Path:
         return self.git_dir / _HEAD_LOCK_NAME
@@ -522,6 +800,7 @@ class GitRepo:
     def write_lock(self, purpose: str):
         """Serialize publication so each worktree has a single active writer."""
         lock_path = self._write_lock_path()
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
         deadline = time.monotonic() + _WRITE_LOCK_TIMEOUT_SECONDS
         lock_payload = f"pid={os.getpid()}\npurpose={purpose}\nstarted_at={time.time()}\n"
 
@@ -1001,6 +1280,7 @@ class GitRepo:
         report: dict = {
             "root": str(self.root),
             "git_dir": str(self.git_dir),
+            "git_common_dir": str(self.git_common_dir),
             "locks": {},
             "repo_valid": False,
             "head_valid": False,

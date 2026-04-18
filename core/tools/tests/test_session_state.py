@@ -9,6 +9,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType
+from typing import Any, cast
 from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -99,6 +100,47 @@ class SessionStateTests(unittest.TestCase):
         self.assertEqual(payload["checkpoints_this_session"], 0)
         self.assertEqual(payload["identity_updates_this_session"], 0)
 
+    def test_reset_preserves_publication_baseline_fields(self) -> None:
+        start = datetime(2026, 3, 28, 12, 0, tzinfo=timezone.utc)
+        reset_time = start + timedelta(minutes=9)
+        state = self.module.SessionState(
+            session_start=start,
+            user_id="alex",
+            publication_base_branch="main",
+            publication_base_ref="refs/heads/main",
+            publication_worktree_root="/tmp/repo",
+            publication_git_common_dir="/tmp/repo/.git",
+            publication_session_branch="engram/sessions/alex/2026-03-28-chat-001",
+            publication_session_branch_ref="refs/heads/engram/sessions/alex/2026-03-28-chat-001",
+        )
+
+        with mock.patch.object(self.module, "_utcnow", return_value=reset_time):
+            payload = state.reset()
+
+        self.assertEqual(state.publication_base_branch, "main")
+        self.assertEqual(state.publication_base_ref, "refs/heads/main")
+        self.assertEqual(state.publication_worktree_root, "/tmp/repo")
+        self.assertEqual(state.publication_git_common_dir, "/tmp/repo/.git")
+        self.assertEqual(
+            state.publication_session_branch, "engram/sessions/alex/2026-03-28-chat-001"
+        )
+        self.assertEqual(
+            state.publication_session_branch_ref,
+            "refs/heads/engram/sessions/alex/2026-03-28-chat-001",
+        )
+        self.assertEqual(payload["publication_base_branch"], "main")
+        self.assertEqual(payload["publication_base_ref"], "refs/heads/main")
+        self.assertEqual(payload["publication_worktree_root"], "/tmp/repo")
+        self.assertEqual(payload["publication_git_common_dir"], "/tmp/repo/.git")
+        self.assertEqual(
+            payload["publication_session_branch"],
+            "engram/sessions/alex/2026-03-28-chat-001",
+        )
+        self.assertEqual(
+            payload["publication_session_branch_ref"],
+            "refs/heads/engram/sessions/alex/2026-03-28-chat-001",
+        )
+
 
 class CreateMcpSessionStateWiringTests(unittest.TestCase):
     server: ModuleType
@@ -158,6 +200,14 @@ class CreateMcpSessionStateWiringTests(unittest.TestCase):
 
     def test_create_mcp_shares_one_session_state_between_read_and_semantic_tools(self) -> None:
         repo_root = self._init_repo()
+        git_root = repo_root.parent
+        subprocess.run(
+            ["git", "branch", "-M", "alex"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         captured: dict[str, object] = {}
 
         def fake_read_register(mcp, get_repo, get_root, session_state=None):
@@ -176,6 +226,13 @@ class CreateMcpSessionStateWiringTests(unittest.TestCase):
 
         self.assertIs(captured["read"], captured["semantic"])
         self.assertIsInstance(captured["read"], self.session_state_module.SessionState)
+        state = cast(Any, captured["read"])
+        self.assertEqual(state.publication_base_branch, "alex")
+        self.assertEqual(state.publication_base_ref, "refs/heads/alex")
+        self.assertEqual(Path(state.publication_worktree_root).resolve(), git_root.resolve())
+        self.assertEqual(
+            Path(state.publication_git_common_dir).resolve(), (git_root / ".git").resolve()
+        )
 
 
 if __name__ == "__main__":

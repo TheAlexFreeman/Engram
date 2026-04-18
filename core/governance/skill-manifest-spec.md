@@ -23,8 +23,10 @@ schema_version: 1
 
 # Default settings applied to all skills unless overridden per-entry.
 defaults:
+  # Optional repo-wide override. Omit deployment_mode to use trust-aware fallback:
+  # high -> checked, medium -> checked, low -> gitignored.
   deployment_mode: checked        # checked | gitignored
-  targets: [engram]               # distribution targets (future: claude, cursor, codex)
+  targets: [engram]               # distribution targets (engram | generic | claude | cursor | codex)
 
 # Skill declarations. Each key is the skill slug (kebab-case, matches directory name).
 skills:
@@ -62,8 +64,8 @@ skills:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `deployment_mode` | enum | `checked` | `checked` (committed to git) or `gitignored` (fetched on demand). |
-| `targets` | list[string] | `[engram]` | Distribution targets. Reserved for multi-agent distribution plan. |
+| `deployment_mode` | enum | trust-aware | Optional repo-wide override. If omitted, the effective default is derived from trust: `high -> checked`, `medium -> checked`, `low -> gitignored`. `source: local` entries still resolve to `checked` because they must clone with the repo. |
+| `targets` | list[string] | `[engram]` | Distribution targets. See `core/governance/skill-distribution-spec.md` for target identifiers and adapter rules. Use `[]` to disable external projections by default. |
 
 ### Per-skill fields
 
@@ -73,8 +75,8 @@ skills:
 | `ref` | string | no | Version pin: git tag, branch, or commit SHA. Ignored for `local` source. |
 | `trust` | enum | yes | `high`, `medium`, or `low`. Must match SKILL.md frontmatter `trust` field. |
 | `description` | string | yes | One-line description for catalog display. Should match SKILL.md frontmatter. |
-| `deployment_mode` | enum | no | Override for this skill. Inherits from `defaults` if omitted. |
-| `targets` | list[string] | no | Override distribution targets for this skill. |
+| `deployment_mode` | enum | no | Override for this skill. If omitted, inherits from `defaults.deployment_mode` when present, otherwise falls back to the trust-aware default. |
+| `targets` | list[string] | no | Override distribution targets for this skill. Inherits from `defaults.targets` if omitted. Use `[]` to disable external projections for one skill. |
 | `enabled` | boolean | no | Default `true`. Set `false` to disable without removing the entry. |
 | `trigger` | string or mapping | no | Lifecycle trigger binding. Reserved for hook-trigger-metadata plan. |
 
@@ -113,8 +115,61 @@ When resolving a skill, the resolver follows this order:
 - The `trust` field must match the corresponding `SKILL.md` frontmatter `trust` field. A mismatch is a sync error, not a silent override.
 - `ref` is only valid when `source` is `github:` or `git:`. Setting `ref` with `source: local` is an error.
 - `path:` sources must stay relative. Absolute filesystem paths are rejected so manifests remain portable across worktrees and machines.
+- `source: local` cannot use `deployment_mode: gitignored`. Local skills must stay checked so fresh clones receive the skill contents; use `path:`, `git:`, or `github:` if you want on-demand install.
+- `targets` entries must use known target ids from the distribution registry. Unknown target names are validation errors.
+- Duplicate target names are normalized away while preserving first-seen order. An empty list is valid and disables external projections for that skill.
 - `enabled: false` skills are excluded from catalog generation and distribution but retained in the manifest for version tracking.
 - Unknown fields at any level produce a validation warning (not an error) to support forward-compatible extensions.
+
+## Deployment mode semantics
+
+`deployment_mode` controls whether the canonical skill directory is expected to be committed to git or restored on demand from the manifest and lockfile.
+
+### Effective deployment mode
+
+Resolve the effective mode in this order:
+
+1. `skills.{slug}.deployment_mode`
+2. `defaults.deployment_mode`
+3. Trust-aware fallback from `trust`
+
+Recoverability rule: `source: local` entries resolve to `checked` unless the per-skill entry explicitly sets `deployment_mode: gitignored`, which is invalid. Repo-wide `defaults.deployment_mode: gitignored` and the low-trust fallback do not override this rule for local skills.
+
+| Trust | Effective default | Rationale |
+|---|---|---|
+| `high` | `checked` | High-trust skills are part of the durable operating surface and should be available immediately after clone. |
+| `medium` | `checked` | Medium-trust skills remain shared workflow defaults unless a repo explicitly chooses a lighter local-only install model. |
+| `low` | `gitignored` | Low-trust or agent-generated skills are more likely to be experimental and noisy, so on-demand install is the safer default when the source is recoverable (`path:`, `git:`, or `github:`). |
+
+### Migration from checked-only vaults
+
+Existing vaults that already commit all skills do not need an immediate migration. Keeping `defaults.deployment_mode: checked` preserves current behavior.
+
+Repositories can adopt trust-aware deployment incrementally by:
+
+- removing `defaults.deployment_mode`, so omitted entries fall back to the trust-aware mapping
+- setting `deployment_mode: gitignored` only on selected skills
+- later restoring an explicit repo-wide default if team policy requires uniform behavior
+
+This preserves backward compatibility for current vaults while giving new or revised vaults a clean path to lower-noise deployment.
+
+### Gitignore management contract
+
+When a skill's effective deployment mode is `gitignored`:
+
+- the canonical install location remains `core/memory/skills/{slug}/`
+- the path is managed inside a delimited block in `core/memory/skills/.gitignore`
+- tooling may add or remove entries only inside that managed block; user-authored rules outside the block are preserved verbatim
+- switching a skill back to `checked` removes the managed ignore entry but does not delete the local directory
+
+### Fresh clone contract
+
+- `checked` skills must be present and usable immediately after clone without an install step
+- `gitignored` skills must be recoverable from `SKILLS.yaml` and `SKILLS.lock` through install or sync workflows
+- `source: local` skills therefore remain `checked`; they are not reconstructible from the lockfile alone
+- tools must surface missing `gitignored` skills as an explicit state, not silently treat them as absent from the manifest
+
+See `core/governance/skill-distribution-spec.md` for how deployment mode interacts with external distribution targets.
 
 ## SKILLS.lock schema
 

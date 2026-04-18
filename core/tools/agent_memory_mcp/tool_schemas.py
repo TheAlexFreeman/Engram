@@ -18,6 +18,7 @@ from .plan_utils import (
     plan_create_input_schema,
     verification_results_item_schema,
 )
+from .skill_distributor import BUILTIN_TARGETS
 from .skill_trigger import SKILL_TRIGGER_EVENTS, skill_trigger_value_schema
 
 ACCESS_MODES = frozenset({"read", "write", "update", "create"})
@@ -28,6 +29,7 @@ REVIEW_VERDICTS = frozenset({"approve", "reject", "defer"})
 SKILL_CREATE_TRUST_LEVELS = frozenset({"high", "medium", "low"})
 UPDATE_MODES = frozenset({"upsert", "append", "replace"})
 PERIODIC_REVIEW_STAGES = frozenset({"Exploration", "Calibration", "Consolidation"})
+SKILL_DISTRIBUTION_TARGETS = sorted(BUILTIN_TARGETS)
 
 ToolSchemaBuilder = Callable[[], dict[str, Any]]
 
@@ -696,13 +698,13 @@ def checkpoint_input_schema() -> dict[str, Any]:
         title="memory_checkpoint input schema",
         required=["content"],
         notes=[
-            "Writes a timestamped entry to memory/working/CURRENT.md and stages the file without creating a commit.",
+            "Writes a timestamped entry to memory/working/CURRENT.md, or memory/working/{user_id}/CURRENT.md when MEMORY_USER_ID is set, and stages the file without creating a commit.",
             "session_id is optional but must be canonical when supplied.",
         ],
         properties={
             "content": {
                 "type": "string",
-                "description": "Checkpoint body appended under a timestamped heading in memory/working/CURRENT.md.",
+                "description": "Checkpoint body appended under a timestamped heading in the active CURRENT.md scratchpad for the resolved user scope.",
             },
             "label": {
                 "type": "string",
@@ -723,7 +725,7 @@ def append_scratchpad_input_schema() -> dict[str, Any]:
         title="memory_append_scratchpad input schema",
         required=["target", "content"],
         notes=[
-            "target accepts the aliases user/current or a governed memory/working/notes/{slug}.md scratchpad path.",
+            "target accepts the aliases user/current or a governed memory/working/notes/{slug}.md scratchpad path; when MEMORY_USER_ID is set, writes resolve under memory/working/{user_id}/... while the flat targets remain valid aliases.",
             "When section is supplied, the runtime creates the H2 heading if it does not already exist.",
         ],
         properties={
@@ -738,7 +740,7 @@ def append_scratchpad_input_schema() -> dict[str, Any]:
                         "pattern": r"^memory/working/notes/[a-z0-9]+(?:-[a-z0-9]+)*\.md$",
                     },
                 ],
-                "description": "Scratchpad target alias or governed notes path.",
+                "description": "Scratchpad target alias or governed notes path, resolved against the active user-scoped working root when applicable.",
             },
             "content": {
                 "type": "string",
@@ -2591,6 +2593,8 @@ def skill_manifest_write_input_schema() -> dict[str, Any]:
             "source must match one of: 'local', 'github:owner/repo', 'git:url', or 'path:./relative'",
             "trust must be one of: high, medium, low",
             "ref is only valid with github: or git: sources and is ignored for source: local",
+            "source: local entries always resolve to checked deployment; an explicit gitignored override is invalid.",
+            "targets is optional; when omitted the entry inherits defaults.targets or [engram]. Use targets=[] to disable external projections for one skill.",
         ],
         properties={
             "slug": {
@@ -2625,7 +2629,18 @@ def skill_manifest_write_input_schema() -> dict[str, Any]:
                     {"type": "string", "enum": ["checked", "gitignored"]},
                     {"type": "null"},
                 ],
-                "description": "Optional override for deployment mode. Inherits from defaults if omitted.",
+                "description": "Optional override for deployment mode. Inherits from defaults if omitted. source: local cannot use gitignored.",
+            },
+            "targets": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "items": {"type": "string", "enum": SKILL_DISTRIBUTION_TARGETS},
+                        "uniqueItems": True,
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional distribution target override. Inherits from defaults.targets if omitted; [] disables external projections.",
             },
             "enabled": {
                 "oneOf": [
@@ -2838,6 +2853,8 @@ def skill_install_input_schema() -> dict[str, Any]:
             "Installs a skill from local, path:./..., path:../..., github:owner/repo, or git:url sources.",
             "When slug is omitted, the resolver derives it from the resolved skill directory name.",
             "trust, when provided, rewrites the installed SKILL.md frontmatter to keep manifest and content aligned.",
+            "source: local installs always resolve to checked deployment so the skill remains available after clone.",
+            "targets is optional; when omitted the installed entry inherits defaults.targets or [engram]. Use targets=[] to disable external projections.",
         ],
         properties={
             "source": {
@@ -2872,6 +2889,17 @@ def skill_install_input_schema() -> dict[str, Any]:
                     {"type": "null"},
                 ],
                 "description": "Optional manifest enabled flag; defaults to true.",
+            },
+            "targets": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "items": {"type": "string", "enum": SKILL_DISTRIBUTION_TARGETS},
+                        "uniqueItems": True,
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional distribution target override. Inherits from defaults.targets if omitted; [] disables external projections.",
             },
             "preview": {
                 "type": "boolean",
@@ -2912,6 +2940,9 @@ def skill_add_input_schema() -> dict[str, Any]:
             "Protected apply mode requires the opaque approval_token returned by preview mode.",
             "source must be 'template' or path:./relative/path within the repository.",
             "Remote sources (github:, git:) are not supported yet.",
+            "deployment_mode is optional; when omitted, the effective mode falls back to defaults.deployment_mode or the trust-aware mapping.",
+            "Template-backed skills register as source: local, so they always resolve to checked deployment.",
+            "targets is optional; when omitted the new entry inherits defaults.targets or [engram]. Use targets=[] to disable external projections.",
         ],
         properties={
             "slug": {
@@ -2956,6 +2987,24 @@ def skill_add_input_schema() -> dict[str, Any]:
                     {"type": "null"},
                 ],
                 "description": "Manifest enabled flag; default true.",
+            },
+            "deployment_mode": {
+                "oneOf": [
+                    {"type": "string", "enum": ["checked", "gitignored"]},
+                    {"type": "null"},
+                ],
+                "description": "Optional override for deployment mode. Inherits from defaults if omitted. Template/local skills cannot use gitignored.",
+            },
+            "targets": {
+                "oneOf": [
+                    {
+                        "type": "array",
+                        "items": {"type": "string", "enum": SKILL_DISTRIBUTION_TARGETS},
+                        "uniqueItems": True,
+                    },
+                    {"type": "null"},
+                ],
+                "description": "Optional distribution target override. Inherits from defaults.targets if omitted; [] disables external projections.",
             },
             "preview": {
                 "type": "boolean",

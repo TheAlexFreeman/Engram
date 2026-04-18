@@ -48,6 +48,13 @@ class SessionState:
     """Mutable per-connection MCP session state shared across tool handlers."""
 
     session_start: datetime = field(default_factory=_utcnow)
+    user_id: str | None = None
+    publication_base_branch: str | None = None
+    publication_base_ref: str | None = None
+    publication_worktree_root: str | None = None
+    publication_git_common_dir: str | None = None
+    publication_session_branch: str | None = None
+    publication_session_branch_ref: str | None = None
     files_read: list[str] = field(default_factory=list)
     files_written: list[str] = field(default_factory=list)
     tool_calls: int = 0
@@ -127,6 +134,13 @@ class SessionState:
         advisory = self.get_advisory(now=now)
         return {
             "session_start": self.session_start.isoformat(),
+            "user_id": self.user_id,
+            "publication_base_branch": self.publication_base_branch,
+            "publication_base_ref": self.publication_base_ref,
+            "publication_worktree_root": self.publication_worktree_root,
+            "publication_git_common_dir": self.publication_git_common_dir,
+            "publication_session_branch": self.publication_session_branch,
+            "publication_session_branch_ref": self.publication_session_branch_ref,
             "files_read": list(self.files_read),
             "files_written": list(self.files_written),
             "tool_calls_this_session": self.tool_calls,
@@ -158,8 +172,25 @@ class SessionState:
         return {"reset": True, **self.snapshot(now=self.session_start)}
 
 
-def create_session_state() -> SessionState:
-    return SessionState()
+def create_session_state(
+    *,
+    user_id: str | None = None,
+    publication_base_branch: str | None = None,
+    publication_base_ref: str | None = None,
+    publication_worktree_root: str | None = None,
+    publication_git_common_dir: str | None = None,
+    publication_session_branch: str | None = None,
+    publication_session_branch_ref: str | None = None,
+) -> SessionState:
+    return SessionState(
+        user_id=user_id,
+        publication_base_branch=publication_base_branch,
+        publication_base_ref=publication_base_ref,
+        publication_worktree_root=publication_worktree_root,
+        publication_git_common_dir=publication_git_common_dir,
+        publication_session_branch=publication_session_branch,
+        publication_session_branch_ref=publication_session_branch_ref,
+    )
 
 
 __all__ = ["SessionAdvisory", "SessionState", "create_session_state"]

@@ -163,7 +163,7 @@ def run_add(args: argparse.Namespace, *, repo_root: Path, content_root: Path) ->
 
     repo = GitRepo(repo_root, content_prefix=_content_prefix(repo_root, content_root))
     resolved_session_id = _resolve_access_session_id(
-        content_root, getattr(args, "session_id", None)
+        content_root, getattr(args, "session_id", None), user_id=None
     )
     if resolved_session_id is None:
         raise ValidationError(
@@ -211,6 +211,7 @@ def run_add(args: argparse.Namespace, *, repo_root: Path, content_root: Path) ->
         content_root,
         _build_access_entries(prepared.path, source=prepared.source),
         session_id=resolved_session_id,
+        user_id=None,
     )
     files_changed.extend(path for path in access_files if path not in files_changed)
     commit_result = repo.commit(prepared.commit_message)

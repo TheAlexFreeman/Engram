@@ -10,9 +10,17 @@ from datetime import date, datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, cast
 
+from ...identity_paths import (
+    normalize_user_id,
+    resolve_working_scratchpad_target,
+    working_file_path,
+)
 from ...path_policy import (
     KNOWN_COMMIT_PREFIXES,
+    namespace_session_id,
     resolve_repo_path,
+    session_id_day_key,
+    session_id_user_id,
     validate_session_id,
     validate_slug,
 )
@@ -271,6 +279,7 @@ def _build_chat_summary_content(
     root: "Path | None" = None,
     recorded_date: str | None = None,
     session_metrics: dict[str, object] | None = None,
+    user_id: str | None = None,
 ) -> str:
     from ...frontmatter_utils import today_str
 
@@ -281,6 +290,8 @@ def _build_chat_summary_content(
         "trust": "medium",
         "source": "agent-generated",
     }
+    if user_id is not None:
+        fm_dict["user_id"] = user_id
     topics = [topic.strip() for topic in key_topics.split(",") if topic.strip()]
     if topics:
         fm_dict["key_topics"] = topics
@@ -311,6 +322,7 @@ def _build_session_recording_state(
     recording_outcome: str,
     reflection_path: str | None = None,
     access_jsonls: list[str] | None = None,
+    user_id: str | None = None,
 ) -> dict[str, object]:
     state: dict[str, object] = {
         "session_id": session_id,
@@ -321,6 +333,8 @@ def _build_session_recording_state(
         state["reflection_path"] = reflection_path
     if access_jsonls:
         state["access_jsonls"] = access_jsonls
+    if user_id is not None:
+        state["user_id"] = user_id
     return state
 
 
@@ -355,6 +369,7 @@ def _existing_chat_summary_matches(
     summary: str,
     key_topics: str,
     session_metrics: dict[str, object] | None = None,
+    user_id: str | None = None,
 ) -> bool:
     resolved_metrics = (
         session_metrics
@@ -368,12 +383,27 @@ def _existing_chat_summary_matches(
         root=root,
         recorded_date=_summary_recorded_date(abs_session_summary),
         session_metrics=resolved_metrics,
+        user_id=user_id,
     )
-    return abs_session_summary.read_text(encoding="utf-8") == expected_content
+    existing = abs_session_summary.read_text(encoding="utf-8")
+    if existing == expected_content:
+        return True
+    if user_id is None:
+        return False
+    legacy_expected = _build_chat_summary_content(
+        session_id,
+        summary,
+        key_topics,
+        root=root,
+        recorded_date=_summary_recorded_date(abs_session_summary),
+        session_metrics=resolved_metrics,
+        user_id=None,
+    )
+    return existing == legacy_expected
 
 
 def _access_entry_signature(payload: dict[str, object]) -> str:
-    comparable = {key: value for key, value in payload.items() if key != "date"}
+    comparable = {key: value for key, value in payload.items() if key not in {"date", "user_id"}}
     return json.dumps(comparable, sort_keys=True, ensure_ascii=False)
 
 
@@ -383,6 +413,7 @@ def _expected_access_entry_signatures(
     *,
     session_id: str,
     access_entries: list[dict[str, object]],
+    user_id: str | None,
     aggregate_validation_errors: bool = False,
 ) -> dict[str, Counter[str]]:
     expected: dict[str, Counter[str]] = {}
@@ -391,6 +422,7 @@ def _expected_access_entry_signatures(
         root,
         access_entries,
         session_id=session_id,
+        user_id=user_id,
         aggregate_validation_errors=aggregate_validation_errors,
     )
     for access_jsonl, line, _ in normalized_entries:
@@ -427,6 +459,7 @@ def _validate_replayed_access_entries(
     *,
     session_id: str,
     access_entries: list[dict[str, object]] | None,
+    user_id: str | None,
 ) -> list[str]:
     from ...errors import ValidationError
 
@@ -438,6 +471,7 @@ def _validate_replayed_access_entries(
         root,
         session_id=session_id,
         access_entries=access_entries,
+        user_id=user_id,
         aggregate_validation_errors=True,
     )
     for access_jsonl, expected_signatures in expected_by_jsonl.items():
@@ -456,7 +490,11 @@ def _validate_replayed_access_entries(
 def _update_chats_summary_index(content: str, session_id: str, recorded_date: str) -> str | None:
     if session_id in content:
         return None
-    mention = f"\nSee `{session_id}/` for session recorded {recorded_date}.\n"
+    mention = f"\nSee `{session_id}/` for session recorded {recorded_date}"
+    resolved_user_id = session_id_user_id(session_id)
+    if resolved_user_id is not None:
+        mention += f" (user `{resolved_user_id}`)"
+    mention += ".\n"
     if "## Structure" in content:
         return content.replace("## Structure", mention + "\n## Structure", 1)
     return content.rstrip() + mention
@@ -496,6 +534,8 @@ def _iter_dialogue_files(
     date_from: str | None,
     date_to: str | None,
 ) -> list[tuple[str, Path]]:
+    from ...errors import ValidationError
+
     results: list[tuple[str, Path]] = []
     if sessions:
         for sid in sessions:
@@ -513,13 +553,15 @@ def _iter_dialogue_files(
         parts = rel.parts
         if len(parts) < 7 or parts[-1] != "dialogue.jsonl":
             continue
-        y, mo, d = parts[2], parts[3], parts[4]
-        file_date = f"{y}-{mo}-{d}"
+        session_id = str(PurePosixPath(*parts[:-1]).as_posix())
+        try:
+            file_date = session_id_day_key(session_id).replace("/", "-")
+        except ValidationError:
+            continue
         if date_from is not None and file_date < date_from:
             continue
         if date_to is not None and file_date > date_to:
             continue
-        session_id = str(PurePosixPath(*parts[:-1]).as_posix())
         results.append((session_id, path))
     return results
 
@@ -580,25 +622,48 @@ def query_dialogue_entries(
     }
 
 
-def _resolve_access_session_id(root: Path, session_id: str | None) -> str | None:
+def _resolve_session_id_for_user(session_id: str, user_id: str | None) -> str:
+    return namespace_session_id(validate_session_id(session_id), user_id=user_id)
+
+
+def _current_session_sentinel_paths(user_id: str | None) -> list[PurePosixPath]:
+    if user_id is None:
+        return [_CURRENT_SESSION_SENTINEL]
+    return [
+        PurePosixPath("memory/activity") / user_id / "CURRENT_SESSION",
+        _CURRENT_SESSION_SENTINEL,
+    ]
+
+
+def _resolve_access_session_id(
+    root: Path,
+    session_id: str | None,
+    *,
+    user_id: str | None,
+) -> str | None:
     if session_id is not None:
-        validate_session_id(session_id)
-        return session_id
+        return _resolve_session_id_for_user(session_id, user_id)
 
     env_session_id = os.environ.get("MEMORY_SESSION_ID", "").strip()
     if env_session_id:
-        validate_session_id(env_session_id)
-        return env_session_id
+        return _resolve_session_id_for_user(env_session_id, user_id)
 
-    sentinel_path = root / _CURRENT_SESSION_SENTINEL
-    if not sentinel_path.exists():
-        return None
+    for sentinel_rel in _current_session_sentinel_paths(user_id):
+        sentinel_path = root / sentinel_rel
+        if not sentinel_path.exists():
+            continue
 
-    sentinel_session_id = sentinel_path.read_text(encoding="utf-8").strip()
-    if not sentinel_session_id:
+        sentinel_session_id = sentinel_path.read_text(encoding="utf-8").strip()
+        if not sentinel_session_id:
+            continue
+        return _resolve_session_id_for_user(sentinel_session_id, user_id)
+    return None
+
+
+def _resolved_user_id(session_state: SessionState | None) -> str | None:
+    if session_state is None:
         return None
-    validate_session_id(sentinel_session_id)
-    return sentinel_session_id
+    return normalize_user_id(session_state.user_id)
 
 
 def _normalize_access_entry(
@@ -607,6 +672,7 @@ def _normalize_access_entry(
     raw_entry: object,
     *,
     resolved_session_id: str | None,
+    resolved_user_id: str | None,
 ) -> tuple[str, str, bool]:
     import json as _json
 
@@ -701,6 +767,8 @@ def _normalize_access_entry(
     }
     if resolved_session_id is not None:
         entry["session_id"] = resolved_session_id
+    if resolved_user_id is not None:
+        entry["user_id"] = resolved_user_id
     if category is not None:
         entry["category"] = category
     if mode is not None:
@@ -728,6 +796,7 @@ def _normalize_access_entries(
     access_entries: list[dict[str, object]],
     *,
     session_id: str | None,
+    user_id: str | None,
     aggregate_validation_errors: bool = False,
 ) -> list[tuple[str, str, bool]]:
     from ...errors import ValidationError
@@ -742,6 +811,7 @@ def _normalize_access_entries(
                     root,
                     raw_entry,
                     resolved_session_id=session_id,
+                    resolved_user_id=user_id,
                 )
             )
         except ValidationError as exc:
@@ -762,6 +832,7 @@ def _append_access_entries(
     access_entries: list[dict[str, object]] | None,
     *,
     session_id: str | None,
+    user_id: str | None,
     aggregate_validation_errors: bool = False,
 ) -> tuple[list[str], int]:
     if not access_entries:
@@ -774,6 +845,7 @@ def _append_access_entries(
         root,
         access_entries,
         session_id=session_id,
+        user_id=user_id,
         aggregate_validation_errors=aggregate_validation_errors,
     )
     for access_jsonl, line, routed_to_scans in normalized_entries:
@@ -1042,35 +1114,25 @@ def _archive_target_for_access_file(access_file: str, entries: list[dict[str, An
     return f"{access_file.rsplit('/', 1)[0]}/{_archive_segment_name(entries)}"
 
 
-def _resolve_scratchpad_target(target: str) -> str:
-    target_map = {
-        "user": "memory/working/USER.md",
-        "current": "memory/working/CURRENT.md",
-    }
-    if target in target_map:
-        return target_map[target]
-    if (
-        isinstance(target, str)
-        and target.startswith("memory/working/notes/")
-        and target.endswith(".md")
-    ):
-        slug = target[len("memory/working/notes/") : -len(".md")]
-        validate_slug(slug, field_name="target")
-        return f"memory/working/notes/{slug}.md"
-    from ...errors import ValidationError
-
-    raise ValidationError(
-        "target must be 'user', 'current', or 'memory/working/notes/{slug}.md' with a bare kebab-case slug"
-    )
+def _resolve_scratchpad_target(target: str, *, user_id: str | None) -> str:
+    return resolve_working_scratchpad_target(target, user_id=user_id)
 
 
-def _format_checkpoint_entry(content: str, *, label: str = "", session_id: str = "") -> str:
+def _format_checkpoint_entry(
+    content: str,
+    *,
+    label: str = "",
+    session_id: str = "",
+    user_id: str = "",
+) -> str:
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M")
     label_text = label.strip()
     heading = f"### [{timestamp}] {label_text}".rstrip()
     lines = [heading]
     if session_id:
         lines.append(f"<!-- session_id: {session_id} -->")
+    if user_id:
+        lines.append(f"<!-- user_id: {user_id} -->")
     body = content.strip()
     if body:
         lines.append(body)
@@ -1328,6 +1390,49 @@ def register_tools(
 ) -> dict[str, object]:
     """Register session and governance semantic tools."""
 
+    def _maybe_fast_forward_publication_base(
+        repo,
+        *,
+        commit_sha: str | None,
+        blocked_action: str,
+    ) -> tuple[dict[str, object] | None, list[str]]:
+        if (
+            session_state is None
+            or not session_state.publication_base_ref
+            or not session_state.publication_session_branch_ref
+            or session_state.publication_base_ref == session_state.publication_session_branch_ref
+        ):
+            return None, []
+
+        try:
+            merge_result = repo.fast_forward_ref(
+                target_ref=session_state.publication_base_ref,
+                source_ref=session_state.publication_session_branch_ref,
+            )
+            merge_payload = merge_result.to_dict()
+        except Exception as merge_error:
+            merge_payload = {
+                "operation": "fast-forward",
+                "status": "blocked",
+                "target_ref": session_state.publication_base_ref,
+                "source_ref": session_state.publication_session_branch_ref,
+                "target_sha": None,
+                "source_sha": commit_sha,
+                "applied_sha": None,
+                "reason": str(merge_error),
+                "warnings": [],
+            }
+
+        merge_payload["base_branch"] = session_state.publication_base_branch
+        merge_payload["session_branch"] = session_state.publication_session_branch
+        merge_warnings = list(cast(list[str], merge_payload.get("warnings", [])))
+        if merge_payload.get("status") == "blocked":
+            merge_warnings.append(
+                f"{blocked_action} was committed, but the preserved base branch was not advanced: "
+                f"{merge_payload.get('reason', 'fast-forward was blocked')}"
+            )
+        return merge_payload, merge_warnings
+
     @mcp.tool(
         name="memory_checkpoint",
         annotations=_tool_annotations(
@@ -1339,7 +1444,7 @@ def register_tools(
         ),
     )
     async def memory_checkpoint(content: str, label: str = "", session_id: str = "") -> str:
-        """Append a timestamped checkpoint entry to memory/working/CURRENT.md.
+        """Append a timestamped checkpoint entry to the active CURRENT.md scratchpad.
 
         label and session_id are optional. The write is staged but not
         committed, so use memory_tool_schema with tool_name="memory_checkpoint"
@@ -1350,17 +1455,24 @@ def register_tools(
         repo = get_repo()
         root = get_root()
 
-        if session_id:
-            validate_session_id(session_id)
         if session_state is not None:
             session_state.record_tool_call()
+        resolved_user_id = _resolved_user_id(session_state)
+        resolved_session_id = (
+            _resolve_session_id_for_user(session_id, resolved_user_id) if session_id else ""
+        )
 
-        rel_path = "memory/working/CURRENT.md"
+        rel_path = working_file_path("CURRENT.md", user_id=resolved_user_id)
         abs_path = root / rel_path
         abs_path.parent.mkdir(parents=True, exist_ok=True)
 
         existing = abs_path.read_text(encoding="utf-8") if abs_path.exists() else ""
-        entry = _format_checkpoint_entry(content, label=label, session_id=session_id)
+        entry = _format_checkpoint_entry(
+            content,
+            label=label,
+            session_id=resolved_session_id,
+            user_id=resolved_user_id or "",
+        )
         if existing.strip():
             new_content = existing.rstrip() + "\n\n---\n\n" + entry
         else:
@@ -1379,7 +1491,8 @@ def register_tools(
             new_state={
                 "target": rel_path,
                 "entry_count": _count_checkpoint_entries(new_content),
-                "session_id": session_id or None,
+                "session_id": resolved_session_id or None,
+                "user_id": resolved_user_id,
                 "staged": True,
             },
         )
@@ -1421,7 +1534,12 @@ def register_tools(
             raise ValidationError("summary must be a non-empty string")
 
         normalized_trigger = validate_slug(trigger.replace("_", "-"), field_name="trigger")
-        resolved_session_id = _resolve_access_session_id(root, session_id or None)
+        resolved_user_id = _resolved_user_id(session_state)
+        resolved_session_id = _resolve_access_session_id(
+            root,
+            session_id or None,
+            user_id=resolved_user_id,
+        )
         if resolved_session_id is None:
             raise ValidationError(
                 "session_id is required when MEMORY_SESSION_ID and memory/activity/CURRENT_SESSION are unset"
@@ -1438,7 +1556,12 @@ def register_tools(
 
         existing = abs_checkpoint.read_text(encoding="utf-8") if abs_checkpoint.exists() else ""
         entry_label = label.strip() or "Context-pressure flush"
-        entry = _format_checkpoint_entry(body, label=entry_label, session_id=resolved_session_id)
+        entry = _format_checkpoint_entry(
+            body,
+            label=entry_label,
+            session_id=resolved_session_id,
+            user_id=resolved_user_id or "",
+        )
         if existing.strip():
             new_content = existing.rstrip() + "\n\n---\n\n" + entry
         else:
@@ -1457,6 +1580,11 @@ def register_tools(
             session_state.record_write(checkpoint_rel)
             session_state.record_checkpoint()
             session_state.record_flush()
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch flush",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=[checkpoint_rel],
             commit_result=commit_result,
@@ -1466,8 +1594,12 @@ def register_tools(
                 "checkpoint_path": checkpoint_rel,
                 "entry_count": _count_checkpoint_entries(new_content),
                 "trigger": normalized_trigger,
+                "user_id": resolved_user_id,
             },
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json(session_state=session_state)
 
     @mcp.tool(
@@ -1483,7 +1615,7 @@ def register_tools(
     async def memory_append_scratchpad(
         target: str, content: str, section: str | None = None
     ) -> str:
-        """Append content to USER.md, CURRENT.md, or a working-notes scratchpad.
+        """Append content to the active USER/CURRENT scratchpad or a working note.
 
         target must be "user", "current", or memory/working/notes/{slug}.md.
         When section is provided, the runtime creates the H2 heading if needed
@@ -1495,7 +1627,7 @@ def register_tools(
         repo = get_repo()
         root = get_root()
 
-        rel_path = _resolve_scratchpad_target(target)
+        rel_path = _resolve_scratchpad_target(target, user_id=_resolved_user_id(session_state))
         abs_path = root / rel_path
         abs_path.parent.mkdir(parents=True, exist_ok=True)
         existing = abs_path.read_text(encoding="utf-8") if abs_path.exists() else ""
@@ -1523,13 +1655,21 @@ def register_tools(
         repo.add(rel_path)
         commit_msg = f"[scratchpad] Append to {rel_path}"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch scratchpad append",
+        )
 
         result = MemoryWriteResult.from_commit(
             files_changed=[rel_path],
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state={"target": rel_path},
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -1559,10 +1699,11 @@ def register_tools(
         repo = get_repo()
         root = get_root()
         warnings: list[str] = []
+        resolved_user_id = _resolved_user_id(session_state)
+        resolved_session_id = _resolve_session_id_for_user(session_id, resolved_user_id)
 
-        validate_session_id(session_id)
         session_summary_rel, abs_session_summary = resolve_repo_path(
-            repo, f"{session_id}/SUMMARY.md", field_name="session_id"
+            repo, f"{resolved_session_id}/SUMMARY.md", field_name="session_id"
         )
         abs_session_summary.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1570,21 +1711,23 @@ def register_tools(
             if not _existing_chat_summary_matches(
                 root,
                 abs_session_summary,
-                session_id=session_id,
+                session_id=resolved_session_id,
                 summary=summary,
                 key_topics=key_topics,
+                user_id=resolved_user_id,
             ):
                 raise ValidationError(
-                    f"Session summary already exists for {session_id} with different content. Edit the existing summary directly if an update is needed."
+                    f"Session summary already exists for {resolved_session_id} with different content. Edit the existing summary directly if an update is needed."
                 )
             result = MemoryWriteResult(
                 files_changed=[],
                 commit_sha=None,
                 commit_message=None,
                 new_state=_build_session_recording_state(
-                    session_id,
+                    resolved_session_id,
                     session_summary_rel,
                     recording_outcome="already_recorded",
+                    user_id=resolved_user_id,
                 ),
                 warnings=warnings,
             )
@@ -1592,7 +1735,13 @@ def register_tools(
 
         today = today_str()
         abs_session_summary.write_text(
-            _build_chat_summary_content(session_id, summary, key_topics, root=root),
+            _build_chat_summary_content(
+                resolved_session_id,
+                summary,
+                key_topics,
+                root=root,
+                user_id=resolved_user_id,
+            ),
             encoding="utf-8",
         )
         repo.add(session_summary_rel)
@@ -1602,25 +1751,37 @@ def register_tools(
         abs_chats_summary = root / chats_summary_rel
         if abs_chats_summary.exists():
             chats_content = abs_chats_summary.read_text(encoding="utf-8")
-            updated_chats_content = _update_chats_summary_index(chats_content, session_id, today)
+            updated_chats_content = _update_chats_summary_index(
+                chats_content,
+                resolved_session_id,
+                today,
+            )
             if updated_chats_content is not None:
                 abs_chats_summary.write_text(updated_chats_content, encoding="utf-8")
                 repo.add(chats_summary_rel)
                 files_changed.append(chats_summary_rel)
 
-        commit_msg = f"[chat] Record summary for {session_id}"
+        commit_msg = f"[chat] Record summary for {resolved_session_id}"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch chat summary",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=files_changed,
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state=_build_session_recording_state(
-                session_id,
+                resolved_session_id,
                 session_summary_rel,
                 recording_outcome="recorded",
+                user_id=resolved_user_id,
             ),
-            warnings=warnings,
+            warnings=warnings + merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -1691,12 +1852,20 @@ def register_tools(
 
         commit_msg = f"[curation] Flag {path} for review ({priority})"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch review flag",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=[review_queue_rel],
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state={"flagged_path": path, "priority": priority, "item_id": item_id},
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -1795,13 +1964,21 @@ def register_tools(
         )
         repo.add(review_queue_rel)
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch review resolve",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=[review_queue_rel],
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state=new_state,
+            warnings=merge_warnings,
             preview=preview_payload,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -1838,7 +2015,12 @@ def register_tools(
 
         repo = get_repo()
         root = get_root()
-        resolved_session_id = _resolve_access_session_id(root, session_id)
+        resolved_user_id = _resolved_user_id(session_state)
+        resolved_session_id = _resolve_access_session_id(
+            root,
+            session_id,
+            user_id=resolved_user_id,
+        )
         changed_files, scan_entry_count = _append_access_entries(
             repo,
             root,
@@ -1856,10 +2038,16 @@ def register_tools(
                 }
             ],
             session_id=resolved_session_id,
+            user_id=resolved_user_id,
         )
 
         commit_msg = f"[access] Log retrieval of {Path(file).name} (h={float(helpfulness):.1f})"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch access log",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=changed_files,
             commit_result=commit_result,
@@ -1869,7 +2057,10 @@ def register_tools(
                 "entry_count": 1,
                 "scan_entry_count": scan_entry_count,
             },
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -1917,7 +2108,12 @@ def register_tools(
         if not isinstance(access_entries, list) or not access_entries:
             raise ValidationError("access_entries must be a non-empty list of access entry objects")
 
-        resolved_session_id = _resolve_access_session_id(root, session_id)
+        resolved_user_id = _resolved_user_id(session_state)
+        resolved_session_id = _resolve_access_session_id(
+            root,
+            session_id,
+            user_id=resolved_user_id,
+        )
         threshold = _normalize_min_helpfulness(min_helpfulness)
         normalized_entries = [{**entry, "min_helpfulness": threshold} for entry in access_entries]
 
@@ -1926,6 +2122,7 @@ def register_tools(
             root,
             normalized_entries,
             session_id=resolved_session_id,
+            user_id=resolved_user_id,
             aggregate_validation_errors=True,
         )
 
@@ -1933,6 +2130,11 @@ def register_tools(
         label = "entry" if entry_count == 1 else "entries"
         commit_msg = f"[access] Log {entry_count} access {label}"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch access batch",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=changed_files,
             commit_result=commit_result,
@@ -1942,7 +2144,10 @@ def register_tools(
                 "entry_count": entry_count,
                 "scan_entry_count": scan_entry_count,
             },
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -1995,28 +2200,30 @@ def register_tools(
 
         repo = get_repo()
         root = get_root()
+        resolved_user_id = _resolved_user_id(session_state)
+        resolved_session_id = _resolve_session_id_for_user(session_id, resolved_user_id)
 
-        validate_session_id(session_id)
         session_summary_rel, abs_session_summary = resolve_repo_path(
-            repo, f"{session_id}/SUMMARY.md", field_name="session_id"
+            repo, f"{resolved_session_id}/SUMMARY.md", field_name="session_id"
         )
         abs_session_summary.parent.mkdir(parents=True, exist_ok=True)
 
         normalized_reflection = reflection.strip() if reflection is not None else ""
-        reflection_rel = f"{session_id}/reflection.md"
+        reflection_rel = f"{resolved_session_id}/reflection.md"
         access_jsonls: list[str] = []
 
         if abs_session_summary.exists():
             if not _existing_chat_summary_matches(
                 root,
                 abs_session_summary,
-                session_id=session_id,
+                session_id=resolved_session_id,
                 summary=summary,
                 key_topics=key_topics,
                 session_metrics=metrics,
+                user_id=resolved_user_id,
             ):
                 raise ValidationError(
-                    f"Session summary already exists for {session_id} with different content. Edit the existing session files directly if an update is needed."
+                    f"Session summary already exists for {resolved_session_id} with different content. Edit the existing session files directly if an update is needed."
                 )
 
             matching_reflection_path: str | None = None
@@ -2028,26 +2235,28 @@ def register_tools(
                     or reflection_abs.read_text(encoding="utf-8") != expected_reflection
                 ):
                     raise ValidationError(
-                        f"Session {session_id} is already recorded but the provided reflection does not match the existing reflection.md content. Use memory_record_reflection or edit the reflection directly if an update is needed."
+                        f"Session {resolved_session_id} is already recorded but the provided reflection does not match the existing reflection.md content. Use memory_record_reflection or edit the reflection directly if an update is needed."
                     )
                 matching_reflection_path = reflection_rel
 
             access_jsonls = _validate_replayed_access_entries(
                 repo,
                 root,
-                session_id=session_id,
+                session_id=resolved_session_id,
                 access_entries=access_entries,
+                user_id=resolved_user_id,
             )
             result = MemoryWriteResult(
                 files_changed=[],
                 commit_sha=None,
                 commit_message=None,
                 new_state=_build_session_recording_state(
-                    session_id,
+                    resolved_session_id,
                     session_summary_rel,
                     recording_outcome="already_recorded",
                     reflection_path=matching_reflection_path,
                     access_jsonls=access_jsonls,
+                    user_id=resolved_user_id,
                 ),
             )
             return result.to_json()
@@ -2057,14 +2266,20 @@ def register_tools(
                 repo,
                 root,
                 access_entries,
-                session_id=session_id,
+                session_id=resolved_session_id,
+                user_id=resolved_user_id,
                 aggregate_validation_errors=True,
             )
 
         files_changed = [session_summary_rel]
         abs_session_summary.write_text(
             _build_chat_summary_content(
-                session_id, summary, key_topics, root=root, session_metrics=metrics
+                resolved_session_id,
+                summary,
+                key_topics,
+                root=root,
+                session_metrics=metrics,
+                user_id=resolved_user_id,
             ),
             encoding="utf-8",
         )
@@ -2072,7 +2287,7 @@ def register_tools(
 
         dialogue_rows = dialogue_entries or []
         if dialogue_rows:
-            dialogue_rel = f"{session_id}/dialogue.jsonl"
+            dialogue_rel = f"{resolved_session_id}/dialogue.jsonl"
             dialogue_abs = root / dialogue_rel
             dialogue_abs.parent.mkdir(parents=True, exist_ok=True)
             dialogue_abs.write_text(
@@ -2099,7 +2314,7 @@ def register_tools(
         if abs_chats_summary.exists():
             updated_chats_content = _update_chats_summary_index(
                 abs_chats_summary.read_text(encoding="utf-8"),
-                session_id,
+                resolved_session_id,
                 today_str(),
             )
             if updated_chats_content is not None:
@@ -2111,26 +2326,36 @@ def register_tools(
             repo,
             root,
             access_entries,
-            session_id=session_id,
+            session_id=resolved_session_id,
+            user_id=resolved_user_id,
             aggregate_validation_errors=True,
         )
 
         files_changed.extend(path for path in access_files_changed if path not in files_changed)
 
-        commit_msg = f"[chat] Record session {session_id}"
+        commit_msg = f"[chat] Record session {resolved_session_id}"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch session record",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=files_changed,
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state=_build_session_recording_state(
-                session_id,
+                resolved_session_id,
                 session_summary_rel,
                 recording_outcome="recorded",
                 reflection_path=applied_reflection_path,
                 access_jsonls=access_files_changed,
+                user_id=resolved_user_id,
             ),
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -2294,12 +2519,20 @@ def register_tools(
 
         commit_msg = f"[curation] Aggregate ACCESS logs ({aggregation_date})"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch aggregation",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=changed_files,
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state=preview_state,
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -2330,21 +2563,22 @@ def register_tools(
         from ...errors import ValidationError
         from ...models import MemoryWriteResult
 
-        validate_session_id(session_id)
         repo = get_repo()
         root = get_root()
+        resolved_user_id = _resolved_user_id(session_state)
+        resolved_session_id = _resolve_session_id_for_user(session_id, resolved_user_id)
 
-        session_dir = root / session_id
+        session_dir = root / resolved_session_id
         if not session_dir.is_dir():
             raise ValidationError(
-                f"Session folder does not exist: {session_id}. Create the chat summary first with memory_record_chat_summary."
+                f"Session folder does not exist: {resolved_session_id}. Create the chat summary first with memory_record_chat_summary."
             )
 
-        reflection_rel = f"{session_id}/reflection.md"
+        reflection_rel = f"{resolved_session_id}/reflection.md"
         reflection_abs = root / reflection_rel
         if reflection_abs.exists():
             raise ValidationError(
-                f"Reflection already exists for {session_id}. Edit it directly with memory_edit if an update is needed."
+                f"Reflection already exists for {resolved_session_id}. Edit it directly with memory_edit if an update is needed."
             )
 
         reflection_abs.write_text(
@@ -2358,14 +2592,22 @@ def register_tools(
             encoding="utf-8",
         )
         repo.add(reflection_rel)
-        commit_msg = f"[chat] Add session reflection for {session_id}"
+        commit_msg = f"[chat] Add session reflection for {resolved_session_id}"
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch reflection",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=[reflection_rel],
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state={"reflection_path": reflection_rel},
+            warnings=merge_warnings,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -2525,13 +2767,21 @@ def register_tools(
             abs_review_queue.write_text(updated_review_queue, encoding="utf-8")
             repo.add(review_queue_rel)
         commit_result = repo.commit(commit_msg)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch periodic review",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=files_changed,
             commit_result=commit_result,
             commit_message=commit_msg,
             new_state=new_state,
+            warnings=merge_warnings,
             preview=preview_payload,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(
@@ -2623,6 +2873,11 @@ def register_tools(
 
         resolved_sha = str(preview["resolved_sha"])
         commit_result = repo.revert(resolved_sha)
+        merge_state, merge_warnings = _maybe_fast_forward_publication_base(
+            repo,
+            commit_sha=commit_result.sha,
+            blocked_action="Session branch revert",
+        )
         result = MemoryWriteResult.from_commit(
             files_changed=cast(list[str], preview["files_changed"]),
             commit_result=commit_result,
@@ -2633,8 +2888,11 @@ def register_tools(
                 "new_sha": commit_result.sha,
                 "preview_token": preview_token,
             },
+            warnings=merge_warnings,
             preview=preview_payload,
         )
+        if merge_state is not None:
+            result.new_state["merge"] = merge_state
         return result.to_json()
 
     @mcp.tool(

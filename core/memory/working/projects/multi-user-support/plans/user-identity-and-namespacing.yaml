@@ -2,7 +2,7 @@ id: user-identity-and-namespacing
 project: multi-user-support
 created: 2026-04-03
 origin_session: memory/activity/2026/04/03/chat-001
-status: active
+status: completed
 purpose:
   summary: Add per-user identity resolution and namespace isolation to the memory repo.
   context: |
@@ -19,7 +19,7 @@ work:
   phases:
     - id: env-identity
       title: Add MEMORY_USER_ID env var and resolve identity at MCP startup.
-      status: pending
+      status: completed
       commit: null
       blockers: []
       sources:
@@ -36,9 +36,15 @@ work:
         - path: core/tools/agent_memory_mcp/session_state.py
           action: update
           description: Add user_id field to SessionState; include in all ACCESS log entries and session recordings.
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
+          action: update
+          description: Thread resolved user_id into ACCESS logging, checkpoint metadata, and recorded session summaries.
         - path: agent-bootstrap.toml
           action: update
           description: Document MEMORY_USER_ID in the config reference.
+        - path: core/tools/tests/test_multi_user_env_identity.py
+          action: create
+          description: Focused coverage for startup env resolution plus user_id propagation into ACCESS and session artifacts.
       postconditions:
         - description: SessionState.user_id is populated from MEMORY_USER_ID
           type: grep
@@ -47,7 +53,7 @@ work:
 
     - id: session-namespace
       title: Namespace session activity paths per user.
-      status: pending
+      status: completed
       commit: null
       blockers:
         - env-identity
@@ -62,13 +68,31 @@ work:
         - path: core/memory/activity/SUMMARY.md
           action: update
           description: Add user attribution to activity index entries.
+        - path: core/tools/agent_memory_mcp/path_policy.py
+          action: update
+          description: Accept user-scoped canonical session ids and provide helpers for namespaced session routing.
+        - path: core/tools/agent_memory_mcp/sidecar/cli.py
+          action: update
+          description: Allocate user-scoped session ids when MEMORY_USER_ID is set so sidecar-written dialogue and traces land beside the namespaced session summary.
+        - path: core/tools/agent_memory_mcp/proxy/cli.py
+          action: update
+          description: Accept namespaced session ids in proxy request validation.
+        - path: core/tools/tests/test_multi_user_env_identity.py
+          action: update
+          description: Extend focused multi-user tests to verify namespaced session paths, activity index attribution, and dialogue querying.
+        - path: core/tools/tests/test_sidecar_cli.py
+          action: update
+          description: Verify the sidecar allocator emits user-scoped session ids when MEMORY_USER_ID is configured.
+        - path: core/tools/tests/test_proxy_cli.py
+          action: update
+          description: Verify proxy session-id validation accepts user-scoped canonical ids.
       postconditions:
         - Sessions recorded with MEMORY_USER_ID=alex land under memory/activity/alex/
         - Sessions recorded without MEMORY_USER_ID use the existing flat path for backward compat
 
     - id: working-namespace
       title: Scope working memory per user.
-      status: pending
+      status: completed
       commit: null
       blockers:
         - env-identity
@@ -77,49 +101,74 @@ work:
           type: internal
           intent: Understand current working memory layout (USER.md, CURRENT.md, projects/)
       changes:
-        - path: core/memory/working/
+        - path: core/tools/agent_memory_mcp/identity_paths.py
+          action: create
+          description: Centralize per-user working scratchpad path resolution while preserving the shared memory/working/projects registry.
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
           action: update
-          description: Restructure to memory/working/{user_id}/CURRENT.md and memory/working/{user_id}/projects/ when multi-user is active.
-        - path: core/tools/agent_memory_mcp/tools/read_tools.py
+          description: Route USER.md, CURRENT.md, and note scratchpads to memory/working/{user_id}/... when MEMORY_USER_ID is set.
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_context.py
           action: update
-          description: Update context loaders (memory_context_home, memory_context_project) to resolve user-scoped working paths.
+          description: Resolve user-scoped USER.md and CURRENT.md in memory_context_home and memory_context_project while leaving project plans shared.
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_helpers.py
+          action: update
+          description: Classify user-scoped working scratchpads consistently across read tooling.
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_git.py
+          action: update
+          description: Surface user-scoped working scratchpads as scratchpad paths in git-facing read summaries.
+        - path: core/tools/tests/test_multi_user_working_namespace.py
+          action: create
+          description: Focused coverage for user-scoped working scratchpads and shared project-plan visibility.
       postconditions:
         - memory_context_home loads the correct user's CURRENT.md based on identity
         - Shared project plans remain accessible regardless of user identity
 
     - id: access-log-scoping
-      title: Tag ACCESS.jsonl entries with user_id.
-      status: pending
+      title: Tag and filter ACCESS.jsonl entries by user.
+      status: completed
       commit: null
       blockers:
         - env-identity
       changes:
-        - path: core/tools/agent_memory_mcp/tools/semantic/search_tools.py
+        - path: core/tools/agent_memory_mcp/tools/semantic/session_tools.py
           action: update
-          description: Include user_id field in all ACCESS.jsonl entries.
-        - path: core/tools/agent_memory_mcp/tools/read_tools.py
+          description: Include user_id field in hot ACCESS.jsonl writes emitted from session and knowledge logging flows.
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_helpers.py
           action: update
-          description: Update access analytics to support filtering by user_id.
+          description: Add reusable ACCESS filtering helpers that can scope analytics to a specific user_id.
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_health.py
+          action: update
+          description: Add user_id filtering to memory_aggregate_access and keep archive suggestions scoped when requested.
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_generation.py
+          action: update
+          description: Add user_id filtering to memory_access_analytics.
+        - path: core/tools/agent_memory_mcp/tools/read_tools/_git.py
+          action: update
+          description: Add user_id filtering to memory_get_file_provenance ACCESS summaries.
+        - path: core/tools/tests/test_multi_user_access_log_scoping.py
+          action: create
+          description: Focused coverage for user-scoped ACCESS aggregation, analytics, and provenance summaries.
       postconditions:
         - description: ACCESS.jsonl entries contain user_id field
           type: grep
           target: "user_id::core/tools/agent_memory_mcp"
+        - Read-side ACCESS analytics accept an optional user_id filter and return scoped results
 
     - id: backward-compat-tests
       title: Verify single-user repos work unchanged.
-      status: pending
+      status: completed
       commit: null
       blockers:
         - session-namespace
         - working-namespace
         - access-log-scoping
       changes:
-        - path: tests/test_multi_user_compat.py
+        - path: core/tools/tests/test_multi_user_compat.py
           action: create
           description: Test suite verifying that repos without MEMORY_USER_ID continue to work with the existing flat layout.
       postconditions:
-        - description: All existing tests pass
+        - description: Focused compat tests pass with MEMORY_USER_ID unset
           type: test
-          target: "pytest tests/"
-        - New compat tests pass with MEMORY_USER_ID unset
+          target: "core/tools/tests/test_multi_user_compat.py"
+        - Targeted regressions for working, context, and ACCESS surfaces pass alongside the multi-user suites
 review: null

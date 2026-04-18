@@ -11,6 +11,7 @@ from importlib import import_module
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, cast
 
+from ...identity_paths import is_working_scratchpad_path, normalize_user_id
 from ...path_policy import KNOWN_COMMIT_PREFIXES  # noqa: F401 — re-exported for callers
 from ..reference_extractor import (
     build_connectivity_graph,
@@ -1284,12 +1285,7 @@ def _visible_top_level_category(path: str) -> str:
         return "skills"
     if normalized.startswith("memory/activity/"):
         return "chats"
-    if normalized.startswith("memory/working/") and normalized.split("/")[2] in (
-        "USER.md",
-        "CURRENT.md",
-    ):
-        return "scratchpad"
-    if normalized.startswith("memory/working/notes/"):
+    if is_working_scratchpad_path(normalized):
         return "scratchpad"
     if normalized.startswith(("governance/", "meta/", "HUMANS/")):
         return "meta"
@@ -1371,6 +1367,12 @@ def _load_access_history_entries(root: Path) -> list[dict[str, Any]]:
             entry["_access_file"] = rel_access_file
             entries.append(entry)
     return entries
+
+
+def _access_user_matches(entry: dict[str, Any], resolved_user_id: str | None) -> bool:
+    if resolved_user_id is None:
+        return True
+    return str(entry.get("user_id", "")).strip() == resolved_user_id
 
 
 def _list_tracked_markdown_files(root: Path, scope: str) -> list[Path]:
@@ -1606,6 +1608,7 @@ def _filter_access_entries(
     file_prefix: str = "",
     start_date: str = "",
     end_date: str = "",
+    user_id: str | None = None,
     min_helpfulness: float | None = None,
     max_helpfulness: float | None = None,
 ) -> list[dict[str, Any]]:
@@ -1613,11 +1616,15 @@ def _filter_access_entries(
     start = _parse_iso_date(start_date) if start_date else None
     end = _parse_iso_date(end_date) if end_date else None
     folder_prefixes = _normalize_access_folder_prefixes(folder) if folder else ()
+    resolved_user_id = normalize_user_id(user_id)
 
     filtered: list[dict[str, Any]] = []
     for entry in entries:
         access_file = str(entry.get("_access_file", ""))
         file_path = str(entry.get("file", ""))
+
+        if not _access_user_matches(entry, resolved_user_id):
+            continue
 
         if folder_prefixes and not any(
             file_path == prefix
@@ -2397,10 +2404,18 @@ def _git_changed_files_since(repo: Any, since_date: date | None) -> list[str]:
 def _build_access_summary_for_file(
     entries: list[dict[str, Any]],
     rel_path: str,
+    *,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     """Return file-level ACCESS summary for a single repo-relative path."""
+    resolved_user_id = normalize_user_id(user_id)
     summaries = _summarize_access_by_file(
-        [entry for entry in entries if str(entry.get("file", "")) == rel_path]
+        [
+            entry
+            for entry in entries
+            if str(entry.get("file", "")) == rel_path
+            and _access_user_matches(entry, resolved_user_id)
+        ]
     )
     if summaries:
         return summaries[0]

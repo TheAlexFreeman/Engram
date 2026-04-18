@@ -2,7 +2,7 @@ id: gitignore-deployment-modes
 project: skills-expansion
 created: '2026-04-08'
 origin_session: memory/activity/2026/04/08/chat-001
-status: active
+status: completed
 budget:
   max_sessions: 2
 purpose:
@@ -19,7 +19,7 @@ work:
   phases:
   - id: deployment-mode-spec
     title: Design deployment mode semantics and trust-aware defaults
-    status: pending
+    status: completed
     commit: null
     blockers: []
     postconditions:
@@ -37,7 +37,7 @@ work:
       description: Document how deployment mode interacts with distribution targets
   - id: gitignore-management
     title: Build .gitignore management for skill directories
-    status: pending
+    status: completed
     commit: null
     blockers:
     - deployment-mode-spec
@@ -55,7 +55,7 @@ work:
       description: Initial .gitignore with managed block for gitignored skills
   - id: install-mode-integration
     title: Integrate deployment mode into skill install and sync flows
-    status: pending
+    status: completed
     commit: null
     blockers:
     - gitignore-management
@@ -75,10 +75,9 @@ work:
         \ lockfile on install, not committed"
   - id: clone-experience
     title: Ensure clean experience on fresh clone with gitignored skills
-    status: pending
+    status: completed
     commit: null
-    blockers:
-    - install-mode-integration
+    blockers: []
     postconditions:
     - description: Fresh clone + install restores all skills (both checked and gitignored)
     - description: Install script exits cleanly when all checked skills already present

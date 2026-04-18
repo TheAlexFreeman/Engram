@@ -6,11 +6,14 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable
-from pathlib import Path
+from datetime import timezone
+from pathlib import Path, PurePosixPath
 
 from mcp.server.fastmcp import FastMCP
 
+from .errors import StagingError
 from .git_repo import GitRepo
+from .path_policy import namespace_session_id, validate_session_id, validate_slug
 from .session_state import create_session_state
 from .tools import read_tools, semantic, write_tools
 
@@ -20,6 +23,110 @@ DeletePermissionHook = Callable[[str], None]
 def _env_flag_enabled(name: str) -> bool:
     value = os.environ.get(name, "").strip().lower()
     return value in {"1", "true", "yes", "on"}
+
+
+def _resolve_user_id() -> str | None:
+    raw_user_id = os.environ.get("MEMORY_USER_ID", "").strip()
+    if not raw_user_id:
+        return None
+    return validate_slug(raw_user_id, field_name="MEMORY_USER_ID")
+
+
+_CURRENT_SESSION_SENTINEL = PurePosixPath("memory/activity/CURRENT_SESSION")
+
+
+def _current_session_sentinel_paths(user_id: str | None) -> list[PurePosixPath]:
+    if user_id is None:
+        return [_CURRENT_SESSION_SENTINEL]
+    return [
+        PurePosixPath("memory/activity") / user_id / "CURRENT_SESSION",
+        _CURRENT_SESSION_SENTINEL,
+    ]
+
+
+def _resolve_startup_session_id(content_root: Path, user_id: str | None) -> str | None:
+    env_session_id = os.environ.get("MEMORY_SESSION_ID", "").strip()
+    if env_session_id:
+        return namespace_session_id(validate_session_id(env_session_id), user_id=user_id)
+
+    for sentinel_rel in _current_session_sentinel_paths(user_id):
+        sentinel_path = content_root / sentinel_rel
+        if not sentinel_path.exists():
+            continue
+        sentinel_session_id = sentinel_path.read_text(encoding="utf-8").strip()
+        if not sentinel_session_id:
+            continue
+        return namespace_session_id(validate_session_id(sentinel_session_id), user_id=user_id)
+
+    return None
+
+
+def _startup_session_branch_name(
+    *,
+    user_id: str,
+    session_start,
+    resolved_session_id: str | None,
+) -> str:
+    if resolved_session_id is not None:
+        parts = resolved_session_id.split("/")
+        if len(parts) == 8:
+            year, month, day, chat_slug = parts[4:]
+        else:
+            year, month, day, chat_slug = parts[3:]
+        suffix = f"{year}-{month}-{day}-{chat_slug}"
+    else:
+        started_at = session_start.astimezone(timezone.utc)
+        suffix = started_at.strftime("start-%Y%m%dt%H%M%Sz")
+    return f"engram/sessions/{user_id}/{suffix}"
+
+
+def _maybe_enable_session_branching(repo: GitRepo, session_state) -> None:
+    if not _env_flag_enabled("MEMORY_ENABLE_SESSION_BRANCHES"):
+        return
+    if session_state.user_id is None:
+        return
+
+    resolved_session_id = _resolve_startup_session_id(repo.content_root, session_state.user_id)
+    session_branch = _startup_session_branch_name(
+        user_id=session_state.user_id,
+        session_start=session_state.session_start,
+        resolved_session_id=resolved_session_id,
+    )
+    session_branch_ref = f"refs/heads/{session_branch}"
+    persisted_metadata = repo.load_session_branch_metadata(session_branch)
+    if persisted_metadata is not None:
+        session_state.publication_base_branch = persisted_metadata["base_branch"]
+        session_state.publication_base_ref = persisted_metadata["base_ref"]
+
+    if repo.current_branch_name() == session_branch:
+        if persisted_metadata is None:
+            raise StagingError(
+                "Session branch isolation found an existing session branch checkout without persisted base metadata. "
+                "Switch back to the original base branch and re-enable MEMORY_ENABLE_SESSION_BRANCHES, or recreate the session branch."
+            )
+        session_state.publication_session_branch = session_branch
+        session_state.publication_session_branch_ref = session_branch_ref
+        return
+
+    if session_state.publication_base_branch is None or session_state.publication_base_ref is None:
+        raise StagingError(
+            "Session branch isolation requires an attached base branch at startup. "
+            "Attach the worktree to a branch before enabling MEMORY_ENABLE_SESSION_BRANCHES."
+        )
+
+    checked_out_ref, _created = repo.ensure_branch_checked_out(
+        session_branch,
+        start_point=session_state.publication_base_ref,
+    )
+    persisted_metadata = repo.ensure_session_branch_metadata(
+        session_branch,
+        base_branch=session_state.publication_base_branch,
+        base_ref=session_state.publication_base_ref,
+    )
+    session_state.publication_base_branch = persisted_metadata["base_branch"]
+    session_state.publication_base_ref = persisted_metadata["base_ref"]
+    session_state.publication_session_branch = session_branch
+    session_state.publication_session_branch_ref = checked_out_ref
 
 
 def resolve_repo_root(explicit_root: str | Path | None = None) -> Path:
@@ -154,7 +261,14 @@ def create_mcp(
     def get_root() -> Path:
         return repo.content_root
 
-    session_state = create_session_state()
+    session_state = create_session_state(
+        user_id=_resolve_user_id(),
+        publication_base_branch=repo.current_branch_name(),
+        publication_base_ref=repo.current_branch_ref(),
+        publication_worktree_root=str(repo.root),
+        publication_git_common_dir=str(repo.git_common_dir),
+    )
+    _maybe_enable_session_branching(repo, session_state)
     tools: dict[str, object] = {}
     tools.update(read_tools.register(mcp, get_repo, get_root, session_state=session_state))
     raw_write_tools_enabled = (
