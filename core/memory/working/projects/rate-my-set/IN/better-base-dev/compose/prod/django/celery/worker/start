@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-
-set -euo pipefail
-
-exec celery -A config.celery_app worker -c 2 -l INFO

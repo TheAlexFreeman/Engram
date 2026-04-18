@@ -1,9 +1,0 @@
-Please verify this email by clicking the link below:
-
-Verify Your Email {{ secret_link }}
-
-----------------------------------------
-
-Better Base {{ web_app_root_url }}
-
-If you are not sure why you’re receiving this, please contact us at {{ support_email }} {{ support_email }}

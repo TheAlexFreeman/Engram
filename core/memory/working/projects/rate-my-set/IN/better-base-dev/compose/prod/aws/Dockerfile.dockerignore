@@ -1,9 +1,0 @@
-**
-!compose/
-!compose/prod/
-!compose/prod/aws/
-!compose/prod/aws/**
-!compose/prod/postgres/
-!compose/prod/postgres/maintenance/
-!compose/prod/postgres/maintenance/_sourced/
-!compose/prod/postgres/maintenance/_sourced/**

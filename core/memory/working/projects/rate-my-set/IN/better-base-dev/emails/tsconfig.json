@@ -1,6 +1,0 @@
-{
-  "extends": "../node_modules/react-email/tsconfig.json",
-  "compilerOptions": {
-    "types": []
-  }
-}

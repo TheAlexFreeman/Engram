@@ -1,7 +1,0 @@
-There has been a request to change your email from {{ from_email }} to {{ to_email }}. If this was not initiated by you, please contact support {{ support_email }} immediately.
-
-----------------------------------------
-
-Better Base {{ web_app_root_url }}
-
-If you are not sure why you’re receiving this, please contact us at {{ support_email }} {{ support_email }}

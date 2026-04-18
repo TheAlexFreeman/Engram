@@ -1,6 +1,0 @@
-[mcp_servers.chakra-ui]
-command = "bunx"
-args = ["-y", "@chakra-ui/react-mcp"]
-
-[mcp_servers.figma]
-url = "https://mcp.figma.com/mcp"
