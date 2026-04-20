@@ -10,7 +10,7 @@ from .errors import MemoryPermissionError, ValidationError
 
 _SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _SESSION_ID_RE = re.compile(
-    r"^memory/activity/(?:(?P<user_id>[a-z0-9]+(?:-[a-z0-9]+)*)/)?(?P<year>\d{4})/(?P<month>\d{2})/(?P<day>\d{2})/chat-(?P<number>\d{3})$"
+    r"^memory/activity/(?:(?P<user_id>[a-z0-9]+(?:-[a-z0-9]+)*)/)?(?P<year>\d{4})/(?P<month>\d{2})/(?P<day>\d{2})/(?P<type>chat|act)-(?P<number>\d{3})$"
 )
 
 # Shared commit-prefix vocabulary used by both read_tools and write_tools.
@@ -162,7 +162,7 @@ def session_id_user_id(session_id: str) -> str | None:
 def session_id_day_key(session_id: str) -> str:
     match = _SESSION_ID_RE.fullmatch(validate_session_id(session_id))
     if match is None:
-        raise ValidationError("session_id must match memory/activity[/user-id]/YYYY/MM/DD/chat-NNN")
+        raise ValidationError("session_id must match memory/activity[/user-id]/YYYY/MM/DD/{chat|act}-NNN")
     return f"{match.group('year')}/{match.group('month')}/{match.group('day')}"
 
 
@@ -178,7 +178,7 @@ def namespace_session_id(session_id: str, *, user_id: str | None) -> str:
 
     match = _SESSION_ID_RE.fullmatch(normalized)
     if match is None:
-        raise ValidationError("session_id must match memory/activity[/user-id]/YYYY/MM/DD/chat-NNN")
+        raise ValidationError("session_id must match memory/activity[/user-id]/YYYY/MM/DD/{chat|act}-NNN")
 
     existing_user_id = match.group("user_id")
     if existing_user_id is not None:
@@ -188,13 +188,13 @@ def namespace_session_id(session_id: str, *, user_id: str | None) -> str:
             )
         return normalized
 
-    return f"memory/activity/{resolved_user_id}/{match.group('year')}/{match.group('month')}/{match.group('day')}/chat-{match.group('number')}"
+    return f"memory/activity/{resolved_user_id}/{match.group('year')}/{match.group('month')}/{match.group('day')}/{match.group('type')}-{match.group('number')}"
 
 
 def validate_session_id(session_id: str) -> str:
-    """Validate canonical session ids: memory/activity[/user-id]/YYYY/MM/DD/chat-NNN."""
+    """Validate canonical session ids: memory/activity[/user-id]/YYYY/MM/DD/{chat|act}-NNN."""
     if not isinstance(session_id, str) or not _SESSION_ID_RE.fullmatch(session_id):
-        raise ValidationError("session_id must match memory/activity[/user-id]/YYYY/MM/DD/chat-NNN")
+        raise ValidationError("session_id must match memory/activity[/user-id]/YYYY/MM/DD/{chat|act}-NNN")
     return session_id
 
 

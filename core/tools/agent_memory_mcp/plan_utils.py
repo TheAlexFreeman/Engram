@@ -77,7 +77,7 @@ POSTCONDITION_TYPE_ALIASES = {"file_check": "check"}
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _PLAN_SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 _SESSION_ID_PATTERN = (
-    r"^memory/activity/(?:[a-z0-9]+(?:-[a-z0-9]+)*/)?\d{4}/\d{2}/\d{2}/chat-\d{3}$"
+    r"^memory/activity/(?:[a-z0-9]+(?:-[a-z0-9]+)*/)?\d{4}/\d{2}/\d{2}/(?:chat|act)-\d{3}$"
 )
 
 
