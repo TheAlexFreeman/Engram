@@ -1,0 +1,57 @@
+{
+  "_comment": "Rates as of 2026-04. Per 1M tokens (input/output/cache_read/cache_write) in USD, plus search_per_1k_sources for server-side Live Search (xAI). Prefix matching: the longest key that is a prefix of the model id wins. Edit to update.",
+  "default_sources_per_search": 10,
+  "models": {
+    "claude-opus-4": {
+      "input_per_1m": 15.0,
+      "output_per_1m": 75.0,
+      "cache_read_per_1m": 1.5,
+      "cache_write_per_1m": 18.75
+    },
+    "claude-sonnet-4": {
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0,
+      "cache_read_per_1m": 0.3,
+      "cache_write_per_1m": 3.75
+    },
+    "claude-haiku-4": {
+      "input_per_1m": 1.0,
+      "output_per_1m": 5.0,
+      "cache_read_per_1m": 0.1,
+      "cache_write_per_1m": 1.25
+    },
+    "claude-3-5-sonnet": {
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0,
+      "cache_read_per_1m": 0.3,
+      "cache_write_per_1m": 3.75
+    },
+    "claude-3-5-haiku": {
+      "input_per_1m": 0.8,
+      "output_per_1m": 4.0,
+      "cache_read_per_1m": 0.08,
+      "cache_write_per_1m": 1.0
+    },
+    "claude-3-opus": {
+      "input_per_1m": 15.0,
+      "output_per_1m": 75.0,
+      "cache_read_per_1m": 1.5,
+      "cache_write_per_1m": 18.75
+    },
+    "grok-4": {
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0,
+      "search_per_1k_sources": 25.0
+    },
+    "grok-3": {
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0,
+      "search_per_1k_sources": 25.0
+    },
+    "grok-code": {
+      "input_per_1m": 0.2,
+      "output_per_1m": 1.5,
+      "search_per_1k_sources": 25.0
+    }
+  }
+}
