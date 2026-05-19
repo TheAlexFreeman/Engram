@@ -63,7 +63,7 @@ ACCESS_COVERAGE_WINDOW_ENV_VAR = "MEMORY_VALIDATE_COVERAGE_WINDOW_DAYS"
 
 ALLOWED_PLAN_STATUS_VALUES = {"active", "paused", "complete"}
 CANONICAL_ORIGIN_SESSION_RE = re.compile(
-    r"^(?:core/)?memory/activity/\d{4}/\d{2}/\d{2}/chat-\d{3}$"
+    r"^(?:core/)?memory/activity/\d{4}/\d{2}/\d{2}/(?:chat|act)-\d{3}$"
 )
 LEGACY_ORIGIN_SESSION_RE = re.compile(r"^chat-\d{3}$")
 SPECIAL_ORIGIN_SESSION_VALUES = {"setup", "manual", "unknown"}

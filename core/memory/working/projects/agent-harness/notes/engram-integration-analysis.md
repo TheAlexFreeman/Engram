@@ -1,6 +1,7 @@
 ---
 type: note
 source: agent-generated
+origin_session: manual
 created: '2026-04-19'
 trust: medium
 ---

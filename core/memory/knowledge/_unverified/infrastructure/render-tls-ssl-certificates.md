@@ -1,7 +1,7 @@
 ---
 created: '2026-04-22'
 origin_session: memory/activity/2026/04/22/chat-001
-source: Render docs + Let's Encrypt community + web research, 2026-04-22
+source: external-research
 trust: low
 ---
 

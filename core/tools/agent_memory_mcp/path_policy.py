@@ -162,7 +162,9 @@ def session_id_user_id(session_id: str) -> str | None:
 def session_id_day_key(session_id: str) -> str:
     match = _SESSION_ID_RE.fullmatch(validate_session_id(session_id))
     if match is None:
-        raise ValidationError("session_id must match memory/activity[/user-id]/YYYY/MM/DD/{chat|act}-NNN")
+        raise ValidationError(
+            "session_id must match memory/activity[/user-id]/YYYY/MM/DD/{chat|act}-NNN"
+        )
     return f"{match.group('year')}/{match.group('month')}/{match.group('day')}"
 
 
@@ -178,7 +180,9 @@ def namespace_session_id(session_id: str, *, user_id: str | None) -> str:
 
     match = _SESSION_ID_RE.fullmatch(normalized)
     if match is None:
-        raise ValidationError("session_id must match memory/activity[/user-id]/YYYY/MM/DD/{chat|act}-NNN")
+        raise ValidationError(
+            "session_id must match memory/activity[/user-id]/YYYY/MM/DD/{chat|act}-NNN"
+        )
 
     existing_user_id = match.group("user_id")
     if existing_user_id is not None:
@@ -194,7 +198,9 @@ def namespace_session_id(session_id: str, *, user_id: str | None) -> str:
 def validate_session_id(session_id: str) -> str:
     """Validate canonical session ids: memory/activity[/user-id]/YYYY/MM/DD/{chat|act}-NNN."""
     if not isinstance(session_id, str) or not _SESSION_ID_RE.fullmatch(session_id):
-        raise ValidationError("session_id must match memory/activity[/user-id]/YYYY/MM/DD/{chat|act}-NNN")
+        raise ValidationError(
+            "session_id must match memory/activity[/user-id]/YYYY/MM/DD/{chat|act}-NNN"
+        )
     return session_id
 
 
