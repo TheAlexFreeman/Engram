@@ -9,7 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, ClassVar, Coroutine, cast
@@ -9746,12 +9746,13 @@ current_focus: Example project.
         self.assertEqual(payload["near_trigger"], [])
 
     def test_memory_session_health_check_reports_due_aggregation(self) -> None:
+        recent_review = (date.today() - timedelta(days=7)).isoformat()
         repo_root = self._init_repo(
             {
                 "core/INIT.md": (
                     "| Aggregation trigger | 15 entries | Exploration |\n\n"
                     "## Last periodic review\n\n"
-                    "**Date:** 2026-03-19\n"
+                    f"**Date:** {recent_review}\n"
                 ),
                 "memory/working/projects/ACCESS.jsonl": "".join(
                     json.dumps(
