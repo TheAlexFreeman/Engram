@@ -312,6 +312,43 @@ work:
                     for item in metadata["budget_report"]["sections_dropped"]
                 )
             )
+            self.assertTrue(metadata["truncated"])
+        finally:
+            tmp.cleanup()
+
+    def test_cache_not_written_when_char_budget_truncates(self) -> None:
+        """Partial bundles (char budget exceeded) must not poison the cache."""
+        tmp, tools = self._create_tools()
+        try:
+            root = Path(tmp.name)
+            tool = cast(Any, tools["memory_context_project"])
+
+            payload = asyncio.run(
+                tool(
+                    project="demo-project",
+                    max_context_chars=240,
+                    include_plan_sources=True,
+                )
+            )
+            meta, _ = _parse_context_response(payload)
+            self.assertTrue(meta["truncated"])
+
+            cache_file = (
+                root
+                / "core"
+                / "memory"
+                / "working"
+                / "projects"
+                / "demo-project"
+                / ".context-cache.json"
+            )
+            self.assertFalse(cache_file.is_file())
+
+            # A full-budget call should miss cleanly and then populate the cache.
+            full_payload = asyncio.run(tool(project="demo-project"))
+            full_meta, _ = _parse_context_response(full_payload)
+            self.assertFalse(full_meta["truncated"])
+            self.assertTrue(cache_file.is_file())
         finally:
             tmp.cleanup()
 

@@ -330,6 +330,22 @@ def _build_budget_report(
     return report
 
 
+_BUNDLE_TRUNCATION_REASONS = frozenset({"over_budget", "time_budget_exceeded"})
+
+
+def _is_truncated_bundle(
+    section_records: list[dict[str, Any]],
+    sections_omitted: list[str],
+) -> bool:
+    """True when the bundle dropped content due to time or char budget pressure."""
+    if sections_omitted:
+        return True
+    return any(
+        not record.get("included") and record.get("reason") in _BUNDLE_TRUNCATION_REASONS
+        for record in section_records
+    )
+
+
 def _compact_next_action(next_action_info: dict[str, Any] | None) -> dict[str, Any] | None:
     if not isinstance(next_action_info, dict):
         return None
@@ -1802,7 +1818,7 @@ def register_context(
                 "spans": timings.spans(),
                 "budget_ms": effective_time_budget_ms,
             },
-            "truncated": bool(sections_omitted),
+            "truncated": _is_truncated_bundle(section_records, sections_omitted),
             "sections_omitted": sections_omitted,
             "more_in_items": more_in_items,
             "more_plan_sources": more_plan_sources,
@@ -1813,7 +1829,7 @@ def register_context(
         # bundle would mean that subsequent callers under the same params-key
         # receive truncated content even when the cause (time pressure,
         # over-budget char limit) is transient. Only cache complete bundles.
-        if not sections_omitted:
+        if not _is_truncated_bundle(section_records, sections_omitted):
             # Store a timing-stripped copy so cache hits don't mislabel
             # previously-measured latency as if it were this call's.
             cacheable_metadata = dict(metadata)
