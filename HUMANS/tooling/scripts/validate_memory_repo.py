@@ -63,7 +63,7 @@ ACCESS_COVERAGE_WINDOW_ENV_VAR = "MEMORY_VALIDATE_COVERAGE_WINDOW_DAYS"
 
 ALLOWED_PLAN_STATUS_VALUES = {"active", "paused", "complete"}
 CANONICAL_ORIGIN_SESSION_RE = re.compile(
-    r"^(?:core/)?memory/activity/\d{4}/\d{2}/\d{2}/chat-\d{3}$"
+    r"^(?:core/)?memory/activity/\d{4}/\d{2}/\d{2}/(?:chat|act)-\d{3}$"
 )
 LEGACY_ORIGIN_SESSION_RE = re.compile(r"^chat-\d{3}$")
 SPECIAL_ORIGIN_SESSION_VALUES = {"setup", "manual", "unknown"}
@@ -937,6 +937,10 @@ def validate_chat_leaf_sessions(root: Path, result: ValidationResult) -> None:
         return
 
     for session_dir in sorted(chats_root.glob("*/*/*/chat-*")):
+        # The sidecar feature writes chat-NNN.traces.jsonl files alongside the
+        # chat-NNN/ session directories. The glob matches both, so skip anything
+        # that isn't actually a session directory or this validator would
+        # complain that a JSONL trace file is "missing" its SUMMARY.md.
         if not session_dir.is_dir():
             continue
         summary_path = session_dir / "SUMMARY.md"

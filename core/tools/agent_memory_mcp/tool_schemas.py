@@ -963,6 +963,7 @@ def stage_external_input_schema() -> dict[str, Any]:
             "content must be a non-empty string and is size-limited by the staging helper.",
             "fetched_date must be an ISO date in YYYY-MM-DD format.",
             "dry_run returns the staging envelope without writing the IN/ file or staged-hash registry.",
+            "snapshot_taken_at is derived automatically from fetched_date; reflects_upstream_as_of is an optional caller-supplied upstream marker written verbatim into frontmatter.",
         ],
         properties={
             "project": {
@@ -989,7 +990,7 @@ def stage_external_input_schema() -> dict[str, Any]:
                 "type": "string",
                 "pattern": r"^\d{4}-\d{2}-\d{2}$",
                 "format": "date",
-                "description": "ISO date recorded in the staged frontmatter.",
+                "description": "ISO date recorded in the staged frontmatter; also used as snapshot_taken_at.",
             },
             "source_label": {
                 "type": "string",
@@ -1000,6 +1001,13 @@ def stage_external_input_schema() -> dict[str, Any]:
                 "type": "boolean",
                 "default": False,
                 "description": "When true, return the staging envelope without writing files.",
+            },
+            "reflects_upstream_as_of": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1},
+                    {"type": "null"},
+                ],
+                "description": "Optional upstream state marker (commit sha, tag, or ISO date) describing what the snapshot reflects. Omitted from frontmatter when null.",
             },
         },
     )
@@ -3147,11 +3155,34 @@ def read_file_input_schema() -> dict[str, Any]:
         tool_name="memory_read_file",
         title="memory_read_file input schema",
         required=["path"],
+        notes=[
+            "Responses are inline by default. Files larger than the inline limit return a byte-range slice plus pagination metadata (`total_bytes`, `has_more`, `next_call_hint`).",
+            "offset_bytes and limit_bytes slice the raw bytes of the file; UTF-8 boundary errors at the slice edges are replaced rather than raised.",
+            "prefer_temp_file requests a server-side temp path for full-file reads. Ignored when the deployment sets AGENT_MEMORY_CROSS_FILESYSTEM because the path is not resolvable across filesystems.",
+        ],
         properties={
             "path": {
                 "type": "string",
                 "minLength": 1,
                 "description": "Repo-relative content path to read.",
+            },
+            "offset_bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0,
+                "description": "Byte offset to start reading from. Defaults to start of file.",
+            },
+            "limit_bytes": {
+                "oneOf": [
+                    {"type": "integer", "minimum": 1},
+                    {"type": "null"},
+                ],
+                "description": "Maximum bytes to return inline. Defaults to the inline threshold when null; hard-capped at the server's maximum.",
+            },
+            "prefer_temp_file": {
+                "type": "boolean",
+                "default": False,
+                "description": "When true on same-filesystem deployments, also write the full file to a server-side temp path and return it as temp_file. Ignored across filesystems.",
             },
         },
     )
@@ -3297,6 +3328,9 @@ def context_project_input_schema() -> dict[str, Any]:
         notes=[
             "max_context_chars coerces to an integer; 0 means unbounded budget at runtime.",
             "include_user_profile may be null for auto behavior at runtime.",
+            "include_in_manifest accepts false, 'off', 'summary' (default), 'full', or true.",
+            "Defaults favor the cold-start fast path: include_plan_sources=False,"
+            " include_in_manifest='summary'.",
         ],
         properties={
             "project": {
@@ -3311,8 +3345,31 @@ def context_project_input_schema() -> dict[str, Any]:
             },
             "include_plan_sources": {
                 "type": "boolean",
+                "default": False,
+                "description": (
+                    "Include whole-file sources for the active plan phase when budget allows. "
+                    "Off by default because source reads are the largest per-call cost."
+                ),
+            },
+            "include_in_manifest": {
+                "oneOf": [
+                    {"type": "boolean"},
+                    {"type": "string", "enum": ["off", "summary", "full"]},
+                ],
+                "default": "summary",
+                "description": (
+                    "IN/ staging rendering mode. 'summary' shows a one-line count "
+                    "(cold-start default); 'full' (or true) shows the capped manifest table; "
+                    "'off' (or false) omits the section entirely."
+                ),
+            },
+            "include_session_notes": {
+                "type": "boolean",
                 "default": True,
-                "description": "Include whole-file sources for the active plan phase when budget allows.",
+                "description": (
+                    "Include memory/working/CURRENT.md when it mentions the project. "
+                    "Set false to skip the section outright."
+                ),
             },
             "include_user_profile": {
                 "oneOf": [
@@ -3320,6 +3377,35 @@ def context_project_input_schema() -> dict[str, Any]:
                     {"type": "null"},
                 ],
                 "description": "Force include/omit memory/users/SUMMARY.md; null uses auto rules.",
+            },
+        },
+    )
+
+
+def context_project_lite_input_schema() -> dict[str, Any]:
+    return _base_schema(
+        tool_name="memory_context_project_lite",
+        title="memory_context_project_lite input schema",
+        required=["project"],
+        notes=[
+            "Strictly bounded fast-path: reads SUMMARY.md + plan IDs/status only.",
+            "Skips IN/ manifest, plan sources, session notes, user profile, and the",
+            " content-hash cache. Guaranteed sub-500ms on projects of any size.",
+            "max_context_chars coerces to an integer; 0 means unbounded budget at runtime.",
+        ],
+        properties={
+            "project": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Project slug under memory/working/projects/.",
+            },
+            "max_context_chars": {
+                "type": "integer",
+                "default": 8000,
+                "description": (
+                    "Soft character budget for the assembled response. Lower than"
+                    " memory_context_project because the lite bundle is always small."
+                ),
             },
         },
     )
@@ -3490,6 +3576,7 @@ TOOL_INPUT_SCHEMAS: dict[str, ToolSchemaBuilder] = {
     "memory_commit": commit_input_schema,
     "memory_context_home": context_home_input_schema,
     "memory_context_project": context_project_input_schema,
+    "memory_context_project_lite": context_project_lite_input_schema,
     "memory_delete": delete_input_schema,
     "memory_demote_knowledge": demote_knowledge_input_schema,
     "memory_edit": edit_input_schema,
@@ -3592,6 +3679,7 @@ __all__ = [
     "commit_input_schema",
     "context_home_input_schema",
     "context_project_input_schema",
+    "context_project_lite_input_schema",
     "delete_input_schema",
     "demote_knowledge_input_schema",
     "edit_input_schema",

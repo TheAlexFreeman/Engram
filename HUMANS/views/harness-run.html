@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harness — Run</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="engram-shared.css">
+<style>
+/* ── Header ───────────────────────────────────────────── */
+.h-header { background: var(--dark-bg); color: var(--dark-text); padding: var(--space-md) var(--space-lg); }
+.h-header h1 { color: #fff; margin: 0; font-size: 1.35rem; word-break: break-word; }
+.h-header .subtitle { color: var(--dark-text-muted); font-size: var(--text-sm); margin-top: 4px; }
+.h-header nav { display: flex; gap: 1rem; }
+.h-header .nav-link { color: var(--dark-text-muted); font-size: var(--text-sm); text-decoration: none; }
+.h-header .nav-link:hover,
+.h-header .nav-link.current { color: #fff; }
+
+.meta-row {
+  display: flex; gap: 1.25rem; flex-wrap: wrap;
+  margin-top: 0.6rem; font-size: var(--text-sm);
+  color: var(--dark-text-muted);
+}
+.meta-row .meta-key { color: var(--dark-text-muted); margin-right: 4px; }
+.meta-row .meta-val { color: var(--dark-text); font-family: var(--font-mono); font-size: var(--text-xs); }
+
+.h-body { max-width: 1400px; margin: 0 auto; padding: var(--space-md) var(--space-lg); }
+
+/* ── Toolbar ──────────────────────────────────────────── */
+.toolbar {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
+}
+.btn-primary, .btn-secondary, .btn-small, .btn-danger {
+  border: none; cursor: pointer; font-family: inherit;
+  transition: background 0.15s, transform 0.15s;
+}
+.btn-small {
+  padding: 0.3rem 0.7rem; font-size: var(--text-xs);
+  border-radius: var(--radius-small); border: 1px solid var(--color-border);
+  background: var(--color-surface); color: var(--color-text);
+}
+.btn-small:hover { background: var(--color-hover-bg); border-color: var(--color-hover-border); }
+.btn-small:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-danger {
+  padding: 0.3rem 0.75rem; font-size: var(--text-xs);
+  border-radius: var(--radius-small); border: 1px solid rgba(211,95,74,0.4);
+  background: rgba(211,95,74,0.12); color: var(--color-danger);
+}
+.btn-danger:hover { background: rgba(211,95,74,0.2); }
+
+.status-pill {
+  display: inline-block; padding: 2px 10px; border-radius: var(--radius-pill);
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+@keyframes pulse { 0% { opacity: 1 } 50% { opacity: 0.55 } 100% { opacity: 1 } }
+.status-pill.pulse { animation: pulse 1.6s ease-in-out infinite; }
+
+.conn-status { margin-left: auto; font-size: var(--text-sm); color: var(--color-text-secondary); }
+.conn-status .dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  margin-right: 4px; vertical-align: middle;
+}
+.conn-status .dot.connected    { background: var(--color-ok); }
+.conn-status .dot.disconnected { background: var(--color-danger); }
+.conn-status .dot.connecting   { background: var(--color-warn); }
+
+/* ── Filter chips ─────────────────────────────────────── */
+.filters-row {
+  display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
+}
+.filter-chip {
+  padding: 0.18rem 0.6rem; border-radius: var(--radius-pill);
+  font-size: var(--text-xs); font-weight: 500; cursor: pointer;
+  border: 1px solid var(--color-border); background: var(--color-surface);
+  color: var(--color-text-secondary); user-select: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.filter-chip.active { background: var(--color-btn-primary); color: #fff; border-color: transparent; }
+.filter-chip:not(.active):hover { background: var(--color-hover-bg); color: var(--color-text); }
+
+/* ── Two-pane layout: timeline | detail ───────────────── */
+.panes {
+  display: grid;
+  grid-template-columns: minmax(460px, 1fr) minmax(0, 1.25fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+@media (max-width: 900px) { .panes { grid-template-columns: 1fr; } }
+
+.pane {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.pane-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: var(--text-sm); font-weight: 600; color: var(--color-text-secondary);
+}
+.pane-body { padding: 0.4rem 0.9rem 0.9rem; }
+.pane-body.timeline-body { max-height: 70vh; overflow-y: auto; }
+
+/* ── Timeline row ─────────────────────────────────────── */
+.event-row {
+  display: grid;
+  grid-template-columns: 14px 100px 1fr 70px;
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0.32rem 0.35rem;
+  border-radius: var(--radius-small);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  transition: background 0.1s;
+}
+.event-row:hover { background: var(--color-hover-bg); }
+.event-row.selected { background: var(--color-active-bg); outline: 1px solid var(--color-hover-border); }
+.event-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+}
+.event-kind {
+  font-size: var(--text-xs); font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.event-summary {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--color-text);
+}
+.event-summary .tool-name { color: var(--color-text); font-weight: 500; margin-right: 4px; }
+.event-summary.has-error .tool-name { color: var(--color-danger); }
+.event-summary .dim { color: var(--color-text-muted); font-size: var(--text-xs); }
+.event-latency {
+  text-align: right; font-size: var(--text-xs); color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Detail pane ──────────────────────────────────────── */
+.detail-empty {
+  padding: 2rem 1rem; text-align: center;
+  color: var(--color-text-secondary); font-size: var(--text-sm);
+}
+.detail-section { margin-bottom: 1rem; }
+.detail-section h3 {
+  font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--color-text-secondary); margin-bottom: 0.3rem;
+}
+.detail-meta {
+  display: grid; grid-template-columns: 120px 1fr;
+  gap: 0.2rem 0.7rem; font-size: var(--text-sm);
+  color: var(--color-text);
+}
+.detail-meta .k { color: var(--color-text-secondary); }
+.detail-meta .v { font-family: var(--font-mono); font-size: var(--text-xs); word-break: break-all; }
+pre.json-block {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-small);
+  padding: 0.55rem 0.7rem;
+  margin-top: 0.3rem;
+  font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5;
+  color: var(--color-text);
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 420px; overflow: auto;
+}
+pre.json-block.error { border-color: rgba(211,95,74,0.4); }
+
+.follow-toggle {
+  display: flex; align-items: center; gap: 0.3rem;
+  font-size: var(--text-xs); color: var(--color-text-secondary);
+  cursor: pointer; user-select: none;
+}
+
+.state-msg { padding: 2rem 1rem; text-align: center; color: var(--color-text-secondary); font-size: var(--text-sm); }
+.error-banner {
+  display: none; padding: 0.6rem 1rem; margin-bottom: var(--space-sm);
+  background: rgba(211,95,74,0.12); color: var(--color-danger);
+  border: 1px solid rgba(211,95,74,0.4); border-radius: var(--radius-small);
+  font-size: var(--text-sm);
+}
+.error-banner.visible { display: block; }
+</style>
+</head>
+<body>
+
+<header class="h-header">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+    <div style="min-width:0;flex:1">
+      <h1 id="run-task">Loading&hellip;</h1>
+      <div class="subtitle" id="run-subtitle">&nbsp;</div>
+      <div class="meta-row" id="meta-row"></div>
+    </div>
+    <nav>
+      <a class="nav-link" href="harness-runs.html">Runs</a>
+      <a class="nav-link" href="harness-launch.html">New run</a>
+      <a class="nav-link" href="dashboard.html">Engram dashboard</a>
+    </nav>
+  </div>
+</header>
+
+<main class="h-body">
+
+  <div class="toolbar">
+    <a class="btn-small" href="harness-runs.html">&larr; All runs</a>
+    <button class="btn-small" id="btn-refresh-meta">Refresh metadata</button>
+    <button class="btn-danger" id="btn-cancel" style="display:none">Cancel run</button>
+    <label class="follow-toggle">
+      <input type="checkbox" id="follow-toggle" checked> follow tail
+    </label>
+    <div class="conn-status" id="conn-status"></div>
+  </div>
+
+  <div class="error-banner" id="error-banner"></div>
+
+  <div class="filters-row" id="filters-row">
+    <span style="font-size:var(--text-xs);color:var(--color-text-secondary);font-weight:500;margin-right:2px">KIND</span>
+    <div class="filter-chip active" data-kind="all">all</div>
+    <div class="filter-chip" data-kind="session_start">session_start</div>
+    <div class="filter-chip" data-kind="model_response">model_response</div>
+    <div class="filter-chip" data-kind="tool_call">tool_call</div>
+    <div class="filter-chip" data-kind="tool_result">tool_result</div>
+    <div class="filter-chip" data-kind="session_end">session_end</div>
+  </div>
+
+  <div class="panes">
+    <div class="pane" id="timeline-pane">
+      <div class="pane-header">
+        <span>Timeline</span>
+        <span id="event-count" style="font-weight:400;color:var(--color-text-muted);font-size:var(--text-xs)">0 events</span>
+      </div>
+      <div class="pane-body timeline-body" id="timeline">
+        <div class="state-msg">Waiting for events&hellip;</div>
+      </div>
+    </div>
+    <div class="pane" id="detail-pane">
+      <div class="pane-header"><span>Event detail</span></div>
+      <div class="pane-body">
+        <div class="detail-empty" id="detail-empty">Select an event from the timeline.</div>
+        <div id="detail-body" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script src="engram-utils.js"></script>
+<script src="harness-utils.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var H = window.Harness;
+
+  // ── URL parsing ──
+  var params = new URLSearchParams(window.location.search);
+  var runId = params.get('id');
+  if (!runId) {
+    document.body.innerHTML = '<main class="h-body"><div class="state-msg">Missing <code>?id=</code> parameter.</div></main>';
+    return;
+  }
+
+  // ── State ──
+  var events = [];                   // all events in arrival order
+  var eventByOffset = {};            // offset -> event index (for tool_call/result pairing)
+  var activeKindFilter = 'all';
+  var selectedIndex = null;
+  var eventSource = null;
+  var followTail = true;
+  var runMeta = null;
+
+  // Pairing: tool_call offset -> latency once tool_result arrives.
+  // We key by (kind='tool_call', tool_use_id) if present, else by position.
+  var pendingToolCalls = [];  // stack of { index, t0, tool_use_id }
+
+  // ── DOM refs ──
+  var $runTask = document.getElementById('run-task');
+  var $runSubtitle = document.getElementById('run-subtitle');
+  var $metaRow = document.getElementById('meta-row');
+  var $connStatus = document.getElementById('conn-status');
+  var $timeline = document.getElementById('timeline');
+  var $eventCount = document.getElementById('event-count');
+  var $detailEmpty = document.getElementById('detail-empty');
+  var $detailBody = document.getElementById('detail-body');
+  var $followToggle = document.getElementById('follow-toggle');
+  var $errorBanner = document.getElementById('error-banner');
+  var $btnCancel = document.getElementById('btn-cancel');
+  var $btnRefresh = document.getElementById('btn-refresh-meta');
+
+  function showError(msg) { $errorBanner.textContent = msg; $errorBanner.classList.add('visible'); }
+  function clearError() { $errorBanner.classList.remove('visible'); }
+
+  // ── Metadata ──
+  function loadMeta() {
+    return H.api('/api/runs/' + encodeURIComponent(runId)).then(function (d) {
+      runMeta = d;
+      renderMeta();
+      return d;
+    }).catch(function (err) {
+      showError('Failed to load run metadata: ' + err.message);
+    });
+  }
+
+  function renderMeta() {
+    if (!runMeta) return;
+    document.title = 'Harness — ' + (runMeta.task || runMeta.id);
+    $runTask.textContent = runMeta.task || '(no task)';
+
+    var subtitleParts = [];
+    subtitleParts.push('id ' + runMeta.id);
+    if (runMeta.pid) subtitleParts.push('pid ' + runMeta.pid);
+    $runSubtitle.textContent = subtitleParts.join('  ·  ');
+
+    $metaRow.innerHTML = '';
+    var statusWrap = H.el('span');
+    statusWrap.appendChild(H.statusBadge(runMeta.status));
+    $metaRow.appendChild(statusWrap);
+
+    function addMeta(key, val) {
+      if (val == null || val === '') return;
+      var wrap = H.el('span');
+      wrap.appendChild(H.el('span', key + ':', 'meta-key'));
+      wrap.appendChild(H.el('span', ' ' + val, 'meta-val'));
+      $metaRow.appendChild(wrap);
+    }
+    addMeta('model', runMeta.model);
+    addMeta('mode', runMeta.mode);
+    addMeta('turns', runMeta.turns);
+    addMeta('tool_calls', runMeta.tool_calls);
+    if (runMeta.tool_errors) addMeta('tool_errors', runMeta.tool_errors);
+    addMeta('started', runMeta.started_at ? H.fmtRelative(runMeta.started_at) : null);
+
+    $btnCancel.style.display = (runMeta.status === 'running') ? '' : 'none';
+  }
+
+  // ── Tool call / result pairing ──
+  function _toolCallId(ev) {
+    // The native/grok modes sometimes attach a tool_use_id; fall back to name + arg hash.
+    return ev.tool_use_id || ev.id || null;
+  }
+
+  function _linkToolResult(ev, idx) {
+    // Find the most recent tool_call with matching id (or the nearest unpaired one).
+    var matchId = _toolCallId(ev);
+    for (var i = pendingToolCalls.length - 1; i >= 0; i--) {
+      var p = pendingToolCalls[i];
+      if (!matchId || !p.tool_use_id || p.tool_use_id === matchId) {
+        var t1 = Date.parse(ev.ts);
+        var latency = (!isNaN(p.t0) && !isNaN(t1)) ? (t1 - p.t0) : null;
+        events[p.index]._latency_ms = latency;
+        events[idx]._latency_ms = latency;
+        pendingToolCalls.splice(i, 1);
+        return;
+      }
+    }
+  }
+
+  function ingestEvent(ev, offset) {
+    ev._offset = offset;
+    var idx = events.length;
+    events.push(ev);
+    eventByOffset[offset] = idx;
+
+    if (ev.kind === 'tool_call') {
+      pendingToolCalls.push({ index: idx, t0: Date.parse(ev.ts), tool_use_id: _toolCallId(ev) });
+    } else if (ev.kind === 'tool_result') {
+      _linkToolResult(ev, idx);
+    }
+  }
+
+  // ── Rendering ──
+  function _summaryFor(ev) {
+    switch (ev.kind) {
+      case 'session_start':
+        return '<span class="dim">task:</span> ' + H.escapeHtml(ev.task || '').slice(0, 180);
+      case 'session_end':
+        var bits = [];
+        if (ev.turns != null) bits.push('turns=' + ev.turns);
+        if (ev.reason) bits.push('reason=' + ev.reason);
+        return bits.join('  ');
+      case 'model_response':
+        return '<span class="dim">turn ' + (ev.turn != null ? ev.turn : '?') + '</span>';
+      case 'tool_call':
+        var args = ev.args ? JSON.stringify(ev.args) : '';
+        return '<span class="tool-name">' + H.escapeHtml(ev.name || '?') + '</span>'
+             + '<span class="dim">' + H.escapeHtml(args.slice(0, 140)) + '</span>';
+      case 'tool_result':
+        var prev = (ev.content_preview || '').toString();
+        return '<span class="tool-name">' + H.escapeHtml(ev.name || '?') + '</span>'
+             + (ev.is_error ? '<span class="dim"> ⚠ </span>' : ' ')
+             + '<span class="dim">' + H.escapeHtml(prev.slice(0, 120)) + '</span>';
+      default:
+        return '<span class="dim">' + H.escapeHtml(JSON.stringify(ev).slice(0, 180)) + '</span>';
+    }
+  }
+
+  function renderEventRow(ev, idx) {
+    var row = H.el('div', null, 'event-row');
+    row.setAttribute('data-idx', String(idx));
+    row.setAttribute('data-kind', ev.kind || '?');
+    if (idx === selectedIndex) row.classList.add('selected');
+
+    var ks = H.kindStyle(ev.kind);
+    var dot = H.el('span', '', 'event-dot');
+    dot.style.background = ks.color;
+    row.appendChild(dot);
+    row.appendChild(H.el('span', ks.label, 'event-kind'));
+
+    var summary = H.el('span', null, 'event-summary' + (ev.is_error ? ' has-error' : ''));
+    summary.innerHTML = _summaryFor(ev);
+    row.appendChild(summary);
+
+    var latencyText = ev._latency_ms != null ? H.fmtDuration(ev._latency_ms) : '';
+    row.appendChild(H.el('span', latencyText, 'event-latency'));
+
+    row.addEventListener('click', function () {
+      selectedIndex = idx;
+      renderSelected();
+      // Highlight
+      var rows = $timeline.querySelectorAll('.event-row');
+      rows.forEach(function (r) { r.classList.remove('selected'); });
+      row.classList.add('selected');
+    });
+
+    return row;
+  }
+
+  function shouldShow(ev) {
+    if (activeKindFilter === 'all') return true;
+    return ev.kind === activeKindFilter;
+  }
+
+  function renderTimeline() {
+    // Full rebuild on filter change; incremental append during streaming.
+    $timeline.innerHTML = '';
+    var shown = 0;
+    for (var i = 0; i < events.length; i++) {
+      if (!shouldShow(events[i])) continue;
+      $timeline.appendChild(renderEventRow(events[i], i));
+      shown++;
+    }
+    if (!shown) {
+      $timeline.innerHTML = '<div class="state-msg">No events match the current filter.</div>';
+    }
+    $eventCount.textContent = events.length + ' event' + (events.length === 1 ? '' : 's');
+
+    if (followTail) scrollTimelineToEnd();
+  }
+
+  function appendTimelineRow(idx) {
+    var ev = events[idx];
+    if (!shouldShow(ev)) return;
+    // If timeline currently shows the empty state, clear it first.
+    var st = $timeline.querySelector('.state-msg');
+    if (st) $timeline.innerHTML = '';
+    $timeline.appendChild(renderEventRow(ev, idx));
+    $eventCount.textContent = events.length + ' event' + (events.length === 1 ? '' : 's');
+    // Update latency on the paired tool_call row if applicable.
+    if (ev.kind === 'tool_result' && ev._latency_ms != null) {
+      for (var i = idx - 1; i >= 0; i--) {
+        if (events[i].kind === 'tool_call' && events[i]._latency_ms === ev._latency_ms) {
+          var rowEl = $timeline.querySelector('.event-row[data-idx="' + i + '"] .event-latency');
+          if (rowEl) rowEl.textContent = H.fmtDuration(events[i]._latency_ms);
+          break;
+        }
+      }
+    }
+    if (followTail) scrollTimelineToEnd();
+  }
+
+  function scrollTimelineToEnd() {
+    var body = document.querySelector('.timeline-body');
+    if (body) body.scrollTop = body.scrollHeight;
+  }
+
+  // ── Detail rendering ──
+  function renderSelected() {
+    if (selectedIndex == null) {
+      $detailEmpty.style.display = '';
+      $detailBody.style.display = 'none';
+      return;
+    }
+    var ev = events[selectedIndex];
+    $detailEmpty.style.display = 'none';
+    $detailBody.style.display = '';
+    $detailBody.innerHTML = '';
+
+    // Meta section
+    var sec = H.el('div', null, 'detail-section');
+    sec.appendChild(H.el('h3', 'Metadata'));
+    var meta = H.el('div', null, 'detail-meta');
+    function addKV(k, v) {
+      if (v == null || v === '') return;
+      meta.appendChild(H.el('span', k, 'k'));
+      meta.appendChild(H.el('span', String(v), 'v'));
+    }
+    addKV('kind', ev.kind);
+    addKV('ts', ev.ts);
+    addKV('offset', ev._offset);
+    if (ev.name) addKV('name', ev.name);
+    if (ev.turn != null) addKV('turn', ev.turn);
+    if (ev.is_error != null) addKV('is_error', String(ev.is_error));
+    if (ev._latency_ms != null) addKV('latency', H.fmtDuration(ev._latency_ms));
+    sec.appendChild(meta);
+    $detailBody.appendChild(sec);
+
+    // Body payload: for tool_call show args; for tool_result show content; for others show all.
+    if (ev.kind === 'tool_call' && ev.args !== undefined) {
+      var s = H.el('div', null, 'detail-section');
+      s.appendChild(H.el('h3', 'Arguments'));
+      var pre = H.el('pre', H.renderJson(ev.args), 'json-block');
+      s.appendChild(pre);
+      $detailBody.appendChild(s);
+    }
+    if (ev.kind === 'tool_result') {
+      var s2 = H.el('div', null, 'detail-section');
+      s2.appendChild(H.el('h3', ev.is_error ? 'Error output' : 'Result'));
+      var payload = ev.content != null ? ev.content
+                   : ev.content_preview != null ? ev.content_preview
+                   : ev;
+      var body = typeof payload === 'string' ? payload : H.renderJson(payload);
+      var pre2 = H.el('pre', body, 'json-block' + (ev.is_error ? ' error' : ''));
+      s2.appendChild(pre2);
+      $detailBody.appendChild(s2);
+    }
+
+    // Always include the raw event at the bottom, collapsed feel.
+    var raw = H.el('div', null, 'detail-section');
+    raw.appendChild(H.el('h3', 'Raw event'));
+    raw.appendChild(H.el('pre', H.renderJson(ev), 'json-block'));
+    $detailBody.appendChild(raw);
+  }
+
+  // ── SSE ──
+  function connectSSE() {
+    if (eventSource) {
+      try { eventSource.close(); } catch (e) {}
+      eventSource = null;
+    }
+    H.setConnStatus($connStatus, false, 'connecting');
+    $connStatus.querySelector('.dot').classList.remove('disconnected', 'connected');
+    $connStatus.querySelector('.dot').classList.add('connecting');
+
+    var es = new EventSource('/api/runs/' + encodeURIComponent(runId) + '/stream?after=0');
+    eventSource = es;
+
+    es.addEventListener('open', function () {
+      H.setConnStatus($connStatus, true, 'streaming');
+      clearError();
+    });
+
+    es.addEventListener('trace', function (e) {
+      var offset = Number(e.lastEventId);
+      if (!isFinite(offset)) offset = events.length;
+      if (eventByOffset[offset] !== undefined) return;  // dedupe on reconnect
+      try {
+        var ev = JSON.parse(e.data);
+        ingestEvent(ev, offset);
+        appendTimelineRow(events.length - 1);
+      } catch (err) {
+        console.warn('malformed trace event', err, e.data);
+      }
+    });
+
+    es.addEventListener('end', function (e) {
+      H.setConnStatus($connStatus, false, 'stream ended');
+      try {
+        var end = JSON.parse(e.data);
+        console.info('stream end', end);
+      } catch (_) {}
+      try { es.close(); } catch (_) {}
+      eventSource = null;
+      // Refresh metadata so status pill flips to done/error.
+      loadMeta();
+    });
+
+    es.addEventListener('error', function () {
+      // Browser will auto-reconnect; just reflect state.
+      H.setConnStatus($connStatus, false, 'reconnecting…');
+    });
+  }
+
+  // ── Filters ──
+  document.getElementById('filters-row').addEventListener('click', function (e) {
+    var chip = e.target.closest('.filter-chip');
+    if (!chip) return;
+    var kind = chip.getAttribute('data-kind');
+    activeKindFilter = kind || 'all';
+    document.querySelectorAll('#filters-row .filter-chip').forEach(function (c) {
+      c.classList.toggle('active', c.getAttribute('data-kind') === activeKindFilter);
+    });
+    renderTimeline();
+  });
+
+  $followToggle.addEventListener('change', function (e) {
+    followTail = e.target.checked;
+    if (followTail) scrollTimelineToEnd();
+  });
+
+  $btnRefresh.addEventListener('click', loadMeta);
+
+  $btnCancel.addEventListener('click', function () {
+    if (!confirm('Cancel this run? The subprocess will receive SIGTERM.')) return;
+    $btnCancel.disabled = true;
+    H.api('/api/runs/' + encodeURIComponent(runId) + '/cancel', { method: 'POST' })
+      .then(function () { loadMeta(); })
+      .catch(function (err) { showError('Cancel failed: ' + err.message); })
+      .then(function () { $btnCancel.disabled = false; });
+  });
+
+  // Pause streaming when tab is hidden to save resources; reconnect on focus.
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      if (eventSource) { try { eventSource.close(); } catch (_) {} eventSource = null; }
+    } else {
+      // Only reconnect if run is still live.
+      loadMeta().then(function () {
+        if (runMeta && runMeta.status === 'running') connectSSE();
+      });
+    }
+  });
+
+  // ── Kickoff ──
+  loadMeta().then(function () {
+    connectSSE();
+  });
+})();
+</script>
+</body>
+</html>

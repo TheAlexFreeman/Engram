@@ -29,6 +29,9 @@ nul
 
 # Semantic search embedding cache
 .engram/
+
+# memory_context_project on-disk cache (runtime artifact, not part of memory)
+.context-cache.json
 # Setuptools build files
 *.egg-info/
 =*

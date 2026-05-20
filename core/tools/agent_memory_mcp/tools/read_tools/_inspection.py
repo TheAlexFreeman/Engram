@@ -28,6 +28,9 @@ def register_inspection(
     """Register inspection read tools and return their callables."""
     _IGNORED_NAMES = H._IGNORED_NAMES
     _READ_FILE_INLINE_THRESHOLD_BYTES = H._READ_FILE_INLINE_THRESHOLD_BYTES
+    _READ_FILE_DEFAULT_LIMIT_BYTES = H._READ_FILE_DEFAULT_LIMIT_BYTES
+    _READ_FILE_MAX_LIMIT_BYTES = H._READ_FILE_MAX_LIMIT_BYTES
+    _cross_filesystem_sandbox_detected = H._cross_filesystem_sandbox_detected
     _build_markdown_sections = H._build_markdown_sections
     _display_rel_path = H._display_rel_path
     _effective_date = H._effective_date
@@ -56,31 +59,76 @@ def register_inspection(
             openWorldHint=False,
         ),
     )
-    async def memory_read_file(path: str) -> str:
+    async def memory_read_file(
+        path: str,
+        offset_bytes: int = 0,
+        limit_bytes: int | None = None,
+        prefer_temp_file: bool = False,
+    ) -> str:
         """Read a file from the memory repository.
 
-        Returns file metadata, parsed frontmatter, and either inline content for
-        files up to 20,000 bytes or a temporary file path for larger payloads.
-        Always includes a version_token (git object hash) for optimistic locking.
+        Returns file metadata, parsed frontmatter, and either the full content
+        inline (for files within the inline threshold) or a paginated byte slice
+        with pagination metadata so agents can request the rest. A temporary-file
+        path is returned only when ``prefer_temp_file=True`` and the deployment
+        is not cross-filesystem; otherwise the response is always inline.
 
         Args:
             path: Repo-relative content path (e.g. 'memory/users/profile.md',
                 'memory/knowledge/_unverified/django/celery-canvas.md').
+            offset_bytes: Byte offset into the file to begin reading. Defaults to
+                0 (start of file).
+            limit_bytes: Maximum number of bytes to return inline starting at
+                ``offset_bytes``. When omitted, defaults to the inline threshold.
+                Hard-capped at an upper bound to protect response size. Slicing
+                happens on bytes; UTF-8 boundary errors at the edges are
+                handled with ``errors="replace"``.
+            prefer_temp_file: When True *and* the deployment is same-filesystem
+                (``AGENT_MEMORY_CROSS_FILESYSTEM`` is not set), the full file is
+                also written to a temp file and its path is returned. Ignored on
+                cross-filesystem deployments.
 
-                Returns:
-                        JSON envelope with keys:
-                            result.path          (str)       Repo-relative path requested
-                            result.size_bytes    (int)       UTF-8 byte size of the file content
-                            result.inline        (bool)      True when content is returned inline;
-                                                                                             false when content is written to temp_file
-                            result.content       (str)       Full file text when inline is true
-                            result.temp_file     (str)       Temporary file containing full text when
-                                                                                             inline is false
-                            result.version_token (str)       Git SHA-1 of the file; pass back to write
-                                                                                             tools to detect concurrent modifications
-                            result.frontmatter   (dict|null) Parsed YAML frontmatter, or null
-                            _session             (dict)      Compact session metadata for the call
+        Returns:
+            JSON envelope with keys:
+                result.path          (str)       Repo-relative path requested
+                result.size_bytes    (int)       Full UTF-8 byte size of the file
+                result.total_bytes   (int)       Alias of size_bytes kept for agents
+                                                 reasoning about pagination
+                result.offset_bytes  (int)       Start of the returned slice
+                result.returned_bytes(int)       Number of bytes in the returned slice
+                result.inline        (bool)      True when content is returned inline
+                                                 (now always True unless prefer_temp_file
+                                                 is honored)
+                result.has_more      (bool)      True when offset+returned < total
+                result.next_call_hint(dict|null) When has_more, suggested next
+                                                 ``{offset_bytes, limit_bytes}`` pagination
+                                                 arguments. Null otherwise.
+                result.content       (str)       File text (full when has_more is False,
+                                                 otherwise the slice)
+                result.temp_file     (str)       Optional; only present when
+                                                 ``prefer_temp_file`` is honored
+                result.version_token (str)       Git SHA-1 of the file; pass back to
+                                                 write tools to detect concurrent
+                                                 modifications
+                result.frontmatter   (dict|null) Parsed YAML frontmatter, or null.
+                                                 Only populated for full-file reads
+                                                 (offset 0, has_more False); paginated
+                                                 reads return null to avoid
+                                                 misrepresenting a partial slice
+                _session             (dict)      Compact session metadata for the call
         """
+        if not isinstance(offset_bytes, int) or isinstance(offset_bytes, bool) or offset_bytes < 0:
+            raise ValidationError("offset_bytes must be a non-negative integer")
+        if limit_bytes is not None:
+            if (
+                not isinstance(limit_bytes, int)
+                or isinstance(limit_bytes, bool)
+                or limit_bytes <= 0
+            ):
+                raise ValidationError("limit_bytes must be a positive integer when provided")
+            if limit_bytes > _READ_FILE_MAX_LIMIT_BYTES:
+                raise ValidationError(f"limit_bytes must not exceed {_READ_FILE_MAX_LIMIT_BYTES}")
+        effective_limit = limit_bytes or _READ_FILE_DEFAULT_LIMIT_BYTES
 
         root = get_root()
         repo = get_repo()
@@ -90,37 +138,70 @@ def register_inspection(
 
         display_path = _display_rel_path(abs_path, root)
 
-        fm_dict, body = read_with_frontmatter(abs_path)
         try:
             abs_path.relative_to(root)
         except ValueError:
             version_token = repo._run(["git", "hash-object", str(abs_path)]).stdout.strip()
         else:
             version_token = repo.hash_object(display_path)
-        content = abs_path.read_text(encoding="utf-8")
-        size_bytes = len(content.encode("utf-8"))
 
-        result = {
+        raw_bytes = abs_path.read_bytes()
+        total_bytes = len(raw_bytes)
+
+        slice_end = min(offset_bytes + effective_limit, total_bytes)
+        if offset_bytes > total_bytes:
+            offset_bytes = total_bytes
+        slice_bytes = raw_bytes[offset_bytes:slice_end]
+        returned_bytes = len(slice_bytes)
+        has_more = slice_end < total_bytes
+        is_full_read = offset_bytes == 0 and not has_more
+
+        # Decode with error tolerance so a slice that lands mid-codepoint does
+        # not raise. Full reads always decode cleanly because the file is UTF-8.
+        content = slice_bytes.decode("utf-8", errors="replace")
+
+        frontmatter: dict[str, Any] | None = None
+        if is_full_read:
+            fm_dict, _body = read_with_frontmatter(abs_path)
+            frontmatter = fm_dict or None
+
+        result: dict[str, Any] = {
             "path": display_path,
-            "size_bytes": size_bytes,
-            "inline": size_bytes <= _READ_FILE_INLINE_THRESHOLD_BYTES,
+            "size_bytes": total_bytes,
+            "total_bytes": total_bytes,
+            "offset_bytes": offset_bytes,
+            "returned_bytes": returned_bytes,
+            "inline": True,
+            "has_more": has_more,
+            "next_call_hint": (
+                {"offset_bytes": slice_end, "limit_bytes": effective_limit} if has_more else None
+            ),
+            "content": content,
             "version_token": version_token,
-            "frontmatter": fm_dict or None,
+            "frontmatter": frontmatter,
         }
-        if result["inline"]:
-            result["content"] = content
-        else:
+
+        # prefer_temp_file is an escape hatch for same-filesystem callers that
+        # want the whole file in one shot even when the inline slice is
+        # paginated. Skip when (a) the file already fits inline (no pagination
+        # happening), (b) the caller didn't ask, or (c) the deployment flags
+        # cross-filesystem — the path wouldn't resolve from the sandbox.
+        if (
+            prefer_temp_file
+            and total_bytes > _READ_FILE_INLINE_THRESHOLD_BYTES
+            and not _cross_filesystem_sandbox_detected()
+        ):
             suffix = abs_path.suffix or ".txt"
             with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
+                mode="wb",
                 suffix=suffix,
                 prefix="agent-memory-read-",
                 delete=False,
             ) as handle:
-                handle.write(content)
+                handle.write(raw_bytes)
                 temp_path = handle.name
             result["temp_file"] = temp_path
+
         if session_state is not None:
             session_state.record_tool_call()
             session_state.record_read(display_path)

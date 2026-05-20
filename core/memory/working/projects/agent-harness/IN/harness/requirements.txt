@@ -1,0 +1,2 @@
+# Editable install pulls anthropic from pyproject.toml
+-e .

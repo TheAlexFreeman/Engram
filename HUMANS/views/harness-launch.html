@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harness — New run</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="engram-shared.css">
+<style>
+.h-header { background: var(--dark-bg); color: var(--dark-text); padding: var(--space-md) var(--space-lg); }
+.h-header h1 { color: #fff; margin: 0; font-size: 1.5rem; }
+.h-header .subtitle { color: var(--dark-text-muted); margin: 4px 0 0; font-size: var(--text-sm); }
+.h-header nav { display: flex; gap: 1rem; }
+.h-header .nav-link { color: var(--dark-text-muted); font-size: var(--text-sm); text-decoration: none; }
+.h-header .nav-link:hover,
+.h-header .nav-link.current { color: #fff; }
+
+.h-body { max-width: 720px; margin: 0 auto; padding: var(--space-lg); }
+
+.form-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  padding: var(--space-lg);
+}
+
+.field { margin-bottom: 1rem; }
+.field label {
+  display: block; font-size: var(--text-sm); font-weight: 500;
+  color: var(--color-text); margin-bottom: 0.3rem;
+}
+.field .hint {
+  display: block; font-size: var(--text-xs); color: var(--color-text-secondary);
+  margin-top: 0.25rem;
+}
+.field input[type="text"],
+.field input[type="number"],
+.field textarea,
+.field select {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--text-base);
+  transition: border-color 0.15s;
+}
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+  outline: none; border-color: var(--color-primary);
+}
+.field textarea { min-height: 110px; resize: vertical; font-family: var(--font-sans); line-height: 1.5; }
+
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 540px) { .row2 { grid-template-columns: 1fr; } }
+
+.radio-group {
+  display: flex; gap: 0.5rem; flex-wrap: wrap;
+}
+.radio-group label {
+  padding: 0.4rem 0.85rem; border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border); background: var(--color-bg);
+  font-size: var(--text-sm); cursor: pointer; user-select: none;
+  color: var(--color-text-secondary);
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.radio-group label.checked {
+  background: var(--color-btn-primary); color: #fff; border-color: transparent;
+}
+.radio-group input[type="radio"] { display: none; }
+
+.actions {
+  display: flex; align-items: center; gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+.btn-primary {
+  padding: 0.55rem 1.35rem; border: none; border-radius: var(--radius-button);
+  background: var(--color-btn-primary); color: #fff;
+  font-size: var(--text-base); font-weight: 500; cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-primary:hover { background: var(--color-btn-primary-hover); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary {
+  padding: 0.55rem 1.2rem; border: 1px solid var(--color-border);
+  border-radius: var(--radius-button); background: var(--color-surface);
+  color: var(--color-text); font-size: var(--text-base); cursor: pointer;
+  text-decoration: none; display: inline-block;
+}
+.btn-secondary:hover { background: var(--color-hover-bg); border-color: var(--color-hover-border); }
+
+.error-banner {
+  display: none; padding: 0.6rem 0.85rem; margin-bottom: 1rem;
+  background: rgba(211,95,74,0.12); color: var(--color-danger);
+  border: 1px solid rgba(211,95,74,0.4); border-radius: var(--radius-small);
+  font-size: var(--text-sm);
+}
+.error-banner.visible { display: block; }
+</style>
+</head>
+<body>
+
+<header class="h-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem">
+    <div>
+      <h1>Harness — New run</h1>
+      <p class="subtitle">Launch an agent session. The server will spawn <code>python -m harness</code> and stream its trace.</p>
+    </div>
+    <nav>
+      <a class="nav-link" href="harness-runs.html">Runs</a>
+      <a class="nav-link current" href="harness-launch.html">New run</a>
+      <a class="nav-link" href="dashboard.html">Engram dashboard</a>
+    </nav>
+  </div>
+</header>
+
+<main class="h-body">
+
+  <div class="error-banner" id="error-banner"></div>
+
+  <form class="form-card" id="launch-form" autocomplete="off">
+    <div class="field">
+      <label for="task">Task</label>
+      <textarea id="task" name="task" required placeholder="e.g. Create hello.py that prints the current date."></textarea>
+      <span class="hint">What you want the agent to do. This becomes the session_start task.</span>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label for="model">Model</label>
+        <input type="text" id="model" name="model" list="model-list" value="claude-sonnet-4-5">
+        <datalist id="model-list">
+          <option value="claude-sonnet-4-5">
+          <option value="claude-opus-4-6">
+          <option value="claude-haiku-4-5-20251001">
+          <option value="grok-4.20-0309-reasoning">
+        </datalist>
+        <span class="hint">Claude models use native tool-use; grok/xai → OpenAI-compatible function calls.</span>
+      </div>
+      <div class="field">
+        <label>Mode</label>
+        <div class="radio-group" id="mode-group">
+          <label data-value="native" class="checked"><input type="radio" name="mode" value="native" checked>native</label>
+          <label data-value="text"><input type="radio" name="mode" value="text">text</label>
+          <label data-value="grok"><input type="radio" name="mode" value="grok">grok</label>
+        </div>
+        <span class="hint">Grok is auto-detected from the model name too.</span>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label for="workspace">Workspace</label>
+        <input type="text" id="workspace" name="workspace" value="." required>
+        <span class="hint">Directory the agent may read/write (resolved relative to the harness root).</span>
+      </div>
+      <div class="field">
+        <label for="max_turns">Max turns</label>
+        <input type="number" id="max_turns" name="max_turns" value="100" min="1" max="1000" required>
+        <span class="hint">Hard cap on model turns. Default 100.</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn-primary" id="btn-submit">Launch run</button>
+      <a class="btn-secondary" href="harness-runs.html">Cancel</a>
+      <span id="submit-status" style="font-size:var(--text-sm);color:var(--color-text-secondary)"></span>
+    </div>
+  </form>
+
+</main>
+
+<script src="engram-utils.js"></script>
+<script src="harness-utils.js"></script>
+<script>
+(function () {
+  'use strict';
+  var H = window.Harness;
+  var $form = document.getElementById('launch-form');
+  var $submit = document.getElementById('btn-submit');
+  var $status = document.getElementById('submit-status');
+  var $banner = document.getElementById('error-banner');
+
+  // Segmented radio styling — toggle .checked on the <label>s.
+  document.getElementById('mode-group').addEventListener('change', function () {
+    var inputs = document.querySelectorAll('#mode-group input[type="radio"]');
+    inputs.forEach(function (i) {
+      var lbl = i.closest('label');
+      if (!lbl) return;
+      lbl.classList.toggle('checked', i.checked);
+    });
+  });
+
+  function showError(msg) { $banner.textContent = msg; $banner.classList.add('visible'); }
+  function clearError() { $banner.classList.remove('visible'); }
+
+  $form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    clearError();
+    var fd = new FormData($form);
+    var body = {
+      task: fd.get('task') || '',
+      model: fd.get('model') || 'claude-sonnet-4-5',
+      mode: fd.get('mode') || 'native',
+      workspace: fd.get('workspace') || '.',
+      max_turns: Number(fd.get('max_turns')) || 100
+    };
+    if (!body.task.trim()) { showError('Task is required.'); return; }
+
+    $submit.disabled = true;
+    $status.textContent = 'Launching…';
+    H.api('/api/runs', { method: 'POST', body: body }).then(function (res) {
+      $status.textContent = 'Launched. Redirecting…';
+      window.location.href = 'harness-run.html?id=' + encodeURIComponent(res.run_id);
+    }).catch(function (err) {
+      $status.textContent = '';
+      $submit.disabled = false;
+      showError('Launch failed: ' + (err.message || err));
+    });
+  });
+})();
+</script>
+</body>
+</html>

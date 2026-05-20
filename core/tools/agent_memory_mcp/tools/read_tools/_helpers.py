@@ -55,7 +55,25 @@ _CURATION_NEAR_MISS_MIN = 0.2
 _CURATION_NEAR_MISS_MAX = 0.4
 _CURATION_FALSE_POSITIVE_MAX = 0.1
 _CURATION_RETIREMENT_MAX = 0.3
-_READ_FILE_INLINE_THRESHOLD_BYTES = 20_000
+_READ_FILE_INLINE_THRESHOLD_BYTES = 64_000
+_READ_FILE_DEFAULT_LIMIT_BYTES = 64_000
+_READ_FILE_MAX_LIMIT_BYTES = 256_000
+
+
+def _cross_filesystem_sandbox_detected() -> bool:
+    """Return True when the deployment indicates the MCP server and agent sandbox
+    sit on different filesystems.
+
+    Detection is explicit-only: reads ``AGENT_MEMORY_CROSS_FILESYSTEM`` from the
+    environment. Anything that parses as a truthy flag (``1``, ``true``, ``yes``,
+    ``on``) suppresses ``temp_file`` returns even when a caller asks for them,
+    because a temp path minted server-side is not resolvable from the sandbox.
+    """
+    import os as _os
+
+    raw = _os.environ.get("AGENT_MEMORY_CROSS_FILESYSTEM", "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
 
 try:
     tomllib = cast(Any, import_module("tomllib"))
@@ -799,6 +817,75 @@ def _build_policy_state_payload(
     }
 
 
+def _list_known_project_ids(root: Path) -> list[str]:
+    """Enumerate project folders under ``memory/working/projects/``.
+
+    Used for cold-start intent routing to match a project name referenced in a
+    natural-language intent. Kept as a thin, duplicate-free helper rather than
+    importing ``_context._list_project_ids`` to avoid a cyclic dependency.
+    """
+    projects_root = root / "memory" / "working" / "projects"
+    if not projects_root.is_dir():
+        return []
+    return sorted(
+        entry.name
+        for entry in projects_root.iterdir()
+        if entry.is_dir() and entry.name != "OUT" and not entry.name.startswith("_")
+    )
+
+
+_COLD_START_PROJECT_PHRASES = (
+    "brief me on",
+    "briefing on",
+    "briefing for",
+    "summary of",
+    "summarise",
+    "summarize",
+    "get me up to speed on",
+    "onboard me to",
+    "onboard me on",
+    "cold start on",
+    "cold-start on",
+    "cold starting on",
+    "cold-starting on",
+    "start work on",
+    "starting work on",
+    "pick up work on",
+    "picking up",
+    "ramp up on",
+)
+_COLD_START_LIST_PHRASES = (
+    "what projects are active",
+    "list projects",
+    "list all projects",
+    "what projects",
+    "what am i working on",
+    "which projects",
+    "show me projects",
+    "show projects",
+)
+_COLD_START_RESUME_PHRASES = (
+    "resume work",
+    "resume where i left off",
+    "continue where i left off",
+    "continue my work",
+    "pick up where i left off",
+)
+
+
+def _match_cold_start_project(intent_lower: str, root: Path) -> str | None:
+    """Return the project ID referenced by a cold-start intent, if any."""
+    known = _list_known_project_ids(root)
+    if not known:
+        return None
+    # Prefer longer names first so "rate-my-set" wins over a hypothetical "rate".
+    for project_id in sorted(known, key=len, reverse=True):
+        candidate = project_id.lower()
+        if candidate and candidate in intent_lower:
+            return project_id
+    return None
+
+
 def _route_intent_candidates(intent: str, rel_path: str | None, root: Path) -> list[dict[str, Any]]:
     intent_lower = intent.lower()
     normalized_path = _normalize_repo_relative_path(rel_path) if rel_path else None
@@ -809,8 +896,17 @@ def _route_intent_candidates(intent: str, rel_path: str | None, root: Path) -> l
 
     candidates: list[dict[str, Any]] = []
 
-    def add(operation: str, score: float, reason: str) -> None:
-        candidates.append({"operation": operation, "score": score, "reason": reason})
+    def add(
+        operation: str,
+        score: float,
+        reason: str,
+        *,
+        arguments: dict[str, Any] | None = None,
+    ) -> None:
+        entry: dict[str, Any] = {"operation": operation, "score": score, "reason": reason}
+        if arguments:
+            entry["arguments"] = arguments
+        candidates.append(entry)
 
     if "create" in intent_lower and "plan" in intent_lower:
         add("create_plan", 0.98, "Intent explicitly requests creating a plan.")
@@ -910,6 +1006,71 @@ def _route_intent_candidates(intent: str, rel_path: str | None, root: Path) -> l
         word in intent_lower for word in ("record", "wrap up", "summarize")
     ):
         add("record_session", 0.9, "Intent sounds like session wrap-up or persistence.")
+
+    # --- Cold-start intents ------------------------------------------------
+    # An agent asked to pick up work on a project needs three primitives: the
+    # per-project context bundle (context_project), the projects navigator
+    # (projects SUMMARY.md), and the session entry point (session_bootstrap).
+    # The routing table below maps natural-language cold-start phrasings onto
+    # whichever primitive best serves the question. See cold-start roadmap
+    # (P0-C) for rationale.
+    cold_start_project = _match_cold_start_project(intent_lower, root)
+    briefing_phrase_hit = any(phrase in intent_lower for phrase in _COLD_START_PROJECT_PHRASES)
+    list_phrase_hit = any(phrase in intent_lower for phrase in _COLD_START_LIST_PHRASES)
+    resume_phrase_hit = any(phrase in intent_lower for phrase in _COLD_START_RESUME_PHRASES)
+
+    if cold_start_project and briefing_phrase_hit:
+        add(
+            "memory_context_project",
+            0.95,
+            (
+                f"Cold-start briefing request for '{cold_start_project}' — load the "
+                "enriched project bundle."
+            ),
+            arguments={"project": cold_start_project},
+        )
+    elif briefing_phrase_hit and not cold_start_project:
+        # Phrase looks cold-start but no project was named — fall through to
+        # bootstrap so the agent gets a list of active work.
+        add(
+            "memory_session_bootstrap",
+            0.85,
+            (
+                "Cold-start phrasing without a recognized project — session_bootstrap "
+                "returns active plans with resume_context pointers."
+            ),
+        )
+    elif cold_start_project:
+        # Project name surfaced on its own (e.g., "rate-my-set") — still the
+        # right target for the project bundle but with a slightly lower score
+        # because the intent is less specific.
+        add(
+            "memory_context_project",
+            0.88,
+            f"Intent references project '{cold_start_project}' — load the project bundle.",
+            arguments={"project": cold_start_project},
+        )
+
+    if list_phrase_hit:
+        add(
+            "memory_read_file",
+            0.92,
+            (
+                "Listing active projects — read the navigator at "
+                "memory/working/projects/SUMMARY.md for status, focus, and last activity."
+            ),
+            arguments={"path": "memory/working/projects/SUMMARY.md"},
+        )
+
+    if resume_phrase_hit:
+        add(
+            "memory_session_bootstrap",
+            0.9,
+            (
+                "Resume-work intent — session_bootstrap surfaces active plans with "
+                "resume_context pointers ready to dereference."
+            ),
+        )
 
     deduped: dict[str, dict[str, Any]] = {}
     for candidate in candidates:

@@ -82,6 +82,15 @@ def register_project(
         help="Open question to seed in questions.md (repeatable).",
     )
     create_parser.add_argument(
+        "--canonical-source",
+        dest="canonical_source",
+        default=None,
+        help=(
+            "Optional upstream pointer (repo URL, commit ref, path) for projects "
+            "that snapshot external code. Rendered as the Canonical source subsection."
+        ),
+    )
+    create_parser.add_argument(
         "--preview",
         action="store_true",
         help="Validate and render the governed preview without writing.",
@@ -188,6 +197,7 @@ def _parse_create_input(
         data = yaml.safe_load(text)
         if not isinstance(data, dict):
             raise ValueError("YAML input must be a mapping")
+        canonical_source_raw = data.get("canonical_source")
         return {
             "project_id": str(data.get("project_id", "")),
             "description": str(data.get("description", "")),
@@ -196,6 +206,9 @@ def _parse_create_input(
             "status": str(data.get("status", "active")),
             "questions": data.get("questions"),
             "first_plan": data.get("first_plan"),
+            "canonical_source": (
+                str(canonical_source_raw) if canonical_source_raw is not None else None
+            ),
             "preview": bool(data.get("preview", getattr(args, "preview", False))),
         }
 
@@ -222,6 +235,7 @@ def _parse_create_input(
         "status": getattr(args, "status", "active"),
         "questions": getattr(args, "questions", None),
         "first_plan": None,
+        "canonical_source": getattr(args, "canonical_source", None),
         "preview": bool(getattr(args, "preview", False)),
     }
 
@@ -240,6 +254,7 @@ def run_project_create(args: argparse.Namespace, *, repo_root: Path, content_roo
             status=request["status"],
             questions=request["questions"],
             first_plan=request["first_plan"],
+            canonical_source=request.get("canonical_source"),
             preview=request["preview"],
         )
     except (NotFoundError, ValidationError, ValueError) as exc:

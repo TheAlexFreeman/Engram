@@ -31,6 +31,17 @@ def _copy_repo_tree(tmp_path: Path) -> Path:
         ),
     )
     subprocess.run(["git", "init"], cwd=clone_root, check=True, capture_output=True, text=True)
+    # On Windows the pytest tmp prefix + the deeply nested IN/ fixture tree can
+    # exceed the default MSYS / Win32 MAX_PATH (260 chars), which makes
+    # `git add -A` fail with "fatal: adding files failed". Enable long-path
+    # support on the cloned repo so subsequent add/commit calls work everywhere.
+    subprocess.run(
+        ["git", "config", "core.longpaths", "true"],
+        cwd=clone_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
         cwd=clone_root,
